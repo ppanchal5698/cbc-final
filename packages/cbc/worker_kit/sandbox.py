@@ -97,7 +97,9 @@ def prepare(job_id: str, slug: str) -> Path:
         if storage.project_dir(slug).is_dir():
             shutil.copytree(storage.project_dir(slug), dest_project, dirs_exist_ok=True)
 
-    for name in (".claude", "CLAUDE.md", "agent-runtime"):
+    # `.claude` is the only agent runtime. It used to be copied twice, under
+    # two names, from two trees kept identical by nothing.
+    for name in (".claude", "CLAUDE.md"):
         origin = REPO_ROOT / name
         target = workspace / name
         if not origin.exists() or target.exists():

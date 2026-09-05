@@ -93,7 +93,11 @@ RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
 COPY --chown=cbc:cbc mcp-servers /app/mcp-servers
 COPY --chown=cbc:cbc .mcp.json /app/.mcp.json
 COPY --chown=cbc:cbc .claude /app/.claude
-COPY --chown=cbc:cbc agent-runtime /app/agent-runtime
+# The agent runtime IS .claude. It shipped as a second, byte-identical tree whose
+# settings.json pointed its hooks back at .claude/hooks anyway - so its own hook
+# files never ran - and which compose did not mount, letting the two diverge
+# inside a running container. One source, copied to the path the runtime expects.
+RUN cp -a /app/.claude /app/agent-runtime && chown -R cbc:cbc /app/agent-runtime
 # .claude/memory/process_flow.md is a pointer at docs/cbc_process_flow.md, and
 # runmetrics hashes that file into every run's context fingerprint. Without it
 # the agents follow a dangling reference and the hash is null.

@@ -20,7 +20,10 @@ def test_atomic_write_json_round_trip(tmp_path) -> None:
 
 def test_post_extraction_blocks_invalid_scope_summary(tmp_path, monkeypatch) -> None:
     root = Path(__file__).resolve().parents[2]
-    hooks = root / "agent-runtime" / "hooks"
+    # `.claude/hooks`, not `agent-runtime/hooks`: settings.json registers the
+    # former, so the latter was a copy that never ran and this test was the only
+    # thing exercising it.
+    hooks = root / ".claude" / "hooks"
     sys.path.insert(0, str(hooks))
     import post_extraction_validate as pev
 
