@@ -1,0 +1,26 @@
+{
+  "description": "Adders NOT shown cleanly in the base price book. They must be added on top of the base price (NR-4).",
+  "rule": "The pricebook MCP server never includes these in a lookup. Adding one is a deliberate, recorded act.",
+  "adder_types": [
+    { "type": "electrification", "note": "Electrified products carry a separate Hager multiplier tier (0.410, 50/18%, excludes HS4). Not in the base lock price." },
+    { "type": "non-removable-pin hinges (NRP)", "note": "Added on top of the base hinge price. Value PENDING from CBC (NR-7)." },
+    { "type": "premium / lead-time finishes", "note": "Added on top of the base price; some finishes also carry lead times." }
+  ],
+  "hager_list_adders": {
+    "source": "pricebooks/hager_price_book_18.pdf, Locks 3500 Series description block, source_page 297",
+    "status": "Harvested from the price book text - verify against the current book before quoting.",
+    "items": [
+      { "name": "SFIC construction core included with lockset", "list_adder": 69.95 },
+      { "name": "Lead lined", "list_adder": 214.25 },
+      { "name": "Extended lip ASA strike", "list_adder": 15.5 },
+      { "name": "Tactile warning", "list_adder": 64.58 },
+      { "name": "3/4 inch latchbolt", "list_adder": 161.22 },
+      { "name": "Anti-microbial (26D finish only)", "list_adder": 57.13 }
+    ],
+    "application": "These are LIST adders. Multiply by the same category multiplier as the base item to get cost."
+  },
+  "pending": [
+    "NR-7 - Hager adder values for electrification, NRP and premium finish, per series rather than per lock family.",
+    "NR-8 - Light-kit (lites/louvers) table logic: glazing types plus size multipliers from the NGP, PEMKO/Markar and Rockwood sheets."
+  ]
+}

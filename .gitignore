@@ -1,0 +1,83 @@
+# Bid workspaces are local to the machine that ran them.
+projects/*
+!projects/.gitkeep
+data/projects/*
+!data/projects/.gitkeep
+data/pricebooks/*
+!data/pricebooks/.gitkeep
+
+# Secrets / local overrides (P21 credentials)
+.claude/settings.local.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# App
+.env
+apps/web/.env.local
+web/.env.local
+apps/web/.next/
+web/.next/
+web/node_modules/
+apps/web/node_modules/
+storage/
+
+# Rendered PDF page cache
+.cache/
+
+# The catalog search index: derived from pricebooks/, rebuilt with
+# `python -m catalog_index.rebuild`. Never the source of truth.
+.index/
+
+# Test scratch workspaces
+tests/fixtures/scratch/
+tests/fixtures/projects/.runs/
+
+# Bootstrap artifacts and local PDF copies (canonical copies under docs/bootstrap/ and tests/fixtures/pdfs/)
+BUILD_PROMPT.md
+CBC_Req_Validation_v1_3.xlsx
+cbc_copilot_project_structure.md
+building-plans/
+
+# The audit hook writes projects/{project}/audit_trail.jsonl. Running with no
+# project in scope makes it fall back to the repo root, leaving a stray here.
+/audit_trail.jsonl
+
+# The same hook mirrors every tool call to claude.log for post-mortems
+# (log_audit_trail.py, SESSION_LOG). A session transcript, not source.
+/claude.log
+
+# Knowledge graph output and local agent tooling
+graphify-out/
+.agents/
+.claude/settings.json.graphify-bak
+
+# `projects/` and `pricebooks/` are junctions into data/ (see README "Layout").
+# The targets are already ignored above; ignore the links so git does not follow
+# them into 300+ MB of bid workspaces.
+/projects
+/pricebooks
+
+# Test bid sets: 64 MB of real architectural PDFs. The suite skips cleanly when
+# they are absent (tests/conftest.py::fixture_pdf), so they stay out of history
+# and are distributed alongside the repo instead.
+tests/fixtures/pdfs/
+
+# The MongoDB replica-set keyfile is a shared secret, not source. It is 1 KB of
+# base64 that any machine can regenerate; committing it would put a live
+# credential in history permanently. Generate one with:
+#   openssl rand -base64 756 > infra/docker/mongo-keyfile && chmod 400 infra/docker/mongo-keyfile
+infra/docker/mongo-keyfile

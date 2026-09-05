@@ -1,0 +1,32 @@
+[project]
+name = "cbc-mcp-servers"
+version = "0.1.0"
+description = "MCP servers for the CBC Estimating Copilot (PDF, pricebook, calc, storage, P21)"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=2.0.0",
+    "pdfplumber>=0.11",
+    "PyMuPDF>=1.24",
+    "jinja2>=3.1",
+    "openpyxl>=3.1",
+    "pandas>=2.0",
+    "Pillow>=10.0",
+]
+
+# This distribution ships dependencies, not importable modules. The servers are
+# launched by path (.claude/settings.json) and reached in-process through
+# `_runtime.load_server`, which puts this directory on sys.path itself - so there
+# is nothing here for setuptools to package. Saying so explicitly stops its
+# flat-layout autodiscovery from finding `catalog/`, `pricebook/` and the rest
+# and refusing to build.
+[tool.setuptools]
+py-modules = []
+
+[project.optional-dependencies]
+# OCR fallback for scanned bid sets. pytesseract also needs the tesseract binary
+# installed on the host - the pdf-tools server degrades with a clear message without it.
+ocr = ["pytesseract>=0.3.10"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

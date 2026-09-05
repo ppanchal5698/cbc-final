@@ -1,0 +1,3 @@
+# Convenience shim — prefer the file under infra/.
+include:
+  - path: infra/docker-compose.yml

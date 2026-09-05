@@ -1,0 +1,61 @@
+{
+  "description": "The CUSTOM / OTHER option matrix. Everything past the top-10 stock list lives here.",
+  "design_principle": "NR-13 - automate stock, then stop. Do NOT enumerate or price every permutation of these options. This matrix exists so the estimator can describe a custom line precisely, not so the copilot can price one.",
+  "cost_path": "MANUAL",
+  "functions": [
+    "passage",
+    "privacy",
+    "office",
+    "storeroom",
+    "classroom",
+    "entrance",
+    "exit",
+    "communicating",
+    "dummy",
+    "back-to-back dummy",
+    "institutional",
+    "hotel",
+    "apartment"
+  ],
+  "backsets": ["2-3/8\"", "2-3/4\" (standard)", "3-3/4\"", "5\""],
+  "finishes": ["US3", "US4", "US10B", "US15", "US19", "US26", "US26D", "US32D", "BLK", "split finish"],
+  "levers": ["Apollo", "Withnell", "Wesley", "Sargent-style", "knob"],
+  "keyways": [
+    "Schlage C (Hager standard)",
+    "Small format interchangeable core (SFIC)",
+    "Large format interchangeable core (LFIC)",
+    "keyed alike",
+    "keyed different",
+    "master keyed",
+    "construction keying",
+    "keyless / indicator"
+  ],
+  "strikes": ["ASA standard", "extended lip ASA", "T-strike", "electric strike"],
+  "electrified": [
+    "electrified lock",
+    "electric latch retraction",
+    "electric strike",
+    "concealed-circuit hinge (ECBB)",
+    "power transfer",
+    "auto operator",
+    "delayed egress",
+    "request-to-exit switch"
+  ],
+  "preps": [
+    "lead lined",
+    "tactile warning",
+    "3/4 inch latchbolt",
+    "anti-microbial (26D only)",
+    "louver cutout",
+    "lite kit cutout",
+    "custom size (e.g. 9 ft door)"
+  ],
+  "keying_note": "Keying is handled inside the lock options - interchangeable core (small or large format), storeroom lock with IC, keyway - and is architect-specified. There is no separate keying-schedule workflow in CBC bid sets (Matrix 7.6, partial).",
+  "hard_manual_triggers": [
+    "custom sizes such as 9 ft doors",
+    "unusual preps",
+    "options not sold in years (e.g. electric latch retraction in a given model/size/finish)",
+    "distributor-bought lines",
+    "any item with no catalog price"
+  ]
+}

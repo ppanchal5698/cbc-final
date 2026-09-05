@@ -1,0 +1,25 @@
+{
+  "description": "Accounts that carry a non-standard margin. PARTIAL - CBC still owes the full list (NR-9).",
+  "status": "PENDING - only the examples raised in the 14 Jul session are recorded here",
+  "customers": [
+    {
+      "name": "Wendys",
+      "margin": null,
+      "note": "Special margin applies when product is bought via Banner Solutions or SecLock at a higher cost. Exact value still to be provided by CBC.",
+      "source": "Requirements Matrix 6.1 / Open Item 2"
+    },
+    {
+      "name": "McDonalds",
+      "margin": null,
+      "note": "Templated-mode brand. Frame depth 5-5/8 in is common here. No special margin recorded.",
+      "source": "Requirements Matrix 3.0"
+    },
+    {
+      "name": "Cava",
+      "margin": null,
+      "note": "Templated-mode brand. No special margin recorded.",
+      "source": "Requirements Matrix 3.0"
+    }
+  ],
+  "rule": "If a customer is not listed here, apply the standard product-type band. Never invent a customer margin."
+}

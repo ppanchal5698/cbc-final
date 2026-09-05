@@ -1,0 +1,289 @@
+{
+  "vendor": "hager",
+  "account": "HGR 17907",
+  "effective_date": "2026-03-02",
+  "source": "pricebooks/hager_multipliers.pdf",
+  "description": "Special net prices from the Hager multiplier sheet. These override list \u00d7 category when lookup_pricing finds an exact part match.",
+  "items": [
+    {
+      "item_code": "066380",
+      "part_number": "1256",
+      "description": "4-1/2\" x 4-1/2\" US26D",
+      "net_price": 31.8,
+      "section": "Commercial hinges",
+      "source_page": 2
+    },
+    {
+      "item_code": "059785",
+      "part_number": "190S",
+      "description": "20\" x 46\" US32D",
+      "net_price": 59.75,
+      "section": "Trim and Auxiliary",
+      "source_page": 3
+    },
+    {
+      "item_code": "053678",
+      "part_number": "232W",
+      "description": "US32D",
+      "net_price": 1.34,
+      "section": "Trim and Auxiliary",
+      "source_page": 3
+    },
+    {
+      "item_code": "053239",
+      "part_number": "236W",
+      "description": "US32D",
+      "net_price": 1.34,
+      "section": "Trim and Auxiliary",
+      "source_page": 4
+    },
+    {
+      "item_code": "052148",
+      "part_number": "241F",
+      "description": "US26D",
+      "net_price": 2.65,
+      "section": "Trim and Auxiliary",
+      "source_page": 4
+    },
+    {
+      "item_code": "085487",
+      "part_number": "30S",
+      "description": "4\" x 16\" US32D CFC15",
+      "net_price": 12.31,
+      "section": "Trim and Auxiliary",
+      "source_page": 3
+    },
+    {
+      "item_code": "143041",
+      "part_number": "3216",
+      "description": "ADJ US26D THUMBTURN W/IND",
+      "net_price": 19.88,
+      "section": "Exit Devices",
+      "source_page": 3
+    },
+    {
+      "item_code": "030735",
+      "part_number": "33E",
+      "description": "4\" x 16\" US32D CFC15",
+      "net_price": 26.62,
+      "section": "Trim and Auxiliary",
+      "source_page": 3
+    },
+    {
+      "item_code": "012525",
+      "part_number": "3410",
+      "description": "2-3/4\" US26D WTN ASA",
+      "net_price": 77.04,
+      "section": "Exit Devices",
+      "source_page": 2
+    },
+    {
+      "item_code": "012499",
+      "part_number": "3440",
+      "description": "2-3/4\" US26D WTN ASA",
+      "net_price": 90.92,
+      "section": "Exit Devices",
+      "source_page": 2
+    },
+    {
+      "item_code": "098323",
+      "part_number": "3450",
+      "description": "2-3/4\" 26D WTN NC ASA IC",
+      "net_price": 104.79,
+      "section": "Exit Devices",
+      "source_page": 2
+    },
+    {
+      "item_code": "098322",
+      "part_number": "3453",
+      "description": "2-3/4\" 26D WTN NC ASA IC",
+      "net_price": 104.79,
+      "section": "Exit Devices",
+      "source_page": 2
+    },
+    {
+      "item_code": "144668",
+      "part_number": "3470",
+      "description": "2-3/4\" US26D WTN NC ASA IC REV1",
+      "net_price": 104.79,
+      "section": "Exit Devices",
+      "source_page": 3
+    },
+    {
+      "item_code": "098651",
+      "part_number": "3480",
+      "description": "2-3/4\" US26D WTN NC ASA IC",
+      "net_price": 104.79,
+      "section": "Exit Devices",
+      "source_page": 3
+    },
+    {
+      "item_code": "000256",
+      "part_number": "3510",
+      "description": "2-3/4\" US26D WTN ASA",
+      "net_price": 53.68,
+      "section": "Exit Devices",
+      "source_page": 3
+    },
+    {
+      "item_code": "000247",
+      "part_number": "3540",
+      "description": "2-3/4\" US26D WTN ASA",
+      "net_price": 51.39,
+      "section": "Exit Devices",
+      "source_page": 3
+    },
+    {
+      "item_code": "098655",
+      "part_number": "3553",
+      "description": "2-3/4\" US26D WTN NC ASA IC",
+      "net_price": 56.49,
+      "section": "Exit Devices",
+      "source_page": 3
+    },
+    {
+      "item_code": "098652",
+      "part_number": "3580",
+      "description": "2-3/4\" US26D WTN NC ASA IC",
+      "net_price": 56.42,
+      "section": "Exit Devices",
+      "source_page": 3
+    },
+    {
+      "item_code": "051021",
+      "part_number": "412S",
+      "description": "36\" MIL",
+      "net_price": 17.8,
+      "section": "Thresholds and Weatherstripping",
+      "source_page": 4
+    },
+    {
+      "item_code": "051456",
+      "part_number": "431S",
+      "description": "48\" MIL",
+      "net_price": 43.33,
+      "section": "Thresholds and Weatherstripping",
+      "source_page": 4
+    },
+    {
+      "item_code": "156135",
+      "part_number": "4501",
+      "description": "RIM 48\" US26D EXIT ONLY REV2",
+      "net_price": 267.6,
+      "section": "Exit Devices",
+      "source_page": 2
+    },
+    {
+      "item_code": "099031",
+      "part_number": "4701",
+      "description": "RIM 36\" US32D EO REV 2",
+      "net_price": 139.5,
+      "section": "Exit Devices",
+      "source_page": 2
+    },
+    {
+      "item_code": "130961",
+      "part_number": "5100",
+      "description": "PAR ADJ 1-6 ALM HDS",
+      "net_price": 111.4,
+      "section": "Door Controls",
+      "source_page": 2
+    },
+    {
+      "item_code": "145552",
+      "part_number": "5200",
+      "description": "PAR 1-6 ADJ ALM BF HDHOS",
+      "net_price": 131.1,
+      "section": "Door Controls",
+      "source_page": 2
+    },
+    {
+      "item_code": "052583",
+      "part_number": "726S",
+      "description": "216\" CHARCOAL",
+      "net_price": 12.64,
+      "section": "Thresholds and Weatherstripping",
+      "source_page": 4
+    },
+    {
+      "item_code": "057658",
+      "part_number": "750S",
+      "description": "48\" CLR NEOPRENE",
+      "net_price": 12.79,
+      "section": "Thresholds and Weatherstripping",
+      "source_page": 4
+    },
+    {
+      "item_code": "048061",
+      "part_number": "780-210",
+      "description": "HD FFUL 83\" CLR 1PK",
+      "net_price": 125.66,
+      "section": "Roton",
+      "source_page": 3
+    },
+    {
+      "item_code": "055943",
+      "part_number": "801S",
+      "description": "42\" MIL BRUSH",
+      "net_price": 15.21,
+      "section": "Thresholds and Weatherstripping",
+      "source_page": 4
+    },
+    {
+      "item_code": "016574",
+      "part_number": "810S",
+      "description": "46\" MIL",
+      "net_price": 10.25,
+      "section": "Thresholds and Weatherstripping",
+      "source_page": 4
+    },
+    {
+      "item_code": "056463",
+      "part_number": "891S",
+      "description": "42\" x 84\" MIL VINYL",
+      "net_price": 20.41,
+      "section": "Thresholds and Weatherstripping",
+      "source_page": 4
+    },
+    {
+      "item_code": "010108",
+      "part_number": "BB1279",
+      "description": "4-1/2\" x 4-1/2\" US26D",
+      "net_price": 4.42,
+      "section": "Commercial hinges",
+      "source_page": 2
+    },
+    {
+      "item_code": "073220",
+      "part_number": "CA09",
+      "description": "US32D MCDS PULL (2 REQ) USE W/LSA005 REV1",
+      "net_price": 28.95,
+      "section": "Exit Devices",
+      "source_page": 3
+    },
+    {
+      "item_code": "075048",
+      "part_number": "ECBB1100",
+      "description": "4-1/2\" x 4-1/2\" US26D",
+      "net_price": 3.23,
+      "section": "Commercial hinges",
+      "source_page": 2
+    },
+    {
+      "item_code": "048284",
+      "part_number": "LSA005",
+      "description": "R1 3215 FOR MCD'S US32D SCC UNC 2\"-2-1/4\"D",
+      "net_price": 29.21,
+      "section": "Exit Devices",
+      "source_page": 3
+    },
+    {
+      "item_code": "127157",
+      "part_number": "PROTECTOR",
+      "description": "BAR 6\"CTC US32D #2 MTG",
+      "net_price": 80.3,
+      "section": "Trim and Auxiliary",
+      "source_page": 4
+    }
+  ]
+}

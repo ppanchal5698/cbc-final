@@ -1,0 +1,24 @@
+# Shell scripts run inside Linux containers, so their line endings are not a
+# matter of local preference.
+#
+# With core.autocrlf=true - the Windows default, and this project expects Windows
+# developers - a checkout rewrote every .sh to CRLF. `COPY . /app` then baked
+# that into the image, and `#!/usr/bin/env bash` became `bash\r`:
+#
+#     /usr/bin/env: 'bash\r': No such file or directory
+#
+# which restart-loops the api container with an error that says nothing about
+# line endings. The files are LF in the index; this keeps them LF on disk too.
+*.sh text eol=lf
+docker/entrypoint.sh text eol=lf
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf
+
+# Reference data that must never be touched by end-of-line conversion.
+*.pdf binary
+*.xlsx binary
+*.xls binary
+*.docx binary
+*.msg binary
+*.ico binary
+*.png binary

@@ -1,0 +1,97 @@
+{
+  "project_name": "dunkin_donuts_covington_ga",
+  "divisions_in_scope": ["08", "10"],
+  "sections": [
+    {
+      "division": "08",
+      "title": "Demo keynote DP-7: 'REMOVE EXISTING DOOR AND FRAME'",
+      "source_page": 4,
+      "note": "Sheet AD1.1 (Floor Plan - Demo). Confirms at least one existing door/frame assembly is being removed as part of this remodel, implying a replacement is required, but no new door/frame spec, size, or fire rating for the replacement appears anywhere in this drawing set."
+    },
+    {
+      "division": "08",
+      "title": "Door hardware referenced but not specified in this set",
+      "source_page": 6,
+      "note": "Sheet A1.1, Detail 4 'DOOR HANDLE DETAIL': callout reads '\"D\" SHAPED DOOR HANDLES, SEE NATIONAL ACCOUNTS.' Same note repeats on A2.1 (page 10). Hardware is governed by a Dunkin' Brand Standards / National Accounts program document that is NOT included in this upload. There is no HW-1/GROUP 1/HDW schedule, no hardware manufacturer or part number, anywhere in the 28-page set."
+    },
+    {
+      "division": "10",
+      "title": "Wall protection / corner guard - WP-CR1",
+      "source_page": 8,
+      "note": "Interior Material Schedule (A1.3, repeated on A4.1 p.13): 'WP-CR1, WALL PROTECTION, IMPACT SPECIALTIES, BRUSHED NICKEL, SARATOGA CHAIR RAIL 3\"H x 114\"L x 1/2\" / VA200 BRUSHED NICKEL CORNER GUARD.' This is a real, in-scope Division 10 corner-guard/wall-protection item. Manufacturer 'Impact Specialties' is not one of CBC's top-10 stock vendors (see vendor_tiers.md) - route to product-matcher/manual cutoff for RFQ pricing."
+    },
+    {
+      "division": "10",
+      "title": "FRP listed as a substrate option, but not confirmed as used anywhere in this project",
+      "source_page": 6,
+      "note": "See fire_rating-style flag below under 'frp_note' - recorded here per instructions to identify every Division 10 section, but this is NOT a confirmed in-scope item the way WP-CR1 is."
+    }
+  ],
+  "door_schedule_found": false,
+  "door_schedule_pages": [],
+  "hardware_groups_found": false,
+  "hardware_group_pages": [],
+  "fire_ratings_present": false,
+  "fire_rating_note": "No fire rating for any door, frame, or opening appears anywhere in this 28-page set. Searched every page (decoded) for RATED, FIRE RAT-, FIRE-RAT-, UL LABEL, LABELED, and minute-based callouts (20/45/60/90 MIN). Every 'RATED' hit that does exist is unrelated to Division 08: page 1 general notes on fire-rated wall/ceiling assemblies (boilerplate code note, not an opening schedule), page 16 kitchen-equipment electrical listings, page 21 (M6.1) duct-insulation fire/smoke rating and fire/smoke damper access-panel notes, page 24 (P6.1) plumbing valve pressure rating, page 25 (E1.1) damp/wet-location light fixture rating. None of these describe a door or frame. There is also no door schedule at all in this set (see door_schedule_found) so there is no schedule column to check. Per fire_rating_rules.md this is flagged, not assumed unrated - an RFI to the architect/GC is warranted before quoting the DP-7 replacement door if a hardware/fire-rating spec surfaces later (e.g. from the National Accounts package).",
+  "frp_in_scope": true,
+  "frp_note": "FRP (fiberglass reinforced plastic) panels are listed as substrate option 3 in the Wall Type A / Substrate Schedule on sheet A1.1 (page 6): 'FIBERGLASS REINFORCED PLASTIC (FRP) PANELS FINISH PER SCHEDULE.' HOWEVER, on closer read of the actual room-by-room Finish Schedule (A1.3, page 8) and the Interior Material Schedule (A1.3/A4.1, pages 8 and 13), no room (200 DD Sales, 201 DD Seating, 202 DD Service, 203 DD Drive-Thru, 204/205 restrooms, 206 Hall) is assigned an FRP wall-finish code - the wall finish codes used are WT-01/02/03/04 (tile), GYP-1, WC-01/03 (vinyl/wood wall covering), WP-PL2 (laminate), and WP-CR1 (corner guard). FRP does not appear in the interior elevations either. This looks like unused boilerplate carried over from Dunkin's standard wall-type detail library rather than an active scope item on this specific job. Flagging as uncertain rather than silently including or excluding it: route to frp-specialist to visually check the floor plan wall tags/legend (page 6, get_page_image) for any wall actually tagged with substrate option '3', and confirm with the estimator/GC before taking off any FRP quantities.",
+  "bid_alternates": [],
+  "bid_alternates_note": "No Division 08/10 bid alternates found. 'ALTERNATE' callouts do appear on EQ1.2 (page 16, kitchen equipment options e.g. Traulsen vs. Delfield, Bunn-O-Matic) but per intake these are confirmed not CBC-relevant and are excluded here, matching extracted/scope_metadata.json.",
+  "addenda_referenced": [],
+  "out_of_scope_items": [
+    {
+      "item": "Existing storefront system (aluminum/glass) - to remain",
+      "reason": "Aluminum/glass storefront is out of CBC's estimating category regardless of new or existing condition.",
+      "source_page": 4
+    },
+    {
+      "item": "Existing drive-thru window - to remain",
+      "reason": "Not a CBC Division 08/10 category; existing equipment to remain per demo notes.",
+      "source_page": 4
+    },
+    {
+      "item": "Ceiling tile and grid (Armstrong CT-02, CT-03; ACT at Hall 206)",
+      "reason": "Ceiling tile and grid is another HP department, not CBC.",
+      "source_page": 8
+    },
+    {
+      "item": "Floor and wall tile (porcelain FT-01/FT-02/WT-01 through WT-04, quarry tile, grout)",
+      "reason": "Tile is another HP department, not CBC.",
+      "source_page": 8
+    },
+    {
+      "item": "Existing restroom (204 Mens, 205 Womens) plumbing fixtures and accessories",
+      "reason": "Explicitly called out as 'EXISTING PLUMBING FIXTURES AND ACCESSORIES TO REMAIN; TYP.' on A4.1 (page 13). No new restroom partitions, toilet accessories, or washroom equipment are specified anywhere in this set - nothing to quote in this category for this project.",
+      "source_page": 13
+    },
+    {
+      "item": "Kitchen/FOH equipment (dispensers, hoods, refrigeration, coffee/beverage equipment)",
+      "reason": "Equipment schedule (EQ1.1/EQ1.2) items are FF&E/kitchen-equipment vendor scope, not CBC Division 08/10.",
+      "source_page": 16
+    },
+    {
+      "item": "Building signage (cup icon sign, menu boards)",
+      "reason": "Explicitly noted 'ALL BUILDING SIGNAGE SHALL BE PERMITTED SEPARATELY' - handled by a sign vendor/National Accounts, not CBC.",
+      "source_page": 10
+    },
+    {
+      "item": "EIFS, stone veneer, fiber-cement siding (James Hardie, Woodtone), metal coping/cladding",
+      "reason": "Exterior finish/siding is out of scope (metal siding / extruded aluminum and masonry finishes confirmed out, 14 Jul).",
+      "source_page": 10
+    },
+    {
+      "item": "Drive-thru bollards and menu board canopy/structure",
+      "reason": "Site/civil and FF&E scope, not CBC Division 08/10.",
+      "source_page": 9
+    }
+  ],
+  "unparsed_sections": [
+    {
+      "section": "Project Manual / CSI specification book (would normally carry Division 08 000 Doors and Hardware and Division 10 000 Specialties sections)",
+      "reason": "Not included in this upload. Only the combined architectural + MEP drawing PDF was provided (per the task brief: 'no separate CSI specification book in this upload'). Sheet AD1.2 (page 5) explicitly cross-references 'SPECIFICATION SECTION 01 74 19 CONSTRUCTION WASTE MANAGEMENT', confirming a written project manual exists for this job but was not part of the bid set handed to CBC. Division 08/10 scope for this project had to be reconstructed entirely from drawing keynotes, the wall-type/substrate schedule, and the interior material schedule - there is no way to confirm this is the complete scope without the actual spec book or the Dunkin' National Accounts hardware package referenced on A1.1/A2.1."
+    }
+  ],
+  "encoding_note": "This PDF's embedded font remaps every character to (codepoint + 29) with no wraparound. All text above was extracted with PyMuPDF and decoded with decode(s) = ''.join(chr(ord(ch)+29) for ch in s), verified against the legible wall-type schedule and title block on page 6. All 28 pages were decoded and searched in full before drawing the conclusions in this file, per the correction already logged in extracted/scope_metadata.json.",
+  "confidence": 0.75,
+  "confidence_note": "High confidence in the negative findings (no door schedule, no hardware-group block, no fire-rating column/note anywhere in the set) because every page was decoded and searched for a wide keyword set, not just skimmed. Confidence is capped at 0.75 rather than higher because: (1) the actual replacement scope for the DP-7 door/frame demo is unknown without the missing spec book or National Accounts hardware package, (2) FRP applicability is genuinely ambiguous (see frp_note) and needs a visual/estimator check, not a text search. Both are flagged rather than guessed, per accuracy-trust.md."
+}

@@ -1,0 +1,198 @@
+# The gate that would have caught a syntax error in a router shipping to main.
+#
+# The API test suite calls `pytest.skip` when MongoDB is unreachable, which keeps
+# a laptop without Docker usable and once let the whole suite go green on a
+# codebase whose API could not be imported at all. So CI runs a real MongoDB and
+# sets REQUIRE_MONGO, which turns that skip into a failure.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mongo:
+        image: mongo:7
+        env:
+          MONGO_INITDB_ROOT_USERNAME: cbc
+          MONGO_INITDB_ROOT_PASSWORD: cbc_local_dev
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet -u cbc -p cbc_local_dev --authenticationDatabase admin --eval \"db.adminCommand('ping')\""
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      MONGODB_URI: mongodb://cbc:cbc_local_dev@localhost:27017/cbc_opshub?authSource=admin
+      REQUIRE_MONGO: "1"
+      # pytest.ini adds src/ for the test run; the standalone steps below
+      # (compileall, the API import, the prompt preamble) need it too.
+      PYTHONPATH: ".:src"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          pip install -r requirements.txt
+          pip install -e ./mcp-servers
+
+      # Cheap, and the first thing to fail on a file that does not parse. The
+      # test suite covers this too, but a compile error should not need pytest
+      # to collect a hundred modules before it is reported.
+      - name: Compile every Python file
+        run: python -m compileall -q apps src mcp-servers scripts
+
+      - name: Import the API
+        run: python -c "from apps.api.main import app; print(len(app.openapi()['paths']), 'paths')"
+
+      - name: MCP selftest
+        run: python mcp-servers/main.py --selftest
+
+      - name: Guardrail shell tests
+        run: bash tests/pipeline/test_guardrails/test_no_auto_send.sh && bash tests/pipeline/test_guardrails/test_file_safety.sh
+
+      - name: Test
+        run: python -m pytest tests -q -rs
+
+      # The shell entry point builds its prompt from worker/prompts.py; if that
+      # import breaks, the workflow scripts fail at run time rather than here.
+      - name: Check the workflow preamble resolves
+        run: |
+          bash -n workflows/_phase.sh
+          python -m apps.worker.prompts projects/example | grep -q "NFR-1"
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build
+
+  # The suites above test the halves. This tests that they are one system: a real
+  # browser, against the real containers, signing in as a real seeded user.
+  #
+  # It runs only if both halves already pass - a broken unit test would fail here
+  # too, several minutes later and with a much worse error message.
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [test, web]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # The containers run as uid 1000 (cbc), and a bind mount replaces the
+      # image's chowned directory with the host's - which the runner checks out
+      # as its own user. Without this the API cannot create a project directory,
+      # POST /api/projects returns 500, and the specs time out waiting for a
+      # navigation that never happens.
+      #
+      # Docker Desktop hides this locally by not enforcing bind-mount ownership.
+      # A Linux host enforces it, and so does a real deployment - see the
+      # ownership note in docs/opshub_setup.md.
+      - name: Give the writable bind mounts to the container user
+        run: |
+          mkdir -p projects
+          sudo chown -R 1000:1000 projects pricebooks
+
+      # AUTO_BOOTSTRAP seeds estimator@cbc.com and admin@cbc.com, which is what
+      # e2e/helpers.ts signs in as. Without it every spec fails at the login form.
+      - name: Start the stack
+        run: docker compose up -d --build
+        env:
+          AUTO_BOOTSTRAP: "1"
+
+      - name: Wait for the API and the web app
+        run: |
+          for i in $(seq 1 60); do
+            api=$(curl -fsS http://127.0.0.1:8001/api/health 2>/dev/null && echo ok || echo no)
+            web=$(curl -fsS -o /dev/null http://127.0.0.1:3000/signin && echo ok || echo no)
+            if [ "$api" != "no" ] && [ "$web" = "ok" ]; then
+              echo "stack is up after ${i}0s"; exit 0
+            fi
+            sleep 10
+          done
+          echo "stack did not come up" >&2
+          docker compose ps
+          docker compose logs --tail 100
+          exit 1
+
+      # The loop above probes the two services the specs talk to over HTTP. The
+      # worker serves no port, so a crash-looping worker satisfied every check
+      # and the suite went green against a stack that could not run a job - which
+      # is exactly what happened when an over-broad entrypoint assertion made the
+      # worker's deliberate read-only pricebooks mount fatal.
+      #
+      # Nothing here has a "started and stayed started" signal otherwise, so this
+      # asserts it directly.
+      - name: Every service is still running
+        run: |
+          sleep 15
+          docker compose ps
+          for service in api worker web mongo; do
+            state=$(docker compose ps --format '{{.Service}} {{.State}}' \
+                    | awk -v s="$service" '$1 == s {print $2}')
+            echo "$service: ${state:-missing}"
+            case "$state" in
+              running) ;;
+              *)
+                echo "::error::$service is '${state:-missing}', not running" >&2
+                docker compose logs "$service" --tail 40
+                exit 1 ;;
+            esac
+          done
+
+      - name: Install Playwright
+        working-directory: web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run the E2E suite
+        working-directory: web
+        run: npx playwright test
+        env:
+          PLAYWRIGHT_SKIP_WEBSERVER: "1"
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+
+      # The traces are the only way to tell a real regression from a flake, and
+      # they are gone the moment the runner is torn down.
+      - name: Upload traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: web/test-results/
+          retention-days: 7
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose logs --tail 200

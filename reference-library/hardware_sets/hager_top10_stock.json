@@ -1,0 +1,198 @@
+{
+  "vendor": "Hager",
+  "share_of_volume": 0.75,
+  "source": "pricebooks/hager_price_book_18.pdf (Price Book #18, effective 2026-02-02)",
+  "status": "DRAFT - harvested from the price book, PENDING CBC confirmation (NR-6)",
+  "status_note": "CBC still owes the authoritative top-10 stock list per product type. Until it arrives, treat this as a candidate set: match against it, but never let it override an architect's specified part number.",
+  "matching_rule": "Quote by part number / series, NOT by grade. Hager 3400 vs 3500 is grade 1 vs grade 2.",
+  "items": [
+    {
+      "category": "hinge",
+      "part_number": "BB1279",
+      "series": "BB1279",
+      "description": "Full mortise, heavy weight, ball bearing hinge",
+      "grade": 1,
+      "stock": true,
+      "source_page": 16
+    },
+    {
+      "category": "hinge",
+      "part_number": "BB1199",
+      "series": "BB1199",
+      "description": "Full mortise, standard weight, ball bearing hinge",
+      "grade": 1,
+      "stock": true,
+      "source_page": 56
+    },
+    {
+      "category": "hinge",
+      "part_number": "BB1191",
+      "series": "BB1191",
+      "description": "Full mortise, standard weight, ball bearing hinge",
+      "grade": 2,
+      "stock": true,
+      "source_page": 44
+    },
+    {
+      "category": "hinge",
+      "part_number": "BB1168",
+      "series": "BB1168",
+      "description": "Full mortise ball bearing hinge",
+      "grade": 2,
+      "stock": true,
+      "source_page": 37
+    },
+    {
+      "category": "hinge",
+      "part_number": "AB700",
+      "series": "AB700",
+      "description": "Continuous geared hinge",
+      "grade": 1,
+      "stock": true,
+      "source_page": 20
+    },
+    {
+      "category": "hinge_electrified",
+      "part_number": "ECBB1100",
+      "series": "ECBB1100",
+      "description": "Electrified concealed-circuit hinge",
+      "grade": 1,
+      "stock": false,
+      "adder_required": "electrification",
+      "source_page": 10
+    },
+    {
+      "category": "lock",
+      "part_number": "3500",
+      "series": "3500 Series",
+      "description": "Grade 2 cylindrical lock, 2-3/4 in backset, Schlage C keyway, ASA strike",
+      "grade": 2,
+      "stock": true,
+      "source_page": 297,
+      "note": "Storeroom function list price 256.31; at the locks tier (0.290) cost is about 74.33."
+    },
+    {
+      "category": "lock",
+      "part_number": "3400",
+      "series": "3400 Series",
+      "description": "Grade 1 cylindrical lock",
+      "grade": 1,
+      "stock": true,
+      "source_page": null
+    },
+    {
+      "category": "lock",
+      "part_number": "3800",
+      "series": "3800 Series",
+      "description": "Mortise lock",
+      "grade": 1,
+      "stock": true,
+      "source_page": null
+    },
+    {
+      "category": "lock",
+      "part_number": "2500",
+      "series": "2500 Series",
+      "description": "Cylindrical lock",
+      "grade": 2,
+      "stock": true,
+      "source_page": null
+    },
+    {
+      "category": "exit_device",
+      "part_number": "4500",
+      "series": "Exit Devices - 4500",
+      "description": "Rim / mortise exit device family",
+      "grade": 1,
+      "stock": true,
+      "source_page": null
+    },
+    {
+      "category": "exit_device",
+      "part_number": "4600",
+      "series": "Exit Devices - 4600",
+      "description": "Exit device family",
+      "grade": 1,
+      "stock": true,
+      "source_page": null
+    },
+    {
+      "category": "exit_device",
+      "part_number": "4700",
+      "series": "Exit Devices - 4700",
+      "description": "Exit device family",
+      "grade": 1,
+      "stock": true,
+      "source_page": null
+    },
+    {
+      "category": "closer",
+      "part_number": "5100",
+      "series": "5100 Series",
+      "description": "Door closer",
+      "grade": 1,
+      "stock": true,
+      "source_page": 132
+    },
+    {
+      "category": "closer",
+      "part_number": "5200",
+      "series": "5200 Series",
+      "description": "Door closer",
+      "grade": 1,
+      "stock": true,
+      "source_page": 132
+    },
+    {
+      "category": "closer",
+      "part_number": "5300",
+      "series": "5300 Series",
+      "description": "Door closer",
+      "grade": 1,
+      "stock": true,
+      "source_page": 132
+    },
+    {
+      "category": "kick_plate",
+      "part_number": null,
+      "series": "Trim & Auxiliary",
+      "description": "Kick plate - size and finish drive the part number",
+      "stock": true,
+      "source_page": null,
+      "note": "PENDING specific stock sizes from CBC."
+    },
+    {
+      "category": "threshold",
+      "part_number": null,
+      "series": "Thresholds & Weatherstripping",
+      "description": "Threshold - profile and width drive the part number",
+      "stock": true,
+      "source_page": null,
+      "note": "National Guard and PEMKO are the usual sources; see their price books."
+    },
+    {
+      "category": "door_sweep",
+      "part_number": null,
+      "series": "Thresholds & Weatherstripping",
+      "description": "Door sweep",
+      "stock": true,
+      "source_page": null,
+      "note": "PENDING specific stock items from CBC."
+    },
+    {
+      "category": "silencer",
+      "part_number": null,
+      "series": "Trim & Auxiliary",
+      "description": "Frame silencers, sold by the each",
+      "stock": true,
+      "source_page": null,
+      "note": "PENDING specific stock items from CBC."
+    }
+  ],
+  "series_index": {
+    "locks": ["2300", "2500", "3100", "3200", "3300", "3400", "3500", "3600", "3700", "3800"],
+    "exit_devices": ["4500", "4600", "4700", "4900"],
+    "closers": ["5100", "5200", "5300", "5400"],
+    "hinges": ["BB1109", "BB1129", "BB1168", "BB1173", "BB1191", "BB1195", "BB1196", "BB1197", "BB1199", "BB1279", "AB700", "AB750", "AB800", "AB850", "AB920", "AB923", "ECBB1100"]
+  }
+}

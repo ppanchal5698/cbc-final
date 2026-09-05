@@ -1,0 +1,9 @@
+{
+  "description": "Sales tax rates by jurisdiction where CBC has nexus. Every other US state and Canada is untaxed - a state absent from this table resolves to a 0% rate, not an error. See .claude/memory/sales_tax_rules.md.",
+  "source": "CBC estimator session 14 Jul; .claude/memory/sales_tax_rules.md",
+  "rates": {
+    "OH": 0.08,
+    "KY": 0.065
+  },
+  "note": "Apply from the ship-to / project location, not the GC billing address. If the project state is unknown, leave tax UNRESOLVED and flag it - never default to zero silently."
+}

@@ -1,0 +1,541 @@
+# Domain-bounded Ops-Hub stack.
+# From the repo root:
+#   docker compose -f infra/docker-compose.yml up -d --build
+#
+# Original monolith repo is unchanged; this compose belongs to cbc-copilot-final.
+
+x-app-env: &app-env
+  MONGODB_URI: mongodb://cbc:${MONGO_ROOT_PASSWORD:-cbc_local_dev}@mongo:27017/cbc_opshub?authSource=admin&replicaSet=rs0
+  MONGODB_DB: cbc_opshub
+  # Single-node RS in compose enables multi-doc transactions; pytest stays off.
+  MONGODB_TRANSACTIONS: ${MONGODB_TRANSACTIONS:-1}
+  STORAGE_ROOT: /app/data/projects
+  PRICEBOOK_DIR: /app/data/pricebooks
+  REFERENCE_DIR: /app/reference-library
+  TEMPLATES_DIR: /app/templates
+  APP_SECRET_KEY: ${APP_SECRET_KEY:-cbc-local-dev-key-change-me}
+  INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-cbc-local-dev-key-change-me}
+  INTERNAL_AUTH: ${INTERNAL_AUTH:-jwt}
+  INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET:-cbc-local-dev-key-change-me}
+  INTERNAL_JWT_SECRET_PREVIOUS: ${INTERNAL_JWT_SECRET_PREVIOUS:-}
+  APP_ENV: ${APP_ENV:-development}
+  MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-200}
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+  CORS_ORIGINS: http://localhost:3000
+  MALWARE_SCAN: ${MALWARE_SCAN:-clamd}
+  MALWARE_SCAN_REQUIRED: ${MALWARE_SCAN_REQUIRED:-0}
+  CLAMD_HOST: ${CLAMD_HOST:-clamav}
+  CLAMD_PORT: ${CLAMD_PORT:-3310}
+  STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+  S3_BUCKET: ${S3_BUCKET:-}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+
+x-domain-volumes: &domain-volumes
+  - ../data/projects:/app/data/projects
+  - ../data/pricebooks:/app/data/pricebooks
+  - ../.claude:/app/.claude:ro
+  - ../reference-library:/app/reference-library:ro
+  - ../.env:/app/.env
+  - cbc_cache:/app/.cache
+  - claude_home:/home/cbc/.claude
+
+x-worker-env: &worker-env
+  <<: *app-env
+  WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-5}
+  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+  WORKER_JOB_TIMEOUT_SECONDS: ${WORKER_JOB_TIMEOUT_SECONDS:-3600}
+  WORKER_MAX_ATTEMPTS: ${WORKER_MAX_ATTEMPTS:-3}
+  CLAUDE_SANDBOX: ${CLAUDE_SANDBOX:-process}
+  # Set CLAUDE_SANDBOX=docker and mount /var/run/docker.sock on extraction /
+  # pricing / quoting workers to isolate Claude on the llm-only network.
+  CBC_SANDBOX_NETWORK: ${CBC_SANDBOX_NETWORK:-cbc-final-llm}
+  ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+
+x-api-health: &api-health
+  test:
+    [
+      "CMD",
+      "python",
+      "-c",
+      "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8001/api/health', timeout=4).status==200 else 1)",
+    ]
+  interval: 15s
+  timeout: 5s
+  retries: 5
+  start_period: 20s
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: cbc-final-mongo
+    restart: unless-stopped
+    entrypoint: ["bash", "/mongo-keyfile-entrypoint.sh"]
+    ports:
+      - "127.0.0.1:27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: cbc
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-cbc_local_dev}
+      MONGO_INITDB_DATABASE: cbc_opshub
+    volumes:
+      - mongo_data:/data/db
+      - ./docker/mongo-keyfile:/mongo-keyfile:ro
+      - ./docker/mongo-keyfile-entrypoint.sh:/mongo-keyfile-entrypoint.sh:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "-u",
+          "cbc",
+          "-p",
+          "${MONGO_ROOT_PASSWORD:-cbc_local_dev}",
+          "--authenticationDatabase",
+          "admin",
+          "--eval",
+          "db.adminCommand('ping')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Idempotent single-node replica set init (local compose only; multi-node HA is ops).
+  mongo-init:
+    image: mongo:7
+    container_name: cbc-final-mongo-init
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-cbc_local_dev}
+    volumes:
+      - ./docker/mongo-rs-init.sh:/mongo-rs-init.sh:ro
+    entrypoint: ["bash", "/mongo-rs-init.sh"]
+
+  clamav:
+    image: clamav/clamav:stable
+    container_name: cbc-final-clamav
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3310:3310"
+    volumes:
+      - clamav_data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "echo PING | nc -w 2 127.0.0.1 3310 | grep -q PONG"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  platform:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: platform-api
+      args:
+        SERVICE: platform
+    image: cbc-final-platform:latest
+    container_name: cbc-final-platform
+    restart: unless-stopped
+    ports:
+      - "${API_BIND:-127.0.0.1}:8001:8001"
+    environment:
+      <<: *app-env
+      SERVICE_AUDIENCE: platform
+    volumes: *domain-volumes
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      <<: *api-health
+      start_period: 25s
+
+  intake-api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: api
+      args:
+        SERVICE: intake
+    image: cbc-final-intake-api:latest
+    container_name: cbc-final-intake-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8011:8001"
+    environment:
+      <<: *app-env
+      SERVICE_AUDIENCE: intake
+    volumes: *domain-volumes
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      platform:
+        condition: service_healthy
+      clamav:
+        condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck: *api-health
+
+  intake-worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: worker
+      args:
+        SERVICE: intake
+    image: cbc-final-intake-worker:latest
+    container_name: cbc-final-intake-worker
+    restart: unless-stopped
+    command: ["python", "service/worker/main.py"]
+    environment:
+      <<: *worker-env
+      WORKER_DOMAIN: intake
+      SERVICE_AUDIENCE: intake
+    volumes:
+      - ../data/projects:/app/data/projects
+      - ../data/pricebooks:/app/data/pricebooks:ro
+      - ../.claude:/app/.claude:ro
+      - ../reference-library:/app/reference-library:ro
+      - ../.env:/app/.env:ro
+      - cbc_cache:/app/.cache
+      - claude_home:/home/cbc/.claude
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      intake-api:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  extraction-api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: api
+      args:
+        SERVICE: extraction
+    image: cbc-final-extraction-api:latest
+    container_name: cbc-final-extraction-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8012:8001"
+    environment:
+      <<: *app-env
+      SERVICE_AUDIENCE: extraction
+    volumes: *domain-volumes
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      platform:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck: *api-health
+
+  extraction-worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: worker
+      args:
+        SERVICE: extraction
+    image: cbc-final-extraction-worker:latest
+    container_name: cbc-final-extraction-worker
+    restart: unless-stopped
+    command: ["python", "service/worker/main.py"]
+    environment:
+      <<: *worker-env
+      WORKER_DOMAIN: extraction
+      SERVICE_AUDIENCE: extraction
+      CBC_SANDBOX_IMAGE: cbc-final-extraction-worker:latest
+    volumes:
+      - ../data/projects:/app/data/projects
+      - ../data/pricebooks:/app/data/pricebooks:ro
+      - ../.claude:/app/.claude:ro
+      - ../reference-library:/app/reference-library:ro
+      - ../.env:/app/.env:ro
+      - cbc_cache:/app/.cache
+      - claude_home:/home/cbc/.claude
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      extraction-api:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  pricing-api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: api
+      args:
+        SERVICE: pricing
+    image: cbc-final-pricing-api:latest
+    container_name: cbc-final-pricing-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8013:8001"
+    environment:
+      <<: *app-env
+      SERVICE_AUDIENCE: pricing
+    volumes: *domain-volumes
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      platform:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck: *api-health
+
+  pricing-worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: worker
+      args:
+        SERVICE: pricing
+    image: cbc-final-pricing-worker:latest
+    container_name: cbc-final-pricing-worker
+    restart: unless-stopped
+    command: ["python", "service/worker/main.py"]
+    environment:
+      <<: *worker-env
+      WORKER_DOMAIN: pricing
+      SERVICE_AUDIENCE: pricing
+      CBC_SANDBOX_IMAGE: cbc-final-pricing-worker:latest
+    volumes:
+      - ../data/projects:/app/data/projects
+      - ../data/pricebooks:/app/data/pricebooks:ro
+      - ../.claude:/app/.claude:ro
+      - ../reference-library:/app/reference-library:ro
+      - ../.env:/app/.env:ro
+      - cbc_cache:/app/.cache
+      - claude_home:/home/cbc/.claude
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      pricing-api:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  quoting-api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: api
+      args:
+        SERVICE: quoting
+    image: cbc-final-quoting-api:latest
+    container_name: cbc-final-quoting-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8014:8001"
+    environment:
+      <<: *app-env
+      SERVICE_AUDIENCE: quoting
+    volumes: *domain-volumes
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      platform:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck: *api-health
+
+  quoting-worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: worker
+      args:
+        SERVICE: quoting
+    image: cbc-final-quoting-worker:latest
+    container_name: cbc-final-quoting-worker
+    restart: unless-stopped
+    command: ["python", "service/worker/main.py"]
+    environment:
+      <<: *worker-env
+      WORKER_DOMAIN: quoting
+      SERVICE_AUDIENCE: quoting
+      CBC_SANDBOX_IMAGE: cbc-final-quoting-worker:latest
+    volumes:
+      - ../data/projects:/app/data/projects
+      - ../data/pricebooks:/app/data/pricebooks:ro
+      - ../.claude:/app/.claude:ro
+      - ../reference-library:/app/reference-library:ro
+      - ../.env:/app/.env:ro
+      - cbc_cache:/app/.cache
+      - claude_home:/home/cbc/.claude
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      quoting-api:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  catalog-api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: api
+      args:
+        SERVICE: catalog
+    image: cbc-final-catalog-api:latest
+    container_name: cbc-final-catalog-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8015:8001"
+    environment:
+      <<: *app-env
+      SERVICE_AUDIENCE: catalog
+    volumes: *domain-volumes
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      platform:
+        condition: service_healthy
+      clamav:
+        condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck: *api-health
+
+  catalog-worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: worker
+      args:
+        SERVICE: catalog
+    image: cbc-final-catalog-worker:latest
+    container_name: cbc-final-catalog-worker
+    restart: unless-stopped
+    command: ["python", "service/worker/main.py"]
+    environment:
+      <<: *worker-env
+      WORKER_DOMAIN: catalog
+      SERVICE_AUDIENCE: catalog
+    volumes:
+      - ../data/projects:/app/data/projects
+      - ../data/pricebooks:/app/data/pricebooks
+      - ../.claude:/app/.claude:ro
+      - ../reference-library:/app/reference-library:ro
+      - ../.env:/app/.env:ro
+      - cbc_cache:/app/.cache
+      - claude_home:/home/cbc/.claude
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      catalog-api:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    image: cbc-final-web:latest
+    container_name: cbc-final-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PLATFORM_URL: http://platform:8001
+      INTAKE_URL: http://intake-api:8001
+      EXTRACTION_URL: http://extraction-api:8001
+      PRICING_URL: http://pricing-api:8001
+      QUOTING_URL: http://quoting-api:8001
+      CATALOG_URL: http://catalog-api:8001
+      API_BASE_URL: http://platform:8001
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-cbc-local-dev-key-change-me}
+      INTERNAL_AUTH: ${INTERNAL_AUTH:-jwt}
+      INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET:-cbc-local-dev-key-change-me}
+      APP_ENV: ${APP_ENV:-development}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      AUTH_SECRET: ${AUTH_SECRET:-cbc-opshub-local-dev-secret-change-in-production}
+      AUTH_TRUST_HOST: "true"
+    depends_on:
+      platform:
+        condition: service_healthy
+      intake-api:
+        condition: service_healthy
+      extraction-api:
+        condition: service_healthy
+      pricing-api:
+        condition: service_healthy
+      quoting-api:
+        condition: service_healthy
+      catalog-api:
+        condition: service_healthy
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: cbc-final-litellm
+    profiles: ["oss"]
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    entrypoint: ["bash", "/litellm-entrypoint.sh"]
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-cbc-local-dev}
+      # Soft gateway budget. Set to the same number as WORKER_MAX_COST_USD_PER_DAY for defense in depth.
+      LITELLM_MAX_BUDGET: ${LITELLM_MAX_BUDGET:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      NVIDIA_NIM_API_KEY: ${NVIDIA_NIM_API_KEY:-}
+      OLLAMA_API_BASE: ${OLLAMA_API_BASE:-http://host.docker.internal:11434}
+    volumes:
+      - ./docker/litellm.config.yaml:/app/config.yaml:ro
+      - ./docker/litellm-entrypoint.sh:/litellm-entrypoint.sh:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - llm
+
+volumes:
+  mongo_data:
+  claude_home:
+  cbc_cache:
+  clamav_data:
+
+networks:
+  default:
+    name: cbc-final
+  llm:
+    name: cbc-final-llm
+    internal: true

@@ -1,0 +1,44 @@
+# The `cbc` shared domain package.
+#
+# Before this file existed, every entry point found `cbc` by editing `sys.path` at
+# import time - twenty scripts, six MCP servers and two hook trees each doing it
+# slightly differently. Four of them still pointed at `src/`, a directory removed
+# in the services/ restructure, so `calc-engine`, `catalog`, `p21-connector` and
+# `pdf-tools` all died on `ModuleNotFoundError: No module named 'cbc'` outside
+# Docker. An installed distribution is the fix: import works because the package
+# is installed, not because the caller guessed the right relative path.
+#
+#   pip install -e .
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cbc"
+version = "1.0.0"
+description = "CBC Estimating & Pricing Copilot - shared domain, services and agent runtime"
+requires-python = ">=3.11"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+where = ["packages"]
+include = ["cbc*"]
+
+[tool.setuptools.package-data]
+cbc = ["schemas/artifacts/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [
+    ".",
+    "services/platform",
+    "services/intake",
+    "services/extraction",
+    "services/pricing",
+    "services/quoting",
+    "services/catalog",
+]
+asyncio_mode = "auto"

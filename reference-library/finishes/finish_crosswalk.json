@@ -1,0 +1,21 @@
+{
+  "description": "Dual finish nomenclature. Both systems are in active use and both must be interpreted (NR-3).",
+  "warning": "US19 and US26D are DIFFERENT satins. Never treat them as interchangeable when matching.",
+  "finishes": [
+    { "us_code": "US26D", "numeric_code": "626", "description": "Satin chrome", "premium": false, "note": "The most common commercial finish." },
+    { "us_code": "US19", "numeric_code": "619", "description": "Satin nickel", "premium": false, "note": "A DIFFERENT satin from US26D." },
+    { "us_code": "US15", "numeric_code": "619", "description": "Satin nickel", "premium": false, "note": "Maps to the 619 family." },
+    { "us_code": "US26", "numeric_code": "625", "description": "Bright chrome", "premium": false, "note": null },
+    { "us_code": "US10B", "numeric_code": "613", "description": "Oil-rubbed bronze", "premium": true, "note": "Lead times can apply." },
+    { "us_code": "US32D", "numeric_code": "630", "description": "Satin stainless steel", "premium": false, "note": "Seen on Ives 700 hinges and 8400 kick plates in the Dutch Bros fixture." },
+    { "us_code": "US3", "numeric_code": "605", "description": "Bright brass", "premium": false, "note": null },
+    { "us_code": "US4", "numeric_code": "606", "description": "Satin brass", "premium": false, "note": null },
+    { "us_code": "BLK", "numeric_code": null, "description": "Black", "premium": true, "note": "Available for SFIC-prepped levers." }
+  ],
+  "hager_rules": [
+    "Split finish is priced at the higher finish.",
+    "Levers prepped for SFIC cores are available only in US10B, US26D and BLK.",
+    "Anti-microbial is available on 26D only (list adder 57.13)."
+  ],
+  "premium_finish_rule": "Premium and lead-time finishes are priced as an ADDER on top of the base price - see reference-library/adders/manual_adders.json"
+}

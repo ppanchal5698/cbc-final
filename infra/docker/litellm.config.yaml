@@ -1,0 +1,42 @@
+# LiteLLM as an Anthropic-format gateway in front of OpenAI-format providers.
+#
+# Claude Code speaks Anthropic Messages, Bedrock Invoke or Vertex - there is no
+# OpenAI option. Ollama, NVIDIA NIM and OpenRouter are all OpenAI-format, so
+# something has to translate. LiteLLM serves /v1/messages, which is the endpoint
+# ANTHROPIC_BASE_URL points at.
+#
+# Anthropic does not support routing Claude Code to non-Claude models through any
+# gateway. Tool-use fidelity is the thing most likely to degrade: this pipeline
+# leans hard on MCP tool calls, and a model that formats them loosely produces an
+# extraction that looks plausible and is wrong. Treat output from these models as
+# unverified until an estimator has checked it against the drawing.
+#
+# The model names carry a `claude-` prefix deliberately. Claude Code's gateway
+# model discovery keeps only entries whose id contains "claude" or "anthropic";
+# the prefix is what makes them selectable rather than silently dropped.
+
+model_list:
+  - model_name: claude-oss-ollama
+    litellm_params:
+      model: ollama_chat/qwen2.5-coder:32b
+      api_base: os.environ/OLLAMA_API_BASE
+
+  - model_name: claude-oss-openrouter
+    litellm_params:
+      model: openrouter/qwen/qwen-2.5-coder-32b-instruct
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  - model_name: claude-oss-nim
+    litellm_params:
+      model: nvidia_nim/qwen/qwen2.5-coder-32b-instruct
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+
+litellm_settings:
+  # Long CAD extractions; the default read timeout cuts them off mid-run.
+  request_timeout: 3600
+  drop_params: true
+  # Soft USD max_budget is injected at container start when LITELLM_MAX_BUDGET is set
+  # (see infra/docker/litellm-entrypoint.sh). Leave unset for unlimited local use.
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

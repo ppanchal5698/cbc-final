@@ -1,0 +1,28 @@
+{
+  "project": "terminal_probe_one_page",
+  "source_file": "uploads/raw/_one_page_probe.pdf",
+  "extracted_at": "2026-08-27T12:35:57Z",
+  "openings": [],
+  "hardware_groups": [],
+  "unparsed_regions": [
+    {
+      "description": "Repeated door/opening tag '07' at multiple locations on the floor plan (sheet A1.1)",
+      "note": "The tag appears as a plan symbol but there is no door schedule, door type schedule, or hardware groups table anywhere in this bid set to resolve it into size, handing, finish, fire rating, frame type or hardware set. Recorded as a flag rather than invented.",
+      "source_page": 1
+    },
+    {
+      "description": "'DOOR HANDLE DETAIL' (A1.1/4)",
+      "note": "A detail callout referencing 'D SHAPED DOOR HANDLES, SEE NATIONAL ACCOUNTS' - a hardware standard external to this bid set. Not a schedule entry.",
+      "source_page": 1
+    }
+  ],
+  "search_method": "mcp__pdf-tools__search_pdf for DOOR SCHEDULE / DOOR TYPE SCHEDULE / DOOR FRAME TYPE SCHEDULE / HARDWARE GROUPS / WINDOW SCHEDULE, then scripts/parse_schedule.py --find over the full (single-page) PDF",
+  "search_result": "No candidate schedule pages were returned by parse_schedule.py --find, and search_pdf found no HARDWARE hits and no schedule-table hits for DOOR. The only DOOR-adjacent hits were a door-handle detail callout and floor-plan door tags.",
+  "confidence": 0.1,
+  "flags": [
+    "no_door_schedule_table_found",
+    "no_hardware_groups_block_found",
+    "bid_set_appears_incomplete_single_sheet_only"
+  ],
+  "note": "Zero openings extracted because no door/opening schedule exists anywhere in this bid set - not because openings were read and discarded. A schedules sheet (commonly A2.x) needs to be requested from the initiator before Phase 3 can produce real opening data. Nothing here was inferred or filled to avoid an empty result, per the accuracy-trust rule."
+}

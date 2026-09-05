@@ -1,0 +1,22 @@
+{
+  "status": "PENDING",
+  "blocking": "Open Item 5 - CBC (Shanna / Vu360) still owes these values.",
+  "description": "Geometry-to-quantity conversion for FRP wall panels. Vu360 gives geometry only; the estimator converts by hand today.",
+  "panel_size": null,
+  "panel_size_note": "Expected as width x height in feet, e.g. 4 x 8 or 4 x 10.",
+  "waste_pct": null,
+  "waste_pct_note": "Applied to panel count after coverage division.",
+  "trim_stick_length": null,
+  "trim_stick_length_note": "Length in feet of one stick of division bar, inside corner, outside corner and cap trim.",
+  "adhesive_coverage_sqft_per_unit": null,
+  "adhesive_coverage_note": "Square feet covered by one unit (pail or tube) of adhesive.",
+  "opening_handling": null,
+  "opening_handling_note": "Whether door and window openings are deducted from the panel area, and above what size.",
+  "trim_types": ["inside corner", "outside corner", "division bar / H-mould", "cap / J-trim", "cove base"],
+  "interim_behaviour": "Extract and report the raw geometry - perimeter linear feet, inside corner count, outside corner count, wall height - and STOP. Emit quantities as null with status PENDING_CONSTANTS. Do not invent a panel size or a waste factor.",
+  "vendors": ["NUDO", "Marlite", "Midwest-East Coast FRP"],
+  "price_sources": [
+    "pricebooks/nudo_frp_pricing.pdf (effective 2026-05-11)",
+    "pricebooks/nudo_vinyl_moldings_pricing.pdf (effective 2026-05-11)"
+  ]
+}

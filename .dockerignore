@@ -1,0 +1,32 @@
+# Data is mounted, not baked. pricebooks/ is 56 MB and projects/ is 336 MB;
+# copying them into the image would make every build slow and every layer stale
+# the moment an estimator uploads a drawing.
+projects/
+pricebooks/
+final_pricebooks/
+tests/fixtures/pdfs/
+
+.git/
+.venv/
+venv/
+**/__pycache__/
+**/*.py[co]
+.pytest_cache/
+.cache/
+# The catalog search index: derived data, rebuilt in the container.
+# Baking it in makes the image large and ships a stale index that a named
+# volume then seeds itself from on first start.
+.index/
+
+web/node_modules/
+web/.next/
+web/out/
+
+.env
+.env.local
+web/.env.local
+.claude/settings.local.json
+
+*.md
+!CLAUDE.md
+!docs/*.md

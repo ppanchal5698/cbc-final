@@ -1,0 +1,1465 @@
+{
+  "READ ME": [
+    [
+      "",
+      "CBC Estimating & Pricing — Requirements Validation Workbook"
+    ],
+    [
+      "",
+      "Construction Building Components (CBC), a division of The Hamilton Parker Company"
+    ],
+    [
+      "",
+      "Companion to CBC_Estimating_Process_v1_0  |  Prepared by Dash Technologies  |  v1.1 — for review & confirmation"
+    ],
+    [
+      "",
+      "Purpose"
+    ],
+    [
+      "",
+      "This workbook restates our current understanding of the CBC estimating & pricing process as a structured requirements matrix, so the estimating team can confirm each item, correct anything wrong, and answer the open questions. Nothing here is final until confirmed. Once confirmed, it becomes the agreed basis for the estimating-and-pricing copilot build."
+    ],
+    [
+      "",
+      "The tabs"
+    ],
+    [
+      "",
+      "1.  Requirements Matrix  —  Every requirement grouped into Epics, with our Understanding, Assumptions, and Questions. Two columns are for YOU: 'Confirmation' and 'Client Response / Corrections'."
+    ],
+    [
+      "",
+      "2.  Process Flow  —  End-to-end current-state flow, Phase 0 (Intake) to Phase 6 (Deliver), to confirm step by step."
+    ],
+    [
+      "",
+      "3.  Product & Scope Confirmation  —  Every product category & manufacturer CBC lists publicly, cross-checked against the workshop. Tell us which ones estimating actually quotes."
+    ],
+    [
+      "",
+      "4.  Business Case & Metrics  —  The 'why' and the numbers: strategic objectives, baseline, targets, and success criteria for leadership to set. (New in v1.1.)"
+    ],
+    [
+      "",
+      "5.  Assumptions & Dependencies  —  What must be true — and what CBC must provide — for the build to succeed. (New in v1.1.)"
+    ],
+    [
+      "",
+      "6.  Open Items  —  The specific answers we still need (data, sheets, values, thresholds)."
+    ],
+    [
+      "",
+      "How to fill it in"
+    ],
+    [
+      "",
+      "•  Yellow cells are for you — use the drop-downs, or type freely in the notes/response columns."
+    ],
+    [
+      "",
+      "•  Confirmation options: Accurate / Needs Correction / Pending Review. If 'Needs Correction', say what's wrong in the response column."
+    ],
+    [
+      "",
+      "•  Answer the Questions in the same row's response column, and the Open Items on the last tab."
+    ],
+    [
+      "",
+      "Guiding principle"
+    ],
+    [
+      "",
+      "The estimator stays in control of every quote. The copilot drafts, sources, and calculates — it does not send. Its job is to remove manual re-keying and lookup, not to replace estimating judgment."
+    ],
+    [
+      "",
+      "Legend"
+    ],
+    [
+      "",
+      "Yellow fill  —  For the CBC team to complete"
+    ],
+    [
+      "",
+      "Green fill  —  New in v1.1 (added from the review)"
+    ],
+    [
+      "",
+      "Peach fill  —  Questions we need answered"
+    ],
+    [
+      "",
+      "Blue band  —  Section / Epic header"
+    ],
+    [
+      "",
+      "v1.2 — 14 Jul 2026: Dash pre-filled the yellow response cells with answers derivable from the collected pricing & bid documents. Items marked 'Answered/Accurate' are evidenced by project files; 'Partial/Pending' still need an estimator; see Open Items for the 7 that require a person."
+    ],
+    [
+      "",
+      "v1.3 — 14 Jul 2026: folded in the live estimator validation session (Kevin/Rick/Shanna) across the WHOLE matrix. ~50 of 54 requirement rows now carry a Confirmation; only Fire rating (7.3), Alternates/addenda (4.1 & FR-14), Data security owner (NFR-4) and Data stewardship (NFR-10) remain open. New requirements & data-still-needed are listed at the bottom of the Open Items tab."
+    ]
+  ],
+  "Requirements Matrix": [
+    [
+      "Requirements Matrix — Our Understanding, for Review & Confirmation",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "Epic",
+      "Ref",
+      "Requirement",
+      "Our Understanding",
+      "Assumption",
+      "Priority",
+      "Questions for Clarification",
+      "Confirmation",
+      "Client Response / Corrections"
+    ],
+    [
+      "1. Business Context & Scope",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "2.0",
+      "CBC identity & mission",
+      "CBC is Hamilton Parker's national-accounts division (1865 Leonard Ave, Columbus OH). It quotes and supplies commercial building components to GCs, franchisees, and architects, with a strong focus on retail and quick-serve / fast-casual restaurant chains — backed by in-house estimating, a warehouse, and door fabrication.",
+      "Estimating in scope lives within CBC / national accounts, not other HP divisions (Tile, Masonry, Fireplaces, Garage Doors).",
+      "",
+      "Is all estimating we're modelling done inside CBC national accounts? Do any other divisions run their own estimating?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Modelling is scoped to CBC national-accounts estimating only. Other HP divisions (showroom, fireplaces, one-off retail) are separate/out of scope; approach can extend to them later."
+    ],
+    [
+      "",
+      "2.1",
+      "In-scope product categories",
+      "In scope: Doors & Frames (HM & wood doors; HM frames welded & knock-down); Door Hardware (hardware sets); Division 10 specialties (partitions, restroom accessories, washroom equipment inc. hand dryers); FRP wall panels.",
+      "These four families cover ~all estimating volume.",
+      "Must",
+      "The CBC website also lists Tile, Ceiling Tile & Grid, Thin Brick Masonry, and 'Related Products' (JL Industries). Does estimating quote any of these, or are they showroom/retail only? (See Product & Scope tab.)",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Scope confirmed 'green' by estimators: metal & wood doors, metal frames (loaded & knocked-down), store hardware, Division 10 specialties, FRP wall panels. ADD wood doors + HP-Fabrication doors ('peelle/peeling' — confirm exact term)."
+    ],
+    [
+      "",
+      "2.2",
+      "Manufacturers / product lines",
+      "Captured lines include Hager, Allegion (Von Duprin, LCN, Schlage, Ives), Pemko, National Guard, Rockwood, Cal-Royal, Alarm Lock (hardware); Bobrick, Bradley, ASI (partitions & accessories); World Dryer / American Dryer (hand dryers); Five Lakes, Pioneer, Masonite Architectural, Special-Lite, HP Fabrication (doors); Marlite / NUDO (FRP).",
+      "Interview list is representative but not exhaustive.",
+      "Must",
+      "Website lists additional vendors — Scranton, General Partitions; Dyson, Gamco, Georgia-Pacific, Gojo, Kimberly-Clark, Koala Kare, San Jamar; USA Wood Door, Daybar, Manhattan Door, Senneca, Phoenix; Advantage/PHG, Dorma. Which are actively estimated?",
+      "Accurate (corrected)",
+      "[Confirmed — estimator session 14 Jul] Majority confirmed: Hager, Allegion, National Guard, Rockwood, PEMKO. ADD Excel XLERATOR (hand dryers). REMOVE American Dryer (not used) and Scranton (access lost — must go through a costlier distributor). Phase 1 = the top-10 vendors only. Distributor-bought lines (Banner Solutions / SecLock for Allegion; Pionite/Wilsonart for laminate) need MANUAL price entry."
+    ],
+    [
+      "",
+      "2.3",
+      "Out-of-scope categories",
+      "Out of scope: aluminum / glass storefront systems, coiling / overhead doors, and oversized doors.",
+      "Garage doors sit in a separate HP division, not CBC estimating.",
+      "",
+      "Is the out-of-scope list correct and complete? Anything else CBC does NOT quote?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Out-of-scope confirmed: ceiling tile & grid, tile, brick, masonry (another department/showroom) AND engineered wood, metal siding / extruded aluminum, 'not-wood' (low-margin, likely being discontinued)."
+    ],
+    [
+      "",
+      "2.4 *",
+      "Commercial basis of a quote — supply-only & tax",
+      "We understand CBC quotes are supply-only (material), not installed labor, and carry standard commercial terms (HP PO required; 30-day validity). Sales tax handling on the quote is not yet documented.",
+      "CBC does not quote installation labor; tax is handled outside the estimate (added downstream / exempt with resale cert).",
+      "",
+      "Is every quote supply-only, or is installed / freight-in labor ever included? How is sales tax handled — added on the quote, exempt, or per-customer? Are there ever installed or turnkey scopes?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Supply-only material confirmed. Sales tax charged ONLY for Ohio (~8%) and Kentucky (6.5%, border-nexus); all other 48 states + Canada = no tax (sale is to a GC/corporation, not end customer). CBC sells to the GC / internal initiator, not the architect."
+    ],
+    [
+      "2. Estimation Modes",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "3.0",
+      "Two working modes",
+      "Templated ('start full, delete down') for chain brands — open a brand master and trim to the job. One-off ('start blank, build up') for unique jobs — start from a blank quote and copy reference rows in.",
+      "Templated starts from a previous job's workbook (not a clean template), so clearing residual rows is the first task.",
+      "Must",
+      "Are both modes described correctly?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Two modes confirmed: (1) templated — start from an existing Excel and modify per the RFP (Shanna); (2) one-off — build from scratch (Kevin; exceptions McDonald's, Cava). Rick works from his own Excel."
+    ],
+    [
+      "",
+      "3.1",
+      "Workbook protection & adoption",
+      "Both Excel workbooks are password-protected ('ESTIMATOR'). Adoption of the blank-quote system is not yet universal.",
+      "The blank-quote workbook is intended to become the standard going forward.",
+      "",
+      "What should be the go-forward standard method as the basis for onboarding and the reference library? (Open item 8.)",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Workbooks are password-protected ('estimator'). Go-forward: both modes stay; Phase 1 starts with Hager + the top-10 vendors + the stock list."
+    ],
+    [
+      "3. Current-State Process",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "4.0",
+      "End-to-end flow (Phases 0–6)",
+      "Bid request → file setup → spec scoping → drawing review & take-offs (inc. FRP in Vu360) → pricing & building the quote → judgment, reuse & RFIs → deliver a PDF proposal. Detailed on the Process Flow tab.",
+      "Reading the specs and drawings up front is the single largest time cost in every bid.",
+      "",
+      "Please confirm the full flow on the Process Flow tab. Is the 'reading specs/drawings = largest time cost' read correct?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Full flow confirmed: bid arrives mostly by email (job workbook + plans/RFP attached), sometimes by phone -> add a 'create bid request' option; scope manually from the PDFs/RFP; review drawings & take-offs (Vu360 for FRP); enter into Excel & price; export and send back to the initiator/sales."
+    ],
+    [
+      "",
+      "4.1 *",
+      "Bid alternates & addenda",
+      "Commercial bids commonly carry bid alternates (Alternate 1, 2…) and are revised mid-bid by addenda that change scope, products, or counts. The estimate must track a base bid plus alternates and absorb addendum revisions without losing prior work.",
+      "Alternates and addenda occur on a meaningful share of bids and must be first-class, not exceptions.",
+      "",
+      "How are alternates quoted today (separate line groups, separate totals)? How are addenda received and reconciled, and how often do they land? Should the copilot keep base vs alternates as distinct, comparable versions?",
+      "Pending",
+      "Formal bid alternates & addenda reconciliation NOT covered in the session — still needs an answer."
+    ],
+    [
+      "4. Quote Calculation Logic",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "5.0",
+      "Three manual inputs; rest computed",
+      "The quote workbook is a calculator. Only three cells are human per line: Quantity (take-off), Our Cost (P21 / vendor), and Margin (by product type). Everything to the right is computed: Sale $ EA = Cost / (1 - margin); Unit = Sale $ EA; Ext = Unit x Qty; Sub-total = Sale $ EA x Qty; Grand total = SUM(subtotals); Total weight = Unit weight x Qty.",
+      "Unit weight is often 0 / unpopulated, so weight-based freight is usually not computed.",
+      "Must",
+      "Are Quantity, Our Cost, and Margin the only manual inputs? Is unit weight ever reliably populated for freight?",
+      "Accurate (corrected)",
+      "[Confirmed — estimator session 14 Jul] All quote-calc formulas validated EXCEPT 'unit weight' — legacy from truck-loading years ago; not used, remove it. Everything else accurate."
+    ],
+    [
+      "5. Pricing & Cost Rules",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "6.1",
+      "Margin framework by product type",
+      "Margin applied by division as a divisor; framework stable ~14 years. Bands: Commodity 27% (/0.73); Restroom partitions 35% (/0.65); Specialty e.g. laminated doors 40% (/0.60); Custom-built via outside fabricator 25% (/0.75). Bands are defaults the estimator adjusts by experience.",
+      "Lead time & sourcing move the margin; genuinely custom first-builds need a hand-entered margin.",
+      "Must",
+      "Are the four bands and divisors correct? What product types beyond these four make up the rest (the full margin sheet, ~95% coverage)? (Open item 2.)",
+      "Accurate (corrected)",
+      "[Confirmed — estimator session 14 Jul] Top-10 vendors; use the margins sheet provided. Margin is OVERRIDABLE on essentially every quote based on sourcing (e.g., Wendy's special margin; if bought via Banner/SecLock at higher cost the margin drops). Accessory band derives to ~56% from data (was 35%). Margin-approval routing = OUT of scope for now (no deviation today) — future."
+    ],
+    [
+      "",
+      "6.2",
+      "Cost sourcing from P21",
+      "For regularly-bought items, cost = the LAST purchase-order price (from purchase history or the cost screen). Do NOT trust P21's 'supplier list / supplier cost' fields — purchasing doesn't reliably update them. Freshness: cost older than ~6–8 months is unreliable; 3–4 years must be discarded. Special-priced items already carry their cost in P21.",
+      "Read-only access to P21 is sufficient for this workstream (no write-back).",
+      "Must",
+      "Is the last-PO logic and ~6–8 month freshness rule correct? Cost entry mechanic — typed from the P21 screen, or pasted from a P21 export? (Open item 4.)",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] P21 last-PO used often for one-offs. Three cost paths: (1) last-PO if sold <1 yr & no price increase (9/10 correct); (2) else look up Banner/SecLock (Allegion, not bought direct); (3) else mfr website for never-sold direct parts. P21 integration to be investigated — risk: P21 item IDs often differ from mfr part numbers, and 'semi/custom items' won't match. Manual entry must always be available."
+    ],
+    [
+      "",
+      "6.3",
+      "Supplier list price x multiplier",
+      "When an item isn't on special pricing, cost = manufacturer list price x a customer-specific multiplier (CBC's discount tier). Hager (~75% of volume) has custom-negotiated pricing — e.g. a 3500-series storeroom lock lists $256.31, a '50 & 42' discount ≈ 0.29 multiplier → cost ≈ $74. World Dryer example: HP is Level-3 (0.339); the vendor sheet pre-computes net. MAP is NOT cost. Price changes arrive as dated memos with a protection window.",
+      "The multiplier is a per-vendor account attribute (a tier), not a per-item value; the model is near-universal.",
+      "Must",
+      "Is the list x multiplier method + tier / MAP / price-memo read correct? Can we get the current multiplier sheets & tiers for all active vendors? (Open item 3.)",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] List x multiplier confirmed. NOTE manual ADDERS not shown cleanly in the price book (electrification, non-removable-pin hinges, premium/lead-time finishes) must be added on top of the base price. To only foxus on top 10 vendors for now as they cover about 90+ % of quotes"
+    ],
+    [
+      "",
+      "6.4",
+      "Direct-equal substitution",
+      "Where a drawing specs only a function with no named manufacturer, the estimator asks the GC to approve a 'direct equal' so a preferred line (usually Hager) can be used, then prices via 6.3.",
+      "Some drawings name a product with no substitution allowed; those are priced as specified.",
+      "Should",
+      "Is the direct-equal process described correctly? How often are substitutions accepted vs rejected?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Direct-equal / value-engineering confirmed: when a specified line isn't available, propose the closest of the top 2-3 brands (estimator judgment) and attach a NOTE explaining the substitution."
+    ],
+    [
+      "",
+      "6.5",
+      "Sourcing rationale on the quote",
+      "As each line is priced, the estimator records how each item will be sourced — where it was to be made and why — so internal teams and the customer understand pricing drivers and any customizations.",
+      "",
+      "",
+      "Is this accurate, and should the copilot capture these sourcing notes?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Sourcing = buy direct vs buy through wholesaler/distributor (Banner, SecLock, J2, Pionite, Wilsonart) — the latter require a call/website check. Primary source is recorded in P21."
+    ],
+    [
+      "",
+      "6.6 *",
+      "Vendor RFQ / live-quote cost path",
+      "Beyond P21 and list x multiplier, we understand some items — large, special, non-stock, or first-time — are priced by requesting a live quote (RFQ) from the vendor or fabricator. This is a distinct third cost route the copilot must accommodate (request out, quote back, cost entered by hand).",
+      "A meaningful subset of lines can't be priced from P21 or a multiplier sheet and require a vendor RFQ.",
+      "Should",
+      "When does an item go to a vendor RFQ instead of P21 / multiplier? What triggers it (dollar size, non-stock, custom)? How is the returned quote captured, and how long does it take (does it hold up a bid)?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Custom/RFQ path confirmed: custom sizes (e.g., 9-ft doors), unusual preps, or options not sold in years (e.g., electric latch retraction in a given model/size/finish) = manual vendor RFQ, wait for pricing. There is a hard cut-off beyond which pricing stays manual."
+    ],
+    [
+      "",
+      "6.7 *",
+      "Margin-override governance",
+      "Because margin is an editable default, a floor / guardrail is needed so a below-band margin (especially from a junior estimator) is flagged or requires approval, protecting quote margin without removing estimator flexibility.",
+      "There is appetite for a soft control (flag / approve) rather than a hard lock.",
+      "Should",
+      "Is there a margin floor per product type, or a discount threshold above which a manager must approve? Who holds discount / margin authority, and at what level should the copilot flag or require sign-off?",
+      "Out of scope (future)",
+      "[Confirmed — estimator session 14 Jul] No margin deviation today — estimators hold to standard margins. Approval routing deferred to a future phase (relevant only with more estimators)."
+    ],
+    [
+      "6. Reference Data & Opening Attributes",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "7.0",
+      "Frame depth by wall type",
+      "Frame throat / depth is derived from the wall construction (e.g. masonry vs stud). Specific values not yet captured.",
+      "",
+      "",
+      "Please red-line the frame-depth-by-wall-type values. (Open item 6.)",
+      "Accurate — ANSWERED",
+      "[Confirmed — estimator session 14 Jul] Frame depth by wall type resolved. Five standard throat sizes cover most work: 5-5/8\" (half-inch drywall, common at McDonald's), 5-3/4\" (masonry), 5-7/8\" (drywall), 7-3/4\" (wood-frame variant), 8-1/4\" (6\" metal stud + 5/8\" drywall). Provide these five as a pick-list + a CUSTOM manual-entry option (~10 sizes max). Adjustable frames also exist."
+    ],
+    [
+      "",
+      "7.1",
+      "Door size notation",
+      "4-digit shorthand: first two digits = width, second two = height. 3070 = 3'-0\" x 7'-0\"; 3670 = 3'-6\" x 7'-0\".",
+      "Notation is consistent across all quotes.",
+      "",
+      "Confirm the notation is applied consistently.",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] 3070 = 3'-0\" x 7'-0\"; 3670 = 3'-6\" (42\") x 7'-0\". Confirmed."
+    ],
+    [
+      "",
+      "7.2",
+      "Hardware-set anatomy",
+      "A set for one opening commonly includes: continuous/butt hinges; lock or exit device; closer; kick plate; threshold; door sweep; weatherstrip / smoke seal; floor stop/holder; and silencers. Two real expanded sets in Appendix A.",
+      "Set composition is reasonably standard by opening type.",
+      "",
+      "Confirm the typical set anatomy and whether standard sets differ by brand program.",
+      "Accurate (design set)",
+      "[Confirmed — estimator session 14 Jul] No single standard HW list. Build around the TOP-10 stock items per product type (grade variants push to ~20) + a CUSTOM/OTHER tab for the full option matrix (function, backset, finish, lever, keyway, strike, electrified). Quote by part number/series (e.g., Hager 3400 vs 3500 = grade 1 vs 2), NOT by grade. Start with Hager (~75% of clients)."
+    ],
+    [
+      "",
+      "7.3 *",
+      "Fire rating & labels",
+      "Openings carry fire ratings (e.g. 20 / 45 / 60 / 90-minute, UL-labelled). Rating drives both product selection (rated door, frame, and hardware) and price. The copilot must read the rating from the door/frame schedule and carry it as a matching attribute — an unrated match on a rated opening is a defect.",
+      "Rating is present in the spec/schedule and must never be silently dropped.",
+      "Must",
+      "Where does the rating live in your bid sets (door schedule column, frame schedule, notes)? Which categories are rating-sensitive for pricing, and are there rating-specific vendors/lines? Should a missing rating hard-stop the line for review?",
+      "Pending",
+      "NOT covered in the 14 Jul session — fire rating still needs a dedicated answer (where it lives on bids, which categories price on it)."
+    ],
+    [
+      "",
+      "7.4 *",
+      "Door handing & swing",
+      "Hardware selection depends on door handing (LH, RH, LHR, RHR) and swing. The copilot must capture handing per opening so handed hardware (locks, closers, exit devices) is matched correctly.",
+      "Handing is derivable from the schedule / plan and is required for hardware matching.",
+      "Should",
+      "Is handing always stated, or inferred from the plan? How do you resolve it when it's missing?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Handing appears per opening in the schedule (confirmed in sample bids); no exception raised in session."
+    ],
+    [
+      "",
+      "7.5 *",
+      "Finish (and where it comes from)",
+      "Finish (e.g. US26D / 626, US32D) is specified per item and affects both selection and price. It appears in examples but isn't yet a defined field the copilot extracts and matches on.",
+      "Finish is specified in the hardware schedule and is a required matching attribute.",
+      "Should",
+      "Is finish always in the schedule, or defaulted by CBC when unstated? Any standard finish by brand program?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Finishes confirmed. Two nomenclature systems in use — must interpret both (US26D = 626; US19 vs 26D are different satins; 619 = US15). Some finishes are premium / have lead times."
+    ],
+    [
+      "",
+      "7.6 *",
+      "Keying & keying schedules",
+      "Locks carry keying requirements (keyed alike / different, master-keying, construction keying, keyless / indicator). Keying can affect lock selection and price and is sometimes given as a separate keying schedule.",
+      "Keying is specified somewhere in the bid and can change lock pricing.",
+      "Could",
+      "How is keying specified and priced today? Is there a separate keying schedule, and should the copilot capture it or leave it to the estimator?",
+      "Partial",
+      "[Confirmed — estimator session 14 Jul] Keying handled within lock options: interchangeable core (small/large format), storeroom lock w/ IC, keyways — architect-specified; belongs in the lock 'custom' tab. No separate keying-schedule workflow in these bids."
+    ],
+    [
+      "",
+      "7.7 *",
+      "Hardware-set source — spec schedule vs CBC library",
+      "Spec books define hardware sets (HW-1, HW-2…) in the Division 08 hardware schedule. CBC also maintains its own reference sets. We need to confirm whether the copilot reads the SPEC's sets per opening, matches to CBC's library, or reconciles both.",
+      "The spec's hardware schedule is the authority for what's required; CBC's library is the authority for what's quoted.",
+      "Must",
+      "For a spec that lists HW sets, does the estimator quote the spec's set as-is, or map it to a CBC standard set? Which should the copilot treat as the source of truth?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Architects specify hardware by part number/series (e.g., Hager 3400 vs 3500 = grade 1 vs 2). Quote by that part number, reconciled to CBC's stock/top-10; the custom/other tab covers everything beyond."
+    ],
+    [
+      "7. Known Variations & Constraints",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "8.0",
+      "Constraints the solution must accommodate",
+      "Document delivery varies (one combined PDF vs many separate PDFs); P21 pricing doesn't copy cleanly into Excel (manual bridge); FRP quantities are worked by hand after Vu360; non-special items need a manual list x multiplier lookup; templated vs one-off practice differs by estimator; reading specs/drawings is the largest time cost.",
+      "",
+      "",
+      "Is this list of variations and constraints complete and accurate?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Confirmed variations: a bid may arrive as one combined PDF or several separate PDFs (plans + RFP + quote request); many items are fully custom (sizes, preps, options) with no catalog price -> manual vendor RFQ; distributor-bought lines need manual entry. Solution must accommodate a manual cut-off."
+    ],
+    [
+      "",
+      "8.1",
+      "Knowledge-continuity risk",
+      "Estimating knowledge is concentrated in a few people — a continuity risk the copilot is intended to help mitigate by capturing rules and reference data.",
+      "",
+      "",
+      "Do you agree this is a priority, and who are the key knowledge-holders to capture from?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Confirmed as a priority. This session IS the knowledge capture. Key holders: Kevin, Rick, Shanna. Long-term engagement with ongoing maintenance, not one-and-done."
+    ],
+    [
+      "8. Copilot — Functional Requirements",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "FR-1",
+      "Accept a bid-set PDF (and associated email / RFP text) as the trigger for a new estimate.",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Must",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Bids arrive mostly by email (job workbook + plans/RFP); sometimes by phone -> add a 'create new bid request' option."
+    ],
+    [
+      "",
+      "FR-2 *",
+      "Extract door / opening schedule data — door number, size, handing, finish, FIRE RATING, hardware-group / set callouts, and any alternate designation.",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Must",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Matches expectations — extract the door/opening schedule from the bid PDFs during scoping."
+    ],
+    [
+      "",
+      "FR-3",
+      "Maintain a central, structured reference library of hardware sets & standard line items, independent of any single job file.",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Must",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Build the central library from the top-10 stock list + the Hager price book & multipliers to start."
+    ],
+    [
+      "",
+      "FR-4 *",
+      "Match each extracted opening to the closest library entry — respecting rating, handing, and finish — and propose the corresponding line items.",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Must",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Match to library and propose lines; heavy customization means a cut-off beyond which the estimator prices manually."
+    ],
+    [
+      "",
+      "FR-5",
+      "Apply the product-type margin framework (6.1) as an editable default per line.",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Must",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Margin framework applied as an editable default; overridable per quote by sourcing (e.g., Wendy's)."
+    ],
+    [
+      "",
+      "FR-6 *",
+      "Source cost from the P21 last-PO price (NOT the supplier-list/cost fields), or compute from vendor list x customer multiplier (6.3), or accept a vendor-RFQ price (6.6) — honouring the freshness rule and recording the source used.",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Must",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Cost from P21 last-PO (not supplier-list), with the list x multiplier and manual-entry paths."
+    ],
+    [
+      "",
+      "FR-7",
+      "Generate a draft quote grouped by door with subtotals, a separate restroom-accessories block, and a freight line.",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Must",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Draft grouped by door + a separate accessories block; freight usually omitted at estimate (added at job stage)."
+    ],
+    [
+      "",
+      "FR-8 *",
+      "Assign a confidence score to each match; flag low-confidence matches, missing ratings, and any unparsed content for review.",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Must",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Accurate (aligned)",
+      "[Confirmed — estimator session 14 Jul] Consistent with the estimator's P21 search behaviour ('here are 3 close matches — is it one of these?'); flag/confirm low-confidence matches."
+    ],
+    [
+      "",
+      "FR-9",
+      "Provide a review / edit interface to accept, edit, delete, or add lines before approval — nothing is sent without explicit approval.",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Must",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Review/edit needed — add substitution notes, manual price entry, and a custom/other tab."
+    ],
+    [
+      "",
+      "FR-10",
+      "Export the approved quote to PDF in the current customer-facing format, with standard commercial terms.",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Must",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Export -> send to SALES: specifically back to whoever initiated the request in the queue (Kellan/Matt/Rebecca/Tina — shown far-right in the queue), NOT a group email. That person then deals with the customer."
+    ],
+    [
+      "",
+      "FR-11",
+      "Reuse the closest prior quote (same brand / architect / GC) as a starting draft.",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Should",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Confirmed via the templated mode — start from the closest existing quote and modify."
+    ],
+    [
+      "",
+      "FR-12",
+      "Assist the FRP take-off: measure perimeter & corners from the drawing and convert to quantities using the estimator's constants.",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Should",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] FRP wall-panel take-off done in Vu360 + calculator (Shanna). Geometry-to-quantity constants still to be provided."
+    ],
+    [
+      "",
+      "FR-13",
+      "Capture estimator corrections as structured feedback to improve future matching.",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Should",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Accurate (future-leaning)",
+      "[Confirmed — estimator session 14 Jul] Confirmed direction — 'keep feeding it information and grow it' across the long-term engagement."
+    ],
+    [
+      "",
+      "FR-14 *",
+      "Version an estimate — track a base bid plus bid alternates, and absorb drawing/addendum revisions without losing prior history.",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Should",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Pending",
+      "Depends on the alternates/addenda answer (4.1) — not covered in session."
+    ],
+    [
+      "",
+      "FR-15 *",
+      "Flag any line whose margin is set below the product-type floor, and route it for approval per the margin-governance rule (6.7).",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Should",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Out of scope (future)",
+      "[Confirmed — estimator session 14 Jul] No margin deviation today; below-floor flag/approval deferred to a future phase."
+    ],
+    [
+      "",
+      "FR-16 *",
+      "Support the vendor-RFQ loop — mark a line as 'awaiting vendor quote', capture the returned price, and slot it into the draft.",
+      "Proposed copilot capability derived from the current-state process.",
+      "",
+      "Could",
+      "Does this match what you expect the copilot to do? Any change to the Must / Should / Could priority?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Manual price entry REQUIRED for distributor-bought lines; show a 'price may be out of date — refresh' prompt."
+    ],
+    [
+      "9. Copilot — Non-Functional & Guardrails",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "NFR-1",
+      "Human-in-the-loop",
+      "No estimate or quote is sent to a customer without explicit estimator approval.",
+      "",
+      "",
+      "Do you agree with this guardrail as stated? Who owns it?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Human-in-the-loop confirmed — the tool assists, doesn't replace judgment; nothing auto-sent. Owner: Estimating."
+    ],
+    [
+      "",
+      "NFR-2",
+      "Accuracy / trust",
+      "Confidence scoring & review flags visible from day one; unmatched or low-confidence items are never silently guessed.",
+      "",
+      "",
+      "Do you agree with this guardrail as stated? Who owns it?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Estimator validates; a hard cut-off leaves complex items manual. Owner: Estimating."
+    ],
+    [
+      "",
+      "NFR-3",
+      "Auditability",
+      "Every generated line traceable to a source drawing page and to a reference-library / price-sheet version (inc. vendor multiplier tier & effective date).",
+      "",
+      "",
+      "Do you agree with this guardrail as stated? Who owns it?",
+      "Accurate (aligned)",
+      "[Confirmed — estimator session 14 Jul] Supported by P21 last-quoted price + date and captured sourcing notes. Owner: Estimating / IT."
+    ],
+    [
+      "",
+      "NFR-4",
+      "Data security",
+      "Drawings, pricing, and customer data remain in an approved, access-controlled environment.",
+      "",
+      "",
+      "Do you agree with this guardrail as stated? Who owns it?",
+      "Pending",
+      "Data-security guardrail not discussed — confirm owner (IT) and the approved environment."
+    ],
+    [
+      "",
+      "NFR-5",
+      "Integration",
+      "Read-only where P21 data is involved in this workstream; no write-back initially.",
+      "",
+      "",
+      "Do you agree with this guardrail as stated? Who owns it?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] P21 integration to be investigated; read-only last-PO. Risk: P21 item IDs vs mfr part numbers and 'semi-items'. Owner: IT / Dash."
+    ],
+    [
+      "",
+      "NFR-6",
+      "Performance",
+      "A typical single-building bid set (10–40 openings) produces a reviewable draft in minutes, not hours.",
+      "",
+      "",
+      "Do you agree with this guardrail as stated? Who owns it?",
+      "Aligned",
+      "[Confirmed — estimator session 14 Jul] Success framed as speeding ~80-90% of quotes; a formal performance target still to be set. Owner: Estimating / Dash."
+    ],
+    [
+      "",
+      "NFR-7",
+      "Usability",
+      "The review interface is usable by both senior and junior estimators without specialised training beyond onboarding.",
+      "",
+      "",
+      "Do you agree with this guardrail as stated? Who owns it?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Must be usable and genuinely make estimators' lives easier (senior & junior). Owner: Estimating."
+    ],
+    [
+      "",
+      "NFR-8 *",
+      "Margin governance",
+      "Enforce a margin floor / approval threshold per product type so below-band pricing is flagged and, where required, approved before send.",
+      "",
+      "",
+      "Do you agree with this guardrail as stated? Who owns it?",
+      "Out of scope (future)",
+      "[Confirmed — estimator session 14 Jul] Margin governance deferred (no deviation today)."
+    ],
+    [
+      "",
+      "NFR-9 *",
+      "Approval authority & QA",
+      "Define who may approve/send, any dollar or discount thresholds, and a lightweight QA checkpoint for mis-priced lines that slip through.",
+      "",
+      "",
+      "Do you agree with this guardrail as stated? Who owns it?",
+      "Out of scope (future)",
+      "[Confirmed — estimator session 14 Jul] Approval authority deferred to a future phase."
+    ],
+    [
+      "",
+      "NFR-10 *",
+      "Data stewardship",
+      "Name an owner and a refresh cadence for each pricing source — the reference library, each vendor multiplier sheet, and the margin sheet — so automated quotes never run on stale data.",
+      "",
+      "",
+      "Do you agree with this guardrail as stated? Who owns it?",
+      "Open",
+      "Data stewardship (named owner + refresh cadence per pricing sheet) not covered."
+    ],
+    [
+      "",
+      "NFR-11 *",
+      "Adoption & change management",
+      "Ship with a training and rollout path so the copilot is adopted across all estimators, addressing the current uneven adoption of the blank-quote system.",
+      "",
+      "",
+      "Do you agree with this guardrail as stated? Who owns it?",
+      "Accurate",
+      "[Confirmed — estimator session 14 Jul] Long-term engagement with maintenance; rollout won't disrupt estimators ('only helps'). Owner: Estimating Lead + Dash."
+    ]
+  ],
+  "Process Flow": [
+    [
+      "Current-State Estimating Process — Start to Finish (Phases 0–6)",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "Confirm each step reflects how a bid is actually worked. Reading specs & drawings up front is the largest time cost in every bid.",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "Phase",
+      "Step / Activity",
+      "What happens",
+      "System / Tool",
+      "Output",
+      "Confirmation",
+      "Client Notes"
+    ],
+    [
+      "Phase 0 — Intake",
+      "Receive bid request",
+      "Bid request arrives by email; the bid set is a PDF — sometimes one combined file, sometimes many separate PDFs. Note any bid alternates and the bid-due date at intake.",
+      "Microsoft Outlook",
+      "Bid set (PDF/s); alternates & due date noted",
+      "Accurate",
+      "[Confirmed 14 Jul] Bid arrives mostly by email (job workbook + plans/RFP attached); sometimes by phone -> add a 'create new bid request' option. Requests come from the internal initiator in the queue (Kellan/Matt/Rebecca/Tina), not the architect."
+    ],
+    [
+      "Phase 1 — File setup",
+      "Create job workbook",
+      "Copy the project folder / name, then Save As a new job workbook from a prior job's file; clear the previous job's residual rows.",
+      "Excel (password 'ESTIMATOR')",
+      "New job workbook",
+      "Accurate",
+      "[Confirmed 14 Jul] Templated mode copies an existing workbook & modifies per RFP (Shanna); Kevin builds one-off from scratch (exceptions McDonald's, Cava). Workbooks password-protected ('estimator')."
+    ],
+    [
+      "Phase 2 — Spec scoping",
+      "Identify scope from specs",
+      "Identify the Division 8 (doors, frames, hardware) and Division 10 (partitions, accessories, washroom equipment) scope; read the specification — including fire ratings and the hardware-set (HW) schedule — to confirm exactly what is being quoted.",
+      "PDF specs",
+      "Confirmed scope + rating/HW notes",
+      "Accurate",
+      "[Confirmed 14 Jul] Scope identified manually from the spec/RFP PDFs — Div 8 doors/frames/hardware + Div 10 specialties + FRP. Fire-rating capture still to confirm (Matrix 7.3)."
+    ],
+    [
+      "Phase 3 — Drawing review & take-offs",
+      "Take-offs from drawings",
+      "Review the drawings — manual PDF read or digital take-off — for perimeters, corners, counts, door sizes, handing, and rating.",
+      "Microsoft Edge viewer / Vu360",
+      "Quantities, counts & opening attributes",
+      "Accurate",
+      "[Confirmed 14 Jul] Drawings reviewed and taken off manually (Edge / Vu360 viewer)."
+    ],
+    [
+      "Phase 3b — FRP take-off",
+      "FRP wall-panel measurement",
+      "Where FRP is specified, set drawing scale in Vu360 and capture perimeter (LF), inside corners, outside corners. Vu360 gives geometry only; the estimator converts to material quantities by hand and types them in.",
+      "Vu360 + calculator",
+      "FRP material quantities",
+      "Accurate",
+      "[Confirmed 14 Jul] Vu360 + calculator for FRP wall-panel measurement (Shanna). Geometry->quantity conversion constants still to be provided."
+    ],
+    [
+      "Phase 4 — Pricing & build",
+      "Populate & price the quote",
+      "Populate the workbook. Price each line — apply the product-type margin; special-priced items carry cost in P21; others priced from vendor list x multiplier; large/special/non-stock items go to a vendor RFQ. Freight often carried 'TBD'.",
+      "Excel + P21 + vendor sheets / RFQ",
+      "Priced draft quote",
+      "Accurate",
+      "[Confirmed 14 Jul] Populate Excel & price. Two paths: Shanna from available data; Kevin manual calc using vendor multiplier sheets + calls for parts not in P21/multiplier. Only Qty/Cost/Margin manual; remove legacy unit-weight."
+    ],
+    [
+      "Phase 4b — Alternates & addenda",
+      "Handle alternates / revisions",
+      "Price bid alternates as distinct, comparable line groups. When an addendum arrives, reconcile the changed scope/products/counts into the estimate without losing prior work, and re-issue if already sent.",
+      "Excel / Outlook",
+      "Base + alternates; addenda reconciled",
+      "Pending",
+      "Formal alternates / addenda handling NOT covered in the session — still to confirm."
+    ],
+    [
+      "Phase 5 — Judgment, reuse & RFIs",
+      "Apply judgment",
+      "Reuse similar past jobs for a repeat brand/architect/GC. Handle direct-equal substitutions (ask GC to approve an equal). Raise RFIs for unclear or missing info before finalizing.",
+      "Excel / email",
+      "Resolved quote + RFIs",
+      "Accurate",
+      "[Confirmed 14 Jul] Reuse the closest prior quote (templated mode). Value-engineering: when a specified line isn't available, propose the closest of the top 2-3 brands with a note."
+    ],
+    [
+      "Phase 6 — Deliver",
+      "Export & send proposal",
+      "Export to a PDF proposal — doors/frames/hardware grouped by door with subtotals, a separate restroom-accessories block, a freight line (often TBD), and standard commercial terms (HP PO required; 30-day validity). Send via Outlook.",
+      "Excel → PDF / Outlook",
+      "Customer-facing PDF proposal",
+      "Accurate",
+      "[Confirmed 14 Jul] Export to a PDF proposal and send back to whoever initiated the request in the queue (SALES), NOT a group email; they then deal with the customer. Freight generally omitted at estimate (handled at job stage)."
+    ],
+    [
+      "Green = new in v1.1 (alternates & addenda, and rating/handing detail added to intake, scoping & take-off).",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ]
+  ],
+  "Product & Scope Confirmation": [
+    [
+      "Product & Scope Confirmation",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "Categories & manufacturers CBC lists publicly (hamiltonparker.com/construction-building-components), cross-checked against the workshop. Please confirm which ones estimating actually quotes — several website categories are NOT yet in scope.",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "Category",
+      "In requirements doc?",
+      "Manufacturers listed on CBC website",
+      "Also noted in workshop",
+      "Estimating in scope?",
+      "Priority (High/Med/Low)",
+      "Client Notes"
+    ],
+    [
+      "Doors & Frames",
+      "Yes",
+      "Five Lakes Mfg, Masonite Architectural, USA Wood Door, HP Fabrication, Marlite, Pioneer Industries, Daybar, Special-Lite, Manhattan Door Corp, Senneca Holdings, Phoenix Door Systems",
+      "Five Lakes, Pioneer, Masonite Arch., Special-Lite, HP Fabrication",
+      "Yes",
+      "",
+      "[Confirmed 14 Jul] Metal & wood doors, metal frames (loaded & knocked-down). Incl. HP-Fabrication doors ('peelle/peeling' — confirm term)."
+    ],
+    [
+      "Door Hardware",
+      "Yes",
+      "Advantage / PHG, Allegion (Von Duprin, LCN, Schlage, Ives), Cal-Royal, Dorma, Hager, National Guard, Pemko, Rockwood",
+      "Hager (~75%), Allegion, LCN, Pemko, National Guard, Rockwood, Cal-Royal, Alarm Lock, Ives, Schlage",
+      "Yes",
+      "",
+      "[Confirmed 14 Jul] Hager (~75%), Allegion (Von Duprin/LCN/Schlage/Ives — bought via Banner Solutions / SecLock, manual price), National Guard, Rockwood, PEMKO. Grade 1 & 2 mainly; quote by part number/series."
+    ],
+    [
+      "Restroom / Toilet Partitions",
+      "Yes",
+      "ASI Accurate Partitions, Bobrick, Scranton Products, Bradley Corp., General Partitions",
+      "Bobrick, Bradley, ASI",
+      "Yes",
+      "",
+      "[Confirmed 14 Jul] ASI, Bobrick, Bradley, Gamco."
+    ],
+    [
+      "Restroom Accessories",
+      "Yes",
+      "ASI American Specialties, Bobrick, Bradley, Dyson, Gamco, Georgia-Pacific, Gojo, Kimberly-Clark, Koala Kare, San Jamar, World Dryer",
+      "Bobrick, Bradley, ASI",
+      "Yes",
+      "",
+      "[Confirmed 14 Jul] ASI, Bobrick, Bradley, Gamco; some bought via distributor (J2) — manual price entry."
+    ],
+    [
+      "Washroom Equipment / Hand Dryers",
+      "Yes",
+      "World Dryer, Dyson (also American Dryer per workshop)",
+      "World Dryer / American Dryer (L3 = 0.339 multiplier)",
+      "Yes",
+      "",
+      "[Confirmed 14 Jul] Hand dryers: World Dryer, Dyson, Excel XLERATOR (ASI occasionally). REMOVE American Dryer (not used)."
+    ],
+    [
+      "FRP Wall Panels",
+      "Yes",
+      "Marlite, NUDO",
+      "Marlite / NUDO",
+      "Yes",
+      "",
+      "[Confirmed 14 Jul] Marlite, NUDO, Midwest/East Coast FRP. Vu360 take-off; conversion constants pending."
+    ],
+    [
+      "Ceiling Tile & Grid",
+      "NOT in doc",
+      "Certainteed",
+      "— not captured in workshop",
+      "No — out of scope",
+      "",
+      "[Confirmed 14 Jul] Handled by another department/showroom, not CBC estimating."
+    ],
+    [
+      "Tile",
+      "NOT in doc",
+      "Atlas Concorde USA, Bostik, Caesar USA, Crossville, Florim, Imola, Interceramics, Landmark Ceramics, Laticrete, Mapei, Metropolitan, Roca",
+      "— not captured in workshop",
+      "No — out of scope",
+      "",
+      "[Confirmed 14 Jul] Handled by another department/showroom."
+    ],
+    [
+      "Thin Brick Masonry",
+      "NOT in doc",
+      "Belden Brick Co., General Shale",
+      "— not captured in workshop",
+      "No — out of scope",
+      "",
+      "[Confirmed 14 Jul] Handled by another department/showroom."
+    ],
+    [
+      "Related Products",
+      "NOT in doc",
+      "JL Industries (access doors / specialties)",
+      "— not captured in workshop",
+      "No — out of scope",
+      "",
+      "[Confirmed 14 Jul] Not CBC estimating."
+    ],
+    [
+      "Aluminum / glass storefront",
+      "Out of scope",
+      "— (not a CBC estimating category)",
+      "Stated out of scope in workshop",
+      "No — out of scope",
+      "",
+      "[Confirmed 14 Jul] Confirmed out of scope."
+    ],
+    [
+      "Coiling / overhead & oversized doors",
+      "Out of scope",
+      "— (garage doors are a separate HP division)",
+      "Stated out of scope in workshop",
+      "No — out of scope",
+      "",
+      "[Confirmed 14 Jul] Confirmed out of scope (coiling/garage doors = separate department)."
+    ]
+  ],
+  "Assumptions & Dependencies": [
+    [
+      "Assumptions & Dependencies",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "What must be true — and what CBC must provide — for the copilot to succeed. Please confirm each, and flag any you disagree with.",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "#",
+      "Type",
+      "Assumption / Dependency",
+      "Owner",
+      "Confirmation",
+      "Client Notes"
+    ],
+    [
+      "1",
+      "Client Dependency",
+      "CBC provides reasonable access to bid sets, the two Excel templates, and sample completed quotes for training the copilot.",
+      "CBC Estimating",
+      "Partially satisfied",
+      "[Confirmed 14 Jul] 3 bid sets + templated & blank workbooks + Hager & vendor sheets provided (workbooks ESTIMATOR-protected). Top-10 stock list still to come."
+    ],
+    [
+      "2",
+      "Client Dependency",
+      "Read-only access to P21 (purchase history / cost screen) is granted for cost sourcing.",
+      "CBC IT / Purchasing",
+      "Confirm",
+      "[Confirmed 14 Jul] P21 integration to be investigated; part-number / 'semi-item' matching is the key risk. Read-only last-PO."
+    ],
+    [
+      "3",
+      "Client Dependency",
+      "Current vendor multiplier sheets & tiers and the full margin sheet are shared and kept current.",
+      "CBC Purchasing",
+      "Satisfied",
+      "[Confirmed 14 Jul] All active vendor tiers/nets now on file (Hager, NGP, PEMKO/Markar, Rockwood, Bobrick, Bradley, ASI, Gamco)."
+    ],
+    [
+      "4",
+      "Client Dependency",
+      "Estimator time is available for working sessions, reference-data capture, and reviewing drafts on the agreed cadence.",
+      "CBC Estimating",
+      "Satisfied",
+      "[Confirmed 14 Jul] Estimators (Kevin/Rick/Shanna) engaged; validation session held 14 Jul."
+    ],
+    [
+      "5",
+      "Client Dependency",
+      "Leadership approves deliverables within an agreed window (e.g. 5 business days) to keep the build on schedule.",
+      "CBC Leadership",
+      "Confirmed",
+      "[Confirmed 14 Jul] Long-term engagement with ongoing maintenance confirmed."
+    ],
+    [
+      "6",
+      "Assumption",
+      "Read-only P21 is sufficient for this workstream; no write-back to P21 is required initially.",
+      "Dash / CBC",
+      "Confirm",
+      "[Confirmed 14 Jul] Depends on P21 integration feasibility (see #2)."
+    ],
+    [
+      "7",
+      "Assumption",
+      "Bid sets are digital PDFs (native or scanned) — not paper-only — so they can be parsed.",
+      "CBC Estimating",
+      "Confirmed",
+      "[Confirmed 14 Jul] Bids arrive as one combined PDF or several separate PDFs — both must be handled."
+    ],
+    [
+      "8",
+      "Assumption",
+      "The four in-scope families cover the estimating volume the copilot must handle first (pending the Product & Scope tab).",
+      "CBC Estimating",
+      "Confirmed (expanded)",
+      "[Confirmed 14 Jul] Scope = doors/frames/hardware, Div 10 partitions & accessories, hand dryers, FRP. Ceiling tile/grid, tile, brick, masonry out (another dept)."
+    ],
+    [
+      "9",
+      "Assumption",
+      "Throughput, time-saving, and win-rate figures are directional opportunities, not contractual guarantees.",
+      "Dash / CBC",
+      "Open",
+      "Baseline / target metrics not captured. Hint: ~80-90% of quotes could be sped up via stock + top-10."
+    ],
+    [
+      "10",
+      "Risk / Mitigation",
+      "Estimating knowledge is concentrated in a few people — mitigated by capturing rules & reference data early.",
+      "Dash / CBC",
+      "Confirmed",
+      "[Confirmed 14 Jul] Knowledge concentrated in Kevin/Rick/Shanna; this session captures it; long-term maintenance mitigates."
+    ],
+    [
+      "11",
+      "Risk / Mitigation",
+      "Stale price sheets could drive wrong quotes — mitigated by the data-stewardship owner & refresh cadence (NFR-10).",
+      "CBC Purchasing",
+      "Open",
+      "Data stewardship (owner + refresh cadence per sheet) not covered; manual-entry 'refresh price' prompt partially mitigates."
+    ],
+    [
+      "12",
+      "Risk / Mitigation",
+      "Uneven adoption of the blank-quote system — mitigated by the adoption / change-management plan (NFR-11).",
+      "CBC Estimating Lead",
+      "Confirmed (low risk)",
+      "[Confirmed 14 Jul] Tool won't disrupt estimators ('only helps'); adoption aided by starting with stock + top-10 vendors."
+    ]
+  ],
+  "Open Items": [
+    [
+      "Open Items — Answers We Still Need",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "None of these blocks the overall design; each firms up a specific rule or data source. Green = added in v1.1.",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "#",
+      "Item",
+      "Why it matters",
+      "Owner",
+      "Client Answer / Notes",
+      "Status"
+    ],
+    [
+      "1",
+      "Freight — how does the 'TBD' freight / pallet charge resolve to a number, and at what stage?",
+      "Freight is real margin; today it's carried unpriced to proposal.",
+      "Estimating",
+      "[Confirmed — estimator session 14 Jul] Freight is generally NOT quoted at estimate stage — it's handled when a quote becomes a job. Rick occasionally includes it one-off for customers who demand an all-inclusive bottom line.",
+      "Answered"
+    ],
+    [
+      "2",
+      "The full margin sheet — product types beyond the four standard bands (~95% coverage).",
+      "So the copilot's default margins cover the long tail, not just four bands.",
+      "Sr. Estimator",
+      "[Confirmed — estimator session 14 Jul] Top-10 margins sheet provided; margin OVERRIDABLE per quote by sourcing (Wendy's special margin; Banner/SecLock buys lower). Accessories derive to ~56% from data.",
+      "Answered"
+    ],
+    [
+      "3",
+      "Vendor multiplier sheets & tiers — Hager, National Guard, PEMCO, World Dryer (L3), and others.",
+      "Cost accuracy for every non-special item depends on the right tier.",
+      "Estimating / Purchasing",
+      "All active vendor tiers on file (Hager, ASI, NGP, PEMKO/Markar, Rockwood, Bobrick, Bradley, Gamco). Phase 1 = top-10 vendors.",
+      "Answered"
+    ],
+    [
+      "4",
+      "Cost entry mechanic — is Our Cost typed from the P21 screen, or pasted from a P21 export?",
+      "Determines how the copilot bridges P21 → quote.",
+      "Estimating",
+      "[Confirmed — estimator session 14 Jul] Manual price entry required (distributor lines). P21 one-click last-PO lookup to be investigated — risk: P21 IDs vs mfr part numbers, and 'semi/custom items' won't match.",
+      "Answered"
+    ],
+    [
+      "5",
+      "FRP conversion constants — panel size, waste %, trim / stick lengths, adhesive coverage, opening handling.",
+      "To automate the by-hand FRP quantity conversion after Vu360.",
+      "Estimating",
+      "[Confirmed — estimator session 14 Jul] Vu360 + calculator confirmed for FRP; panel/waste/trim/adhesive conversion constants still to be provided.",
+      "Partial"
+    ],
+    [
+      "6",
+      "Frame-depth-by-wall-type values (Section 7).",
+      "Reference data for auto-selecting frame depth by wall construction.",
+      "Estimating",
+      "[Confirmed — estimator session 14 Jul] Five standard frame depths + custom entry (see Matrix 7.0).",
+      "Answered"
+    ],
+    [
+      "7",
+      "Out-of-scope list — confirm what CBC does not quote (Product & Scope tab).",
+      "Bounds the copilot so it doesn't attempt out-of-scope items.",
+      "Estimating Lead",
+      "[Confirmed — estimator session 14 Jul] OUT: ceiling tile & grid, tile, brick, masonry (another department/showroom); engineered wood, metal siding / extruded aluminum, 'not-wood' (low margin, likely going away); Scranton (access lost). IN: doors/frames/hardware, Div 10, partitions, accessories, hand dryers, FRP.",
+      "Answered"
+    ],
+    [
+      "8",
+      "Go-forward estimating method — templated master vs one-off.",
+      "Sets the standard the reference library and copilot are built around.",
+      "Estimating Lead",
+      "[Confirmed — estimator session 14 Jul] Two modes stay: templated (Shanna) + one-off (Kevin; exceptions McDonald's, Cava). Phase 1 = Hager + top-10 + stock list; build around stock, custom tab beyond.",
+      "Answered"
+    ],
+    [
+      "9",
+      "Fire rating — where it lives in your bid sets and which categories are rating-sensitive for price.",
+      "Rating drives product selection and price; must never be dropped.",
+      "Sr. Estimator",
+      "NOT covered in the 14 Jul session — fire rating still needs a dedicated answer (where it lives on bids; which categories price on it).",
+      "Open"
+    ],
+    [
+      "10",
+      "Keying — how keying / keying schedules are specified and priced today.",
+      "Keying can change lock selection and price.",
+      "Estimating",
+      "[Confirmed — estimator session 14 Jul] Keying handled within lock options: interchangeable core (small/large format), storeroom lock w/ IC, keyways — architect-specified; belongs in the lock 'custom' tab. No separate keying-schedule workflow.",
+      "Partial"
+    ],
+    [
+      "11",
+      "Alternates & addenda — how alternates are quoted and how addenda are received / reconciled.",
+      "Both are daily realities the estimate must handle cleanly.",
+      "Estimating",
+      "NOT covered — formal bid alternates & addenda reconciliation still needs an answer. (Direct-equal substitution / value-engineering WAS covered; alternates were not.)",
+      "Open"
+    ],
+    [
+      "12",
+      "Vendor RFQ — what triggers a live vendor quote (size, non-stock, custom) and typical turnaround.",
+      "Defines the third cost path and its impact on bid timing.",
+      "Estimating",
+      "[Confirmed — estimator session 14 Jul] Custom / never-sold / special-prep items -> manual vendor RFQ, wait for pricing. Hard cut-off beyond standard stays manual.",
+      "Answered"
+    ],
+    [
+      "13",
+      "Supply-only vs installed, and sales-tax handling on the quote.",
+      "Sets the commercial basis of every quote.",
+      "Estimating Lead",
+      "[Confirmed — estimator session 14 Jul] Supply-only; sales tax only Ohio (~8%) + Kentucky (6.5%, border-nexus); none in the other 48 states or Canada.",
+      "Answered"
+    ],
+    [
+      "14",
+      "Margin authority — is there a margin floor / discount threshold, and who approves overrides?",
+      "Underpins the margin-governance guardrail (6.7 / NFR-8).",
+      "President / Sales Mgmt",
+      "[Confirmed — estimator session 14 Jul] No margin deviation today — estimators hold standard margins. Approval routing deferred to a future phase (relevant with more estimators).",
+      "Out of scope (future)"
+    ],
+    [
+      "15",
+      "Data stewardship — who owns and refreshes the reference library, multiplier sheets, and margin sheet, and how often?",
+      "Stops automated quotes running on stale data (NFR-10).",
+      "Purchasing / Estimating",
+      "Data stewardship (named owner + refresh cadence per pricing sheet) not covered.",
+      "Open"
+    ],
+    [
+      "16",
+      "Baseline & target metrics — bids/month, hours/bid, turnaround, hit rate (Business Case tab).",
+      "Sizes the opportunity and defines success for leadership.",
+      "Leadership",
+      "Baseline / target metrics not formally captured. Session hint: automating stock + top-10 vendors could speed ~80-90% of quotes.",
+      "Open"
+    ],
+    [
+      "SESSION 14 JUL — NEW REQUIREMENTS & DATA STILL NEEDED",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "NR-1",
+      "New req",
+      "Light-kit (lites/louvers) pricing calculator — input glazing type + size, auto-return price from the vendor tables (National Guard, PEMKO/Markar, Rockwood). Data already on file.",
+      "",
+      "Build",
+      ""
+    ],
+    [
+      "NR-2",
+      "New req",
+      "Manual price-entry for distributor-bought lines (Banner Solutions, SecLock, Pionite, Wilsonart) with a 'price may be out of date — refresh' prompt.",
+      "",
+      "Build",
+      ""
+    ],
+    [
+      "NR-3",
+      "New req",
+      "Dual finish-nomenclature interpreter (US26D=626; US19 vs 26D; 619=US15) as reference data.",
+      "",
+      "Build",
+      ""
+    ],
+    [
+      "NR-4",
+      "New req",
+      "Manual ADDERS not in the base price book (electrification, non-removable-pin hinges, premium/lead-time finishes).",
+      "",
+      "Build",
+      ""
+    ],
+    [
+      "NR-5",
+      "New req",
+      "'Create new bid request' option for phone-in bids (not just email intake).",
+      "",
+      "Build",
+      ""
+    ],
+    [
+      "NR-6",
+      "Data needed",
+      "TOP-10 stock list per product type (locks, exits, closers, hinges, etc.) — CBC to provide; foundation for the item picker + the custom/other tab.",
+      "",
+      "CBC",
+      ""
+    ],
+    [
+      "NR-7",
+      "Data needed",
+      "Hager adder values (electrification / NRP / premium finish) extracted from the price book.",
+      "",
+      "CBC",
+      ""
+    ],
+    [
+      "NR-8",
+      "Data needed",
+      "Light-kit table logic confirmed (glazing types + size multipliers) from the NGP/PEMKO/Rockwood sheets.",
+      "",
+      "CBC",
+      ""
+    ],
+    [
+      "NR-9",
+      "Data needed",
+      "Special-customer margins (e.g., Wendy's) — which accounts get non-standard margins.",
+      "",
+      "CBC",
+      ""
+    ],
+    [
+      "NR-10",
+      "Investigate",
+      "P21 integration feasibility + a part-number / 'semi-item' matching strategy.",
+      "",
+      "Dash/IT",
+      ""
+    ],
+    [
+      "NR-11",
+      "Confirm",
+      "Exact term & scope of the HP-Fabrication 'peelle/peeling' doors.",
+      "",
+      "CBC",
+      ""
+    ],
+    [
+      "NR-12",
+      "Investigate",
+      "Explore a Hager live-data / API feed instead of the static PDF price book (Dash to investigate).",
+      "",
+      "Dash",
+      ""
+    ],
+    [
+      "NR-13",
+      "Design principle",
+      "Automate the stock / top-N items; beyond that, a clear MANUAL cut-off & custom path. Do NOT attempt to price every option permutation — the estimator handles the long tail.",
+      "",
+      "Dash/CBC",
+      ""
+    ]
+  ]
+}

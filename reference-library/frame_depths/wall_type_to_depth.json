@@ -1,0 +1,17 @@
+{
+  "description": "Frame throat / depth derived from wall construction.",
+  "source": "Requirements Matrix 7.0, resolved in the 14 Jul estimator session",
+  "wall_types": [
+    { "type": "half-inch drywall", "depth": "5-5/8", "depth_inches": 5.625, "note": "Common at McDonalds" },
+    { "type": "masonry", "depth": "5-3/4", "depth_inches": 5.75, "note": null },
+    { "type": "drywall", "depth": "5-7/8", "depth_inches": 5.875, "note": null },
+    { "type": "wood-frame", "depth": "7-3/4", "depth_inches": 7.75, "note": "Wood-frame variant" },
+    { "type": "6 inch metal stud with 5/8 drywall", "depth": "8-1/4", "depth_inches": 8.25, "note": null }
+  ],
+  "custom_option": true,
+  "custom_max": 10,
+  "custom_note": "CUSTOM manual entry is allowed; practical ceiling is about 10 sizes.",
+  "adjustable_frames": true,
+  "adjustable_note": "Adjustable frames exist and are a valid answer when wall type is unclear.",
+  "unknown_wall_type_rule": "Do NOT guess a depth. Flag the opening for estimator review."
+}

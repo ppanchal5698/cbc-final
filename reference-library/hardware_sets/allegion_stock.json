@@ -1,0 +1,99 @@
+{
+  "vendor": "Allegion",
+  "brands": ["Von Duprin", "LCN", "Schlage", "Ives"],
+  "status": "DRAFT - PENDING CBC top-10 stock list (NR-6)",
+  "sourcing": {
+    "direct": false,
+    "distributors": ["Banner Solutions", "SecLock"],
+    "cost_path": "DISTRIBUTOR_MANUAL",
+    "rule": "Allegion is NOT bought direct. Every Allegion line requires MANUAL price entry with a 'price may be out of date - refresh' prompt (NR-2). There is no multiplier tier to apply.",
+    "margin_effect": "Buying through a distributor at higher cost typically drops the applied margin - record the override reason."
+  },
+  "items": [
+    {
+      "category": "exit_device",
+      "brand": "Von Duprin",
+      "part_number": "99EO",
+      "series": "99",
+      "description": "Rim exit device, exit only",
+      "grade": 1,
+      "stock": true,
+      "seen_in": "Dutch Bros fixture, hardware groups 1 and 3 (626 finish, 42 in and 26 in)"
+    },
+    {
+      "category": "exit_device",
+      "brand": "Von Duprin",
+      "part_number": "99NL",
+      "series": "99",
+      "description": "Rim exit device, night latch trim",
+      "grade": 1,
+      "stock": true
+    },
+    {
+      "category": "closer",
+      "brand": "LCN",
+      "part_number": "4040XP",
+      "series": "4040XP",
+      "description": "Heavy duty surface closer; RW/PA arm",
+      "grade": 1,
+      "stock": true,
+      "seen_in": "Dutch Bros fixture, hardware groups 1 and 3 (aluminum finish)"
+    },
+    {
+      "category": "closer",
+      "brand": "LCN",
+      "part_number": "1461",
+      "series": "1460",
+      "description": "Surface closer",
+      "grade": 1,
+      "stock": true
+    },
+    {
+      "category": "hinge",
+      "brand": "Ives",
+      "part_number": "700",
+      "series": "700",
+      "description": "Continuous geared hinge, 83 in",
+      "grade": 1,
+      "stock": true,
+      "seen_in": "Dutch Bros fixture, hardware groups 1 and 3 (630 finish)"
+    },
+    {
+      "category": "kick_plate",
+      "brand": "Ives",
+      "part_number": "8400",
+      "series": "8400",
+      "description": "Kick plate; size varies (40x30, 34x30 seen)",
+      "stock": true,
+      "seen_in": "Dutch Bros fixture (630 finish, interior face)"
+    },
+    {
+      "category": "floor_stop",
+      "brand": "Ives",
+      "part_number": "FS43",
+      "series": "FS43",
+      "description": "Floor stop",
+      "stock": true,
+      "seen_in": "Dutch Bros fixture (626 finish)"
+    },
+    {
+      "category": "lock",
+      "brand": "Schlage",
+      "part_number": "ND",
+      "series": "ND",
+      "description": "Grade 1 cylindrical lock family",
+      "grade": 1,
+      "stock": true
+    },
+    {
+      "category": "lock",
+      "brand": "Schlage",
+      "part_number": "L9000",
+      "series": "L9000",
+      "description": "Grade 1 mortise lock family",
+      "grade": 1,
+      "stock": true
+    }
+  ],
+  "note": "Part numbers here were confirmed against a real bid set and vendor practice. Prices are NOT available from a CBC price book - always price manually."
+}

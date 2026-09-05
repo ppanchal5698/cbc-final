@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cbc.priced.line_items",
+  "title": "line_items",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "lines": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/priced_line" }
+        }
+      },
+      "additionalProperties": true
+    },
+    {
+      "type": "array",
+      "items": { "$ref": "#/$defs/priced_line" }
+    }
+  ],
+  "$defs": {
+    "priced_line": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "line_id": { "type": ["string", "integer", "number", "null"] },
+        "group": { "type": ["string", "null"] },
+        "group_type": { "type": ["string", "null"] },
+        "quantity": { "type": ["number", "string", "null"] },
+        "cost_source": { "type": ["string", "null"] },
+        "part_number": { "type": ["string", "null"] },
+        "part": { "type": ["string", "null"] },
+        "description": { "type": ["string", "null"] },
+        "division": { "type": ["string", "null"] },
+        "cost": { "type": ["number", "string", "null"] },
+        "margin": { "type": ["number", "string", "null"] },
+        "sale_ea": { "type": ["number", "string", "null"] },
+        "ext_price": { "type": ["number", "string", "null"] },
+        "basis": { "type": ["string", "null"] },
+        "cost_source_detail": { "type": ["string", "null"] },
+        "multiplier": { "type": ["number", "string", "null"] },
+        "multiplier_tier": { "type": ["string", "null"] },
+        "multiplier_effective_date": { "type": ["string", "null"] },
+        "price_book_version": { "type": ["string", "null"] },
+        "source_page": { "type": ["integer", "number", "null"] },
+        "price_status": { "type": ["string", "null"] },
+        "added_by_hand": { "type": ["boolean", "null"] },
+        "flags": { "type": ["array", "null"] },
+        "substitution_note": { "type": ["string", "null"] },
+        "margin_overridden": { "type": ["boolean", "null"] },
+        "margin_override_reason": { "type": ["string", "null"] },
+        "notes": { "type": ["string", "null"] },
+        "vendor": { "type": ["string", "null"] },
+        "unit": { "type": ["string", "null"] },
+        "uom": { "type": ["string", "null"] },
+        "opening": { "type": ["string", "null"] },
+        "mark": { "type": ["string", "null"] },
+        "hw_set": { "type": ["string", "null"] },
+        "hardware_set": { "type": ["string", "null"] },
+        "catalog_page": { "type": ["integer", "number", "string", "null"] }
+      }
+    }
+  }
+}

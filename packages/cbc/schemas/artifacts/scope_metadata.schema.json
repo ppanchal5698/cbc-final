@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cbc.extracted.scope_metadata",
+  "title": "scope_metadata",
+  "type": "object",
+  "minProperties": 1,
+  "properties": {
+    "brand": { "type": ["string", "null"] },
+    "state": { "type": ["string", "null"] },
+    "location": { "type": ["string", "null"] },
+    "address": { "type": ["string", "null"] },
+    "city": { "type": ["string", "null"] },
+    "architect": { "type": ["string", "null"] },
+    "gc": { "type": ["string", "null"] },
+    "initiator": { "type": ["string", "null"] },
+    "project_number": { "type": ["string", "null"] },
+    "project_name": { "type": ["string", "null"] },
+    "bid_due_date": { "type": ["string", "null"] },
+    "bid_alternates": { "type": "array" },
+    "mode": { "type": ["string", "null"] },
+    "flags": { "type": "array" },
+    "source_files": { "type": "array" },
+    "field_sources": { "type": "object" },
+    "source_page": { "type": ["integer", "number", "null"] }
+  },
+  "additionalProperties": true
+}

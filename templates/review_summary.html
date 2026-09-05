@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Estimator Review - {{ project.name }}</title>
+<style>
+  :root {
+    --ink:#1a1a1a; --muted:#5b6169; --rule:#d6d9de; --bg:#fff; --band:#f4f6f8;
+    --red:#b3261e; --red-bg:#fdecea; --yellow:#8a6100; --yellow-bg:#fff6e0;
+    --green:#0f5132; --green-bg:#e6f4ea; --total:#0f3d2e;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:28px; background:var(--bg); color:var(--ink);
+         font:14px/1.5 "Segoe UI",Arial,Helvetica,sans-serif; }
+  .sheet { max-width:1180px; margin:0 auto; }
+  header { border-bottom:3px solid var(--total); padding-bottom:14px; }
+  h1 { margin:0; font-size:20px; }
+  .sub { color:var(--muted); font-size:13px; margin-top:4px; }
+  .counts { display:flex; gap:12px; margin:20px 0; flex-wrap:wrap; }
+  .count { flex:1; min-width:130px; padding:12px 14px; border-radius:6px;
+           border:1px solid var(--rule); }
+  .count b { display:block; font-size:24px; line-height:1.1; }
+  .count span { font-size:12px; color:var(--muted); text-transform:uppercase;
+                letter-spacing:.05em; }
+  .count.red { background:var(--red-bg); border-color:var(--red); color:var(--red); }
+  .count.yellow { background:var(--yellow-bg); border-color:var(--yellow); color:var(--yellow); }
+  .count.green { background:var(--green-bg); border-color:var(--green); color:var(--green); }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.07em;
+       color:var(--muted); margin:28px 0 8px; }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.05em;
+       color:var(--muted); border-bottom:1px solid var(--rule); padding:6px 8px; }
+  td { padding:7px 8px; border-bottom:1px solid var(--rule); vertical-align:top; }
+  tr.red td:first-child { border-left:4px solid var(--red); }
+  tr.yellow td:first-child { border-left:4px solid var(--yellow); }
+  tr.green td:first-child { border-left:4px solid var(--green); }
+  .pill { display:inline-block; padding:1px 7px; border-radius:10px; font-size:11px;
+          font-weight:600; white-space:nowrap; }
+  .pill.red { background:var(--red-bg); color:var(--red); }
+  .pill.yellow { background:var(--yellow-bg); color:var(--yellow); }
+  .pill.green { background:var(--green-bg); color:var(--green); }
+  .src { color:var(--muted); font-size:11px; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .actions button { font:inherit; font-size:12px; padding:3px 9px; margin-right:4px;
+                    border:1px solid var(--rule); border-radius:4px; background:#fff;
+                    cursor:pointer; }
+  .actions button:hover { background:var(--band); }
+  .actions button.primary { border-color:var(--green); color:var(--green); }
+  .actions button.danger { border-color:var(--red); color:var(--red); }
+  .halt { margin-top:30px; padding:14px 18px; border:2px solid var(--total);
+          border-radius:6px; background:var(--band); }
+  .halt b { color:var(--total); }
+  .blocked li { margin-bottom:5px; }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+<header>
+  <h1>Estimator Review &mdash; {{ project.name }}</h1>
+  <div class="sub">
+    {{ project.location or "" }}{% if project.architect %} &middot; {{ project.architect }}{% endif %}
+    &middot; generated {{ generated_at }}
+  </div>
+</header>
+
+<div class="counts">
+  <div class="count"><b>{{ summary.lines }}</b><span>Lines</span></div>
+  <div class="count red"><b>{{ summary.high }}</b><span>Need attention</span></div>
+  <div class="count yellow"><b>{{ summary.medium }}</b><span>Worth a look</span></div>
+  <div class="count green"><b>{{ summary.confident }}</b><span>Confident</span></div>
+  <div class="count"><b>{{ "%.2f"|format(summary.grand_total) }}</b><span>Draft total</span></div>
+</div>
+
+<h2>Line items</h2>
+<table>
+  <thead>
+    <tr>
+      <th style="width:8%">Opening</th>
+      <th style="width:24%">Item</th>
+      <th style="width:11%">Part number</th>
+      <th style="width:9%">Vendor</th>
+      <th class="num" style="width:5%">Qty</th>
+      <th class="num" style="width:9%">Cost</th>
+      <th class="num" style="width:7%">Conf.</th>
+      <th style="width:12%">Status</th>
+      <th style="width:15%">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for line in lines %}
+    <tr class="{{ line.level }}">
+      <td>{{ line.opening or "&mdash;" | safe }}</td>
+      <td>
+        {{ line.description }}
+        {% if line.substitution_note %}<div class="src">Substitution: {{ line.substitution_note }}</div>{% endif %}
+        {% if line.note %}<div class="src">{{ line.note }}</div>{% endif %}
+        {% if line.source_page %}<div class="src">Drawing p.{{ line.source_page }}{% if line.price_book_version %} &middot; {{ line.price_book_version }}{% endif %}</div>{% endif %}
+      </td>
+      <td>{{ line.part_number or "&mdash;" | safe }}</td>
+      <td>{{ line.vendor or "&mdash;" | safe }}</td>
+      <td class="num">{{ line.quantity }}</td>
+      <td class="num">{% if line.cost is not none %}{{ "%.2f"|format(line.cost) }}{% else %}&mdash;{% endif %}</td>
+      <td class="num">{% if line.confidence is not none %}{{ "%.2f"|format(line.confidence) }}{% else %}&mdash;{% endif %}</td>
+      <td><span class="pill {{ line.level }}">{{ line.status }}</span></td>
+      <td class="actions">
+        <button class="primary" data-action="accept" data-line="{{ line.line_id }}">Accept</button>
+        <button data-action="edit" data-line="{{ line.line_id }}">Edit</button>
+        <button class="danger" data-action="delete" data-line="{{ line.line_id }}">Delete</button>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="actions"><button data-action="add">+ Add a line</button></p>
+
+{% if flags %}
+<h2>Flags</h2>
+<table>
+  <thead><tr><th style="width:10%">Severity</th><th style="width:10%">Opening</th><th style="width:15%">Field</th><th>Note</th><th style="width:8%">Page</th></tr></thead>
+  <tbody>
+  {% for flag in flags %}
+    <tr class="{{ flag.level }}">
+      <td><span class="pill {{ flag.level }}">{{ flag.severity }}</span></td>
+      <td>{{ flag.opening or "&mdash;" | safe }}</td>
+      <td>{{ flag.field or "&mdash;" | safe }}</td>
+      <td>{{ flag.note }}</td>
+      <td>{{ flag.source_page or "" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if blocked_on %}
+<h2>Blocked on CBC input &mdash; not extraction failures</h2>
+<ul class="blocked">
+  {% for item in blocked_on %}<li>{{ item }}</li>{% endfor %}
+</ul>
+{% endif %}
+
+{% if rfis %}
+<h2>Suggested RFIs</h2>
+<ul>{% for rfi in rfis %}<li>{{ rfi }}</li>{% endfor %}</ul>
+{% endif %}
+
+{% if prior_quotes %}
+<h2>Closest prior quotes</h2>
+<table>
+  <thead><tr><th>Quote</th><th>Matched on</th><th class="num">Score</th></tr></thead>
+  <tbody>
+  {% for candidate in prior_quotes %}
+    <tr><td>{{ candidate.name }}</td><td>{{ candidate.signals | join(", ") }}</td><td class="num">{{ "%.2f"|format(candidate.score) }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<div class="halt">
+  <b>Draft ready for estimator review.</b>
+  Nothing has been sent. The copilot drafts, sources and calculates &mdash; it does
+  not send. Approve here, then send the quotation yourself to the person who
+  initiated the request in the queue.
+</div>
+
+</div>
+<script>
+  // Records the estimator's decisions locally so corrections can be captured as
+  // structured feedback (FR-9 / FR-13). No network calls - this page never
+  // transmits anything.
+  const decisions = {};
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+    const { action, line } = button.dataset;
+    if (line) decisions[line] = action;
+    button.closest("tr")?.style.setProperty("opacity", action === "delete" ? "0.45" : "1");
+    console.log("review decisions", decisions);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cbc.extracted.scope_summary",
+  "title": "scope_summary",
+  "type": "object",
+  "required": ["frp_in_scope"],
+  "properties": {
+    "frp_in_scope": { "type": "boolean" },
+    "divisions": { "type": "array" },
+    "out_of_scope_items": { "type": "array" },
+    "flags": { "type": "array" },
+    "door_schedule_found": { "type": ["boolean", "null"] },
+    "schedule_found": { "type": ["boolean", "null"] },
+    "has_division_08_scope": { "type": ["boolean", "null"] },
+    "door_schedule_pages": { "type": "array" }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,44 @@
+{
+  "description": "CBC margin framework by product type. Stable for about 14 years.",
+  "formula": "sale_ea = cost / (1 - margin)",
+  "overridable": true,
+  "override_reason": "sourcing",
+  "override_note": "Margin is overridden on essentially every quote based on sourcing - distributor buys, special-customer margins, lead time, and custom first builds.",
+  "governance": "Below-band lines are FLAGGED only. Approval routing is deferred (NFR-8 / Matrix 6.7) - there is no margin deviation today.",
+  "source": "Requirements Matrix 6.1, confirmed 14 Jul estimator session",
+  "bands": [
+    {
+      "key": "commodity",
+      "name": "Commodity",
+      "margin": 0.27,
+      "divisor": 0.73,
+      "examples": ["hollow metal frames", "standard hardware", "doors"]
+    },
+    {
+      "key": "restroom_partitions",
+      "name": "Restroom Partitions",
+      "margin": 0.35,
+      "divisor": 0.65,
+      "examples": ["toilet partitions", "urinal screens"]
+    },
+    {
+      "key": "specialty",
+      "name": "Specialty",
+      "margin": 0.4,
+      "divisor": 0.6,
+      "examples": ["laminated doors"]
+    },
+    {
+      "key": "custom_built",
+      "name": "Custom-built via outside fabricator",
+      "margin": 0.25,
+      "divisor": 0.75,
+      "examples": ["custom sizes", "outside-fabricated assemblies"]
+    }
+  ],
+  "accessories_derived": 0.56,
+  "accessories_note": "Restroom accessories derive to about 56% from the data. Originally recorded as 35% and corrected in the 14 Jul session.",
+  "removed": {
+    "unit_weight": "Legacy column from truck-loading years ago. Not used - removed."
+  }
+}

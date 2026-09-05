@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "pdf-tools": {
+      "command": "python",
+      "args": [
+        "./mcp-servers/pdf-tools/server.py"
+      ]
+    },
+    "calc-engine": {
+      "command": "python",
+      "args": [
+        "./mcp-servers/calc-engine/server.py"
+      ]
+    },
+    "artifact-storage": {
+      "command": "python",
+      "args": [
+        "./mcp-servers/artifact-storage/server.py"
+      ]
+    },
+    "p21-connector": {
+      "command": "python",
+      "args": [
+        "./mcp-servers/p21-connector/server.py"
+      ]
+    },
+    "catalog": {
+      "command": "python",
+      "args": [
+        "./mcp-servers/catalog/server.py"
+      ]
+    },
+    "reference": {
+      "command": "python",
+      "args": [
+        "./mcp-servers/reference/server.py"
+      ]
+    }
+  }
+}
