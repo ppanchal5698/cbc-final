@@ -247,3 +247,74 @@ def test_m001_refuses_to_rename_over_an_existing_collection(database) -> None:
     assert database["projects"].find_one({"side": "old"})
     assert database["bidRequests"].find_one({"side": "new"})
     assert database[migrations.LEDGER].count_documents({"_id": 1}) == 0
+
+
+# ── m002: the audit envelope ────────────────────────────────────────────────
+
+
+def test_m002_creates_the_organization_from_the_workbook(database) -> None:
+    """Matrix 2.0 gives CBC's identity; it is not invented here."""
+    from cbc.persistence.names import ORGANIZATIONS
+
+    _run()
+
+    org = database[ORGANIZATIONS].find_one({"slug": "cbc"})
+    assert org["parent"] == "The Hamilton Parker Company"
+    assert org["address"]["city"] == "Columbus"
+    assert org["address"]["state"] == "OH"
+    assert org["schemaVersion"] == 1
+
+
+def test_m002_stamps_documents_that_predate_the_envelope(database) -> None:
+    from cbc.persistence import envelope
+    from cbc.persistence.names import BID_REQUESTS, OPENINGS, ORGANIZATIONS
+
+    database["projects"].insert_one({"code": "CBC-260002", "slug": "test"})
+    database["lineItems"].insert_one({"mark": "01", "size": "3070"})
+
+    _run()
+
+    org_id = database[ORGANIZATIONS].find_one({"slug": "cbc"})["_id"]
+    for collection in (BID_REQUESTS, OPENINGS):
+        row = database[collection].find_one({})
+        assert row["orgId"] == org_id
+        assert row["schemaVersion"] == envelope.SCHEMA_VERSION
+
+
+def test_m002_indexes_the_tenant_filter(database) -> None:
+    """§4.1's argument only holds if the filter is index-covered."""
+    from cbc.persistence.names import BID_REQUESTS
+
+    _run()
+    assert "org" in database[BID_REQUESTS].index_information()
+
+
+def test_m002_does_not_restamp_or_duplicate_on_a_second_run(database) -> None:
+    from cbc.persistence.names import BID_REQUESTS, ORGANIZATIONS
+
+    database["projects"].insert_one({"code": "CBC-260002", "slug": "test"})
+    _run()
+
+    stamped = database[BID_REQUESTS].find_one({})
+    # A document that already carries an orgId is not matched again, so a
+    # hand-corrected tenant would survive a re-run.
+    database[BID_REQUESTS].update_one({"_id": stamped["_id"]}, {"$set": {"orgId": "kept"}})
+
+    database[migrations.LEDGER].delete_one({"_id": 2})  # force a re-apply
+    _run()
+
+    assert database[ORGANIZATIONS].count_documents({"slug": "cbc"}) == 1
+    assert database[BID_REQUESTS].find_one({})["orgId"] == "kept"
+
+
+def test_m002_leaves_installation_wide_collections_alone(database) -> None:
+    """settings and counters are keyed by name, one row per concern - not tenant data."""
+    from cbc.persistence.names import COUNTERS, SETTINGS
+
+    database[SETTINGS].insert_one({"_id": "claude", "mode": "ollama"})
+    database[COUNTERS].insert_one({"_id": "projectCode", "seq": 7})
+
+    _run()
+
+    assert "orgId" not in database[SETTINGS].find_one({"_id": "claude"})
+    assert "orgId" not in database[COUNTERS].find_one({"_id": "projectCode"})
