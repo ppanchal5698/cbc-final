@@ -144,6 +144,26 @@ class Collections:
         return database()[names.FAILED_EXTRACTIONS]
 
     @property
+    def feedback_events(self):
+        """FR-13 - every estimator correction, structured (§3.31)."""
+        return database()[names.FEEDBACK_EVENTS]
+
+    @property
+    def vendor_rfqs(self):
+        """FR-16 - the third cost path (§3.28)."""
+        return database()[names.VENDOR_RFQS]
+
+    @property
+    def rfis(self):
+        """Phase 5 questions raised before finalizing (§3.29)."""
+        return database()[names.RFIS]
+
+    @property
+    def takeoffs(self):
+        """FR-12 - FRP geometry (§3.24)."""
+        return database()[names.TAKEOFFS]
+
+    @property
     def reference_data(self):
         """Curated reference-library documents (margins, tax, tiers, …)."""
         return database()[names.REFERENCE_DATA]

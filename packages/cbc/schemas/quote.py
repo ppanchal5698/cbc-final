@@ -34,6 +34,14 @@ class QuoteLineUpdate(BaseModel):
     margin: float | None = Field(default=None, ge=0.0, lt=1.0)
     basis: str | None = None
     overrideReason: str | None = None
+    # FR-16. `VENDOR_RFQ` has been in the CostSource enum since the beginning
+    # with no way for an estimator to set it: this model exposed qty, cost,
+    # margin, basis and overrideReason and nothing else, so a line "awaiting
+    # vendor quote" could not be marked as one and the returned price arrived as
+    # an anonymous cost edit. Matrix 6.6 notes an outstanding RFQ can hold up a
+    # bid, which it cannot do if nothing records that one is outstanding.
+    costSource: CostSource | None = None
+    costSourceDetail: str | None = None
 
 
 class QuoteLine(QuoteLineBase):

@@ -16,7 +16,7 @@ from cbc.http.deps import Actor
 from cbc.schemas import QuoteLineCreate, QuoteLineUpdate, QuoteSettings
 from cbc.http.projects_access import load
 from cbc.http.pipeline_jobs import enqueue_pipeline
-from cbc.services import audit, freshness as freshness_settings, jobs, quote as quote_service, sync
+from cbc.services import audit, feedback, freshness as freshness_settings, jobs, quote as quote_service, sync
 
 router = APIRouter(prefix="/api/projects/{code}/quote", tags=["quote"])
 
@@ -162,6 +162,18 @@ async def update_line(
         "after": changes,
         "reason": reason,
     }
+    # FR-13: what the copilot proposed, what the estimator chose instead, and
+    # how confident it had been. Recorded before the write, so `before` is still
+    # the copilot's value rather than the correction.
+    await feedback.record_edits(
+        bid_request_id=project["_id"],
+        changes=changes,
+        before=line,
+        actor=actor,
+        estimate_line_id=line["_id"],
+        reason=reason,
+    )
+
     update: dict[str, Any] = {**changes, "updatedAt": _now()}
     if "margin" in changes:
         update["marginOverridden"] = True
