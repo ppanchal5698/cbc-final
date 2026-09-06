@@ -76,6 +76,49 @@ def tax_state(project: dict[str, Any], quote: dict[str, Any]) -> str | None:
     return project.get("state")
 
 
+def _resolve_margin(line: dict[str, Any]) -> tuple[float | None, dict[str, Any] | None]:
+    """The margin to price at, and the snapshot that records where it came from.
+
+    §4.8: the snapshots "are not caches and must never be refreshed". Before this,
+    a line with no explicit margin re-derived one from the *current* bands on
+    every reprice, so editing the framework silently repriced quotes that had
+    already been sent.
+
+    Telling an estimator's override from our own output is the reason the old code
+    re-derived at all: `reprice` writes the applied margin back onto `line`, so on
+    the next pass it cannot tell 0.27-because-the-band-said-so from
+    0.27-because-a-person-typed-it. The frozen rate settles it - a `margin` that
+    differs from the snapshot is a person changing their mind, and anything equal
+    to it is our own echo.
+    """
+    cost = line.get("cost")
+    margin = line.get("margin")
+    snapshot = line.get("marginSnapshot")
+
+    # An unpriced line - MANUAL, or awaiting a vendor quote - has no price for a
+    # snapshot to make traceable. Freezing a margin here would invent one.
+    if cost is None:
+        return margin, None
+
+    band = pricing.band_for_division(line.get("division"))
+
+    if snapshot and (margin is None or margin == snapshot.get("rate")):
+        return snapshot.get("rate"), snapshot  # frozen, unchanged
+
+    if margin is not None:
+        applied, resolved_from, overridden = float(margin), "override", True
+    else:
+        applied, resolved_from, overridden = pricing.default_margin(line.get("division")), "band", False
+
+    return applied, {
+        "band": band,
+        "rate": applied,
+        "overridden": overridden,
+        "resolvedFrom": resolved_from,
+        "frozenAt": datetime.now(timezone.utc),
+    }
+
+
 def reprice(lines: list[dict[str, Any]], state: str | None, freight: float | None) -> dict:
     """Price every line in memory and roll them up. Writes nothing.
 
@@ -84,12 +127,15 @@ def reprice(lines: list[dict[str, Any]], state: str | None, freight: float | Non
     """
     changed: list[dict[str, Any]] = []
     for line in lines:
+        applied, snapshot = _resolve_margin(line)
         priced = pricing.price_line(
             cost=line.get("cost"),
-            margin=line.get("margin"),
+            margin=applied,
             qty=line.get("qty", 1),
             division=line.get("division"),
         )
+        if snapshot is not None:
+            line["marginSnapshot"] = snapshot
         stale = ("sell" not in line) or ("extended" not in line)
         differs = (line.get("sell"), line.get("extended"), line.get("margin")) != (
             priced["sell"],
@@ -153,6 +199,7 @@ async def persist(project: dict[str, Any]) -> dict:
                         "margin": line["margin"],
                         "priceError": line["priceError"],
                         "marginCheck": line["marginCheck"],
+                        "marginSnapshot": line.get("marginSnapshot"),
                     }
                 },
             )
