@@ -17,6 +17,7 @@ from cbc.db import db, serialise
 from cbc.http.deps import Actor
 from cbc.schemas import HandOff, ProposalSettings
 from cbc.http.projects_access import load
+from cbc.persistence import proposals as proposal_rules
 from cbc.services import audit, quote as quote_service
 
 router = APIRouter(prefix="/api/projects/{code}/proposal", tags=["proposal"])
@@ -324,10 +325,28 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
     project = await load(code)
     recipient = (body.recipient if body else None) or project.get("initiator")
 
+    # This call *is* the estimator's approval, so it is where §3.30's required
+    # `approvedBy` gets its value - a named person, never a system actor. Before
+    # this the field did not exist and the only trace was a signoff entry the
+    # hand-off pushed for itself, which is not an approval by anyone.
+    totals, _lines = await quote_service.totals_for(project)
+    stored = await db.proposals.find_one({"projectId": project["_id"]}) or {}
+    approval = proposal_rules.approve(
+        approved_by=actor,
+        totals=totals,
+        terms={
+            "validityDays": VALIDITY_DAYS,
+            "poRequired": True,
+            "supplyOnly": True,
+            "exclusions": stored.get("exclusions") or DEFAULT_EXCLUSIONS,
+        },
+    )
+
     await db.proposals.update_one(
         {"projectId": project["_id"]},
         {
             "$set": {
+                **approval,
                 "completedAt": _now(),
                 "completedBy": actor,
                 "handedOffTo": recipient,

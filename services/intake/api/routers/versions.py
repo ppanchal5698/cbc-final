@@ -12,6 +12,7 @@ from cbc.http.deps import Actor
 from cbc.schemas import VersionCreate
 from cbc.http.projects_access import load
 from cbc.http.pipeline_jobs import enqueue_pipeline, reserve
+from cbc.persistence import versioning
 from cbc.services import audit
 
 router = APIRouter(prefix="/api/projects/{code}", tags=["versions"])
@@ -50,12 +51,26 @@ async def snapshot(project: dict[str, Any], reason: str, actor: str) -> dict[str
     line_items = await _snapshot_all(db.line_items, project_id, "line items")
     quote_lines = await _snapshot_all(db.quote_lines, project_id, "quote lines")
 
+    previous = await db.versions.find_one(
+        {"projectId": project_id, "supersededByVersionId": None},
+        sort=[("version", -1)],
+    )
     document = {
         "projectId": project_id,
         "reason": reason,
         "createdAt": _now(),
         "createdBy": actor,
         "reconciled": False,
+        # §3.26: a version is a link in a chain, not a loose document. The head
+        # is the one nothing supersedes, which is what the specification indexes
+        # for - rather than sorting by number and hoping.
+        "previousVersionId": (previous or {}).get("_id"),
+        "supersededByVersionId": None,
+        "lockedAt": None,
+        "status": "draft",
+        "statusHistory": [],
+        "approvedBy": None,
+        "approvedAt": None,
         "lineItemCount": len(line_items),
         "quoteLineCount": len(quote_lines),
         "snapshot": {
@@ -81,6 +96,14 @@ async def snapshot(project: dict[str, Any], reason: str, actor: str) -> dict[str
         break
     else:
         raise ValueError("could not allocate a version number; try again")
+
+    if previous is not None:
+        # Sealing happens after the new version exists, so a crash between the two
+        # leaves an unsealed predecessor rather than a chain pointing at nothing.
+        await db.versions.update_one(
+            {"_id": previous["_id"]},
+            {"$set": versioning.supersede(previous, by_id=result.inserted_id, actor=actor)},
+        )
 
     await db.projects.update_one({"_id": project_id}, {"$set": {"version": number}})
     await audit.record(
@@ -195,12 +218,22 @@ async def diff_version(code: str, version: int) -> dict[str, Any]:
 @router.post("/versions/{version}/reconcile")
 async def mark_reconciled(code: str, version: int, actor: Actor) -> dict:
     project = await load(code)
+    stored = await db.versions.find_one({"projectId": project["_id"], "version": version})
+    if stored is None:
+        raise HTTPException(404, f"version {version} not found")
+    try:
+        versioning.guard_writable(stored)
+    except versioning.VersionLocked as exc:
+        # §3.26: a sealed version must never be written again. This handler used
+        # to reach any version, including ones superseded months earlier.
+        raise HTTPException(409, str(exc)) from exc
+
     result = await db.versions.update_one(
-        {"projectId": project["_id"], "version": version},
+        {"projectId": project["_id"], "version": version, "lockedAt": None},
         {"$set": {"reconciled": True, "reconciledBy": actor, "reconciledAt": _now()}},
     )
     if not result.matched_count:
-        raise HTTPException(404, f"version {version} not found")
+        raise HTTPException(409, f"version {version} was sealed while reconciling")
 
     await audit.record(
         "version.reconciled", actor, {"projectId": project["_id"]}, after={"version": version}

@@ -44,15 +44,22 @@ FAMILIES: frozenset[str] = frozenset(SEED_FILES)
 
 # Tests can inject a dict backend: family -> {data, updatedAt, ...}
 _memory: dict[str, dict[str, Any]] | None = None
+# Superseded reference revisions while in memory mode (see §4.6 below).
+_memory_revisions: dict[str, list[dict[str, Any]]] = {}
 _cache: dict[str, tuple[Any, dict[str, Any]]] = {}
 _sync_client: MongoClient | None = None
 
 
 def use_memory(store: dict[str, dict[str, Any]] | None) -> None:
-    """Test helper — None restores Mongo/seed path."""
+    """Test helper — None restores Mongo/seed path.
+
+    The in-memory revision history is reset with it. Leaving it behind made one
+    test's superseded margin bands turn up as another's history.
+    """
     global _memory, _cache
     _memory = store
     _cache.clear()
+    _memory_revisions.clear()
 
 
 def invalidate(family: str | None = None) -> None:
@@ -183,6 +190,9 @@ def put_family_sync(
     doc = _doc(family, payload, actor=actor)
 
     if _memory is not None:
+        previous = _memory.get(family)
+        if previous is not None:
+            _archive(previous, superseded_by=actor, at=doc["updatedAt"])
         _memory[family] = doc
         invalidate(family)
         return deepcopy(payload)
@@ -190,9 +200,74 @@ def put_family_sync(
     coll = _sync_collection()
     if coll is None:
         raise RuntimeError("MongoDB is required to persist reference data")
+    previous = coll.find_one({"_id": family})
+    if previous is not None:
+        _archive(previous, superseded_by=actor, at=doc["updatedAt"])
     coll.replace_one({"_id": family}, doc, upsert=True)
     invalidate(family)
     return deepcopy(payload)
+
+
+# ── §4.6: reference data is versioned, never overwritten ────────────────────
+#
+# `replace_one` destroyed the previous document outright, so editing a margin
+# band or a tax rate erased the answer to "what was the rate when we quoted
+# this?" - the question NFR-3 exists to make answerable, and the reason §4.6
+# names nine collections that must be "versioned by effective date, never
+# updated in place". Price changes arrive as dated memos with a protection
+# window (Matrix 6.3); an in-place update cannot represent that.
+#
+# The superseded revision is archived beside the live document rather than
+# replacing the read path, so `load()` stays a single lookup and history
+# accumulates where an auditor can reach it.
+REVISIONS = "referenceDataRevisions"
+
+
+
+def _archive(previous: dict[str, Any], *, superseded_by: str | None, at: Any) -> None:
+    family = previous.get("family") or previous.get("_id")
+    revision = {
+        "family": family,
+        "data": deepcopy(previous.get("data")),
+        "effectiveFrom": previous.get("effectiveFrom") or previous.get("updatedAt"),
+        "effectiveTo": at,
+        "writtenBy": previous.get("updatedBy"),
+        "supersededBy": superseded_by,
+    }
+    if _memory is not None:
+        _memory_revisions.setdefault(family, []).append(revision)
+        return
+    coll = _sync_collection()
+    if coll is not None:
+        coll.database[REVISIONS].insert_one(revision)
+
+
+def revisions(family: str) -> list[dict[str, Any]]:
+    """Every superseded revision of a family, oldest first.
+
+    The live document is not a revision - it is what `load()` returns.
+    """
+    if family not in FAMILIES:
+        raise KeyError(f"unknown reference family: {family}")
+    if _memory is not None:
+        return [deepcopy(r) for r in _memory_revisions.get(family, [])]
+    coll = _sync_collection()
+    if coll is None:
+        return []
+    return list(coll.database[REVISIONS].find({"family": family}).sort("effectiveTo", 1))
+
+
+def as_of(family: str, when: Any) -> dict[str, Any] | None:
+    """The `data` that was in force at a moment, or None if nothing was.
+
+    This is the NFR-3 question asked directly: what was the multiplier tier, the
+    tax rate, the margin band when this line was quoted?
+    """
+    for revision in revisions(family):
+        frm, to = revision.get("effectiveFrom"), revision.get("effectiveTo")
+        if (frm is None or frm <= when) and (to is None or when <= to):
+            return deepcopy(revision["data"])
+    return get_family_sync(family)
 
 
 def list_families_sync() -> list[str]:
