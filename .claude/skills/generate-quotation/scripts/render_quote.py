@@ -45,26 +45,17 @@ def _load(path: Path) -> dict[str, Any]:
 
 
 def build_blocks(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Group lines into door / accessories / FRP blocks, each with subtotals."""
-    blocks: list[dict[str, Any]] = []
-    for key, title in BLOCK_ORDER:
-        groups: dict[str, dict[str, Any]] = {}
-        for line in lines:
-            if (line.get("group_type") or "door") != key:
-                continue
-            name = line.get("group") or "Ungrouped"
-            group = groups.setdefault(
-                name,
-                {"name": name, "opening_size": line.get("opening_size"), "lines": [], "subtotal": 0.0},
-            )
-            group["lines"].append(line)
-            group["subtotal"] = round(group["subtotal"] + float(line.get("ext_price") or 0), 2)
-        if groups:
-            block_lines = [line for group in groups.values() for line in group["lines"]]
-            blocks.append(
-                {"key": key, "title": title, "groups": list(groups.values()), "lines": block_lines}
-            )
-    return blocks
+    """Group lines into door / accessories / FRP blocks, each with subtotals.
+
+    The layout itself lives in `cbc.domain.quote_layout`, shared with the
+    Ops-Hub renderer. There used to be two implementations of this feeding one
+    template, and they disagreed: only this one grouped by door, and only this
+    one printed the substitution note, so the document a customer received was
+    not the document the pipeline produced.
+    """
+    from cbc.domain import quote_layout
+
+    return quote_layout.blocks(lines)
 
 
 def render(project: str) -> Path:

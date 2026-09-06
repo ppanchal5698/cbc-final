@@ -18,6 +18,7 @@ from cbc.http.deps import Actor
 from cbc.schemas import HandOff, ProposalSettings
 from cbc.http.projects_access import load
 from cbc.persistence import proposals as proposal_rules
+from cbc.domain import quote_layout
 from cbc.services import audit, quote as quote_service
 
 router = APIRouter(prefix="/api/projects/{code}/proposal", tags=["proposal"])
@@ -103,6 +104,12 @@ async def _build(project: dict[str, Any], markup: float = 0.0) -> dict[str, Any]
                 "unitPrice": unit,
                 "extPrice": extended,
                 "priceStatus": line.get("priceStatus"),
+                # Carried so the shared layout can group by door and print the
+                # substitution note. Dropping them here is what made the
+                # customer-facing document differ from the pipeline's.
+                "group": line.get("group"),
+                "division": line.get("division"),
+                "substitutionNote": line.get("substitutionNote"),
             }
         )
         section["subtotal"] = round(section["subtotal"] + (extended or 0), 2)
@@ -223,33 +230,29 @@ def _render_proposal_html(project: dict[str, Any], data: dict[str, Any], autopri
         trim_blocks=True,
         lstrip_blocks=True,
     )
-    blocks = [
-        {
-            "key": section["key"],
-            "title": section["title"],
-            "lines": section["lines"],
-            "groups": [
-                {
-                    "name": section["title"],
-                    "lines": [
-                        {
-                            "description": line["description"],
-                            "part_number": line["part"],
-                            "quantity": line["qty"],
-                            "sale_ea": line["unitPrice"],
-                            "ext_price": line["extPrice"],
-                            "cost": None,
-                            "margin": None,
-                            "flags": [],
-                        }
-                        for line in section["lines"]
-                    ],
-                    "subtotal": section["subtotal"],
-                }
-            ],
-        }
-        for section in data["sections"]
-    ]
+    # One layout, shared with the pipeline renderer (cbc.domain.quote_layout).
+    # This used to build its own blocks: one group per *section* rather than per
+    # door, so FR-7's "grouped by door with subtotals" held only on the path a
+    # customer never sees - and a hand-built line dict with no key for
+    # `substitution_note`, so a direct equal printed with no mention that
+    # anything had been substituted.
+    blocks = quote_layout.blocks(
+        [
+            quote_layout.line(
+                description=line["description"],
+                part_number=line["part"],
+                quantity=line["qty"],
+                sale_ea=line["unitPrice"],
+                ext_price=line["extPrice"],
+                group=line.get("group"),
+                division=line.get("division"),
+                substitution_note=line.get("substitutionNote"),
+                price_status=line.get("priceStatus"),
+            )
+            for section in data["sections"]
+            for line in section["lines"]
+        ]
+    )
 
     html = env.get_template("quotation.html").render(
         quote_number=data["proposal"]["proposalNo"],
