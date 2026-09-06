@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from bson import ObjectId
+from cbc.persistence import names
 
 
 def run(coro):
@@ -113,13 +114,13 @@ def test_straggler_reextract_sets_merge_flag(database) -> None:
         "startedAt": datetime.now(timezone.utc),
     }
     database["jobs"].insert_one(job)
-    database["projects"].insert_one({"_id": project_id, "code": "CBC-TEST", "slug": "x"})
+    database[names.BID_REQUESTS].insert_one({"_id": project_id, "code": "CBC-TEST", "slug": "x"})
 
     follow = run(runtime._queue_straggler_reextract(job))
     assert follow is not None
     assert follow.get("payload", {}).get("stragglerMerge") is True
     assert follow["type"] == "extract_bid_set"
-    stored = database["projects"].find_one({"_id": project_id})
+    stored = database[names.BID_REQUESTS].find_one({"_id": project_id})
     assert "merge" in (stored.get("pipelineNote") or "").lower()
 
 

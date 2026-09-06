@@ -12,6 +12,7 @@ import pytest
 
 from cbc.config import settings
 from tests.shared import ROOT, opshub_client, mongo_client
+from cbc.persistence import names
 
 TEST_DB = "cbc_opshub_test_reads"
 
@@ -54,7 +55,7 @@ def _snapshot(database) -> dict:
                 row.get("margin"),
                 str(row.get("marginCheck")),
             )
-            for row in database["quoteLines"].find({})
+            for row in database[names.ESTIMATE_LINES].find({})
         ),
         "quotes": [
             {k: str(v) for k, v in row.items() if k != "_id"}
@@ -112,7 +113,7 @@ def test_reading_the_proposal_changes_nothing(client, project, database) -> None
 
 def test_editing_a_line_does_persist(client, project, database) -> None:
     """The write has to happen somewhere - it moved to the routes that change things."""
-    line_id = str(database["quoteLines"].find_one({"part": "150CX18"})["_id"])
+    line_id = str(database[names.ESTIMATE_LINES].find_one({"part": "150CX18"})["_id"])
 
     updated = client.patch(
         f"/api/projects/{project}/quote/lines/{line_id}",
@@ -120,7 +121,7 @@ def test_editing_a_line_does_persist(client, project, database) -> None:
     )
     assert updated.status_code == 200
 
-    stored = database["quoteLines"].find_one({"part": "150CX18"})
+    stored = database[names.ESTIMATE_LINES].find_one({"part": "150CX18"})
     assert stored["cost"] == 100.0
     assert stored["sell"] == pytest.approx(136.99, abs=0.02), "re-priced and stored"
     assert database["quotes"].find_one({})["grandTotal"] == pytest.approx(
@@ -130,7 +131,7 @@ def test_editing_a_line_does_persist(client, project, database) -> None:
 
 def test_an_unpriceable_line_does_not_break_the_screen(client, project, database) -> None:
     """A cost that predates the schema bounds still has to render (CBC-017)."""
-    database["quoteLines"].update_one({"part": "B-2888"}, {"$set": {"cost": -5.0}})
+    database[names.ESTIMATE_LINES].update_one({"part": "B-2888"}, {"$set": {"cost": -5.0}})
 
     body = client.get(f"/api/projects/{project}/quote")
     assert body.status_code == 200, "one bad line took the whole quote down"

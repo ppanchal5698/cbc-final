@@ -19,6 +19,7 @@ from pymongo import MongoClient
 from cbc import db as db_module
 from cbc.config import settings
 from tests.shared import mongo_client
+from cbc.persistence import names
 
 TEST_DB = "cbc_opshub_test_recovery"
 
@@ -156,7 +157,7 @@ def test_import_extraction_aborts_when_the_lease_was_stolen(database, monkeypatc
     finally:
         settings.storage_root = previous
     assert counts.get("aborted") is True
-    assert database["lineItems"].count_documents({}) == 0
+    assert database[names.OPENINGS].count_documents({}) == 0
 
 
 def test_a_job_with_a_fresh_heartbeat_is_left_alone(database) -> None:
@@ -329,7 +330,7 @@ def test_the_same_part_from_two_manufacturers_coexists(database) -> None:
 
     run(both())
 
-    rows = {row["manufacturer"]: row["cost"] for row in database["products"].find({"part": "1234"})}
+    rows = {row["manufacturer"]: row["cost"] for row in database[names.CATALOG_ITEMS].find({"part": "1234"})}
     assert rows == {"Hager": 10.0, "Rockwood": 20.0}
 
 
@@ -393,7 +394,7 @@ def test_the_code_counter_continues_an_existing_series(database) -> None:
     from api.routers.projects import next_code
 
     prefix = storage.code_prefix()
-    database["projects"].insert_one({"code": f"{prefix}0007", "slug": "old"})
+    database[names.BID_REQUESTS].insert_one({"code": f"{prefix}0007", "slug": "old"})
 
     assert run(next_code()) == f"{prefix}0008"
 

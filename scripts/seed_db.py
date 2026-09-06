@@ -180,7 +180,7 @@ def seed_products(db) -> int:
     count = 0
     for part, desc, mfr, div, cost, list_price, mult, avail, xref in SAMPLE_PRODUCTS:
         book = books.get(vendor_for.get(mfr) or "")
-        db["products"].update_one(
+        db[names.CATALOG_ITEMS].update_one(
             {"part": part},
             {
                 "$set": {
@@ -208,7 +208,7 @@ def seed_products(db) -> int:
     for book in books.values():
         db["priceBooks"].update_one(
             {"_id": book["_id"]},
-            {"$set": {"partCount": db["products"].count_documents({"priceBookId": book["_id"]})}},
+            {"$set": {"partCount": db[names.CATALOG_ITEMS].count_documents({"priceBookId": book["_id"]})}},
         )
     return count
 
@@ -224,7 +224,7 @@ def seed_demo_project(db) -> str | None:
 
     code = "CBC-260143"
     slug = "dutch_bros_macarthur_2026"
-    db["projects"].update_one(
+    db[names.BID_REQUESTS].update_one(
         {"code": code},
         {
             "$set": {
@@ -247,7 +247,7 @@ def seed_demo_project(db) -> str | None:
         },
         upsert=True,
     )
-    project = db["projects"].find_one({"code": code})
+    project = db[names.BID_REQUESTS].find_one({"code": code})
 
     storage.scaffold(slug)
     target = storage.raw_dir(slug) / fixture.name

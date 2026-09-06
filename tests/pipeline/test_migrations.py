@@ -73,7 +73,7 @@ def _run() -> list:
 
     db_module._client = None
     try:
-        return asyncio.run(migrations.run())
+        return asyncio.run(migrations.run(db_module.database()))
     finally:
         db_module._client = None
 
@@ -202,3 +202,48 @@ def test_there_is_no_way_to_migrate_backwards() -> None:
     """Forward-only is a decision, not an omission - see the package docstring."""
     assert not hasattr(migrations, "rollback")
     assert not any(hasattr(m.apply, "down") for m in migrations.discover())
+
+
+# ── m001: the specification rename ──────────────────────────────────────────
+
+
+def test_m001_renames_the_operational_collections(database) -> None:
+    """Data survives, under the name the specification uses."""
+    from cbc.persistence.names import RENAMED_IN_M001
+
+    for old in RENAMED_IN_M001:
+        database[old].insert_one({"marker": old})
+
+    _run()
+
+    for old, new in RENAMED_IN_M001.items():
+        assert old not in database.list_collection_names(), f"{old} still exists"
+        assert database[new].find_one({"marker": old}), f"{new} lost its row"
+
+
+def test_m001_carries_indexes_across(database) -> None:
+    """renameCollection is metadata, not a copy - the indexes come too."""
+    database["lineItems"].create_index([("projectId", 1), ("mark", 1)], name="probe")
+    _run()
+    assert "probe" in database["openings"].index_information()
+
+
+def test_m001_is_a_no_op_on_a_fresh_database(database) -> None:
+    _run()
+    assert database[migrations.LEDGER].count_documents({"_id": 1}) == 1
+    ran_again = _run()
+    assert ran_again == []
+
+
+def test_m001_refuses_to_rename_over_an_existing_collection(database) -> None:
+    """Both names present means a half-migrated database - a question for a person."""
+    database["projects"].insert_one({"side": "old"})
+    database["bidRequests"].insert_one({"side": "new"})
+
+    with pytest.raises(RuntimeError, match="both collections exist"):
+        _run()
+
+    # Nothing was destroyed, and the migration is not marked done.
+    assert database["projects"].find_one({"side": "old"})
+    assert database["bidRequests"].find_one({"side": "new"})
+    assert database[migrations.LEDGER].count_documents({"_id": 1}) == 0

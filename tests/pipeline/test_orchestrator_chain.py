@@ -11,6 +11,7 @@ from pymongo import MongoClient
 from cbc import db as db_module
 from cbc.config import settings
 from tests.shared import mongo_client
+from cbc.persistence import names
 
 TEST_DB = "cbc_test_orchestrator_chain"
 
@@ -50,7 +51,7 @@ def test_needs_review_does_not_enqueue_pricing(database) -> None:
     from cbc.services import orchestrator
 
     project_id = ObjectId()
-    database["projects"].insert_one(
+    database[names.BID_REQUESTS].insert_one(
         {"_id": project_id, "code": "CH-1", "slug": "ch1", "chainState": "extraction_needs_review"}
     )
     job = {
@@ -67,7 +68,7 @@ def test_extraction_done_enqueues_pricing(database) -> None:
     from cbc.services import orchestrator
 
     project_id = ObjectId()
-    database["projects"].insert_one(
+    database[names.BID_REQUESTS].insert_one(
         {"_id": project_id, "code": "CH-2", "slug": "ch2", "chainState": "extraction_done"}
     )
     job = {
@@ -79,7 +80,7 @@ def test_extraction_done_enqueues_pricing(database) -> None:
     nxt = run(orchestrator.maybe_continue_chain(job))
     assert nxt is not None
     assert nxt["type"] == "match_and_price"
-    stored = database["projects"].find_one({"_id": project_id})
+    stored = database[names.BID_REQUESTS].find_one({"_id": project_id})
     assert stored["chainState"] == "pricing"
 
 
@@ -87,11 +88,11 @@ def test_pricing_failure_disables_autopilot(database) -> None:
     from cbc.services import chain
 
     project_id = ObjectId()
-    database["projects"].insert_one(
+    database[names.BID_REQUESTS].insert_one(
         {"_id": project_id, "code": "CH-3", "slug": "ch3", "autopilot": True, "chainState": "pricing"}
     )
     run(chain.set_state(project_id, "pricing_failed", detail="catalog down"))
-    stored = database["projects"].find_one({"_id": project_id})
+    stored = database[names.BID_REQUESTS].find_one({"_id": project_id})
     assert stored["autopilot"] is False
     assert stored["chainState"] == "pricing_failed"
 
@@ -100,7 +101,7 @@ def test_autopilot_off_does_not_enqueue_quoting(database) -> None:
     from cbc.services import orchestrator
 
     project_id = ObjectId()
-    database["projects"].insert_one(
+    database[names.BID_REQUESTS].insert_one(
         {
             "_id": project_id,
             "code": "CH-4",

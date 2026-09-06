@@ -18,6 +18,7 @@ TEST_DB = "cbc_opshub_test_provider"
 
 from cbc.services import provider  # noqa: E402
 from cbc.core import secrets  # noqa: E402
+from cbc.persistence import names
 
 
 @pytest.fixture(scope="module")
@@ -537,7 +538,7 @@ def test_saving_settings_records_the_change_without_the_values(client):
     raw = MongoClient(app_settings.mongodb_uri)
     try:
         entries = list(
-            raw[TEST_DB]["auditLog"].find({"action": "settings.claude.update"})
+            raw[TEST_DB][names.AUDIT_LOGS].find({"action": "settings.claude.update"})
         )
     finally:
         raw.close()

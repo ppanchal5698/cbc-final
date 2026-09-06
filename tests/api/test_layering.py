@@ -151,7 +151,8 @@ def test_domain_job_types_partition() -> None:
 LAYERS = (
     "cbc.core",        # pure rules + I/O primitives
     "cbc.schemas",     # shapes
-    "cbc.db",          # persistence
+    "cbc.persistence", # collection names, envelope, migrations
+    "cbc.db",          # the motor client and index setup
     "cbc.pageindex",   # catalog page index - infrastructure the services search
     "cbc.services",    # domain services
     "cbc.validation",  # acceptance rules over those services

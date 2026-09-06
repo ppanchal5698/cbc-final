@@ -17,6 +17,7 @@ from bson import ObjectId
 from pymongo import MongoClient
 
 from cbc.config import settings
+from cbc.persistence import names
 from tests.shared import ROOT, opshub_client  # noqa: E402, mongo_client
 from tests.shared import mongo_client
 
@@ -28,7 +29,7 @@ def _finish_active_pipeline_jobs(code: str) -> None:
     """Clear queued/running pipeline jobs so phase-boundary routes can enqueue."""
     raw = mongo_client()[TEST_DB]
     project_id = ObjectId(
-        raw.projects.find_one({"code": code}, {"_id": 1})["_id"]
+        raw[names.BID_REQUESTS].find_one({"code": code}, {"_id": 1})["_id"]
     )
     raw.jobs.update_many(
         {"projectId": project_id, "status": {"$in": ["queued", "running"]}},
@@ -469,7 +470,7 @@ def test_audit_trail_records_both_actors(client, project):
     from pymongo import MongoClient as _Client
 
     raw = _Client(settings.mongodb_uri)[TEST_DB]
-    actions = raw.auditLog.distinct("action")
+    actions = raw[names.AUDIT_LOGS].distinct("action")
     assert "project.create" in actions
     assert "quote.line_edit" in actions
 

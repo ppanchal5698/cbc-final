@@ -10,6 +10,7 @@ from pymongo import MongoClient
 from cbc import db as db_module
 from cbc.config import settings
 from tests.shared import FIXTURE_PDF, TEST_ACTOR, opshub_client, mongo_client
+from cbc.persistence import names
 
 TEST_DB = "cbc_opshub_test_project_delete"
 
@@ -73,7 +74,7 @@ def test_admin_delete_purges_mongo_and_disk(client) -> None:
     raw = mongo_client(serverSelectionTimeoutMS=5000)
     database = raw[TEST_DB]
     try:
-        assert database["projects"].count_documents({"_id": project_id}) == 1
+        assert database[names.BID_REQUESTS].count_documents({"_id": project_id}) == 1
         assert database["jobs"].count_documents({"projectId": project_id}) >= 1
 
         response = client.delete(f"/api/projects/{code}")
@@ -92,7 +93,7 @@ def test_admin_delete_purges_mongo_and_disk(client) -> None:
         ):
             assert database[collection].count_documents({"projectId": project_id}) == 0
 
-        assert database["projects"].count_documents({"_id": project_id}) == 0
+        assert database[names.BID_REQUESTS].count_documents({"_id": project_id}) == 0
         assert not project_dir.exists()
     finally:
         raw.close()

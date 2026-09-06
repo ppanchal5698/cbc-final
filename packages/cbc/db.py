@@ -20,6 +20,7 @@ from pymongo import ASCENDING, DESCENDING, TEXT
 from pymongo.errors import DuplicateKeyError, OperationFailure, PyMongoError
 
 from cbc.config import settings
+from cbc.persistence import names
 from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
 
 log = logging.getLogger("cbc.api.db")
@@ -51,94 +52,101 @@ def database() -> AsyncIOMotorDatabase:
 
 
 class Collections:
-    """Named handles, resolved lazily so tests can point at another database."""
+    """Named handles, resolved lazily so tests can point at another database.
+
+    The names come from `cbc.persistence.names`, which is where the
+    specification's vocabulary lives. Property names stay as the code has always
+    spelled them - `db.projects`, `db.line_items` - so this change is a rename of
+    the stored collections, not of 160 call sites; those move behind repositories
+    in their own step.
+    """
 
     @property
     def users(self):
-        return database()["users"]
+        return database()[names.USERS]
 
     @property
     def projects(self):
-        return database()["projects"]
+        return database()[names.BID_REQUESTS]
 
     @property
     def documents(self):
-        return database()["documents"]
+        return database()[names.DOCUMENTS]
 
     @property
     def line_items(self):
-        return database()["lineItems"]
+        return database()[names.OPENINGS]
 
     @property
     def quote_lines(self):
-        return database()["quoteLines"]
+        return database()[names.ESTIMATE_LINES]
 
     @property
     def quotes(self):
-        return database()["quotes"]
+        return database()[names.QUOTES]
 
     @property
     def proposals(self):
-        return database()["proposals"]
+        return database()[names.PROPOSALS]
 
     @property
     def products(self):
-        return database()["products"]
+        return database()[names.CATALOG_ITEMS]
 
     @property
     def price_books(self):
-        return database()["priceBooks"]
+        return database()[names.PRICE_BOOKS]
 
     @property
     def jobs(self):
-        return database()["jobs"]
+        return database()[names.JOBS]
 
     @property
     def audit_log(self):
-        return database()["auditLog"]
+        return database()[names.AUDIT_LOGS]
 
     @property
     def calls(self):
-        return database()["calls"]
+        return database()[names.CALLS]
 
     @property
     def versions(self):
-        return database()["estimateVersions"]
+        return database()[names.ESTIMATE_VERSIONS]
 
     @property
     def counters(self):
         """Monotonic sequences. `_id` is the counter name, `seq` is the value."""
-        return database()["counters"]
+        return database()[names.COUNTERS]
 
     @property
     def settings(self):
         """Installation settings - one document per concern, `_id` is the name."""
-        return database()["settings"]
+        return database()[names.SETTINGS]
 
     @property
     def auth_attempts(self):
         """One document per sign-in attempt, expired by a TTL index."""
-        return database()["authAttempts"]
+        return database()[names.AUTH_ATTEMPTS]
 
     @property
     def oauth_sessions(self):
         """In-flight Claude OAuth browser sign-ins, expired by a TTL index."""
-        return database()["oauthSessions"]
+        return database()[names.OAUTH_SESSIONS]
 
     @property
     def run_metrics(self):
         """Per-Claude-run cost and provenance, parsed from `.runs/*.log`."""
-        return database()["runMetrics"]
+        return database()[names.RUN_METRICS]
 
     @property
     def failed_extractions(self):
         """Claude payloads that failed the schema gate, kept for operators."""
-        return database()["failedExtractions"]
+        return database()[names.FAILED_EXTRACTIONS]
 
     @property
     def reference_data(self):
         """Curated reference-library documents (margins, tax, tiers, …)."""
-        return database()["referenceData"]
+        return database()[names.REFERENCE_DATA]
 
 
 db = Collections()
@@ -235,7 +243,17 @@ async def _replace_index(collection, name: str, keys, **options) -> None:
 
 
 async def ensure_indexes() -> None:
-    """Idempotent index setup, run at startup."""
+    """Migrate, then build indexes. Both idempotent, both run at every startup.
+
+    Order matters and is why the two are coupled rather than called separately by
+    each of the six services: an index built on `lineItems` before migration 1
+    renames it to `openings` would be built on the wrong collection, and building
+    it after costs nothing because `renameCollection` carries indexes across.
+    """
+    from cbc.persistence import migrations
+
+    await migrations.run(database())
+
     await db.users.create_index([("email", ASCENDING)], unique=True)
     await db.projects.create_index([("code", ASCENDING)], unique=True)
     await db.projects.create_index([("slug", ASCENDING)], unique=True)

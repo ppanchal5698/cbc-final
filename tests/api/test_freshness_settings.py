@@ -6,6 +6,7 @@ from pymongo import MongoClient
 from cbc.config import settings
 from cbc.services import freshness as freshness_settings
 from tests.shared import TEST_ACTOR, opshub_client, mongo_client
+from cbc.persistence import names
 
 TEST_DB = "cbc_opshub_test_freshness"
 
@@ -49,7 +50,7 @@ def test_saving_freshness_settings_round_trips():
             raw = mongo_client(serverSelectionTimeoutMS=5000)
             try:
                 entries = list(
-                    raw[TEST_DB]["auditLog"].find({"action": "settings.freshness.update"})
+                    raw[TEST_DB][names.AUDIT_LOGS].find({"action": "settings.freshness.update"})
                 )
             finally:
                 raw.close()

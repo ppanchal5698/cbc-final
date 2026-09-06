@@ -17,8 +17,8 @@ so a restart or a second API container re-running startup is a no-op. There is
 no `down()`: rolling a database backwards on an estimating desk loses quotes, and
 the honest alternative is a new forward migration that undoes the change.
 
-    python -m cbc.persistence.migrations          # apply what is pending
-    python -m cbc.persistence.migrations --status # say what would run
+    python scripts/migrate.py            # apply what is pending
+    python scripts/migrate.py --status   # say what would run
 """
 from __future__ import annotations
 
@@ -84,13 +84,13 @@ async def pending(database) -> list[Migration]:
     return [migration for migration in discover() if migration.version not in done]
 
 
-async def run(database=None) -> list[Migration]:
-    """Apply every pending migration in order. Returns the ones that ran."""
-    if database is None:
-        from cbc.db import database as resolve
+async def run(database) -> list[Migration]:
+    """Apply every pending migration in order. Returns the ones that ran.
 
-        database = resolve()
-
+    The database is handed in. This package is below `cbc.db` in the dependency
+    order and must not reach up for a client - `scripts/migrate.py` is the
+    operator entry point that knows how to make one.
+    """
     ran: list[Migration] = []
     for migration in await pending(database):
         log.info("migration %s: %s", migration.version, migration.description)
@@ -111,36 +111,3 @@ async def run(database=None) -> list[Migration]:
         )
         ran.append(migration)
     return ran
-
-
-async def _status() -> int:
-    from cbc.db import database
-
-    db = database()
-    done = await applied_versions(db)
-    for migration in discover():
-        mark = "applied" if migration.version in done else "PENDING"
-        print(f"  {migration.version:>4}  {mark:<8} {migration.description}")
-    outstanding = len([m for m in discover() if m.version not in done])
-    print(f"\n{outstanding} pending")
-    return 0
-
-
-async def _apply() -> int:
-    ran = await run()
-    for migration in ran:
-        print(f"applied {migration.version}: {migration.description}")
-    print(f"{len(ran)} migration(s) applied")
-    return 0
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--status", action="store_true", help="list without applying")
-    args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
-    return asyncio.run(_status() if args.status else _apply())
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

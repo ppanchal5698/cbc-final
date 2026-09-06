@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from cbc.config import settings
+from cbc.persistence import names
 from tests.shared import ROOT, opshub_client  # noqa: E402
 
 TEST_DB = "cbc_opshub_test_phase2"
@@ -354,10 +355,12 @@ def test_lapsed_prices_are_flagged(client, project):
         json={"description": "Priced off an old sheet", "division": "08 71 00", "cost": 50.0},
     ).json()["line"]
 
-    from pymongo import MongoClient as _Client
+    from bson import ObjectId
 
-    _Client(settings.mongodb_uri)[TEST_DB].quoteLines.update_one(
-        {"_id": __import__("bson").ObjectId(line["id"])},
+    from tests.shared import mongo_client
+
+    mongo_client()[TEST_DB][names.ESTIMATE_LINES].update_one(
+        {"_id": ObjectId(line["id"])},
         {"$set": {"multiplierEffectiveDate": "2017-01-01"}},
     )
 

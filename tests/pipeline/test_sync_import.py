@@ -20,6 +20,7 @@ from pymongo import MongoClient
 
 from cbc.config import settings
 from tests.shared import ROOT, mongo_client
+from cbc.persistence import names
 
 TEST_DB = "cbc_test_sync_import"
 SLUG = "sync_import_fixture"
@@ -58,7 +59,7 @@ def project():
     db_module._client = None
 
     record = {"_id": ObjectId(), "slug": SLUG, "code": "SY-001", "name": "Sync fixture"}
-    raw[TEST_DB]["projects"].insert_one(dict(record))
+    raw[TEST_DB][names.BID_REQUESTS].insert_one(dict(record))
 
     try:
         yield record, raw[TEST_DB], scratch / SLUG
@@ -120,7 +121,7 @@ def test_every_shape_a_pass_has_written_is_imported(project, shape) -> None:
     counts = run(sync.import_extraction(record))
 
     assert counts["inserted"] == 2, counts
-    assert database["lineItems"].count_documents({"projectId": record["_id"]}) == 2
+    assert database[names.OPENINGS].count_documents({"projectId": record["_id"]}) == 2
 
 
 def test_importing_twice_updates_rather_than_duplicates(project) -> None:
@@ -138,9 +139,9 @@ def test_importing_twice_updates_rather_than_duplicates(project) -> None:
     )
     second = run(sync.import_extraction(record))
 
-    assert database["lineItems"].count_documents({"projectId": record["_id"]}) == 1
+    assert database[names.OPENINGS].count_documents({"projectId": record["_id"]}) == 1
     assert second["inserted"] == 0
-    stored = database["lineItems"].find_one({"projectId": record["_id"]})
+    stored = database[names.OPENINGS].find_one({"projectId": record["_id"]})
     assert stored["finish"] == "US32D (630)", "a rerun must carry the correction through (NR-3)"
 
 
@@ -165,7 +166,7 @@ def test_import_normalizes_finish_and_maps_alternate(project) -> None:
     )
 
     run(sync.import_extraction(record))
-    stored = database["lineItems"].find_one({"projectId": record["_id"]})
+    stored = database[names.OPENINGS].find_one({"projectId": record["_id"]})
     assert stored["finish"] == "US26D (626)"
     assert stored["alternateGroup"] == "Alternate 1"
     assert "handing_missing" in stored["flags"]
@@ -182,7 +183,7 @@ def test_import_flags_ambiguous_finish_without_guessing(project) -> None:
     )
 
     run(sync.import_extraction(record))
-    stored = database["lineItems"].find_one({"projectId": record["_id"]})
+    stored = database[names.OPENINGS].find_one({"projectId": record["_id"]})
     assert stored["finish"] == "619"
     assert "finish_ambiguous" in stored["flags"]
 
@@ -198,7 +199,7 @@ def test_scope_metadata_lands_on_the_project(project) -> None:
     )
 
     assert run(sync.import_scope_metadata(record)) is True
-    stored = database["projects"].find_one({"_id": record["_id"]})
+    stored = database[names.BID_REQUESTS].find_one({"_id": record["_id"]})
     assert stored.get("state") == "OH"
 
 
@@ -214,7 +215,7 @@ def test_scope_metadata_maps_bid_due_to_bidDue(project) -> None:
     )
 
     assert run(sync.import_scope_metadata(record)) is True
-    stored = database["projects"].find_one({"_id": record["_id"]})
+    stored = database[names.BID_REQUESTS].find_one({"_id": record["_id"]})
     bid_due = stored.get("bidDue")
     assert getattr(bid_due, "isoformat", lambda: bid_due)()[:10] == "2026-09-15" or str(bid_due)[:10] == "2026-09-15"
     assert "bidDueDate" not in stored
@@ -226,7 +227,7 @@ def test_scope_metadata_does_not_clobber_ops_hub_mode(project) -> None:
     from cbc.services import sync
 
     record, database, directory = project
-    database["projects"].update_one(
+    database[names.BID_REQUESTS].update_one(
         {"_id": record["_id"]},
         {"$set": {"mode": "one_off", "initiator": "Rebecca", "bidAlternates": ["Alt A"]}},
     )
@@ -245,7 +246,7 @@ def test_scope_metadata_does_not_clobber_ops_hub_mode(project) -> None:
     )
 
     assert run(sync.import_scope_metadata(record)) is True
-    stored = database["projects"].find_one({"_id": record["_id"]})
+    stored = database[names.BID_REQUESTS].find_one({"_id": record["_id"]})
     assert stored.get("mode") == "one_off"
     assert stored.get("initiator") == "Rebecca"
     assert stored.get("bidAlternates") == ["Alt A", "Alternate 2"]
@@ -259,7 +260,7 @@ def test_scope_metadata_fills_empties_with_provenance(project) -> None:
 
     record, database, directory = project
     due = datetime(2026, 9, 20, tzinfo=timezone.utc)
-    database["projects"].update_one(
+    database[names.BID_REQUESTS].update_one(
         {"_id": record["_id"]},
         {"$set": {"bidDue": due, "name": "Phone-in placeholder"}},
     )
@@ -293,7 +294,7 @@ def test_scope_metadata_fills_empties_with_provenance(project) -> None:
     )
 
     assert run(sync.import_scope_metadata(record)) is True
-    stored = database["projects"].find_one({"_id": record["_id"]})
+    stored = database[names.BID_REQUESTS].find_one({"_id": record["_id"]})
     assert stored.get("brand") == "Dutch Bros Coffee"
     assert stored.get("state") == "LA"
     assert stored.get("location") == "Alexandria, LA"
@@ -322,7 +323,7 @@ def test_scope_metadata_imports_without_door_schedule(project) -> None:
 
     counts = run(sync.import_extraction(record))
     assert counts == {"inserted": 0, "updated": 0, "skipped": 0}
-    stored = database["projects"].find_one({"_id": record["_id"]})
+    stored = database[names.BID_REQUESTS].find_one({"_id": record["_id"]})
     assert stored.get("brand") == "BK"
     assert stored.get("state") == "OH"
     assert stored.get("intakeFieldSources", {}).get("brand", {}).get("sourcePage") == 3
@@ -362,7 +363,7 @@ def test_priced_lines_are_imported(project) -> None:
     counts = run(sync.import_quote_lines(record))
 
     assert counts["inserted"] == 2, counts
-    assert database["quoteLines"].count_documents({"projectId": record["_id"]}) == 2
+    assert database[names.ESTIMATE_LINES].count_documents({"projectId": record["_id"]}) == 2
 
 
 def test_a_manual_line_keeps_a_null_cost(project) -> None:
@@ -379,7 +380,7 @@ def test_a_manual_line_keeps_a_null_cost(project) -> None:
     )
     run(sync.import_quote_lines(record))
 
-    stored = database["quoteLines"].find_one({"projectId": record["_id"]})
+    stored = database[names.ESTIMATE_LINES].find_one({"projectId": record["_id"]})
     assert stored["cost"] is None
     assert stored["costSource"] == "MANUAL"
 
@@ -392,7 +393,7 @@ def test_a_negative_cost_is_flagged_rather_than_stored(project) -> None:
     _write(directory, "priced/line_items.json", {"lines": [_line("L1", cost=-45)]})
     run(sync.import_quote_lines(record))
 
-    stored = database["quoteLines"].find_one({"projectId": record["_id"]})
+    stored = database[names.ESTIMATE_LINES].find_one({"projectId": record["_id"]})
     assert stored["cost"] is None
     assert any("negative" in flag for flag in stored.get("flags", []))
 
@@ -438,7 +439,7 @@ def test_an_absent_schedule_imports_nothing_and_does_not_raise(project) -> None:
     counts = run(sync.import_extraction(record))
 
     assert counts["inserted"] == 0
-    assert database["lineItems"].count_documents({"projectId": record["_id"]}) == 0
+    assert database[names.OPENINGS].count_documents({"projectId": record["_id"]}) == 0
 
 
 def test_malformed_price_is_rejected_before_import(project) -> None:
@@ -466,7 +467,7 @@ def test_malformed_price_is_rejected_before_import(project) -> None:
     except ArtifactValidationError as exc:
         assert exc.quarantine
         assert "cost" in str(exc).lower() or "number" in str(exc).lower()
-    assert database["quoteLines"].count_documents({}) == 0
+    assert database[names.ESTIMATE_LINES].count_documents({}) == 0
 
 
 def test_numeric_price_string_is_coerced(project) -> None:
