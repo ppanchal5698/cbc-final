@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.shared import ROOT
+from tests.shared import ROOT, mongo_client
 
 
 # â”€â”€ the choice made at upload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -285,7 +285,7 @@ def test_the_installation_default_applies_when_the_bid_says_nothing(client) -> N
 
     from cbc.config import settings
 
-    raw = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
+    raw = mongo_client(serverSelectionTimeoutMS=5000)
     try:
         raw[TEST_DB]["settings"].update_one(
             {"_id": "pipeline"}, {"$set": {"autopilotDefault": True}}, upsert=True

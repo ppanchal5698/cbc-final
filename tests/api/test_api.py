@@ -17,7 +17,8 @@ from bson import ObjectId
 from pymongo import MongoClient
 
 from cbc.config import settings
-from tests.shared import ROOT, opshub_client  # noqa: E402
+from tests.shared import ROOT, opshub_client  # noqa: E402, mongo_client
+from tests.shared import mongo_client
 
 TEST_DB = "cbc_opshub_test"
 FIXTURE = ROOT / "tests" / "fixtures" / "pdfs" / "1_Architectural.pdf"
@@ -25,7 +26,7 @@ FIXTURE = ROOT / "tests" / "fixtures" / "pdfs" / "1_Architectural.pdf"
 
 def _finish_active_pipeline_jobs(code: str) -> None:
     """Clear queued/running pipeline jobs so phase-boundary routes can enqueue."""
-    raw = MongoClient(settings.mongodb_uri)[TEST_DB]
+    raw = mongo_client()[TEST_DB]
     project_id = ObjectId(
         raw.projects.find_one({"code": code}, {"_id": 1})["_id"]
     )

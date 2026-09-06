@@ -32,7 +32,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from cbc.db import db
 from cbc.http.deps import Actor, require_admin
-from cbc.core import freshness as freshness_core
+from cbc.domain import freshness as freshness_core
 from cbc.services import audit, freshness as freshness_settings, provider
 from cbc.core import secrets
 

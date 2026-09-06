@@ -9,7 +9,7 @@ from pymongo import MongoClient
 
 from cbc import db as db_module
 from cbc.config import settings
-from tests.shared import FIXTURE_PDF, TEST_ACTOR, opshub_client
+from tests.shared import FIXTURE_PDF, TEST_ACTOR, opshub_client, mongo_client
 
 TEST_DB = "cbc_opshub_test_project_delete"
 
@@ -22,7 +22,7 @@ def client():
 
 @pytest.fixture()
 def as_role():
-    raw = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
+    raw = mongo_client(serverSelectionTimeoutMS=5000)
 
     def set_role(role: str) -> None:
         raw[TEST_DB]["users"].update_one({"email": TEST_ACTOR}, {"$set": {"role": role}})
@@ -70,7 +70,7 @@ def test_admin_delete_purges_mongo_and_disk(client) -> None:
         )
         assert upload.status_code == 201, upload.text
 
-    raw = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
+    raw = mongo_client(serverSelectionTimeoutMS=5000)
     database = raw[TEST_DB]
     try:
         assert database["projects"].count_documents({"_id": project_id}) == 1
@@ -112,7 +112,7 @@ def test_admin_delete_removes_queued_job_history(client) -> None:
     job = asyncio.run(queue_job())
     db_module._client = None
 
-    raw = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
+    raw = mongo_client(serverSelectionTimeoutMS=5000)
     database = raw[TEST_DB]
     try:
         assert database["jobs"].count_documents({"_id": job["_id"]}) == 1

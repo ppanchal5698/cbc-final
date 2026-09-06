@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from cbc.schemas.common import ESTIMATOR_JOB_TYPES
-from tests.shared import TEST_ACTOR, opshub_client
+from tests.shared import TEST_ACTOR, opshub_client, mongo_client
 
 TEST_DB = "cbc_opshub_test_job_authz"
 
@@ -24,7 +24,7 @@ def as_role(client):
 
     from cbc.config import settings
 
-    raw = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
+    raw = mongo_client(serverSelectionTimeoutMS=5000)
 
     def set_role(role: str) -> None:
         raw[TEST_DB]["users"].update_one({"email": TEST_ACTOR}, {"$set": {"role": role}})

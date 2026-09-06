@@ -11,7 +11,7 @@ import pytest
 from pymongo import MongoClient
 
 from cbc.config import settings
-from tests.shared import TEST_ACTOR, opshub_client
+from tests.shared import TEST_ACTOR, opshub_client, mongo_client
 
 TEST_DB = "cbc_opshub_test_authz"
 
@@ -27,7 +27,7 @@ def client():
 @pytest.fixture()
 def as_role():
     """Change the signed-in user's role for one test."""
-    raw = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
+    raw = mongo_client(serverSelectionTimeoutMS=5000)
 
     def set_role(role: str) -> None:
         raw[TEST_DB]["users"].update_one({"email": TEST_ACTOR}, {"$set": {"role": role}})
@@ -183,7 +183,7 @@ def _clear_attempts() -> None:
 
     from cbc.config import settings
 
-    raw = MongoClient(settings.mongodb_uri)
+    raw = mongo_client()
     try:
         raw[settings.mongodb_db]["authAttempts"].delete_many({})
     finally:
@@ -218,7 +218,7 @@ def test_the_attempt_budget_is_shared_rather_than_per_process(client) -> None:
     for _ in range(3):
         client.post("/api/auth/verify", json=body)
 
-    raw = MongoClient(settings.mongodb_uri)
+    raw = mongo_client()
     try:
         stored = raw[settings.mongodb_db]["authAttempts"].count_documents(
             {"email": "shared@example.com"}
@@ -243,7 +243,7 @@ def test_a_correct_password_clears_the_budget(client) -> None:
             "/api/auth/verify", json={"email": TEST_ACTOR, "password": "wrong"}
         )
 
-    raw = MongoClient(settings.mongodb_uri)
+    raw = mongo_client()
     try:
         before = raw[settings.mongodb_db]["authAttempts"].count_documents(
             {"email": TEST_ACTOR}

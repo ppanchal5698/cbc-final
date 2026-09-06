@@ -5,19 +5,27 @@ from pymongo import MongoClient
 
 from cbc.config import settings
 from cbc.services import freshness as freshness_settings
-from tests.shared import TEST_ACTOR, opshub_client
+from tests.shared import TEST_ACTOR, opshub_client, mongo_client
 
 TEST_DB = "cbc_opshub_test_freshness"
 
 
-def test_freshness_settings_default_to_twenty_four_and_thirty_months():
+def test_freshness_settings_ship_the_windows_the_workbook_states():
+    """Price sheets ~24 months (Matrix 6.3); costs discarded at 3 years (6.2).
+
+    The two used to be one number. This endpoint reports the price-sheet window,
+    which is unchanged; the cost window moved to Matrix 6.2 and is asserted in
+    tests/pipeline/test_freshness.py.
+    """
+    from cbc.domain import freshness as core
+
     with opshub_client(TEST_DB) as client:
         freshness_settings.clear_cache()
         body = client.get("/api/settings/freshness").json()
-        assert body["catalogStaleMonths"] == 24
-        assert body["discardAfterMonths"] == 30
-        assert body["catalogStaleDays"] == 730
-        assert body["discardAfterDays"] == 913
+        assert body["catalogStaleMonths"] == core.CATALOG_STALE_MONTHS == 24
+        assert body["discardAfterMonths"] == core.DISCARD_AFTER_MONTHS == 36
+        assert body["catalogStaleDays"] == core.CATALOG_STALE_DAYS == 730
+        assert body["discardAfterDays"] == core.DISCARD_AFTER_DAYS == 1095
 
 
 def test_saving_freshness_settings_round_trips():
@@ -38,7 +46,7 @@ def test_saving_freshness_settings_round_trips():
             assert again["catalogStaleMonths"] == 18
             assert again["discardAfterMonths"] == 36
 
-            raw = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
+            raw = mongo_client(serverSelectionTimeoutMS=5000)
             try:
                 entries = list(
                     raw[TEST_DB]["auditLog"].find({"action": "settings.freshness.update"})

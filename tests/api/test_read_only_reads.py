@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 from cbc.config import settings
-from tests.shared import ROOT, opshub_client
+from tests.shared import ROOT, opshub_client, mongo_client
 
 TEST_DB = "cbc_opshub_test_reads"
 
@@ -67,7 +67,7 @@ def _snapshot(database) -> dict:
 def database():
     from pymongo import MongoClient
 
-    client = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
+    client = mongo_client(serverSelectionTimeoutMS=5000)
     try:
         yield client[TEST_DB]
     finally:

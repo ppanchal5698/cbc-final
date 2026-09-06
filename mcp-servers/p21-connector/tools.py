@@ -29,8 +29,8 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "check_freshness",
         "description": (
-            "Apply the CBC freshness rule to a purchase date: under ~24 months is "
-            "fresh, more than 24 months is unreliable, more than 2.5 years must "
+            "Apply the CBC freshness rule to a purchase date: under ~6 months is "
+            "fresh, more than 6 months is unreliable, more than 3 years must "
             "be discarded."
         ),
         "inputSchema": {

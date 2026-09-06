@@ -12,7 +12,20 @@ os.environ.setdefault("WORKER_CLAIM_ALL", "1")
 
 import tests.shared  # noqa: F401  — sets sys.path for MCP servers
 from _runtime import load_server  # noqa: E402
-from tests.shared import FIXTURE_PDF, ROOT, SCHEDULE_PAGE
+from tests.shared import FIXTURE_PDF, ROOT, SCHEDULE_PAGE, direct_uri  # noqa: E402
+
+# Reach the compose Mongo from the host, once, for every client the suite makes -
+# pymongo in the fixtures and motor inside `cbc.db` alike.
+#
+# The single-node replica set advertises itself as `mongo:27017`, the name it has
+# on the compose network. A driver on the host discovers that member and then
+# cannot resolve it, so whole modules skipped with "MongoDB is not running"
+# against a container that was up and healthy. Fixing it per client was not
+# enough: the fixture connected, and then `db.ensure_indexes()` built its own
+# motor client from the untouched URI and failed anyway.
+from cbc.config import settings  # noqa: E402
+
+settings.mongodb_uri = direct_uri(settings.mongodb_uri)
 
 
 @pytest.fixture(autouse=True)

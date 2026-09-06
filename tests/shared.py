@@ -28,7 +28,7 @@ SCHEDULE_PAGE = 14  # sheet A2.2 in the Dutch Bros fixture
 TEST_ACTOR = "test@example.com"
 
 
-def _direct(uri: str) -> str:
+def direct_uri(uri: str) -> str:
     """Reach a compose Mongo from the host.
 
     The single-node replica set advertises itself as `mongo:27017`, the name it
@@ -46,6 +46,22 @@ def _direct(uri: str) -> str:
     return uri + ("&" if "?" in uri else "?") + "directConnection=true"
 
 
+
+def mongo_client(**kwargs):
+    """A pymongo client that can actually reach the compose Mongo.
+
+    Nineteen call sites built `MongoClient(settings.mongodb_uri, ...)` by hand.
+    Each one inherited the single-node replica-set problem `direct_uri` exists to
+    solve, so whole test modules skipped with "MongoDB is not running" against a
+    container that was up and healthy - and the tests inside them had never run.
+    """
+    from pymongo import MongoClient
+
+    from cbc.config import settings
+
+    kwargs.setdefault("serverSelectionTimeoutMS", 5000)
+    return MongoClient(direct_uri(settings.mongodb_uri), **kwargs)
+
 @contextmanager
 def opshub_client(
     db_name: str, *, isolated_storage: bool = False, role: str = "admin"
@@ -58,7 +74,6 @@ def opshub_client(
     from tests.combined_app import app
 
     settings.mongodb_db = db_name
-    settings.mongodb_uri = _direct(settings.mongodb_uri)
     db_module._client = None
 
     scratch: Path | None = None
@@ -68,7 +83,7 @@ def opshub_client(
         scratch.mkdir(parents=True, exist_ok=True)
         settings.storage_root = scratch
 
-    raw = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
+    raw = mongo_client()
     try:
         raw.server_info()
     except Exception as exc:

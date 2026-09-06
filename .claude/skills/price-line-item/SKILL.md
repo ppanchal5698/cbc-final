@@ -19,7 +19,7 @@ Is the item on special pricing, or regularly bought?
 ├── YES -> PATH 1: P21 last-PO price
 │          mcp__p21-connector__lookup_last_po (always call; continue if empty)
 │          Then mcp__p21-connector__check_freshness on the PO date.
-│          Usable only if sold < ~24 months AND no price increase since. (~9/10 right)
+│          Usable only if sold < ~6 months AND no price increase since. (~9/10 right)
 │          NEVER read the P21 supplier-list or supplier-cost fields.
 │          P21 unreachable -> falls through to PATH 2 or PATH 3.
 │
@@ -43,9 +43,9 @@ Is the item on special pricing, or regularly bought?
 
 | Age of the PO | Verdict |
 |---|---|
-| under ~24 months | fresh - usable if no price increase |
-| more than 24 months | unreliable - re-verify before quoting |
-| more than 2.5 years | discard - do not quote from it |
+| under ~6 months | fresh - usable if no price increase |
+| more than 6 months | unreliable - re-verify before quoting |
+| more than 3 years | discard - do not quote from it |
 
 ## Adders (Path 2)
 

@@ -9,7 +9,7 @@ cost screen.
 
 - **Do NOT trust the P21 "supplier list" / "supplier cost" fields** — purchasing does not
   reliably update them.
-- Valid when the item was **sold within the last ~24 months and there has been no price increase**.
+- Valid when the item was **sold within the last ~6 months and there has been no price increase**.
   This is right about **9 times out of 10**.
 - Special-priced items already carry their cost in P21.
 - Access is **READ-ONLY**, no write-back (NFR-5, see the p21-read-only rule).
@@ -17,9 +17,9 @@ cost screen.
 ### Freshness rule
 | Age of cost | Status |
 |---|---|
-| under ~24 months | fresh |
-| more than 24 months | **unreliable** — re-verify |
-| more than 2.5 years | **discard** — do not use |
+| under ~6 months | fresh |
+| more than 6 months | **unreliable** — re-verify |
+| more than 3 years | **discard** — do not use |
 
 ### Known P21 risk
 P21 item IDs often **differ from manufacturer part numbers**, and semi / custom items

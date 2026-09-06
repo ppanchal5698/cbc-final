@@ -10,6 +10,7 @@ from pymongo import MongoClient
 
 from cbc import db as db_module
 from cbc.config import settings
+from tests.shared import mongo_client
 
 TEST_DB = "cbc_test_orchestrator_chain"
 
@@ -24,7 +25,7 @@ def run(coro):
 
 @pytest.fixture()
 def database():
-    raw = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
+    raw = mongo_client(serverSelectionTimeoutMS=5000)
     try:
         raw.server_info()
     except Exception as exc:

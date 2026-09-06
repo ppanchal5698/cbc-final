@@ -19,7 +19,7 @@ for the three cost paths, margin bands, and output schema.
 ## The three cost paths, in order
 **Path 1 - P21 last purchase-order price.** For regularly bought or
 special-priced items. **Always** call `mcp__p21-connector__lookup_last_po` first,
-then `check_freshness` on the PO date. Valid when sold within the last ~24 months with
+then `check_freshness` on the PO date. Valid when sold within the last ~6 months with
 no price increase since - right about 9 times out of 10. **Never** read the P21
 "supplier list" or "supplier cost" fields; purchasing does not keep them current.
 Access is READ-ONLY. If P21 is disconnected or returns no fresh PO, **continue
@@ -70,8 +70,8 @@ such as Wendys, lead time. **Always record `override_reason`.** Below-band lines
 are flagged, never blocked.
 
 ## Freshness
-Under ~24 months fresh; more than 24 months unreliable, re-verify; more than
-2.5 years discard outright.
+Under ~6 months fresh; more than 6 months unreliable, re-verify; more than
+3 years discard outright (Matrix 6.2).
 
 ## What every line must carry (NFR-3)
 `line_id`, `group`, `group_type`, `part_number` **or** `description`, `cost`,

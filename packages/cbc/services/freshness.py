@@ -1,6 +1,6 @@
 """Live freshness bands for catalogs, price books, and P21 last-PO dates.
 
-Defaults live in `cbc.core.freshness`. Admins override them from Settings; the
+Defaults live in `cbc.domain.freshness`. Admins override them from Settings; the
 document is `settings` `_id: "freshness"`. Callers resolve at use time so a
 saved change is visible without restarting the API or an MCP process.
 
@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
 
-from cbc.core import freshness as core
+from cbc.domain import freshness as core
 
 DOC_ID = "freshness"
 _TTL_SECONDS = 30.0
@@ -34,19 +34,18 @@ class Bands:
     updated_at: Any = None
     updated_by: str | None = None
 
-    @property
-    def fresh_days(self) -> int:
-        return self.catalog_stale_days
-
-    @property
-    def fresh_months(self) -> int:
-        return self.catalog_stale_months
+    # The P21 cost window (Matrix 6.2) and the price-sheet window (Matrix 6.3)
+    # are separate rules that were the same number, so one setting has always
+    # driven both. Shipped defaults now differ; the stored setting still moves
+    # them together until the API grows a second field.
+    fresh_months: int = core.FRESH_MONTHS
+    fresh_days: int = core.FRESH_DAYS
 
 
 DEFAULTS = Bands(
-    catalog_stale_months=core.FRESH_MONTHS,
+    catalog_stale_months=core.CATALOG_STALE_MONTHS,
     discard_after_months=core.DISCARD_AFTER_MONTHS,
-    catalog_stale_days=core.FRESH_DAYS,
+    catalog_stale_days=core.CATALOG_STALE_DAYS,
     discard_after_days=core.DISCARD_AFTER_DAYS,
     rule=core.RULE,
 )

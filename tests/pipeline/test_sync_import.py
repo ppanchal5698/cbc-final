@@ -19,7 +19,7 @@ from bson import ObjectId
 from pymongo import MongoClient
 
 from cbc.config import settings
-from tests.shared import ROOT
+from tests.shared import ROOT, mongo_client
 
 TEST_DB = "cbc_test_sync_import"
 SLUG = "sync_import_fixture"
@@ -41,7 +41,7 @@ def project():
     """A throwaway database and an isolated projects/ root, with one bid in it."""
     from cbc import db as db_module
 
-    raw = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
+    raw = mongo_client(serverSelectionTimeoutMS=5000)
     try:
         raw.server_info()
     except Exception as exc:

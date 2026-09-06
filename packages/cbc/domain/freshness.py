@@ -1,29 +1,52 @@
-"""CBC freshness bands for P21 last-PO costs and vendor catalogs.
+"""How old a P21 last-PO cost or a vendor sheet may be before it stops counting.
 
-Defaults: a cost or sheet is fresh for about 24 months, unreliable after that,
-and discarded after 2.5 years. Catalog `stale` uses the same 24-month window.
+The rule is the workbook's, not ours. Requirements Matrix 6.2:
+
+    "Freshness: cost older than ~6-8 months is unreliable; 3-4 years must be
+     discarded."
+
+restated at `docs/collections.mongodb.md` §7 row 19. The defaults below take the
+conservative end of each stated range - 6 months, then 3 years - because a cost
+that is quietly too old produces a wrong quote, while one flagged early produces
+a manual line an estimator can price. CBC may widen them to 8 months / 4 years
+from Settings without touching code; the range is theirs to close.
+
+These were 24 months and 30 months until this change: three to four times more
+permissive than 6.2 on the first threshold and, oddly, stricter than it on the
+second. The numbers had also been restated as if they were the CBC rule in the
+p21-connector tool description, the cost-sourcing memory file and the
+p21-read-only rule, so five places moved together.
 
 Admins can change the windows from Settings. Those live values are loaded in
-`cbc.services.freshness`; this module stays the kernel: defaults, conversion,
+`cbc.services.freshness`; this module is the rule itself: defaults, conversion,
 and classification with no I/O.
 """
 from __future__ import annotations
 
 from typing import Any
 
-FRESH_MONTHS = 24
-DISCARD_AFTER_MONTHS = 30  # 2.5 years
+# Matrix 6.2, conservative end of each range. Settings may widen to 8 / 48.
+FRESH_MONTHS = 6
+DISCARD_AFTER_MONTHS = 36  # 3 years
 MAX_MONTHS = 120
 
 
 def days_from_months(months: int) -> int:
-    """Round-half-up so 24 months is 730 days and 30 months is 913 (365 * 2.5)."""
+    """Round-half-up, so 6 months is 183 days and 36 months is 1095."""
     return int(months * 365 / 12 + 0.5)
 
 
 FRESH_DAYS = days_from_months(FRESH_MONTHS)
 DISCARD_AFTER_DAYS = days_from_months(DISCARD_AFTER_MONTHS)
-CATALOG_STALE_DAYS = FRESH_DAYS
+
+# A vendor price sheet is a different question from a purchase-order price, and a
+# different rule answers it. Price changes arrive as dated memos with a protection
+# window (Matrix 6.3), and `.claude/rules/data-stewardship.md` warns past ~24
+# months. This used to be an alias for FRESH_DAYS, which was harmless only while
+# both windows happened to be 24 months; correcting the cost rule to Matrix 6.2
+# would otherwise have quietly cut price-book staleness to six months as well.
+CATALOG_STALE_MONTHS = 24
+CATALOG_STALE_DAYS = days_from_months(CATALOG_STALE_MONTHS)
 
 
 def months_from_days(days: int) -> int:
@@ -31,12 +54,13 @@ def months_from_days(days: int) -> int:
 
 
 def _period_phrase(months: int) -> str:
-    """Human label for a month count. 30 months is the published 2.5-year discard."""
-    if months == 30:
-        return "2.5 years"
-    if months == 12:
-        return "1 year"
-    return f"{months} months"
+    """Human label for a month count: 6 -> "6 months", 36 -> "3 years"."""
+    if months < 12:
+        return f"{months} months"
+    years = months / 12
+    if years.is_integer():
+        return "1 year" if years == 1 else f"{years:.0f} years"
+    return f"{years:g} years"
 
 
 def rule_text(fresh_months: int = FRESH_MONTHS, discard_months: int = DISCARD_AFTER_MONTHS) -> str:

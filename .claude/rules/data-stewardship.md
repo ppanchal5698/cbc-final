@@ -30,7 +30,9 @@ harder to miss. NFR-10 stays OPEN until CBC names a person and an interval.
   is echoed onto every priced line (see the auditability rule).
 - scripts/refresh_pricebooks.sh reports the age of each price book and warns past **~24 months**.
 - Manually entered prices always show the **"price may be out of date — refresh"** prompt (NR-2).
-- The P21 freshness rule (more than 24 months unreliable, more than 2.5 years discard) applies independently.
+- The P21 freshness rule (more than 6 months unreliable, more than 3 years discard —
+  Matrix 6.2) applies independently. It is a different window from the ~24-month
+  price-sheet one above, and moving one must not move the other.
 
 ## Risk if left open
 Stale price sheets drive wrong quotes — silently, and at scale.
