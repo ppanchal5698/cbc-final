@@ -318,3 +318,43 @@ def test_m002_leaves_installation_wide_collections_alone(database) -> None:
 
     assert "orgId" not in database[SETTINGS].find_one({"_id": "claude"})
     assert "orgId" not in database[COUNTERS].find_one({"_id": "projectCode"})
+
+
+# ── m003: the operational collections ───────────────────────────────────────
+
+
+def test_m003_creates_the_four_missing_collections(database) -> None:
+    """FR-12, FR-16, Phase 5 and FR-13 each had nowhere to store anything."""
+    from cbc.persistence.migrations import m003_operational_collections as m003
+
+    _run()
+
+    present = set(database.list_collection_names())
+    for collection in m003.CREATED:
+        assert collection in present, f"{collection} was not created"
+
+
+def test_m003_indexes_the_questions_each_collection_answers(database) -> None:
+    from cbc.persistence.names import FEEDBACK_EVENTS, RFIS, VENDOR_RFQS
+
+    _run()
+
+    rfq = database[VENDOR_RFQS].index_information()
+    assert rfq["rfq_number"].get("unique") is True
+    assert "rfq_chase_list" in rfq, "what am I waiting on"
+    assert "rfq_blocking" in rfq, "what is holding up the bid"
+
+    assert "rfi_blocking" in database[RFIS].index_information()
+    assert "feedback_by_type" in database[FEEDBACK_EVENTS].index_information()
+
+
+def test_m003_leads_every_index_with_the_tenant(database) -> None:
+    """§4.1: no collection has an index that omits orgId."""
+    from cbc.persistence.migrations import m003_operational_collections as m003
+
+    _run()
+    for collection in m003.CREATED:
+        for name, spec in database[collection].index_information().items():
+            if name == "_id_":
+                continue
+            assert spec["key"][0][0] == "orgId", f"{collection}.{name} does not lead with orgId"
