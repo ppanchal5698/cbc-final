@@ -25,7 +25,6 @@ from mcp.server.lowlevel.server import Server
 from mcp.server.stdio import stdio_server
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
 
 Handler = Callable[..., Any]
 
@@ -53,23 +52,44 @@ def load_server(name: str) -> ModuleType:
     if not server_file.exists():
         raise FileNotFoundError(f"no such MCP server: {name}")
 
-    saved_tools = sys.modules.pop("tools", None)
-    sys.path.insert(0, str(directory))
+    # Pre-load every sibling module under its bare name so server.py's
+    # `from tools import TOOLS` / `from client import ...` resolve without
+    # editing sys.path. Production runs one process per server, so the
+    # temporary sys.modules entries never collide in practice.
+    saved: dict[str, Any] = {}
+    sibling_names: list[str] = []
     try:
+        for sibling in sorted(directory.glob("*.py")):
+            if sibling.name == "server.py" or sibling.name.startswith("_"):
+                continue
+            bare = sibling.stem
+            sibling_names.append(bare)
+            if bare in sys.modules:
+                saved[bare] = sys.modules[bare]
+            sibling_mod_name = f"{module_name}_{bare}"
+            sibling_spec = importlib.util.spec_from_file_location(sibling_mod_name, sibling)
+            if sibling_spec is None or sibling_spec.loader is None:  # pragma: no cover
+                raise ImportError(f"cannot load {sibling}")
+            sibling_module = importlib.util.module_from_spec(sibling_spec)
+            sys.modules[sibling_mod_name] = sibling_module
+            sys.modules[bare] = sibling_module
+            sibling_spec.loader.exec_module(sibling_module)
+
         spec = importlib.util.spec_from_file_location(module_name, server_file)
         if spec is None or spec.loader is None:  # pragma: no cover
             raise ImportError(f"cannot load {server_file}")
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
+        module.__file__ = str(server_file)
         spec.loader.exec_module(module)
     except Exception:
         sys.modules.pop(module_name, None)
         raise
     finally:
-        sys.path.remove(str(directory))
-        sys.modules.pop("tools", None)
-        if saved_tools is not None:
-            sys.modules["tools"] = saved_tools
+        for bare in sibling_names:
+            sys.modules.pop(bare, None)
+            if bare in saved:
+                sys.modules[bare] = saved[bare]
     return module
 
 

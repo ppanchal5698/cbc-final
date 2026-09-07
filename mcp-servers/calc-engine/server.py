@@ -7,16 +7,10 @@ that exposes it as MCP tools; it holds no formulas of its own.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+from _runtime import serve
+from tools import TOOLS
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "mcp-servers"))
-
-from _runtime import serve  # noqa: E402
-from tools import TOOLS  # noqa: E402
-
-from cbc.core.calc import (  # noqa: E402
+from cbc.core.calc import (
     apply_margin,
     calculate_line,
     compute_totals,

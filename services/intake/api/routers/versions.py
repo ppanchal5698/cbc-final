@@ -97,6 +97,18 @@ async def snapshot(project: dict[str, Any], reason: str, actor: str) -> dict[str
     else:
         raise ValueError("could not allocate a version number; try again")
 
+    # Live lines belong to this version (spec: estimateLines.estimateVersionId).
+    # Embedded snapshot stays as the immutable freeze for diffs until S3 fully
+    # migrates readers off the blob.
+    await db.quote_lines.update_many(
+        {"projectId": project_id},
+        {"$set": {"estimateVersionId": document["_id"]}},
+    )
+    await db.line_items.update_many(
+        {"projectId": project_id},
+        {"$set": {"estimateVersionId": document["_id"]}},
+    )
+
     if previous is not None:
         # Sealing happens after the new version exists, so a crash between the two
         # leaves an unsealed predecessor rather than a chain pointing at nothing.

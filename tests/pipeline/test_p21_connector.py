@@ -1,15 +1,13 @@
 """P21 connector contract tests."""
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
+from _runtime import load_server
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "mcp-servers" / "p21-connector"))
-
-from server import check_freshness, lookup_last_po, search_item  # noqa: E402
+_server = load_server("p21-connector")
+check_freshness = _server.check_freshness
+lookup_last_po = _server.lookup_last_po
+search_item = _server.search_item
 
 
 @pytest.fixture(autouse=True)
@@ -72,7 +70,6 @@ def test_freshness_respects_a_narrower_admin_window(monkeypatch) -> None:
 
     from cbc.domain import freshness as core
     from cbc.services.freshness import Bands
-    import server as p21
 
     bands = Bands(
         catalog_stale_months=6,
@@ -81,7 +78,7 @@ def test_freshness_respects_a_narrower_admin_window(monkeypatch) -> None:
         discard_after_days=core.days_from_months(12),
         rule=core.rule_text(6, 12),
     )
-    monkeypatch.setattr(p21, "load_sync", lambda: bands)
+    monkeypatch.setattr(_server, "load_sync", lambda: bands)
     mid = (date.today() - timedelta(days=250)).isoformat()
     result = check_freshness(mid)
     assert result["freshness_status"] == "unreliable"

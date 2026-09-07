@@ -14,20 +14,16 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 import urllib.error
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from _runtime import serve  # noqa: E402
-from tools import TOOLS  # noqa: E402
-from client import lookup_last_po as _http_lookup, search_item as _http_search  # noqa: E402
-from cbc.domain.freshness import classify  # noqa: E402
-from cbc.services.freshness import load_sync  # noqa: E402
+from _runtime import serve
+from tools import TOOLS
+from client import lookup_last_po as _http_lookup, search_item as _http_search
+from cbc.domain.freshness import classify
+from cbc.services.freshness import load_sync
 
 BASE_URL = os.environ.get("P21_BASE_URL", "").strip()
 

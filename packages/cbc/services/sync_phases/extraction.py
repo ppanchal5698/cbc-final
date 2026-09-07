@@ -104,6 +104,8 @@ async def import_extraction(
         finish, finish_flags = _opening_finish(item)
         fields = {
             "mark": door_number(item) or None,
+            "doorNumber": (key.split(":", 1)[-1] if key.startswith("mark:") else key) or None,
+            "bidRequestId": project_id,
             "description": item.get("description") or item.get("raw_row", ""),
             "size": item.get("size") or item.get("width"),
             "qty": item.get("qty", 1),

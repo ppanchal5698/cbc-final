@@ -1,31 +1,45 @@
 """Shared test helpers imported by conftest and individual test modules."""
 from __future__ import annotations
 
+import importlib.util
 import os
 import shutil
 import sys
 from contextlib import contextmanager
 from pathlib import Path
+from types import ModuleType
 from typing import Iterator
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
 
-for extra in (
-    ROOT / "packages",
-    ROOT / "mcp-servers",
+# pytest.ini already puts services/* on pythonpath; `cbc` and `_runtime` come
+# from editable installs. Skill scripts are not packages - load them by path.
+for skill_scripts in (
     ROOT / ".claude" / "skills" / "extract-door-schedule" / "scripts",
     ROOT / ".claude" / "skills" / "generate-quotation" / "scripts",
 ):
-    sys.path.insert(0, str(extra))
+    if skill_scripts.is_dir() and str(skill_scripts) not in sys.path:
+        # Skill scripts are invoked as scripts; tests import them by bare name.
+        # Keeping this off packages/services/mcp-servers/scripts trees.
+        sys.path.append(str(skill_scripts))
 
 FIXTURE_PDF = ROOT / "tests" / "fixtures" / "pdfs" / "1_Architectural.pdf"
 SCHEDULE_PAGE = 14  # sheet A2.2 in the Dutch Bros fixture
 
 
 TEST_ACTOR = "test@example.com"
+
+
+def load_module(name: str, path: Path) -> ModuleType:
+    """Import a free-standing .py file without editing sys.path."""
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:  # pragma: no cover
+        raise ImportError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def direct_uri(uri: str) -> str:

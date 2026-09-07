@@ -73,9 +73,6 @@ def _load_parse_schedule():
 
 
 def _find_sheets(file_path: str) -> dict[str, Any]:
-    mcp = ROOT / "mcp-servers"
-    if str(mcp) not in sys.path:
-        sys.path.insert(0, str(mcp))
     from _runtime import load_server
 
     return load_server("pdf-tools").find_sheets(file_path)

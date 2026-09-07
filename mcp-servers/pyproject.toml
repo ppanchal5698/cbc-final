@@ -13,14 +13,11 @@ dependencies = [
     "Pillow>=10.0",
 ]
 
-# This distribution ships dependencies, not importable modules. The servers are
-# launched by path (.claude/settings.json) and reached in-process through
-# `_runtime.load_server`, which puts this directory on sys.path itself - so there
-# is nothing here for setuptools to package. Saying so explicitly stops its
-# flat-layout autodiscovery from finding `catalog/`, `pricebook/` and the rest
-# and refusing to build.
+# `_runtime` is the shared stdio helper. Servers are still launched by path
+# (.claude/settings.json); installing this distribution makes `import _runtime`
+# work without every server.py editing sys.path.
 [tool.setuptools]
-py-modules = []
+py-modules = ["_runtime"]
 
 [project.optional-dependencies]
 # OCR fallback for scanned bid sets. pytesseract also needs the tesseract binary

@@ -27,17 +27,16 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "mcp-servers"))
 
-from _runtime import serve  # noqa: E402
-from tools import TOOLS  # noqa: E402
+from _runtime import serve
+from tools import TOOLS
 
-from cbc.pageindex import basis as price_basis_of  # noqa: E402
-from cbc.pageindex import models as page_models  # noqa: E402
-from cbc.pageindex import query as page_query  # noqa: E402
-from cbc.pageindex import reader  # noqa: E402
+from cbc.pageindex import basis as price_basis_of
+from cbc.pageindex import models as page_models
+from cbc.pageindex import query as page_query
+from cbc.pageindex import reader
 
-from cbc.services.freshness import load_sync  # noqa: E402
+from cbc.services.freshness import load_sync
 from cbc.services import reference_library as reflib  # noqa: E402
 
 MAX_LIMIT = 25

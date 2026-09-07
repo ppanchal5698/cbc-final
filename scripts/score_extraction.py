@@ -28,9 +28,20 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / ".claude" / "skills" / "extract-door-schedule" / "scripts"))
 
 GOLDEN_DIR = ROOT / "tests" / "fixtures" / "golden"
+
+
+def _load_parse_schedule():
+    import importlib.util
+
+    path = ROOT / ".claude" / "skills" / "extract-door-schedule" / "scripts" / "parse_schedule.py"
+    spec = importlib.util.spec_from_file_location("parse_schedule", path)
+    if spec is None or spec.loader is None:  # pragma: no cover
+        raise ImportError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 # The fields a golden file pins. `door_number` and `source_page` are the identity
 # and the provenance; the rest are what an estimator reads off the schedule.
@@ -87,7 +98,7 @@ def generate(pdf: Path, page: int, from_run: str | None = None) -> dict[str, Any
     say, or the parser is missing it. Only a person can tell those apart, which is
     why this output is a draft and not a reference until it has been reviewed.
     """
-    import parse_schedule
+    parse_schedule = _load_parse_schedule()
 
     rows = parse_schedule.schedule_rows(str(pdf), page)
     candidates = _candidates(from_run)

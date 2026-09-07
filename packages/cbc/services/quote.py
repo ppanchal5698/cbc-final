@@ -119,6 +119,63 @@ def _resolve_margin(line: dict[str, Any]) -> tuple[float | None, dict[str, Any] 
     }
 
 
+def _freeze_snapshot(existing: dict[str, Any] | None, built: dict[str, Any] | None) -> dict[str, Any] | None:
+    """§4.8: once frozen, a snapshot is never refreshed from live reference data."""
+    if existing:
+        return existing
+    return built
+
+
+def _cost_snapshot(line: dict[str, Any]) -> dict[str, Any] | None:
+    """Freeze the cost that was priced - refresh only when the line's cost changes.
+
+    An estimator PATCH that changes `cost` is a new decision and must replace the
+    snapshot. What §4.8 forbids is a *reference* edit (price book, P21 refresh)
+    silently moving a quoted line; that path does not write `line.cost`.
+    """
+    cost = line.get("cost")
+    if cost is None:
+        return None
+    existing = line.get("costSnapshot")
+    if existing is not None and existing.get("cost") == cost:
+        return existing
+    return {
+        "cost": cost,
+        "costSource": line.get("costSource"),
+        "costSourceDetail": line.get("costSourceDetail"),
+        "frozenAt": datetime.now(timezone.utc),
+    }
+
+
+def _price_book_snapshot(line: dict[str, Any]) -> dict[str, Any] | None:
+    existing = line.get("priceBookSnapshot")
+    if existing:
+        return existing  # frozen - reference edits must not move it
+    if not any(line.get(k) for k in ("listPrice", "priceBookId", "priceBookPage", "vendor")):
+        return None
+    return {
+        "listPrice": line.get("listPrice"),
+        "priceBookId": line.get("priceBookId"),
+        "priceBookPage": line.get("priceBookPage"),
+        "vendor": line.get("vendor") or line.get("manufacturer"),
+        "frozenAt": datetime.now(timezone.utc),
+    }
+
+
+def _multiplier_tier_snapshot(line: dict[str, Any]) -> dict[str, Any] | None:
+    existing = line.get("multiplierTierSnapshot")
+    if existing:
+        return existing
+    if line.get("multiplier") is None and not line.get("multiplierTier"):
+        return None
+    return {
+        "multiplier": line.get("multiplier"),
+        "tier": line.get("multiplierTier") or line.get("tier"),
+        "program": line.get("program"),
+        "frozenAt": datetime.now(timezone.utc),
+    }
+
+
 def reprice(lines: list[dict[str, Any]], state: str | None, freight: float | None) -> dict:
     """Price every line in memory and roll them up. Writes nothing.
 
@@ -136,6 +193,15 @@ def reprice(lines: list[dict[str, Any]], state: str | None, freight: float | Non
         )
         if snapshot is not None:
             line["marginSnapshot"] = snapshot
+        cost_snap = _cost_snapshot(line)
+        if cost_snap is not None:
+            line["costSnapshot"] = cost_snap
+        pb_snap = _price_book_snapshot(line)
+        if pb_snap is not None:
+            line["priceBookSnapshot"] = pb_snap
+        tier_snap = _multiplier_tier_snapshot(line)
+        if tier_snap is not None:
+            line["multiplierTierSnapshot"] = tier_snap
         stale = ("sell" not in line) or ("extended" not in line)
         differs = (line.get("sell"), line.get("extended"), line.get("margin")) != (
             priced["sell"],
@@ -145,8 +211,6 @@ def reprice(lines: list[dict[str, Any]], state: str | None, freight: float | Non
         line["sell"] = priced["sell"]
         line["extended"] = priced["extended"]
         line["margin"] = priced["margin"]
-        # Why a line came back unpriced, so it reads as "needs a look" on the
-        # screen rather than just being blank.
         line["priceError"] = priced.get("error")
         line["marginCheck"] = pricing.check_margin(line.get("division"), priced["margin"])
         if stale or differs or line.get("priceError") != priced.get("error"):
@@ -200,6 +264,9 @@ async def persist(project: dict[str, Any]) -> dict:
                         "priceError": line["priceError"],
                         "marginCheck": line["marginCheck"],
                         "marginSnapshot": line.get("marginSnapshot"),
+                        "costSnapshot": line.get("costSnapshot"),
+                        "priceBookSnapshot": line.get("priceBookSnapshot"),
+                        "multiplierTierSnapshot": line.get("multiplierTierSnapshot"),
                     }
                 },
             )

@@ -13,15 +13,12 @@ import hashlib
 import json
 import os
 import re
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from _runtime import serve  # noqa: E402
-from tools import TOOLS  # noqa: E402
+from _runtime import serve
+from tools import TOOLS
 
 ROOT = Path(__file__).resolve().parents[2]
 VERSIONS_DIRNAME = ".versions"

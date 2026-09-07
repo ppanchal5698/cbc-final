@@ -90,19 +90,12 @@ PROFILES[PREFLIGHT] = []
 
 
 def _readonly_uri() -> str | None:
-    """The read-only connection string, derived rather than required in the env.
+    """The read-only connection string for catalog MCP servers.
 
-    `cbc.db` owns how it is built, but importing it here would point the shared
-    floor at the domain package - so it is imported inside the call, where a
-    missing database configuration degrades to "no catalog for this run" instead
-    of breaking every job type that never needed one.
+    Prefer the env var. Callers that already resolved `cbc.db.readonly_uri` may
+    set `READONLY_URI_OVERRIDE` before building the config.
     """
-    try:
-        from cbc.db import readonly_uri
-
-        return readonly_uri()
-    except Exception:
-        return os.environ.get("MONGODB_READONLY_URI")
+    return os.environ.get("READONLY_URI_OVERRIDE") or os.environ.get("MONGODB_READONLY_URI")
 
 
 def config_for(job_type: str) -> str:

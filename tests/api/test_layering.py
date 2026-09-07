@@ -6,19 +6,11 @@
 Cross-service Python imports are also forbidden.
 
 That much this file has always checked. What it did not check - while its own
-docstring claimed it - is the direction *inside* `packages/cbc`. The kernel
-imports upward in five places, every one of them a function-local import written
-to dodge the circular import a module-level one would cause:
-
-    cbc/core/calc.py      -> cbc.services  (x4)
-    cbc/core/toolsets.py  -> cbc.db
-    cbc/services/jobs.py  -> cbc.http
-
-A deferred import is still a dependency; it is only hidden from the module
-header. LAYERS below states the intended order and INTERNAL_EXCEPTIONS records
-every violation that exists today, so the debt is enumerated rather than implied.
-An exception that stops being true fails `test_every_listed_exception_is_real`,
-so the list cannot rot into a permanent allowlist.
+docstring claimed it - is the direction *inside* `packages/cbc`. Upward imports
+that remain are listed in INTERNAL_EXCEPTIONS so the debt is enumerated rather
+than implied. An exception that stops being true fails
+`test_every_listed_exception_is_real`, so the list cannot rot into a permanent
+allowlist.
 """
 from __future__ import annotations
 
@@ -103,12 +95,8 @@ def test_each_service_uses_the_domain(domain: str) -> None:
 
 
 KERNEL_EXCEPTIONS = {
-    "packages/cbc/core/toolsets.py": ["cbc.db"],
-    # calc used to read the seed JSON off disk. Bands, tax and lite-kit prices
-    # are Mongo-backed now, so the arithmetic asks the reference service for
-    # them - lazily, inside the functions, with DEFAULT_* still the fallback
-    # when the lookup fails. Recorded rather than silently allowed.
-    "packages/cbc/core/calc.py": ["cbc.services"],
+    # Compatibility shim: core.calc re-exports domain + reference_calc.
+    "packages/cbc/core/calc.py": ["cbc.domain.calc", "cbc.services.reference_calc"],
 }
 
 
@@ -119,7 +107,9 @@ def test_the_kernel_imports_nothing_above_itself() -> None:
         hits = sorted(
             module
             for module in _imported_roots(path)
-            if module.startswith("cbc.") and not module.startswith("cbc.core")
+            if module.startswith("cbc.")
+            and not module.startswith("cbc.core")
+            and not module.startswith("cbc.domain")  # domain sits below core
         )
         allowed = KERNEL_EXCEPTIONS.get(relative, [])
         unexpected = [m for m in hits if m not in allowed]
@@ -149,32 +139,37 @@ def test_domain_job_types_partition() -> None:
 #
 # Low to high. A layer may import anything below it and nothing above it.
 LAYERS = (
-    "cbc.core",        # pure rules + I/O primitives
-    "cbc.schemas",     # shapes
+    "cbc.domain",      # pure rules - no I/O
+    "cbc.core",        # I/O primitives + shims over domain
+    "cbc.schemas",     # shapes (contracts is the preferred name)
+    "cbc.contracts",   # alias of schemas during the rename
     "cbc.persistence", # collection names, envelope, migrations
     "cbc.db",          # the motor client and index setup
-    "cbc.pageindex",   # catalog page index - infrastructure the services search
-    "cbc.services",    # domain services
-    "cbc.validation",  # acceptance rules over those services
+    "cbc.pageindex",   # catalog page index
+    "cbc.services",    # legacy shared services package
+    "cbc.pricing",     # pricing slice of services
+    "cbc.quoting",     # quoting slice
+    "cbc.extraction",  # extraction slice
+    "cbc.platform",    # platform slice
+    "cbc.validation",  # acceptance rules
     "cbc.http",        # transport
-    "cbc.worker_kit",  # the Claude runtime, on top of everything
+    "cbc.worker_kit",  # Claude runtime (agents is the preferred name)
+    "cbc.agents",      # alias of worker_kit during the rename
 )
 
 # Upward imports that exist right now. Removing one is the point of S1-S2; adding
 # one needs a reason in this table.
 INTERNAL_EXCEPTIONS: dict[str, list[str]] = {
-    # Bands, tax rates and lite-kit prices are Mongo-backed, so the arithmetic
-    # asks the reference service for them - lazily, with DEFAULT_* as fallback.
+    # Compatibility shim: core.calc re-exports reference_calc for one stage.
     "packages/cbc/core/calc.py": ["cbc.services"],
-    # Reads MONGODB_READONLY_URI to decide whether a pricing job may run.
-    "packages/cbc/core/toolsets.py": ["cbc.db"],
     # Job claim/finish emit trace spans.
     "packages/cbc/services/jobs.py": ["cbc.http"],
     # Index bootstrap seeds the reference families before first use.
     "packages/cbc/db.py": ["cbc.services"],
-    # Classifying a price sheet as list or net needs the vendor tiers, which are
-    # reference data rather than index data.
+    # Classifying a price sheet as list or net needs the vendor tiers.
     "packages/cbc/pageindex/basis.py": ["cbc.services"],
+    # Resolves the CBC org id when a legacy project lacks orgId.
+    "packages/cbc/persistence/repos.py": ["cbc.db"],
 }
 
 

@@ -333,7 +333,7 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
     # this the field did not exist and the only trace was a signoff entry the
     # hand-off pushed for itself, which is not an approval by anyone.
     totals, _lines = await quote_service.totals_for(project)
-    stored = await db.proposals.find_one({"projectId": project["_id"]}) or {}
+    stored = await db.proposals.find_one({"projectId": project["_id"]})
     approval = proposal_rules.approve(
         approved_by=actor,
         totals=totals,
@@ -341,15 +341,28 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
             "validityDays": VALIDITY_DAYS,
             "poRequired": True,
             "supplyOnly": True,
-            "exclusions": stored.get("exclusions") or DEFAULT_EXCLUSIONS,
+            "exclusions": (stored or {}).get("exclusions") or DEFAULT_EXCLUSIONS,
         },
     )
+
+    # A proposal cannot come into existence via hand-off upsert (NFR-1 / §3.30).
+    # Approval is an insert (or a stamp onto an existing draft); hand-off then
+    # updates without upsert.
+    if stored is None:
+        await db.proposals.insert_one(
+            {
+                "projectId": project["_id"],
+                **approval,
+                "createdAt": _now(),
+            }
+        )
+    elif not stored.get("approvedBy"):
+        await db.proposals.update_one({"_id": stored["_id"]}, {"$set": approval})
 
     await db.proposals.update_one(
         {"projectId": project["_id"]},
         {
             "$set": {
-                **approval,
                 "completedAt": _now(),
                 "completedBy": actor,
                 "handedOffTo": recipient,
@@ -359,7 +372,6 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
                 "signoff": {"role": "estimator", "by": actor, "at": _now(), "state": "complete"}
             },
         },
-        upsert=True,
     )
     await db.projects.update_one(
         {"_id": project["_id"]},

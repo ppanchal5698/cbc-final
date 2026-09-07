@@ -2,7 +2,7 @@
 #
 # This tree is a restructure of cbc-copilot-claude-cli. The original repo is
 # untouched. ADR-001 (modular monolith) is superseded here — see
-# docs/NEW_ARCHITECTURE.md.
+# docs/collections.mongodb.md, app_lifecycle.md, and docs/architecture.md.
 #
 # Quick start:
 #   cp .env.example .env

@@ -11,20 +11,20 @@ HOOKS = ROOT / ".claude" / "hooks"
 
 
 def test_artifact_path_from_save_artifact() -> None:
-    sys.path.insert(0, str(HOOKS))
-    from _artifact_path import project_path_from_tool  # noqa: WPS433
+    from tests.shared import load_module
 
-    assert project_path_from_tool(
+    helper = load_module("_artifact_path", HOOKS / "_artifact_path.py")
+    assert helper.project_path_from_tool(
         "mcp__artifact-storage__save_artifact",
         {"project": "test_bid", "path": "extracted/door_schedule.json", "content": "{}"},
     ) == ("test_bid", "extracted/door_schedule.json")
 
 
 def test_artifact_path_from_write() -> None:
-    sys.path.insert(0, str(HOOKS))
-    from _artifact_path import project_path_from_tool  # noqa: WPS433
+    from tests.shared import load_module
 
-    assert project_path_from_tool(
+    helper = load_module("_artifact_path", HOOKS / "_artifact_path.py")
+    assert helper.project_path_from_tool(
         "Write",
         {"file_path": "/app/projects/test_bid/priced/line_items.json", "content": "{}"},
     ) == ("test_bid", "priced/line_items.json")
@@ -75,8 +75,6 @@ def _load_post_tool_use():
     """
     import importlib.util
 
-    if str(HOOKS) not in sys.path:
-        sys.path.insert(0, str(HOOKS))
     spec = importlib.util.spec_from_file_location(
         "_isolated_post_tool_use", HOOKS / "post_tool_use.py"
     )

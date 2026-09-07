@@ -6,19 +6,14 @@ READ-ONLY: no write tools; prefer MONGODB_READONLY_URI when set.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "mcp-servers"))
+from _runtime import serve
+from tools import TOOLS
 
-from _runtime import serve  # noqa: E402
-from tools import TOOLS  # noqa: E402
-
-from cbc.core.calc import lookup_lite_kit_list_price  # noqa: E402
-from cbc.services import reference_library as reflib  # noqa: E402
-from cbc.services import reference_store  # noqa: E402
+from cbc.core.calc import lookup_lite_kit_list_price
+from cbc.services import reference_library as reflib
+from cbc.services import reference_store
 
 
 def list_reference_families() -> dict[str, Any]:

@@ -289,6 +289,16 @@ async def ensure_indexes() -> None:
         },
     )
     await db.line_items.create_index([("projectId", ASCENDING), ("status", ASCENDING)])
+    await _replace_index(
+        db.line_items,
+        "opening_door_identity",
+        [("orgId", ASCENDING), ("projectId", ASCENDING), ("doorNumber", ASCENDING)],
+        unique=True,
+        partialFilterExpression={
+            "doorNumber": {"$exists": True, "$type": "string"},
+        },
+    )
+    # Legacy non-unique mark lookup kept for list screens that still sort by mark.
     await db.line_items.create_index([("projectId", ASCENDING), ("mark", ASCENDING)])
     await db.quote_lines.create_index([("projectId", ASCENDING), ("division", ASCENDING)])
     await db.quotes.create_index([("projectId", ASCENDING)], unique=True)

@@ -5,6 +5,7 @@ Sync helpers serve calc, MCP, and workers; async helpers serve FastAPI.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -301,6 +302,9 @@ async def put_family(
         return put_family_sync(family, data, actor=actor)
     payload = deepcopy(data)
     doc = _doc(family, payload, actor=actor)
+    previous = await db.reference_data.find_one({"_id": family})
+    if previous is not None:
+        await asyncio.to_thread(_archive, previous, superseded_by=actor, at=doc["updatedAt"])
     await db.reference_data.replace_one({"_id": family}, doc, upsert=True)
     invalidate(family)
     return deepcopy(payload)

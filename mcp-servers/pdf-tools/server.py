@@ -11,19 +11,15 @@ therefore clusters positioned words into rows instead. See
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import Any
 
 import fitz  # PyMuPDF
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _runtime import serve
+from tools import TOOLS
 
-from _runtime import serve  # noqa: E402
-from tools import TOOLS  # noqa: E402
-
-
-from cbc.core import pdfpages, pdfrows, pdftext  # noqa: E402
+from cbc.core import pdfpages, pdfrows, pdftext
 
 MAX_HITS = 200
 

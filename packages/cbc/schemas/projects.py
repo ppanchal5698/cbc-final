@@ -42,6 +42,10 @@ class ProjectCreate(BaseModel):
     projectNumber: str | None = None
     # Phase 0: alternates noted at intake (names only; reconciliation is Matrix 4.1 Pending).
     bidAlternates: list[str] | None = None
+    # FR-1: email / RFP text intake, not only PDF upload.
+    intakeChannel: Literal["email", "phone", "manual"] | None = None
+    rfpText: str | None = None
+    sourceEmailMessageId: str | None = None
 
 
 class ProjectUpdate(BaseModel):

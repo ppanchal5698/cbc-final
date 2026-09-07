@@ -92,11 +92,17 @@ def test_both_services_use_the_shared_setup() -> None:
     """Neither may go back to its own basicConfig."""
     from tests.shared import ROOT
 
-    # One worker kit, one API entry point per domain service.
-    entries = [ROOT / "packages" / "cbc" / "worker_kit" / "runtime.py"]
-    entries += sorted((ROOT / "services").glob("*/api/main.py"))
-    assert len(entries) > 2, entries
+    # One worker kit, one shared API factory (six thin mains call it).
+    entries = [
+        ROOT / "packages" / "cbc" / "worker_kit" / "runtime.py",
+        ROOT / "packages" / "cbc" / "http" / "service_app.py",
+    ]
+    assert all(path.is_file() for path in entries), entries
     for path in entries:
         body = path.read_text(encoding="utf-8")
         assert "logs.configure(" in body, path
         assert "logging.basicConfig(" not in body, path
+    for path in (ROOT / "services").glob("*/api/main.py"):
+        body = path.read_text(encoding="utf-8")
+        assert "logging.basicConfig(" not in body, path
+        assert "create_service_app" in body, path

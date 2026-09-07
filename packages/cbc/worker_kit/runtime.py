@@ -37,26 +37,24 @@ def _repo_root() -> Path:
 
 
 REPO_ROOT = _repo_root()
-sys.path.insert(0, str(REPO_ROOT))
-sys.path.insert(0, str(REPO_ROOT / "packages"))
 
-from cbc.core import envfile  # noqa: E402
-from cbc.services import provider  # noqa: E402
+from cbc.core import envfile
+from cbc.services import provider
 
 envfile.apply_to_environ(skip=provider.MANAGED)
 
-from cbc import db as db_module  # noqa: E402
-from cbc.db import db  # noqa: E402
+from cbc import db as db_module
+from cbc.db import db
 from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
-from cbc.services import audit, quote as quote_service, render, storage, sync  # noqa: E402
-from cbc.services import manifests, matchcache, pretakeoff, runmetrics, sheetmap  # noqa: E402
-from cbc.core import claude_cli as runner, streaming  # noqa: E402
-from cbc.core import logs  # noqa: E402
-from cbc.validation import ArtifactValidationError, validate_job_artifacts  # noqa: E402
-from cbc.validation import review as review_flags  # noqa: E402
-from cbc.worker_kit import prompts  # noqa: E402
-from cbc.worker_kit.handlers.catalog import delete_catalog, index_catalog  # noqa: E402
-from cbc.worker_kit.handlers.ingest import ingest_pricebook  # noqa: E402
+from cbc.services import audit, quote as quote_service, render, storage, sync
+from cbc.services import manifests, matchcache, pretakeoff, runmetrics, sheetmap
+from cbc.core import claude_cli as runner, streaming
+from cbc.core import logs
+from cbc.validation import ArtifactValidationError, validate_job_artifacts
+from cbc.validation import review as review_flags
+from cbc.worker_kit import prompts
+from cbc.worker_kit.handlers.catalog import delete_catalog, index_catalog
+from cbc.worker_kit.handlers.ingest import ingest_pricebook
 
 log = logs.configure("cbc.worker")
 
@@ -871,6 +869,9 @@ async def sync_results(job: dict, project: dict | None) -> str:
         if counts.get("aborted"):
             return "lease stolen; discarded output"
         await quote_service.persist(project)
+        from cbc.services import matching_gate
+
+        await matching_gate.apply_to_project(project)
         await db.projects.update_one(
             {"_id": project["_id"]},
             {"$set": {"stage": "quote", "progress": 67, "updatedAt": _now()}},
@@ -1532,7 +1533,13 @@ async def loop(once: bool = False) -> int:
 
     otel.configure(os.environ.get("OTEL_SERVICE_NAME") or "cbc.worker")
 
-    if not readonly_uri():
+    derived = readonly_uri()
+    if derived and not os.environ.get("MONGODB_READONLY_URI"):
+        # toolsets.config_for reads the env; derive the local-dev URI once here
+        # so core stays free of cbc.db.
+        os.environ["MONGODB_READONLY_URI"] = derived
+
+    if not derived:
         log.warning(
             "no read-only MongoDB credential; the catalog server will not be able "
             "to read the page index and pricing will fall back to manual entry"

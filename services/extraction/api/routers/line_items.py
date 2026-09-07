@@ -16,7 +16,8 @@ from cbc.http.deps import Actor
 from cbc.schemas import BulkAction, LineItemCreate, LineItemUpdate
 from cbc.http.projects_access import load
 from cbc.http.pipeline_jobs import enqueue_pipeline
-from cbc.services import audit, sync
+from cbc.persistence import repos
+from cbc.services import audit, feedback, sync
 from cbc.services.quote import MAX_QUOTE_LINES
 
 router = APIRouter(prefix="/api/projects/{code}/line-items", tags=["line-items"])
@@ -69,10 +70,16 @@ async def list_line_items(
 async def add_line_item(code: str, body: LineItemCreate, actor: Actor) -> dict:
     """Add something the drawings do not carry. Confirmed on arrival - a human typed it."""
     project = await load(code)
+    openings = await repos.for_project(db.line_items, project, actor)
 
+    payload = body.model_dump(exclude_none=True)
+    mark = payload.get("mark") or payload.get("doorNumber")
     document = {
-        **body.model_dump(exclude_none=True),
+        **payload,
         "projectId": project["_id"],
+        "bidRequestId": project["_id"],
+        "mark": mark,
+        "doorNumber": str(mark) if mark else None,
         "status": "by_hand",
         "addedByHand": True,
         "confidence": 1.0,
@@ -80,9 +87,8 @@ async def add_line_item(code: str, body: LineItemCreate, actor: Actor) -> dict:
         "evidence": {"note": f"Added by hand by {actor}"},
         "confirmedBy": actor,
         "confirmedAt": _now(),
-        "createdAt": _now(),
     }
-    result = await db.line_items.insert_one(document)
+    result = await openings.insert(document)
     document["_id"] = result.inserted_id
 
     await audit.record(
@@ -90,6 +96,13 @@ async def add_line_item(code: str, body: LineItemCreate, actor: Actor) -> dict:
         actor,
         {"projectId": project["_id"], "lineItemId": result.inserted_id},
         after=body.description,
+    )
+    await feedback.record(
+        bid_request_id=project["_id"],
+        event_type="lineAdded",
+        actor=actor,
+        opening_id=result.inserted_id,
+        corrected={"description": body.description, "mark": mark},
     )
     return serialise(document)
 
@@ -123,6 +136,13 @@ async def update_line_item(
         {"projectId": project["_id"], "lineItemId": item["_id"]},
         before=edit["before"],
         after=changes,
+    )
+    await feedback.record_edits(
+        bid_request_id=project["_id"],
+        actor=actor,
+        opening_id=item["_id"],
+        before=edit["before"],
+        changes=changes,
     )
     return serialise(await db.line_items.find_one({"_id": item["_id"]}))
 

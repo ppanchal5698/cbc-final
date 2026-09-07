@@ -13,7 +13,7 @@ from pymongo.errors import DuplicateKeyError
 from cbc.db import db, oid, serialise
 from cbc.http.deps import AdminActor, Actor
 from cbc.schemas import ProjectCreate, ProjectUpdate
-from cbc.services import audit, storage
+from cbc.services import audit, storage, reuse
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -194,6 +194,9 @@ async def create_project(body: ProjectCreate, actor: Actor) -> dict[str, Any]:
     # Matrix 3.0: default one-off when the create form omits mode.
     mode = body.mode or "one_off"
     alternates = [a.strip() for a in (body.bidAlternates or []) if a and str(a).strip()]
+    from cbc.persistence import repos
+
+    org_id = await repos.org_id_for(None)
     doc = {
         **body.model_dump(exclude_none=True, exclude={"bidDue", "mode", "bidAlternates"}),
         "bidDue": datetime.combine(body.bidDue, datetime.min.time(), tzinfo=timezone.utc)
@@ -201,6 +204,8 @@ async def create_project(body: ProjectCreate, actor: Actor) -> dict[str, Any]:
         else None,
         "mode": mode,
         "bidAlternates": alternates,
+        "intakeChannel": body.intakeChannel or "manual",
+        "orgId": org_id,
         "code": code,
         "slug": slug,
         "autopilot": autopilot,
@@ -220,7 +225,62 @@ async def create_project(body: ProjectCreate, actor: Actor) -> dict[str, Any]:
 
     storage.scaffold(slug)
     await audit.record("project.create", actor, {"projectId": result.inserted_id}, after=code)
+
+    # FR-11: when creating a templated bid, seed from the closest prior quote.
+    if mode == "templated":
+        priors = await reuse.find_prior(
+            brand=doc.get("brand"),
+            architect=doc.get("architect"),
+            gc=doc.get("gc"),
+            exclude_id=result.inserted_id,
+            limit=1,
+        )
+        if priors:
+            await reuse.seed_from_prior(doc, priors[0])
+            doc = await db.projects.find_one({"_id": result.inserted_id}) or doc
+
     return await _decorate(doc)
+
+
+@router.get("/{code}/prior-quotes")
+async def prior_quotes(code: str) -> dict[str, Any]:
+    """FR-11: closest prior quotes for reuse."""
+    project = await load(code)
+    rows = await reuse.find_prior(
+        brand=project.get("brand"),
+        architect=project.get("architect"),
+        gc=project.get("gc"),
+        exclude_id=project["_id"],
+    )
+    return {
+        "priors": [
+            {
+                "id": str(row["_id"]),
+                "code": row.get("code"),
+                "name": row.get("name"),
+                "brand": row.get("brand"),
+                "architect": row.get("architect"),
+                "gc": row.get("gc"),
+            }
+            for row in rows
+        ]
+    }
+
+
+@router.post("/{code}/reuse/{prior_code}")
+async def reuse_prior(code: str, prior_code: str, actor: Actor) -> dict[str, Any]:
+    project = await load(code)
+    prior = await db.projects.find_one({"code": prior_code})
+    if not prior:
+        raise HTTPException(404, f"prior bid {prior_code!r} not found")
+    seeded = await reuse.seed_from_prior(project, prior)
+    await audit.record(
+        "project.reuse_prior",
+        actor,
+        {"projectId": project["_id"]},
+        after=seeded,
+    )
+    return serialise({**(await db.projects.find_one({"_id": project["_id"]})), **seeded})
 
 
 @router.get("/{code}")

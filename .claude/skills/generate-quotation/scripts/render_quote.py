@@ -21,11 +21,10 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(ROOT / "mcp-servers"))
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape  # noqa: E402
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from _runtime import load_server  # noqa: E402
+from _runtime import load_server
 
 calc = load_server("calc-engine")
 

@@ -6,17 +6,36 @@ pipeline when scope_metadata / scope_summary is invalid mid-chain.
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
+from types import ModuleType
+
 
 HOOKS = Path(__file__).resolve().parent
-if str(HOOKS) not in sys.path:
-    sys.path.insert(0, str(HOOKS))
 
-import log_audit_trail  # noqa: E402
-import post_extraction_validate  # noqa: E402
-import post_quote_format  # noqa: E402
+
+def _exec(name: str) -> ModuleType:
+    path = HOOKS / f"{name}.py"
+    mod_name = f"cbc_hook_{name}"
+    if mod_name in sys.modules:
+        return sys.modules[mod_name]
+    spec = importlib.util.spec_from_file_location(mod_name, path)
+    if spec is None or spec.loader is None:  # pragma: no cover
+        raise ImportError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[mod_name] = module
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+# Shared path helper first - log_audit_trail imports it by bare name.
+_exec("_artifact_path")
+log_audit_trail = _exec("log_audit_trail")
+post_extraction_validate = _exec("post_extraction_validate")
+post_quote_format = _exec("post_quote_format")
 
 
 def check(payload: dict) -> int:
