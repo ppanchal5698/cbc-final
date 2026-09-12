@@ -41,7 +41,7 @@ echo "[$(date -Iseconds)] Starting Phase 0-6 for ${PROJECT_NAME}"
 PROMPT_ARGS=(--pipeline "${PROJECT_DIR}")
 [[ -n "${CBC_SOLO:-}" ]] && PROMPT_ARGS=(--pipeline --solo "${PROJECT_DIR}")
 
-PROMPT="$(PYTHONPATH="${ROOT}:${ROOT}/packages" python -m cbc.worker_kit.prompts "${PROMPT_ARGS[@]}")" || {
+PROMPT="$(PYTHONPATH="${ROOT}:${ROOT}/apps/backend/src" python -m cbc.worker_kit.prompts "${PROMPT_ARGS[@]}")" || {
   echo "Could not build the pipeline prompt from worker_kit/prompts.py" >&2
   exit 1
 }
@@ -53,7 +53,7 @@ PROMPT="$(PYTHONPATH="${ROOT}:${ROOT}/packages" python -m cbc.worker_kit.prompts
 # the same pipeline started from the Ops-Hub.
 # See the note in _phase.sh: `mapfile < <(cmd)` cannot fail, so this guard used
 # to fall open to an unrestricted run rather than closed.
-SCOPE_TEXT="$(PYTHONPATH="${ROOT}:${ROOT}/packages" python -m cbc.core.toolsets run_full_pipeline)" || {
+SCOPE_TEXT="$(PYTHONPATH="${ROOT}:${ROOT}/apps/backend/src" python -m cbc.core.toolsets run_full_pipeline)" || {
   echo "Could not read the tool scope for run_full_pipeline" >&2
   exit 1
 }

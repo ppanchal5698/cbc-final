@@ -4,6 +4,10 @@
 # a laptop without Docker usable and once let the whole suite go green on a
 # codebase whose API could not be imported at all. So CI runs a real MongoDB and
 # sets REQUIRE_MONGO, which turns that skip into a failure.
+#
+# Live path: apps/backend (modular monolith) + apps/web. Pre-monolith
+# services/, packages/, root Dockerfile, and root tests/ are under
+# archive/pre-monolith/ (rollback only; not gated by the Python job below).
 name: CI
 
 on:
@@ -32,9 +36,9 @@ jobs:
     env:
       MONGODB_URI: mongodb://cbc:cbc_local_dev@localhost:27017/cbc_opshub?authSource=admin
       REQUIRE_MONGO: "1"
-      # pytest.ini adds src/ for the test run; the standalone steps below
-      # (compileall, the API import, the prompt preamble) need it too.
-      PYTHONPATH: ".:src"
+      # Standalone steps (import, prompt preamble) need the monolith package on path
+      # even before the editable install is imported in every process.
+      PYTHONPATH: "apps/backend/src"
 
     steps:
       - uses: actions/checkout@v4
@@ -47,45 +51,47 @@ jobs:
       - name: Install
         run: |
           pip install -r requirements.txt
+          pip install -e "./apps/backend[dev]"
           pip install -e ./mcp-servers
 
       # Cheap, and the first thing to fail on a file that does not parse. The
       # test suite covers this too, but a compile error should not need pytest
       # to collect a hundred modules before it is reported.
       - name: Compile every Python file
-        run: python -m compileall -q apps src mcp-servers scripts
+        run: python -m compileall -q apps/backend mcp-servers scripts
 
       - name: Import the API
-        run: python -c "from apps.api.main import app; print(len(app.openapi()['paths']), 'paths')"
+        run: python -c "from cbc.api.main import app; print(len(app.openapi()['paths']), 'paths')"
 
       - name: MCP selftest
         run: python mcp-servers/main.py --selftest
 
       - name: Guardrail shell tests
-        run: bash tests/pipeline/test_guardrails/test_no_auto_send.sh && bash tests/pipeline/test_guardrails/test_file_safety.sh
+        run: bash scripts/guardrails/test_no_auto_send.sh && bash scripts/guardrails/test_file_safety.sh
 
       - name: Test
-        run: python -m pytest tests -q -rs
+        working-directory: apps/backend
+        run: python -m pytest -q -rs
 
-      # The shell entry point builds its prompt from worker/prompts.py; if that
-      # import breaks, the workflow scripts fail at run time rather than here.
+      # The shell entry point builds its prompt from worker_kit/prompts.py; if
+      # that import breaks, the workflow scripts fail at run time rather than here.
       - name: Check the workflow preamble resolves
         run: |
           bash -n workflows/_phase.sh
-          python -m apps.worker.prompts projects/example | grep -q "NFR-1"
+          python -m cbc.worker_kit.prompts projects/example | grep -q "NFR-1"
 
   web:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: web
+        working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
@@ -107,7 +113,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: apps/web/package-lock.json
 
       # The containers run as uid 1000 (cbc), and a bind mount replaces the
       # image's chowned directory with the host's - which the runner checks out
@@ -120,11 +126,12 @@ jobs:
       # ownership note in docs/opshub_setup.md.
       - name: Give the writable bind mounts to the container user
         run: |
-          mkdir -p projects
-          sudo chown -R 1000:1000 projects pricebooks
+          mkdir -p data/projects data/pricebooks
+          sudo chown -R 1000:1000 data/projects data/pricebooks
 
       # AUTO_BOOTSTRAP seeds estimator@cbc.com and admin@cbc.com, which is what
       # e2e/helpers.ts signs in as. Without it every spec fails at the login form.
+      # Root docker-compose.yml includes infra/docker-compose.yml.
       - name: Start the stack
         run: docker compose up -d --build
         env:
@@ -157,7 +164,7 @@ jobs:
         run: |
           sleep 15
           docker compose ps
-          for service in api worker web mongo; do
+          for service in platform worker web mongo; do
             state=$(docker compose ps --format '{{.Service}} {{.State}}' \
                     | awk -v s="$service" '$1 == s {print $2}')
             echo "$service: ${state:-missing}"
@@ -171,13 +178,13 @@ jobs:
           done
 
       - name: Install Playwright
-        working-directory: web
+        working-directory: apps/web
         run: |
           npm ci
           npx playwright install --with-deps chromium
 
       - name: Run the E2E suite
-        working-directory: web
+        working-directory: apps/web
         run: npx playwright test
         env:
           PLAYWRIGHT_SKIP_WEBSERVER: "1"
@@ -190,7 +197,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-results
-          path: web/test-results/
+          path: apps/web/test-results/
           retention-days: 7
 
       - name: Container logs on failure

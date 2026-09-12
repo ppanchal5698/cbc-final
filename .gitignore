@@ -75,6 +75,11 @@ graphify-out/
 # they are absent (tests/conftest.py::fixture_pdf), so they stay out of history
 # and are distributed alongside the repo instead.
 tests/fixtures/pdfs/
+archive/pre-monolith/tests/fixtures/pdfs/
+
+# Test output artifacts
+pytest*.txt
+pytest_results.xml
 
 # The MongoDB replica-set keyfile is a shared secret, not source. It is 1 KB of
 # base64 that any machine can regenerate; committing it would put a live

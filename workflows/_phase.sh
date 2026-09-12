@@ -64,7 +64,7 @@ run_phase() {
   # a wider surface than the same phase gets through the Ops-Hub, which is the
   # opposite of what the lines below exist to do.
   local scope_text
-  if ! scope_text="$(PYTHONPATH="${ROOT}:${ROOT}/packages" python -m cbc.core.toolsets "${job_type}")"; then
+  if ! scope_text="$(PYTHONPATH="${ROOT}:${ROOT}/apps/backend/src" python -m cbc.core.toolsets "${job_type}")"; then
     echo "Could not read the tool scope for ${job_type}" >&2
     return 1
   fi
@@ -96,7 +96,7 @@ This is a single-phase run. Do the delegated agent's work only. Do not launch ad
   fi
 
   local prompt
-  if ! prompt="$(PYTHONPATH="${ROOT}:${ROOT}/packages" python -m cbc.worker_kit.prompts "${prompt_args[@]}")"; then
+  if ! prompt="$(PYTHONPATH="${ROOT}:${ROOT}/apps/backend/src" python -m cbc.worker_kit.prompts "${prompt_args[@]}")"; then
     echo "Could not read the job prompt from worker_kit/prompts.py" >&2
     return 1
   fi

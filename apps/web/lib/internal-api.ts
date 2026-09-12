@@ -7,7 +7,7 @@
  * helper.
  *
  * When INTERNAL_AUTH=jwt, short-lived HS256 tokens are signed with
- * INTERNAL_JWT_SECRET and an audience matching the upstream domain service.
+ * INTERNAL_JWT_SECRET and audience `platform` (the modular monolith).
  * INTERNAL_AUTH=token (default for local pytest) keeps the static header.
  */
 import "server-only";

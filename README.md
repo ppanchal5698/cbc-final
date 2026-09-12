@@ -1,50 +1,66 @@
-# CBC Estimating Copilot — domain-bounded microservices
-#
-# This tree is a restructure of cbc-copilot-claude-cli. The original repo is
-# untouched. ADR-001 (modular monolith) is superseded here — see
-# docs/collections.mongodb.md, app_lifecycle.md, and docs/architecture.md.
-#
-# Quick start:
-#   cp .env.example .env
-#   docker compose -f infra/docker-compose.yml up -d --build
-#
-# Web UI: http://localhost:3000
-# Platform API health: http://127.0.0.1:8001/api/health
+# CBC Estimating Copilot — modular monolith
+
+Live runtime is a single FastAPI process under [`apps/backend`](apps/backend)
+(compose service name `platform`, port **8001**), plus one worker that claims
+all Mongo jobs via `WORKER_CLAIM_ALL=1`.
+
+See [`docs/collections.mongodb.md`](docs/collections.mongodb.md),
+[`docs/app_lifecycle.md`](docs/app_lifecycle.md), and
+[`docs/architecture.md`](docs/architecture.md). ADR:
+[`docs/adr/004-modular-monolith-apps-backend.md`](docs/adr/004-modular-monolith-apps-backend.md).
+
+## Quick start
+
+```bash
+cp .env.example .env
+docker compose -f infra/docker-compose.yml up -d --build
+```
+
+- Web UI: http://localhost:3000
+- API health: http://127.0.0.1:8001/api/health
 
 ## Layout
 
-- `packages/cbc` — shared domain kernel (schemas, calc, jobs, storage)
-- `services/{platform,intake,extraction,pricing,quoting,catalog}` — APIs + workers
-- `apps/web` — Next.js Ops-Hub (BFF routes to domain services)
+- `apps/backend` — modular monolith (HTTP modules + `cbc.worker_kit`)
+- `apps/web` — Next.js Ops-Hub (proxies `/api` to `PLATFORM_URL`, audience `platform`)
+- `infra/docker-compose.yml` — mongo, clamav, platform, worker, web
 - `mcp-servers` / `.claude` — Claude Code tools and agents
-- `infra/docker-compose.yml` — full stack
-- `data/projects`, `data/pricebooks` — runtime volumes (`projects`/`pricebooks` junctions)
+- `data/projects`, `data/pricebooks`, `data/reference-library` — runtime volumes
+- `archive/pre-monolith/` — **rollback only** (`services/`, `packages/`, root `Dockerfile`, root `tests/`)
 
-## Native API (example)
+## Native API (local)
 
-```powershell
-$env:PYTHONPATH = "packages;services/platform"
-python -m uvicorn api.main:app --port 8001
+From the repo root, `pip install -e .` installs the monolith (`apps/backend/src`).
+Prefer the package-local editable install when developing the API alone:
+
+```bash
+cd apps/backend
+python -m pip install -e ".[dev]"
+uvicorn cbc.api.main:app --port 8001
 ```
 
-Domain workers:
+Worker (compose uses claim-all; filter locally if needed):
 
-```powershell
-$env:PYTHONPATH = "packages"
-$env:WORKER_DOMAIN = "extraction"
-python services/extraction/worker/main.py
+```bash
+WORKER_CLAIM_ALL=1 python -m cbc.worker
+# or: WORKER_DOMAIN=catalog python -m cbc.worker --once
 ```
+
+Root [`Dockerfile`](archive/pre-monolith/Dockerfile) builds the pre-cutover
+`packages/` + `services/*` layout and is **rollback-only** (archived); live
+images use [`apps/backend/Dockerfile`](apps/backend/Dockerfile).
 
 ## Tests
 
-The suite needs a clean virtualenv — a system Python that already carries a
-`fastapi`/`starlette` pair from somewhere else will fail collection with
-`Router.__init__() got an unexpected keyword argument 'on_startup'`. The MCP
-servers' dependencies (`mcp`, `pdfplumber`) come from the `mcp-servers`
-distribution, which `requirements.txt` does not pull in:
+Primary suite (monolith) — also what CI gates:
 
 ```bash
-python -m venv .venv
-.venv/Scripts/pip install -r requirements.txt -e ./mcp-servers   # Linux/macOS: .venv/bin/pip
-.venv/Scripts/python -m pytest -q
+cd apps/backend
+python -m pip install -e ".[dev]"
+pytest
 ```
+
+CI (`.github/workflows/ci.yml`) runs `apps/backend` pytest, `apps/web`
+typecheck/lint/test/build, and Playwright e2e against compose
+(`platform` + `worker` + `web`). Archived root `tests/` under
+`archive/pre-monolith/tests/` are **not** gated.
