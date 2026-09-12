@@ -72,6 +72,21 @@ def app(monkeypatch):
 
 
 @pytest.fixture
+def paths(app):
+    """Every path the app publishes.
+
+    Eight tests each built this themselves as
+    `{getattr(route, "path", "") for route in app.routes}`. FastAPI 0.141 stopped
+    flattening `include_router` into `app.routes` - included routers now appear
+    as opaque `_IncludedRouter` entries with no `.path` - so all eight silently
+    narrowed to {"", "/api/health", "/docs", ...} and started failing. The
+    OpenAPI schema is the app's own answer to "what do you serve", is what CI
+    already counts, and does not move with the router internals.
+    """
+    return frozenset(app.openapi()["paths"])
+
+
+@pytest.fixture
 def client(app):
     with TestClient(app) as test_client:
         yield test_client

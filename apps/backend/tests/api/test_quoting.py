@@ -12,7 +12,6 @@ def test_proposal_requires_auth(client) -> None:
     assert response.status_code == 401
 
 
-def test_quote_and_proposal_routes_registered(app) -> None:
-    paths = {getattr(route, "path", "") for route in app.routes}
+def test_quote_and_proposal_routes_registered(paths) -> None:
     assert "/api/projects/{code}/quote" in paths
     assert "/api/projects/{code}/proposal" in paths

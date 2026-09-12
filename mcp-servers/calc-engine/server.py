@@ -60,7 +60,4 @@ def _demo() -> None:
 
 
 if __name__ == "__main__":
-    if "--demo" in sys.argv:
-        _demo()
-    else:
-        serve("calc-engine", TOOLS, HANDLERS)
+    serve("calc-engine", TOOLS, HANDLERS, demo=_demo)

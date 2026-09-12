@@ -7,8 +7,7 @@ def test_projects_list_requires_auth(client) -> None:
     assert response.status_code == 401
 
 
-def test_projects_routes_registered(app) -> None:
-    paths = {getattr(route, "path", "") for route in app.routes}
+def test_projects_routes_registered(paths) -> None:
     assert "/api/projects" in paths or any(p.startswith("/api/projects") for p in paths)
     # Stub modules still expose documents; Platform owns CRUD on /api/projects
     assert any(p == "/api/projects" or p == "/api/projects/{code}" for p in paths)

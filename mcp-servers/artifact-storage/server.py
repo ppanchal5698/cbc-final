@@ -206,7 +206,7 @@ def _demo() -> None:
     import shutil
 
     project = "_selftest"
-    shutil.rmtree(PROJECTS / project, ignore_errors=True)
+    shutil.rmtree(_projects_root() / project, ignore_errors=True)
     try:
         first = save_artifact(project, "review/demo.json", '{"v":1}', "demo v1")
         assert first["unchanged"] is False
@@ -232,12 +232,9 @@ def _demo() -> None:
         else:  # pragma: no cover
             raise AssertionError("path escape was not blocked")
     finally:
-        shutil.rmtree(PROJECTS / project, ignore_errors=True)
+        shutil.rmtree(_projects_root() / project, ignore_errors=True)
     print("artifact-storage demo OK")
 
 
 if __name__ == "__main__":
-    if "--demo" in sys.argv:
-        _demo()
-    else:
-        serve("artifact-storage", TOOLS, HANDLERS)
+    serve("artifact-storage", TOOLS, HANDLERS, demo=_demo)

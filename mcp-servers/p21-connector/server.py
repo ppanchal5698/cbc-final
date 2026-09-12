@@ -204,12 +204,25 @@ assert not [t for t in TOOLS if any(word in t["name"].lower() for word in _FORBI
 
 
 def _demo() -> None:
-    """Runnable check: the freshness bands and the never-guess contract."""
-    assert check_freshness(date.today().isoformat())["freshness_status"] == "fresh"
-    mid = (date.today() - timedelta(days=800)).isoformat()
-    assert check_freshness(mid)["freshness_status"] == "unreliable"
-    ancient = (date.today() - timedelta(days=1000)).isoformat()
-    assert check_freshness(ancient)["freshness_status"] == "stale"
+    """Runnable check: the freshness bands and the never-guess contract.
+
+    The ages are derived from the bands `check_freshness` actually applies, not
+    typed in. A hardcoded 1000 days asserted "stale" here and went on asserting
+    it after Matrix 6.2 moved the discard window from 30 months to 36: 1000 days
+    is inside 1095, so the real answer became "unreliable" and this check was
+    wrong in CI rather than catching anything.
+    """
+    bands = load_sync()
+
+    def status_at(age_days: int) -> str:
+        po_date = (date.today() - timedelta(days=age_days)).isoformat()
+        return check_freshness(po_date)["freshness_status"]
+
+    assert status_at(0) == "fresh"
+    assert status_at(bands.fresh_days) == "fresh", "the fresh band includes its own edge"
+    assert status_at(bands.fresh_days + 1) == "unreliable"
+    assert status_at(bands.discard_after_days) == "unreliable", "still inside discard"
+    assert status_at(bands.discard_after_days + 1) == "stale"
 
     result = lookup_last_po("3510", "hager")
     assert result["last_po_price"] is None and result["cost_source"] == "MANUAL"
@@ -217,7 +230,4 @@ def _demo() -> None:
 
 
 if __name__ == "__main__":
-    if "--demo" in sys.argv:
-        _demo()
-    else:
-        serve("p21-connector", TOOLS, HANDLERS)
+    serve("p21-connector", TOOLS, HANDLERS, demo=_demo)

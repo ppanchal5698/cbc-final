@@ -127,12 +127,31 @@ def build_server(name: str, tools: list[dict[str, Any]], handlers: dict[str, Han
     return Server(name, on_list_tools=on_list_tools, on_call_tool=on_call_tool)
 
 
-def serve(name: str, tools: list[dict[str, Any]], handlers: dict[str, Handler]) -> None:
-    """Run the server on stdio, or print a self-test summary with --selftest."""
+def serve(
+    name: str,
+    tools: list[dict[str, Any]],
+    handlers: dict[str, Handler],
+    *,
+    demo: Callable[[], None] | None = None,
+) -> None:
+    """Run the server on stdio, or handle --selftest / --demo.
+
+    Both flags are parsed here rather than in each server's `__main__` block.
+    Five servers used to spell `if "--demo" in sys.argv` themselves and four of
+    them never imported `sys`, so `main.py --selftest` - the CI gate - died with
+    NameError on every one of them before reaching any check.
+    """
     if "--selftest" in sys.argv:
         missing = [t["name"] for t in tools if t["name"] not in handlers]
         status = "OK" if not missing else f"MISSING HANDLERS: {missing}"
         print(f"{name} {status} - {len(tools)} tools: {[t['name'] for t in tools]}")
+        return
+
+    if "--demo" in sys.argv:
+        if demo is None:
+            print(f"{name} has no demo")
+            return
+        demo()
         return
 
     server = build_server(name, tools, handlers)

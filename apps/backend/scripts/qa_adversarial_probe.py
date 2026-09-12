@@ -10,10 +10,13 @@ from pymongo import MongoClient
 
 from cbc.config import settings
 
-# There is no single API process any more - the surface is split across
-# services/{platform,intake,extraction,pricing,quoting,catalog}. The test
-# harness already mounts them all into one app; probe that.
-from tests.combined_app import app
+# One app again, after the monolith cutover. This used to import
+# `tests.combined_app`, the pre-cutover harness that mounted six service apps
+# into one - which now exists only under archive/pre-monolith/, so the script
+# could not run at all. Probe the real composition root instead.
+from cbc.api.app import create_app
+
+app = create_app()
 
 TOKEN = settings.internal_api_token
 HEADERS = {"X-Internal-Token": TOKEN, "X-Actor": "estimator@cbc.com"}

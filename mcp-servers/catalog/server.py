@@ -21,7 +21,6 @@ MONGODB_READONLY_URI and refuses to fall back to the writable string.
 from __future__ import annotations
 
 import copy
-import sys
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -284,7 +283,4 @@ def _demo() -> None:
 
 
 if __name__ == "__main__":
-    if "--demo" in sys.argv:
-        _demo()
-    else:
-        serve("catalog", TOOLS, HANDLERS)
+    serve("catalog", TOOLS, HANDLERS, demo=_demo)

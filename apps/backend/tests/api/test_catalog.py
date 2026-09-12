@@ -12,7 +12,6 @@ def test_price_books_requires_auth(client) -> None:
     assert response.status_code == 401
 
 
-def test_catalog_and_price_books_routes_registered(app) -> None:
-    paths = {getattr(route, "path", "") for route in app.routes}
+def test_catalog_and_price_books_routes_registered(paths) -> None:
     assert "/api/catalog/products" in paths
     assert "/api/price-books" in paths

@@ -7,6 +7,5 @@ def test_reference_margins_requires_auth(client) -> None:
     assert response.status_code == 401
 
 
-def test_reference_route_registered(app) -> None:
-    paths = {getattr(route, "path", "") for route in app.routes}
+def test_reference_route_registered(paths) -> None:
     assert "/api/reference/margins" in paths
