@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
 
 # Force token mode for unit tests (do not use setdefault — shell may have jwt).
 os.environ["INTERNAL_AUTH"] = "token"
@@ -14,11 +14,76 @@ os.environ["SERVICE_AUDIENCE"] = "platform"
 os.environ["APP_ENV"] = "development"
 # worker_kit.runtime resolves CLAIMABLE_TYPES at import time.
 os.environ.setdefault("WORKER_DOMAIN", "catalog")
+# REFERENCE_DIR defaults to a repo-root `reference-library/` that exists only
+# inside the image; a checkout keeps the seed JSON at `data/reference-library`.
+# Must be set before anything imports cbc.config, which reads os.environ once at
+# import. setdefault, so an in-container run (Dockerfile sets it) is untouched.
+os.environ.setdefault("REFERENCE_DIR", "data/reference-library")
+
+from tests.shared import FIXTURE_PDF, ROOT, direct_uri  # noqa: E402
+
+# Reach the compose Mongo from the host, once, for every client the suite makes -
+# pymongo in the fixtures and motor inside `cbc.db` alike. Fixing it per client
+# was not enough before: a fixture connected, then `db.ensure_indexes()` built its
+# own motor client from the untouched URI and failed anyway.
+from cbc.config import settings  # noqa: E402
+
+settings.mongodb_uri = direct_uri(settings.mongodb_uri)
+
+
+@pytest.fixture(autouse=True)
+def isolate_dotenv(tmp_path, monkeypatch):
+    """Never let a test Save write the developer's real `.env`.
+
+    `POST /api/settings/claude` rewrites the env file through
+    `core.envfile.apply_to_environ`, so without this a settings test edits the
+    working tree.
+    """
+    monkeypatch.setenv("CBC_ENV_FILE", str(tmp_path / ".env"))
+
+
+@pytest.fixture(scope="session")
+def root() -> Path:
+    return ROOT
+
+
+@pytest.fixture(scope="session")
+def fixture_pdf() -> Path:
+    if not FIXTURE_PDF.exists():
+        pytest.skip(f"test fixture not present: {FIXTURE_PDF}")
+    return FIXTURE_PDF
+
+
+@pytest.fixture(scope="session")
+def calc():
+    from _runtime import load_server
+
+    return load_server("calc-engine")
+
+
+@pytest.fixture(scope="session")
+def catalog():
+    from _runtime import load_server
+
+    return load_server("catalog")
+
+
+@pytest.fixture(scope="session")
+def p21():
+    from _runtime import load_server
+
+    return load_server("p21-connector")
 
 
 @pytest.fixture
 def app(monkeypatch):
-    """Build app with Mongo/OAuth lifespan side effects stubbed out."""
+    """The real composition root, with Mongo/OAuth lifespan side effects stubbed.
+
+    This used to rebuild `create_app` inline to drop the background sweep, so the
+    suite exercised a different app than production - and that copy said version
+    "0.9.1-monolith" against the real "0.10.0". `create_app(background=False)`
+    is the same object the process serves, minus the one periodic task.
+    """
 
     async def _ok(*_a, **_k):
         return True
@@ -32,43 +97,16 @@ def app(monkeypatch):
 
     config.get_settings.cache_clear()
     config.settings = config.get_settings()
+    config.settings.mongodb_uri = direct_uri(config.settings.mongodb_uri)
     import cbc.http.deps as deps
     import cbc.http.service_app as service_app
 
     deps.settings = config.settings
     service_app.settings = config.settings
 
-    from cbc.api import app as app_module
+    from cbc.api.app import create_app
 
-    # Avoid OAuth sweep hitting Mongo during TestClient lifespan.
-    original = app_module.create_app
-
-    def _create_app_no_background():
-        from cbc.http.service_app import create_service_app
-        from cbc.modules.platform.api.router import router as platform_router
-        from cbc.modules.catalog.api.router import router as catalog_router
-        from cbc.modules.extraction.api.router import router as extraction_router
-        from cbc.modules.intake.api.router import router as intake_router
-        from cbc.modules.pricing.api.router import router as pricing_router
-        from cbc.modules.quoting.api.router import router as quoting_router
-
-        return create_service_app(
-            name="platform",
-            title="CBC Estimating Copilot API",
-            routers=(
-                platform_router,
-                intake_router,
-                extraction_router,
-                pricing_router,
-                quoting_router,
-                catalog_router,
-            ),
-            background=(),
-            version="0.9.1-monolith",
-        )
-
-    monkeypatch.setattr(app_module, "create_app", _create_app_no_background)
-    return _create_app_no_background()
+    return create_app(background=False)
 
 
 @pytest.fixture
@@ -88,6 +126,8 @@ def paths(app):
 
 @pytest.fixture
 def client(app):
+    from fastapi.testclient import TestClient
+
     with TestClient(app) as test_client:
         yield test_client
 

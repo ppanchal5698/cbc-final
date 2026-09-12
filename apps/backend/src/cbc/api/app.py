@@ -11,11 +11,23 @@ from cbc.modules.pricing.api.router import router as pricing_router
 from cbc.modules.quoting.api.router import router as quoting_router
 
 OAUTH_SWEEP_SECONDS = 60
+VERSION = "0.10.0-monolith"
 
 
-def create_app():
-    """Build the monolith with all domain HTTP modules wired."""
-    app = create_service_app(
+def create_app(*, background: bool = True):
+    """Build the monolith with all domain HTTP modules wired.
+
+    `background=False` omits the OAuth session sweep, which is the only periodic
+    task in the process. The test harness needs that, and used to get it by
+    re-implementing this function - a copy that drifted to version "0.9.1-monolith"
+    while this one said "0.10.0", and that the version smoke test could not catch
+    because it only looked for the substring "monolith".
+    """
+    jobs = ()
+    if background:
+        jobs = ((settings_router.sweep_oauth_sessions, OAUTH_SWEEP_SECONDS),)
+
+    return create_service_app(
         name="platform",
         title="CBC Estimating Copilot API",
         routers=(
@@ -26,7 +38,6 @@ def create_app():
             quoting_router,
             catalog_router,
         ),
-        background=((settings_router.sweep_oauth_sessions, OAUTH_SWEEP_SECONDS),),
-        version="0.10.0-monolith",
+        background=jobs,
+        version=VERSION,
     )
-    return app
