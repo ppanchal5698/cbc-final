@@ -1,0 +1,1051 @@
+{
+ "DELETE /api/projects/{code}": {
+  "body": null,
+  "status": 204
+ },
+ "DELETE /api/projects/{code} #already deleted": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "DELETE /api/projects/{code}/calls/{call_id}": {
+  "body": null,
+  "status": 204
+ },
+ "DELETE /api/projects/{code}/calls/{call_id} #already deleted": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "DELETE /api/users/{user_id}": {
+  "body": {
+   "deleted": "bool",
+   "email": "str"
+  },
+  "status": 200
+ },
+ "DELETE /api/users/{user_id} #own account": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 400
+ },
+ "GET /api/audit": {
+  "body": {
+   "entries": [
+    {
+     "action": "str",
+     "actor": "str",
+     "after": "null",
+     "at": "datetime",
+     "before": "null",
+     "id": "id",
+     "note": "null",
+     "target": {
+      "jobId": "id",
+      "projectId": "id"
+     }
+    }
+   ],
+   "limit": "number",
+   "skip": "number",
+   "total": "number"
+  },
+  "status": 200
+ },
+ "GET /api/auth/me/{email}": {
+  "body": {
+   "createdAt": "datetime",
+   "email": "str",
+   "id": "id",
+   "initials": "str",
+   "lastSeenAt": "datetime",
+   "name": "str",
+   "role": "str",
+   "updatedAt": "datetime"
+  },
+  "status": 200
+ },
+ "GET /api/auth/me/{email} #unknown email": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "GET /api/health": {
+  "body": {
+   "catalogIndex": "str",
+   "database": "str",
+   "sends": "str",
+   "service": "str",
+   "status": "str",
+   "storageRoot": "str"
+  },
+  "status": 200
+ },
+ "GET /api/integrations": {
+  "body": {
+   "p21": {
+    "adminNote": "str",
+    "connected": "bool",
+    "fallbacks": [
+     "str"
+    ],
+    "note": "str",
+    "path": "number",
+    "requirement": "str",
+    "status": "str",
+    "summary": "str",
+    "title": "str"
+   }
+  },
+  "status": 200
+ },
+ "GET /api/jobs": {
+  "body": {
+   "active": "number",
+   "jobs": [
+    {
+     "attempts": "number",
+     "createdAt": "datetime",
+     "createdBy": "str",
+     "error": "null",
+     "finishedAt": "null",
+     "id": "id",
+     "idempotencyKey": "str",
+     "log": "null",
+     "nextAttemptAt": "null",
+     "payload": {},
+     "projectId": "null",
+     "startedAt": "null",
+     "status": "str",
+     "traceId": "str",
+     "type": "str"
+    }
+   ]
+  },
+  "status": 200
+ },
+ "GET /api/jobs #pipeline_active without project": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 400
+ },
+ "GET /api/jobs/dead": {
+  "body": {
+   "jobs": [
+    {
+     "attempts": "number",
+     "createdAt": "datetime",
+     "error": "str",
+     "finishedAt": "datetime",
+     "id": "id",
+     "payload": {},
+     "projectCode": "null",
+     "projectId": "null",
+     "projectName": "null",
+     "status": "str",
+     "type": "str"
+    }
+   ],
+   "total": "number"
+  },
+  "status": 200
+ },
+ "GET /api/jobs/metrics": {
+  "body": {
+   "byType": {
+    "index_catalog": {
+     "avgSeconds": "null",
+     "done": "number",
+     "failed": "number",
+     "total": "number"
+    }
+   },
+   "failed": "number",
+   "failureRate": "null",
+   "finished": "number",
+   "oldestQueuedAt": "datetime",
+   "queued": "number",
+   "running": "number",
+   "windowHours": "number"
+  },
+  "status": 200
+ },
+ "GET /api/jobs/{job_id}": {
+  "body": {
+   "attempts": "number",
+   "createdAt": "datetime",
+   "createdBy": "str",
+   "error": "null",
+   "finishedAt": "null",
+   "id": "id",
+   "idempotencyKey": "str",
+   "log": "null",
+   "nextAttemptAt": "null",
+   "payload": {},
+   "projectId": "null",
+   "startedAt": "null",
+   "status": "str",
+   "traceId": "str",
+   "type": "str"
+  },
+  "status": 200
+ },
+ "GET /api/jobs/{job_id} #missing job": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "GET /api/jobs/{job_id}/terminal": {
+  "body": {
+   "available": "bool",
+   "data": "str",
+   "jobId": "id",
+   "reason": "str",
+   "status": "str"
+  },
+  "status": 200
+ },
+ "GET /api/jobs/{job_id}/terminal/stream": {
+  "body": {
+   "content-type": "text/event-stream"
+  },
+  "status": 200
+ },
+ "GET /api/ops/spend": {
+  "body": {
+   "byProject": [],
+   "byType": [],
+   "dailyCapUsd": "null",
+   "overDailyCap": "bool",
+   "projectCapUsd": "null",
+   "recent": [],
+   "runs": "number",
+   "since": "datetime",
+   "totalCostUsd": "number",
+   "windowHours": "number"
+  },
+  "status": 200
+ },
+ "GET /api/projects": {
+  "body": {
+   "projects": [
+    {
+     "activeJob": "null",
+     "autopilot": "bool",
+     "bidAlternates": [],
+     "bidDue": "null",
+     "brand": "str",
+     "callCount": "number",
+     "code": "str",
+     "counts": {
+      "byHand": "number",
+      "clear": "number",
+      "duplicate": "number",
+      "needsLook": "number",
+      "total": "number"
+     },
+     "createdAt": "datetime",
+     "documentCount": "number",
+     "gc": "str",
+     "id": "id",
+     "initiator": "str",
+     "intakeChannel": "str",
+     "mode": "str",
+     "name": "str",
+     "orgId": "id",
+     "progress": "number",
+     "quoteTotal": "null",
+     "slug": "str",
+     "stage": "str",
+     "state": "str",
+     "updatedAt": "datetime",
+     "version": "number"
+    }
+   ]
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}": {
+  "body": {
+   "activeJob": "null",
+   "autopilot": "bool",
+   "bidAlternates": [],
+   "bidDue": "null",
+   "brand": "str",
+   "callCount": "number",
+   "code": "str",
+   "counts": {
+    "byHand": "number",
+    "clear": "number",
+    "duplicate": "number",
+    "needsLook": "number",
+    "total": "number"
+   },
+   "createdAt": "datetime",
+   "documentCount": "number",
+   "gc": "str",
+   "id": "id",
+   "initiator": "str",
+   "intakeChannel": "str",
+   "mode": "str",
+   "name": "str",
+   "orgId": "id",
+   "progress": "number",
+   "quoteTotal": "null",
+   "slug": "str",
+   "stage": "str",
+   "state": "str",
+   "updatedAt": "datetime",
+   "version": "number"
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code} #missing project": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "GET /api/projects/{code}/calls": {
+  "body": {
+   "calls": [],
+   "count": "number",
+   "counts": {},
+   "openRfis": "number"
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/prior-quotes": {
+  "body": {
+   "priors": [
+    {
+     "architect": "null",
+     "brand": "str",
+     "code": "str",
+     "gc": "str",
+     "id": "id",
+     "name": "str"
+    }
+   ]
+  },
+  "status": 200
+ },
+ "GET /api/settings/claude": {
+  "body": {
+   "cliAvailable": "bool",
+   "fields": {
+    "oauthToken": {
+     "configured": "bool",
+     "locked": "bool",
+     "secret": "bool",
+     "value": "null",
+     "variable": "str"
+    }
+   },
+   "localDev": "bool",
+   "mode": "str",
+   "modes": [
+    "str"
+   ],
+   "schema": {
+    "anthropic_api": {
+     "apiKey": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "baseUrl": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "model": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     }
+    },
+    "bedrock": {
+     "awsRegion": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "bedrockApiKey": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "model": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "smallFastModel": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     }
+    },
+    "gateway": {
+     "authToken": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "baseUrl": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "model": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     }
+    },
+    "ollama": {
+     "baseUrl": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "model": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "smallFastModel": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     }
+    },
+    "subscription": {
+     "oauthToken": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     }
+    }
+   },
+   "updatedAt": "null",
+   "updatedBy": "null"
+  },
+  "status": 200
+ },
+ "GET /api/settings/freshness": {
+  "body": {
+   "catalogStaleDays": "number",
+   "catalogStaleMonths": "number",
+   "discardAfterDays": "number",
+   "discardAfterMonths": "number",
+   "note": "str",
+   "rule": "str",
+   "updatedAt": "null",
+   "updatedBy": "null"
+  },
+  "status": 200
+ },
+ "GET /api/settings/ollama/models #non-http base url": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 400
+ },
+ "GET /api/settings/pipeline": {
+  "body": {
+   "autopilotDefault": "bool",
+   "note": "str",
+   "updatedAt": "null",
+   "updatedBy": "null"
+  },
+  "status": 200
+ },
+ "GET /api/users": {
+  "body": {
+   "users": [
+    {
+     "createdAt": "datetime",
+     "email": "str",
+     "id": "id",
+     "initials": "str",
+     "name": "str",
+     "role": "str",
+     "updatedAt": "datetime"
+    }
+   ]
+  },
+  "status": 200
+ },
+ "PATCH /api/projects/{code}": {
+  "body": {
+   "activeJob": "null",
+   "architect": "str",
+   "autopilot": "bool",
+   "bidAlternates": [],
+   "bidDue": "null",
+   "brand": "str",
+   "callCount": "number",
+   "code": "str",
+   "counts": {
+    "byHand": "number",
+    "clear": "number",
+    "duplicate": "number",
+    "needsLook": "number",
+    "total": "number"
+   },
+   "createdAt": "datetime",
+   "documentCount": "number",
+   "gc": "str",
+   "id": "id",
+   "initiator": "str",
+   "intakeChannel": "str",
+   "mode": "str",
+   "name": "str",
+   "orgId": "id",
+   "progress": "number",
+   "quoteTotal": "null",
+   "slug": "str",
+   "stage": "str",
+   "state": "str",
+   "updatedAt": "datetime",
+   "version": "number"
+  },
+  "status": 200
+ },
+ "PATCH /api/users/{user_id}": {
+  "body": {
+   "createdAt": "datetime",
+   "email": "str",
+   "id": "id",
+   "initials": "str",
+   "lastSeenAt": "datetime",
+   "name": "str",
+   "role": "str",
+   "updatedAt": "datetime"
+  },
+  "status": 200
+ },
+ "PATCH /api/users/{user_id} #missing user": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "POST /api/auth/verify": {
+  "body": {
+   "email": "str",
+   "id": "id",
+   "initials": "str",
+   "name": "str",
+   "role": "str"
+  },
+  "status": 200
+ },
+ "POST /api/auth/verify #wrong password": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/jobs": {
+  "body": {
+   "attempts": "number",
+   "createdAt": "datetime",
+   "createdBy": "str",
+   "error": "null",
+   "finishedAt": "null",
+   "id": "id",
+   "idempotencyKey": "str",
+   "log": "null",
+   "nextAttemptAt": "null",
+   "payload": {},
+   "projectId": "null",
+   "startedAt": "null",
+   "status": "str",
+   "traceId": "str",
+   "type": "str"
+  },
+  "status": 201
+ },
+ "POST /api/jobs #retired type": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 400
+ },
+ "POST /api/jobs/{job_id}/cancel": {
+  "body": {
+   "attempts": "number",
+   "cancelledAt": "datetime",
+   "cancelledBy": "str",
+   "createdAt": "datetime",
+   "createdBy": "str",
+   "error": "null",
+   "finishedAt": "null",
+   "id": "id",
+   "idempotencyKey": "str",
+   "log": "null",
+   "nextAttemptAt": "null",
+   "payload": {},
+   "projectId": "null",
+   "startedAt": "null",
+   "status": "str",
+   "traceId": "str",
+   "type": "str"
+  },
+  "status": 200
+ },
+ "POST /api/jobs/{job_id}/cancel #already cancelled": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 409
+ },
+ "POST /api/jobs/{job_id}/retry": {
+  "body": {
+   "attempts": "number",
+   "createdAt": "datetime",
+   "error": "null",
+   "errorCode": "null",
+   "finishedAt": "null",
+   "heartbeatAt": "null",
+   "id": "id",
+   "nextAttemptAt": "null",
+   "note": "str",
+   "payload": {},
+   "projectId": "null",
+   "retriedAt": "datetime",
+   "retriedBy": "str",
+   "status": "str",
+   "type": "str",
+   "workerId": "null"
+  },
+  "status": 200
+ },
+ "POST /api/jobs/{job_id}/retry #cancelled job": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 409
+ },
+ "POST /api/projects": {
+  "body": {
+   "activeJob": "null",
+   "autopilot": "bool",
+   "bidAlternates": [],
+   "bidDue": "null",
+   "brand": "str",
+   "callCount": "number",
+   "code": "str",
+   "counts": {
+    "byHand": "number",
+    "clear": "number",
+    "duplicate": "number",
+    "needsLook": "number",
+    "total": "number"
+   },
+   "createdAt": "datetime",
+   "documentCount": "number",
+   "gc": "str",
+   "id": "id",
+   "initiator": "str",
+   "intakeChannel": "str",
+   "mode": "str",
+   "name": "str",
+   "orgId": "id",
+   "progress": "number",
+   "quoteTotal": "null",
+   "slug": "str",
+   "stage": "str",
+   "state": "str",
+   "updatedAt": "datetime",
+   "version": "number"
+  },
+  "status": 201
+ },
+ "POST /api/projects/{code}/calls": {
+  "body": {
+   "createdAt": "datetime",
+   "id": "id",
+   "kind": "str",
+   "projectId": "id",
+   "text": "str",
+   "who": "str"
+  },
+  "status": 201
+ },
+ "POST /api/projects/{code}/calls/{call_id}/resolve": {
+  "body": {
+   "createdAt": "datetime",
+   "id": "id",
+   "kind": "str",
+   "projectId": "id",
+   "resolvedAt": "datetime",
+   "resolvedBy": "str",
+   "text": "str",
+   "who": "str"
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/calls/{call_id}/resolve #not an rfi": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 400
+ },
+ "POST /api/projects/{code}/orchestrate/autopilot": {
+  "body": {
+   "chain": [
+    "str"
+   ],
+   "job": {
+    "attempts": "number",
+    "createdAt": "datetime",
+    "createdBy": "str",
+    "error": "null",
+    "finishedAt": "null",
+    "id": "id",
+    "idempotencyKey": "str",
+    "log": "null",
+    "nextAttemptAt": "null",
+    "payload": {
+     "orchestrate": "bool"
+    },
+    "projectId": "id",
+    "startedAt": "null",
+    "status": "str",
+    "traceId": "str",
+    "type": "str"
+   }
+  },
+  "status": 201
+ },
+ "POST /api/projects/{code}/orchestrate/autopilot #already running": {
+  "body": {
+   "chain": [
+    "str"
+   ],
+   "job": {
+    "attempts": "number",
+    "createdAt": "datetime",
+    "createdBy": "str",
+    "error": "null",
+    "finishedAt": "null",
+    "id": "id",
+    "idempotencyKey": "str",
+    "log": "null",
+    "nextAttemptAt": "null",
+    "payload": {
+     "orchestrate": "bool"
+    },
+    "projectId": "id",
+    "startedAt": "null",
+    "status": "str",
+    "traceId": "str",
+    "type": "str"
+   }
+  },
+  "status": 201
+ },
+ "POST /api/projects/{code}/reuse/{prior_code}": {
+  "body": {
+   "architect": "null",
+   "autopilot": "bool",
+   "bidAlternates": [],
+   "bidDue": "null",
+   "brand": "str",
+   "code": "str",
+   "createdAt": "datetime",
+   "gc": "str",
+   "id": "id",
+   "initiator": "str",
+   "intakeChannel": "str",
+   "mode": "str",
+   "name": "str",
+   "orgId": "id",
+   "progress": "number",
+   "slug": "str",
+   "sourceType": "str",
+   "stage": "str",
+   "state": "str",
+   "templateSourceCode": "str",
+   "templateSourceEstimateId": "id",
+   "updatedAt": "datetime"
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/reuse/{prior_code} #missing prior": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "POST /api/settings/claude/oauth/code #unknown session": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "POST /api/settings/claude/oauth/start #no claude cli": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 503
+ },
+ "POST /api/settings/claude/oauth/start #production": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "POST /api/settings/claude/test": {
+  "body": {
+   "error": "null",
+   "ok": "bool",
+   "provider": {
+    "baseUrl": "null",
+    "credentialSource": {},
+    "mode": "str",
+    "model": "str",
+    "region": "null",
+    "supportsSubagents": "bool",
+    "warnings": []
+   }
+  },
+  "status": 200
+ },
+ "POST /api/users": {
+  "body": {
+   "createdAt": "datetime",
+   "email": "str",
+   "id": "id",
+   "initials": "str",
+   "name": "str",
+   "role": "str",
+   "updatedAt": "datetime"
+  },
+  "status": 201
+ },
+ "POST /api/users #already registered": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 409
+ },
+ "PUT /api/settings/claude": {
+  "body": {
+   "changed": [],
+   "fields": {
+    "oauthToken": {
+     "configured": "bool",
+     "locked": "bool",
+     "secret": "bool",
+     "value": "null",
+     "variable": "str"
+    }
+   },
+   "mode": "str",
+   "modes": [
+    "str"
+   ],
+   "schema": {
+    "anthropic_api": {
+     "apiKey": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "baseUrl": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "model": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     }
+    },
+    "bedrock": {
+     "awsRegion": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "bedrockApiKey": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "model": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "smallFastModel": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     }
+    },
+    "gateway": {
+     "authToken": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "baseUrl": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "model": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     }
+    },
+    "ollama": {
+     "baseUrl": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "model": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "smallFastModel": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     }
+    },
+    "subscription": {
+     "oauthToken": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     }
+    }
+   },
+   "updatedAt": "datetime",
+   "updatedBy": "str"
+  },
+  "status": 200
+ },
+ "PUT /api/settings/claude #placeholder base url": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 400
+ },
+ "PUT /api/settings/freshness": {
+  "body": {
+   "catalogStaleDays": "number",
+   "catalogStaleMonths": "number",
+   "discardAfterDays": "number",
+   "discardAfterMonths": "number",
+   "note": "str",
+   "rule": "str",
+   "updatedAt": "datetime",
+   "updatedBy": "str"
+  },
+  "status": 200
+ },
+ "PUT /api/settings/freshness #stale beyond discard": {
+  "body": {
+   "detail": [
+    {
+     "ctx": {
+      "error": {}
+     },
+     "input": {
+      "catalogStaleMonths": "number",
+      "discardAfterMonths": "number"
+     },
+     "loc": [
+      "str"
+     ],
+     "msg": "str",
+     "type": "str"
+    }
+   ]
+  },
+  "status": 422
+ },
+ "PUT /api/settings/pipeline": {
+  "body": {
+   "autopilotDefault": "bool",
+   "note": "str",
+   "updatedAt": "datetime",
+   "updatedBy": "str"
+  },
+  "status": 200
+ }
+}

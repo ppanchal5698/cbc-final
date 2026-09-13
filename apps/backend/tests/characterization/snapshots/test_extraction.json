@@ -1,0 +1,350 @@
+{
+ "DELETE /api/projects/{code}/line-items/{item_id}": {
+  "body": null,
+  "status": 204
+ },
+ "DELETE /api/projects/{code}/line-items/{item_id} #already deleted": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "GET /api/projects/{code}/alternates": {
+  "body": {
+   "alternates": [
+    {
+     "grandTotal": "number",
+     "isBase": "bool",
+     "label": "str",
+     "lineItemCount": "number",
+     "name": "null",
+     "quoteLineCount": "number",
+     "subtotal": "number",
+     "unpricedLines": "number"
+    }
+   ],
+   "pending": "str"
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/line-items": {
+  "body": {
+   "counts": {
+    "all": "number",
+    "by_hand": "number",
+    "clear": "number",
+    "duplicate": "number",
+    "needs_look": "number"
+   },
+   "lineItems": []
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/line-items #unknown filter": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 400
+ },
+ "PATCH /api/projects/{code}/line-items/{item_id}": {
+  "body": {
+   "addedByHand": "bool",
+   "bidRequestId": "id",
+   "confidence": "number",
+   "confirmedAt": "datetime",
+   "confirmedBy": "str",
+   "createdAt": "datetime",
+   "createdBy": "str",
+   "description": "str",
+   "doorNumber": "str",
+   "edits": [
+    {
+     "after": {
+      "notes": "str"
+     },
+     "at": "datetime",
+     "before": {
+      "notes": "null"
+     },
+     "by": "str"
+    }
+   ],
+   "evidence": {
+    "note": "str"
+   },
+   "flags": [],
+   "id": "id",
+   "mark": "str",
+   "notes": "str",
+   "orgId": "id",
+   "projectId": "id",
+   "qty": "number",
+   "schemaVersion": "number",
+   "status": "str",
+   "updatedAt": "datetime",
+   "updatedBy": "str"
+  },
+  "status": 200
+ },
+ "PATCH /api/projects/{code}/line-items/{item_id} #malformed id": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 400
+ },
+ "PATCH /api/projects/{code}/line-items/{item_id} #missing item": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "POST /api/projects/{code}/alternates": {
+  "body": {
+   "isBase": "bool",
+   "label": "str",
+   "lineItemCount": "number",
+   "name": "str",
+   "note": "str",
+   "quoteLineCount": "number"
+  },
+  "status": 201
+ },
+ "POST /api/projects/{code}/alternates #duplicate name": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 409
+ },
+ "POST /api/projects/{code}/alternates/assign": {
+  "body": {
+   "alternate": "str",
+   "moved": "number"
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/alternates/assign #bad scope": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 400
+ },
+ "POST /api/projects/{code}/alternates/assign #no ids": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 400
+ },
+ "POST /api/projects/{code}/line-items": {
+  "body": {
+   "addedByHand": "bool",
+   "bidRequestId": "id",
+   "confidence": "number",
+   "confirmedAt": "datetime",
+   "confirmedBy": "str",
+   "description": "str",
+   "doorNumber": "str",
+   "evidence": {
+    "note": "str"
+   },
+   "flags": [],
+   "id": "id",
+   "mark": "str",
+   "projectId": "id",
+   "qty": "number",
+   "status": "str"
+  },
+  "status": 201
+ },
+ "POST /api/projects/{code}/line-items/bulk": {
+  "body": {
+   "action": "str",
+   "affected": "number",
+   "requested": "number"
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/line-items/bulk #unknown action": {
+  "body": {
+   "detail": [
+    {
+     "ctx": {
+      "expected": "str"
+     },
+     "input": "str",
+     "loc": [
+      "str"
+     ],
+     "msg": "str",
+     "type": "str"
+    }
+   ]
+  },
+  "status": 422
+ },
+ "POST /api/projects/{code}/line-items/confirm-all": {
+  "body": {
+   "confirmed": "number"
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/line-items/continue-to-quote": {
+  "body": {
+   "job": {
+    "attempts": "number",
+    "createdAt": "datetime",
+    "createdBy": "str",
+    "error": "null",
+    "finishedAt": "null",
+    "id": "id",
+    "idempotencyKey": "str",
+    "log": "null",
+    "nextAttemptAt": "null",
+    "payload": {},
+    "projectId": "id",
+    "startedAt": "null",
+    "status": "str",
+    "traceId": "str",
+    "type": "str"
+   },
+   "stillFlagged": "number"
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/line-items/rerun": {
+  "body": {
+   "job": {
+    "attempts": "number",
+    "createdAt": "datetime",
+    "createdBy": "str",
+    "error": "null",
+    "finishedAt": "null",
+    "id": "id",
+    "idempotencyKey": "str",
+    "log": "null",
+    "nextAttemptAt": "null",
+    "payload": {},
+    "projectId": "id",
+    "startedAt": "null",
+    "status": "str",
+    "traceId": "str",
+    "type": "str"
+   }
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/line-items/rerun #while pricing is queued": {
+  "body": {
+   "detail": {
+    "activeJob": {
+     "attempts": "number",
+     "createdAt": "datetime",
+     "createdBy": "str",
+     "error": "null",
+     "finishedAt": "null",
+     "id": "id",
+     "idempotencyKey": "str",
+     "log": "null",
+     "nextAttemptAt": "null",
+     "payload": {},
+     "projectId": "id",
+     "startedAt": "null",
+     "status": "str",
+     "traceId": "str",
+     "type": "str"
+    },
+    "message": "str"
+   }
+  },
+  "status": 409
+ },
+ "POST /api/projects/{code}/line-items/{item_id}/confirm": {
+  "body": {
+   "addedByHand": "bool",
+   "bidRequestId": "id",
+   "confidence": "number",
+   "confirmedAt": "datetime",
+   "confirmedBy": "str",
+   "createdAt": "datetime",
+   "createdBy": "str",
+   "description": "str",
+   "doorNumber": "str",
+   "edits": [
+    {
+     "after": {
+      "notes": "str"
+     },
+     "at": "datetime",
+     "before": {
+      "notes": "null"
+     },
+     "by": "str"
+    }
+   ],
+   "evidence": {
+    "note": "str"
+   },
+   "flags": [],
+   "id": "id",
+   "mark": "str",
+   "notes": "str",
+   "orgId": "id",
+   "projectId": "id",
+   "qty": "number",
+   "schemaVersion": "number",
+   "status": "str",
+   "updatedAt": "datetime",
+   "updatedBy": "str"
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/line-items/{item_id}/resolve-duplicate": {
+  "body": {
+   "kept": "str",
+   "lineItem": {
+    "addedByHand": "bool",
+    "bidRequestId": "id",
+    "confidence": "number",
+    "confirmedAt": "datetime",
+    "confirmedBy": "str",
+    "createdAt": "datetime",
+    "createdBy": "str",
+    "description": "str",
+    "doorNumber": "str",
+    "duplicateOf": "null",
+    "edits": [
+     {
+      "after": {
+       "notes": "str"
+      },
+      "at": "datetime",
+      "before": {
+       "notes": "null"
+      },
+      "by": "str"
+     }
+    ],
+    "evidence": {
+     "note": "str"
+    },
+    "flags": [],
+    "id": "id",
+    "mark": "str",
+    "notes": "str",
+    "orgId": "id",
+    "projectId": "id",
+    "qty": "number",
+    "schemaVersion": "number",
+    "status": "str",
+    "updatedAt": "datetime",
+    "updatedBy": "str"
+   }
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/line-items/{item_id}/resolve-duplicate #bad keep": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 400
+ }
+}

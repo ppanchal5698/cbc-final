@@ -1,0 +1,1572 @@
+{
+ "DELETE /api/catalog/products/{product_id} #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "DELETE /api/catalog/products/{product_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "DELETE /api/price-books/{book_id} #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "DELETE /api/price-books/{book_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "DELETE /api/projects/{code} #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "DELETE /api/projects/{code} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "DELETE /api/projects/{code}/calls/{call_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "DELETE /api/projects/{code}/documents/{document_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "DELETE /api/projects/{code}/line-items/{item_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "DELETE /api/projects/{code}/quote/lines/{line_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "DELETE /api/reference/{family}/entries/{key} #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "DELETE /api/reference/{family}/entries/{key} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "DELETE /api/users/{user_id} #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "DELETE /api/users/{user_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/audit #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "GET /api/audit #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/auth/me/{email} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/catalog/products #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/catalog/products/{product_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/integrations #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/jobs #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/jobs/dead #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/jobs/metrics #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/jobs/{job_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/jobs/{job_id}/terminal #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/jobs/{job_id}/terminal/stream #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/ops/spend #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "GET /api/ops/spend #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/price-books #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/price-books/{book_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/price-books/{book_id}/file #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/alternates #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/calls #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/documents #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/documents/{document_id}/file #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/documents/{document_id}/page/{page_number} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/documents/{document_id}/page/{page_number}/size #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/feedback-events #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/line-items #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/prior-quotes #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/proposal #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/proposal/email-draft #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/proposal/pdf #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/proposal/render #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/quote #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/rfis #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/takeoffs #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/vendor-rfqs #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/versions #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/versions/{version} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/projects/{code}/versions/{version}/diff #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/reference/adders #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/reference/custom-other-matrix #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/reference/finishes #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/reference/frame-depths #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/reference/frp-constants #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/reference/lite-kit #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/reference/margins #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/reference/special-margins #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/reference/special-nets #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/reference/stock/{vendor} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/reference/tax #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/reference/vendor-tiers #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/settings/claude #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "GET /api/settings/claude #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/settings/freshness #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "GET /api/settings/freshness #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/settings/ollama/models #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "GET /api/settings/ollama/models #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/settings/pipeline #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "GET /api/settings/pipeline #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/users #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "GET /api/users #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/catalog/products/{product_id} #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/catalog/products/{product_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/price-books/{book_id} #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/price-books/{book_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/projects/{code} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/projects/{code}/line-items/{item_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/projects/{code}/proposal #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/projects/{code}/quote/lines/{line_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/projects/{code}/quote/settings #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/projects/{code}/vendor-rfqs/{rfq_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/reference/adders #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/reference/adders #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/reference/finishes #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/reference/finishes #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/reference/frame-depths #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/reference/frame-depths #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/reference/frp-constants #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/reference/frp-constants #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/reference/lite-kit #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/reference/lite-kit #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/reference/margins #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/reference/margins #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/reference/special-margins #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/reference/special-margins #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/reference/special-nets #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/reference/special-nets #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/reference/stock/{vendor} #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/reference/stock/{vendor} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/reference/tax #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/reference/tax #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/reference/vendor-tiers #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/reference/vendor-tiers #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/users/{user_id} #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/users/{user_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/catalog/products #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "POST /api/catalog/products #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/jobs #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/jobs/{job_id}/cancel #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/jobs/{job_id}/retry #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/price-books #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/price-books/{book_id}/file #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/price-books/{book_id}/mark-reviewed #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/alternates #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/alternates/assign #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/calls #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/calls/{call_id}/resolve #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/documents #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/line-items #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/line-items/bulk #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/line-items/confirm-all #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/line-items/continue-to-quote #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/line-items/rerun #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/line-items/{item_id}/confirm #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/line-items/{item_id}/resolve-duplicate #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/orchestrate/autopilot #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/proposal/complete #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/quote/continue-to-proposal #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/quote/lines #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/reuse/{prior_code} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/rfis #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/takeoffs #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/vendor-rfqs #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/versions #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/versions/{version}/reconcile #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/settings/claude/oauth/code #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "POST /api/settings/claude/oauth/code #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/settings/claude/oauth/start #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "POST /api/settings/claude/oauth/start #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/settings/claude/test #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "POST /api/settings/claude/test #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/users #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "POST /api/users #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PUT /api/reference/custom-other-matrix #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PUT /api/reference/custom-other-matrix #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PUT /api/reference/lite-kit #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PUT /api/reference/lite-kit #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PUT /api/settings/claude #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PUT /api/settings/claude #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PUT /api/settings/freshness #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PUT /api/settings/freshness #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PUT /api/settings/pipeline #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PUT /api/settings/pipeline #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "routes": [
+  {
+   "admin": true,
+   "op": "DELETE /api/catalog/products/{product_id}",
+   "status": 204
+  },
+  {
+   "admin": true,
+   "op": "DELETE /api/price-books/{book_id}",
+   "status": 204
+  },
+  {
+   "admin": true,
+   "op": "DELETE /api/projects/{code}",
+   "status": 204
+  },
+  {
+   "admin": false,
+   "op": "DELETE /api/projects/{code}/calls/{call_id}",
+   "status": 204
+  },
+  {
+   "admin": false,
+   "op": "DELETE /api/projects/{code}/documents/{document_id}",
+   "status": 204
+  },
+  {
+   "admin": false,
+   "op": "DELETE /api/projects/{code}/line-items/{item_id}",
+   "status": 204
+  },
+  {
+   "admin": false,
+   "op": "DELETE /api/projects/{code}/quote/lines/{line_id}",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "DELETE /api/reference/{family}/entries/{key}",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "DELETE /api/users/{user_id}",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "GET /api/audit",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/auth/me/{email}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/catalog/products",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/catalog/products/{product_id}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/health",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/integrations",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/jobs",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/jobs/dead",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/jobs/metrics",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/jobs/{job_id}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/jobs/{job_id}/terminal",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/jobs/{job_id}/terminal/stream",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "GET /api/ops/spend",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/price-books",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/price-books/{book_id}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/price-books/{book_id}/file",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/alternates",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/calls",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/documents",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/documents/{document_id}/file",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/documents/{document_id}/page/{page_number}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/documents/{document_id}/page/{page_number}/size",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/feedback-events",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/line-items",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/prior-quotes",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/proposal",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/proposal/email-draft",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/proposal/pdf",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/proposal/render",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/quote",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/rfis",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/takeoffs",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/vendor-rfqs",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/versions",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/versions/{version}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/versions/{version}/diff",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/reference/adders",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/reference/custom-other-matrix",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/reference/finishes",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/reference/frame-depths",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/reference/frp-constants",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/reference/lite-kit",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/reference/margins",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/reference/special-margins",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/reference/special-nets",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/reference/stock/{vendor}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/reference/tax",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/reference/vendor-tiers",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "GET /api/settings/claude",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "GET /api/settings/freshness",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "GET /api/settings/ollama/models",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "GET /api/settings/pipeline",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "GET /api/users",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/catalog/products/{product_id}",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/price-books/{book_id}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "PATCH /api/projects/{code}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "PATCH /api/projects/{code}/line-items/{item_id}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "PATCH /api/projects/{code}/proposal",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "PATCH /api/projects/{code}/quote/lines/{line_id}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "PATCH /api/projects/{code}/quote/settings",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "PATCH /api/projects/{code}/vendor-rfqs/{rfq_id}",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/reference/adders",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/reference/finishes",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/reference/frame-depths",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/reference/frp-constants",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/reference/lite-kit",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/reference/margins",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/reference/special-margins",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/reference/special-nets",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/reference/stock/{vendor}",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/reference/tax",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/reference/vendor-tiers",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/users/{user_id}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/auth/verify",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "POST /api/catalog/products",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/jobs",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/jobs/{job_id}/cancel",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/jobs/{job_id}/retry",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/price-books",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/price-books/{book_id}/file",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/price-books/{book_id}/mark-reviewed",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/alternates",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/alternates/assign",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/calls",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/calls/{call_id}/resolve",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/documents",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/line-items",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/line-items/bulk",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/line-items/confirm-all",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/line-items/continue-to-quote",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/line-items/rerun",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/line-items/{item_id}/confirm",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/line-items/{item_id}/resolve-duplicate",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/orchestrate/autopilot",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/proposal/complete",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/quote/continue-to-proposal",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/quote/lines",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/reuse/{prior_code}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/rfis",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/takeoffs",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/vendor-rfqs",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/versions",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/versions/{version}/reconcile",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "POST /api/settings/claude/oauth/code",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "POST /api/settings/claude/oauth/start",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "POST /api/settings/claude/test",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "POST /api/users",
+   "status": 201
+  },
+  {
+   "admin": true,
+   "op": "PUT /api/reference/custom-other-matrix",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PUT /api/reference/lite-kit",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PUT /api/settings/claude",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PUT /api/settings/freshness",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PUT /api/settings/pipeline",
+   "status": 200
+  }
+ ]
+}

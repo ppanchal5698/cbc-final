@@ -1,0 +1,232 @@
+{
+ "DELETE /api/projects/{code}/documents/{document_id}": {
+  "body": null,
+  "status": 204
+ },
+ "DELETE /api/projects/{code}/documents/{document_id} #already detached": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "GET /api/projects/{code}/documents": {
+  "body": {
+   "documents": []
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/documents/{document_id}/file": {
+  "body": {
+   "content-type": "application/pdf"
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/documents/{document_id}/page/{page_number}": {
+  "body": {
+   "content-type": "image/png"
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/documents/{document_id}/page/{page_number} #no such page": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 400
+ },
+ "GET /api/projects/{code}/documents/{document_id}/page/{page_number}/size": {
+  "body": {
+   "file": "str",
+   "height": "number",
+   "page_count": "number",
+   "source_page": "number",
+   "units": "str",
+   "width": "number"
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/versions": {
+  "body": {
+   "current": "number",
+   "pending": "str",
+   "unreconciled": "number",
+   "versions": []
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/versions/{version}": {
+  "body": {
+   "approvedAt": "null",
+   "approvedBy": "null",
+   "createdAt": "datetime",
+   "createdBy": "str",
+   "id": "id",
+   "lineItemCount": "number",
+   "lockedAt": "null",
+   "previousVersionId": "null",
+   "projectId": "id",
+   "quoteLineCount": "number",
+   "reason": "str",
+   "reconciled": "bool",
+   "snapshot": {
+    "lineItems": [],
+    "quoteLines": []
+   },
+   "status": "str",
+   "statusHistory": [],
+   "supersededByVersionId": "null",
+   "version": "number"
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/versions/{version} #no such version": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "GET /api/projects/{code}/versions/{version}/diff": {
+  "body": {
+   "added": [],
+   "changed": [],
+   "pending": "str",
+   "removed": [],
+   "version": "number"
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/documents": {
+  "body": {
+   "autopilot": "bool",
+   "document": {
+    "bytes": "number",
+    "contentSha": "str",
+    "filename": "str",
+    "id": "id",
+    "kind": "str",
+    "pages": "number",
+    "path": "str",
+    "projectId": "id",
+    "state": "str",
+    "uploadedAt": "datetime",
+    "uploadedBy": "str"
+   },
+   "job": {
+    "attempts": "number",
+    "coalesceUntil": "datetime",
+    "createdAt": "datetime",
+    "createdBy": "str",
+    "error": "null",
+    "finishedAt": "null",
+    "id": "id",
+    "idempotencyKey": "str",
+    "log": "null",
+    "nextAttemptAt": "datetime",
+    "payload": {
+     "documentId": "id",
+     "filename": "str"
+    },
+    "projectId": "id",
+    "startedAt": "null",
+    "status": "str",
+    "traceId": "str",
+    "type": "str"
+   },
+   "note": "str",
+   "stragglerPending": "bool",
+   "version": "null",
+   "waitingForSiblings": "bool"
+  },
+  "status": 201
+ },
+ "POST /api/projects/{code}/documents #identical bytes": {
+  "body": {
+   "autopilot": "bool",
+   "document": {
+    "bytes": "number",
+    "contentSha": "str",
+    "filename": "str",
+    "id": "id",
+    "kind": "str",
+    "pages": "number",
+    "path": "str",
+    "projectId": "id",
+    "state": "str",
+    "uploadedAt": "datetime",
+    "uploadedBy": "str"
+   },
+   "duplicate": "bool",
+   "job": {
+    "attempts": "number",
+    "coalesceUntil": "datetime",
+    "createdAt": "datetime",
+    "createdBy": "str",
+    "error": "null",
+    "finishedAt": "null",
+    "id": "id",
+    "idempotencyKey": "str",
+    "log": "null",
+    "nextAttemptAt": "datetime",
+    "payload": {
+     "documentId": "id",
+     "filename": "str"
+    },
+    "projectId": "id",
+    "startedAt": "null",
+    "status": "str",
+    "traceId": "str",
+    "type": "str"
+   },
+   "note": "str",
+   "stragglerPending": "bool",
+   "version": "null",
+   "waitingForSiblings": "bool"
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/documents #not a pdf": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 415
+ },
+ "POST /api/projects/{code}/versions": {
+  "body": {
+   "job": "null",
+   "pending": "str",
+   "superseded": "null",
+   "version": {
+    "approvedAt": "null",
+    "approvedBy": "null",
+    "createdAt": "datetime",
+    "createdBy": "str",
+    "id": "id",
+    "lineItemCount": "number",
+    "lockedAt": "null",
+    "previousVersionId": "null",
+    "projectId": "id",
+    "quoteLineCount": "number",
+    "reason": "str",
+    "reconciled": "bool",
+    "status": "str",
+    "statusHistory": [],
+    "supersededByVersionId": "null",
+    "version": "number"
+   }
+  },
+  "status": 201
+ },
+ "POST /api/projects/{code}/versions/{version}/reconcile": {
+  "body": {
+   "by": "str",
+   "reconciled": "bool",
+   "version": "number"
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/versions/{version}/reconcile #superseded version": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 409
+ }
+}

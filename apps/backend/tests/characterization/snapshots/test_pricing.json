@@ -1,0 +1,2664 @@
+{
+ "DELETE /api/reference/{family}/entries/{key}": {
+  "body": {
+   "description": "str",
+   "note": "str",
+   "rates": {
+    "KY": "number",
+    "OH": "number"
+   },
+   "source": "str"
+  },
+  "status": 200
+ },
+ "DELETE /api/reference/{family}/entries/{key} #family without entry delete": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 422
+ },
+ "DELETE /api/reference/{family}/entries/{key} #unknown family": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "GET /api/reference/adders": {
+  "body": {
+   "adderTypes": [
+    {
+     "note": "str",
+     "type": "str"
+    }
+   ],
+   "hagerListAdders": {
+    "application": "str",
+    "items": [
+     {
+      "list_adder": "number",
+      "name": "str"
+     }
+    ],
+    "source": "str",
+    "status": "str"
+   },
+   "pending": [
+    "str"
+   ],
+   "rule": "str"
+  },
+  "status": 200
+ },
+ "GET /api/reference/custom-other-matrix": {
+  "body": {
+   "backsets": [
+    "str"
+   ],
+   "cost_path": "str",
+   "description": "str",
+   "design_principle": "str",
+   "electrified": [
+    "str"
+   ],
+   "finishes": [
+    "str"
+   ],
+   "functions": [
+    "str"
+   ],
+   "hard_manual_triggers": [
+    "str"
+   ],
+   "keying_note": "str",
+   "keyways": [
+    "str"
+   ],
+   "levers": [
+    "str"
+   ],
+   "preps": [
+    "str"
+   ],
+   "strikes": [
+    "str"
+   ]
+  },
+  "status": 200
+ },
+ "GET /api/reference/finishes": {
+  "body": {
+   "description": "str",
+   "finishes": [
+    {
+     "description": "str",
+     "note": "str",
+     "numeric_code": "str",
+     "premium": "bool",
+     "us_code": "str"
+    }
+   ],
+   "hager_rules": [
+    "str"
+   ],
+   "premium_finish_rule": "str",
+   "warning": "str"
+  },
+  "status": 200
+ },
+ "GET /api/reference/frame-depths": {
+  "body": {
+   "adjustable_frames": "bool",
+   "adjustable_note": "str",
+   "custom_max": "number",
+   "custom_note": "str",
+   "custom_option": "bool",
+   "description": "str",
+   "source": "str",
+   "unknown_wall_type_rule": "str",
+   "wall_types": [
+    {
+     "depth": "str",
+     "depth_inches": "number",
+     "note": "str",
+     "type": "str"
+    }
+   ]
+  },
+  "status": 200
+ },
+ "GET /api/reference/frp-constants": {
+  "body": {
+   "adhesive_coverage_note": "str",
+   "adhesive_coverage_sqft_per_unit": "null",
+   "blocking": "str",
+   "description": "str",
+   "interim_behaviour": "str",
+   "opening_handling": "null",
+   "opening_handling_note": "str",
+   "panel_size": "null",
+   "panel_size_note": "str",
+   "price_sources": [
+    "str"
+   ],
+   "status": "str",
+   "trim_stick_length": "null",
+   "trim_stick_length_note": "str",
+   "trim_types": [
+    "str"
+   ],
+   "vendors": [
+    "str"
+   ],
+   "waste_pct": "null",
+   "waste_pct_note": "str"
+  },
+  "status": 200
+ },
+ "GET /api/reference/lite-kit": {
+  "body": {
+   "data": {
+    "description": "str",
+    "extracted_by": "str",
+    "note": "str",
+    "price_basis": "str",
+    "sizing_rule": "str",
+    "source": "str",
+    "tables": [
+     {
+      "cell_count": "number",
+      "models": "str",
+      "pdf_page": "number",
+      "prices": {
+       "10": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "12": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "14": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "16": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "18": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "20": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "22": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "24": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "26": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "28": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "30": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "32": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "34": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "36": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "38": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "4": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "40": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "42": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "44": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "46": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "48": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "50": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "52": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "54": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "56": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "58": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "6": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "60": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "62": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "64": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "66": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "68": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "70": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "72": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       },
+       "8": {
+        "10": "number",
+        "12": "number",
+        "14": "number",
+        "16": "number",
+        "18": "number",
+        "20": "number",
+        "22": "number",
+        "24": "number",
+        "26": "number",
+        "28": "number",
+        "30": "number",
+        "32": "number",
+        "34": "number",
+        "36": "number",
+        "6": "number",
+        "8": "number"
+       }
+      },
+      "printed_page": "null",
+      "rules": [
+       "str"
+      ],
+      "widths": [
+       "number"
+      ]
+     }
+    ]
+   },
+   "tableCount": "number",
+   "tables": [
+    {
+     "heightCount": "number",
+     "index": "number",
+     "pdf_page": "number",
+     "title": "null",
+     "widthCount": "number"
+    }
+   ]
+  },
+  "status": 200
+ },
+ "GET /api/reference/margins": {
+  "body": {
+   "accessoriesDerived": "number",
+   "bands": [
+    {
+     "divisor": "number",
+     "examples": [
+      "str"
+     ],
+     "key": "str",
+     "margin": "number",
+     "name": "str"
+    }
+   ],
+   "effective": {
+    "accessories": "number",
+    "commodity": "number",
+    "custom_built": "number",
+    "restroom_partitions": "number",
+    "specialty": "number"
+   },
+   "formula": "str",
+   "governance": "str",
+   "overridable": "bool",
+   "source": "str"
+  },
+  "status": 200
+ },
+ "GET /api/reference/special-margins": {
+  "body": {
+   "customers": [
+    {
+     "margin": "null",
+     "name": "str",
+     "note": "str",
+     "source": "str"
+    }
+   ],
+   "description": "str",
+   "rule": "str",
+   "status": "str"
+  },
+  "status": 200
+ },
+ "GET /api/reference/special-nets": {
+  "body": {
+   "account": "str",
+   "description": "str",
+   "effective_date": "str",
+   "items": [
+    {
+     "description": "str",
+     "item_code": "str",
+     "net_price": "number",
+     "part_number": "str",
+     "section": "str",
+     "source_page": "number"
+    }
+   ],
+   "source": "str",
+   "vendor": "str"
+  },
+  "status": 200
+ },
+ "GET /api/reference/stock/{vendor}": {
+  "body": {
+   "items": [
+    {
+     "category": "str",
+     "description": "str",
+     "grade": "number",
+     "part_number": "str",
+     "series": "str",
+     "source_page": "number",
+     "stock": "bool"
+    }
+   ],
+   "matching_rule": "str",
+   "series_index": {
+    "closers": [
+     "str"
+    ],
+    "exit_devices": [
+     "str"
+    ],
+    "hinges": [
+     "str"
+    ],
+    "locks": [
+     "str"
+    ]
+   },
+   "share_of_volume": "number",
+   "source": "str",
+   "status": "str",
+   "status_note": "str",
+   "vendor": "str"
+  },
+  "status": 200
+ },
+ "GET /api/reference/stock/{vendor} #unknown vendor": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "GET /api/reference/tax": {
+  "body": {
+   "description": "str",
+   "note": "str",
+   "rates": {
+    "KY": "number",
+    "OH": "number"
+   },
+   "source": "str"
+  },
+  "status": 200
+ },
+ "GET /api/reference/vendor-tiers": {
+  "body": {
+   "description": "str",
+   "excluded": [
+    {
+     "name": "str",
+     "reason": "str"
+    }
+   ],
+   "owner": "str",
+   "phase_1_scope": "str",
+   "rule": "str",
+   "vendors": [
+    {
+     "account": "str",
+     "categories": {
+      "architectural_hinges": "number",
+      "auto_operators": "number",
+      "door_controls": "number",
+      "electrified_products": "number",
+      "exit_devices": "number",
+      "l_dc_e_accessories": "number",
+      "locks": "number",
+      "residential_hinges": "number"
+     },
+     "discounts": {
+      "architectural_hinges": "str",
+      "auto_operators": "str",
+      "door_controls": "str",
+      "electrified_products": "str",
+      "exit_devices": "str",
+      "l_dc_e_accessories": "str",
+      "locks": "str",
+      "residential_hinges": "str"
+     },
+     "effective_date": "str",
+     "key": "str",
+     "multiplier": "null",
+     "name": "str",
+     "note": "str",
+     "price_book": "str",
+     "program_terms": {
+      "crating_charge": "number",
+      "itemization_tagging_charge": "number",
+      "minimum_order_charge": "null",
+      "prepaid_freight": "number",
+      "prepaid_freight_drop_ship": "number"
+     },
+     "share_of_volume": "number",
+     "source": "str",
+     "tier": "str",
+     "worked_example": {
+      "cost": "number",
+      "list_price": "number",
+      "multiplier": "number",
+      "part": "str"
+     }
+    }
+   ]
+  },
+  "status": 200
+ },
+ "PATCH /api/reference/adders": {
+  "body": {
+   "adderTypes": [
+    {
+     "note": "str",
+     "type": "str"
+    }
+   ],
+   "hagerListAdders": {
+    "application": "str",
+    "items": [
+     {
+      "list_adder": "number",
+      "name": "str"
+     }
+    ],
+    "source": "str",
+    "status": "str"
+   },
+   "pending": [
+    "str"
+   ],
+   "rule": "str"
+  },
+  "status": 200
+ },
+ "PATCH /api/reference/adders #negative adder": {
+  "body": {
+   "detail": [
+    {
+     "ctx": {
+      "error": {}
+     },
+     "input": {
+      "Lead lined": "number"
+     },
+     "loc": [
+      "str"
+     ],
+     "msg": "str",
+     "type": "str"
+    }
+   ]
+  },
+  "status": 422
+ },
+ "PATCH /api/reference/finishes": {
+  "body": {
+   "description": "str",
+   "finishes": [
+    {
+     "description": "str",
+     "note": "str",
+     "numeric_code": "str",
+     "premium": "bool",
+     "us_code": "str"
+    }
+   ],
+   "hager_rules": [
+    "str"
+   ],
+   "premium_finish_rule": "str",
+   "warning": "str"
+  },
+  "status": 200
+ },
+ "PATCH /api/reference/frame-depths": {
+  "body": {
+   "adjustable_frames": "bool",
+   "adjustable_note": "str",
+   "custom_max": "number",
+   "custom_note": "str",
+   "custom_option": "bool",
+   "description": "str",
+   "source": "str",
+   "unknown_wall_type_rule": "str",
+   "wall_types": [
+    {
+     "depth": "str",
+     "depth_inches": "number",
+     "note": "str",
+     "type": "str"
+    }
+   ]
+  },
+  "status": 200
+ },
+ "PATCH /api/reference/frp-constants": {
+  "body": {
+   "adhesive_coverage_note": "str",
+   "adhesive_coverage_sqft_per_unit": "null",
+   "blocking": "str",
+   "description": "str",
+   "interim_behaviour": "str",
+   "opening_handling": "null",
+   "opening_handling_note": "str",
+   "panel_size": "null",
+   "panel_size_note": "str",
+   "price_sources": [
+    "str"
+   ],
+   "status": "str",
+   "trim_stick_length": "null",
+   "trim_stick_length_note": "str",
+   "trim_types": [
+    "str"
+   ],
+   "vendors": [
+    "str"
+   ],
+   "waste_pct": "number",
+   "waste_pct_note": "str"
+  },
+  "status": 200
+ },
+ "PATCH /api/reference/lite-kit": {
+  "body": {
+   "description": "str",
+   "extracted_by": "str",
+   "note": "str",
+   "price_basis": "str",
+   "sizing_rule": "str",
+   "source": "str",
+   "tables": [
+    {
+     "cell_count": "number",
+     "models": "str",
+     "pdf_page": "number",
+     "prices": {
+      "10": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "12": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "14": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "16": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "18": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "20": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "22": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "24": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "26": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "28": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "30": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "32": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "34": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "36": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "38": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "4": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "40": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "42": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "44": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "46": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "48": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "50": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "52": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "54": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "56": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "58": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "6": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "60": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "62": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "64": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "66": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "68": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "70": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "72": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "8": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      }
+     },
+     "printed_page": "null",
+     "rules": [
+      "str"
+     ],
+     "widths": [
+      "number"
+     ]
+    }
+   ]
+  },
+  "status": 200
+ },
+ "PATCH /api/reference/margins": {
+  "body": {
+   "accessoriesDerived": "number",
+   "bands": [
+    {
+     "divisor": "number",
+     "examples": [
+      "str"
+     ],
+     "key": "str",
+     "margin": "number",
+     "name": "str"
+    }
+   ],
+   "effective": {
+    "accessories": "number",
+    "commodity": "number",
+    "custom_built": "number",
+    "restroom_partitions": "number",
+    "specialty": "number"
+   },
+   "formula": "str",
+   "governance": "str",
+   "overridable": "bool",
+   "source": "str"
+  },
+  "status": 200
+ },
+ "PATCH /api/reference/special-margins": {
+  "body": {
+   "customers": [
+    {
+     "margin": "number",
+     "name": "str",
+     "note": "str",
+     "source": "str"
+    }
+   ],
+   "description": "str",
+   "rule": "str",
+   "status": "str"
+  },
+  "status": 200
+ },
+ "PATCH /api/reference/special-margins #margin above one": {
+  "body": {
+   "detail": [
+    {
+     "ctx": {
+      "error": {}
+     },
+     "input": "number",
+     "loc": [
+      "str"
+     ],
+     "msg": "str",
+     "type": "str"
+    }
+   ]
+  },
+  "status": 422
+ },
+ "PATCH /api/reference/special-nets": {
+  "body": {
+   "account": "str",
+   "description": "str",
+   "effective_date": "str",
+   "items": [
+    {
+     "description": "str",
+     "item_code": "str",
+     "net_price": "number",
+     "part_number": "str",
+     "section": "str",
+     "source_page": "number"
+    }
+   ],
+   "source": "str",
+   "vendor": "str"
+  },
+  "status": 200
+ },
+ "PATCH /api/reference/stock/{vendor}": {
+  "body": {
+   "items": [
+    {
+     "category": "str",
+     "description": "str",
+     "grade": "number",
+     "part_number": "str",
+     "series": "str",
+     "source_page": "number",
+     "stock": "bool"
+    }
+   ],
+   "matching_rule": "str",
+   "series_index": {
+    "closers": [
+     "str"
+    ],
+    "exit_devices": [
+     "str"
+    ],
+    "hinges": [
+     "str"
+    ],
+    "locks": [
+     "str"
+    ]
+   },
+   "share_of_volume": "number",
+   "source": "str",
+   "status": "str",
+   "status_note": "str",
+   "vendor": "str"
+  },
+  "status": 200
+ },
+ "PATCH /api/reference/tax": {
+  "body": {
+   "description": "str",
+   "note": "str",
+   "rates": {
+    "IN": "number",
+    "KY": "number",
+    "OH": "number"
+   },
+   "source": "str"
+  },
+  "status": 200
+ },
+ "PATCH /api/reference/vendor-tiers": {
+  "body": {
+   "description": "str",
+   "excluded": [
+    {
+     "name": "str",
+     "reason": "str"
+    }
+   ],
+   "owner": "str",
+   "phase_1_scope": "str",
+   "rule": "str",
+   "vendors": [
+    {
+     "account": "str",
+     "categories": {
+      "architectural_hinges": "number",
+      "auto_operators": "number",
+      "door_controls": "number",
+      "electrified_products": "number",
+      "exit_devices": "number",
+      "l_dc_e_accessories": "number",
+      "locks": "number",
+      "residential_hinges": "number"
+     },
+     "discounts": {
+      "architectural_hinges": "str",
+      "auto_operators": "str",
+      "door_controls": "str",
+      "electrified_products": "str",
+      "exit_devices": "str",
+      "l_dc_e_accessories": "str",
+      "locks": "str",
+      "residential_hinges": "str"
+     },
+     "effective_date": "str",
+     "key": "str",
+     "multiplier": "null",
+     "name": "str",
+     "note": "str",
+     "price_book": "str",
+     "program_terms": {
+      "crating_charge": "number",
+      "itemization_tagging_charge": "number",
+      "minimum_order_charge": "null",
+      "prepaid_freight": "number",
+      "prepaid_freight_drop_ship": "number"
+     },
+     "share_of_volume": "number",
+     "source": "str",
+     "tier": "str",
+     "worked_example": {
+      "cost": "number",
+      "list_price": "number",
+      "multiplier": "number",
+      "part": "str"
+     }
+    }
+   ]
+  },
+  "status": 200
+ },
+ "PUT /api/reference/custom-other-matrix": {
+  "body": {
+   "backsets": [
+    "str"
+   ],
+   "cost_path": "str",
+   "description": "str",
+   "design_principle": "str",
+   "electrified": [
+    "str"
+   ],
+   "finishes": [
+    "str"
+   ],
+   "functions": [
+    "str"
+   ],
+   "hard_manual_triggers": [
+    "str"
+   ],
+   "keying_note": "str",
+   "keyways": [
+    "str"
+   ],
+   "levers": [
+    "str"
+   ],
+   "preps": [
+    "str"
+   ],
+   "strikes": [
+    "str"
+   ]
+  },
+  "status": 200
+ },
+ "PUT /api/reference/lite-kit": {
+  "body": {
+   "description": "str",
+   "extracted_by": "str",
+   "note": "str",
+   "price_basis": "str",
+   "sizing_rule": "str",
+   "source": "str",
+   "tables": [
+    {
+     "cell_count": "number",
+     "models": "str",
+     "pdf_page": "number",
+     "prices": {
+      "10": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "12": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "14": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "16": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "18": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "20": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "22": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "24": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "26": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "28": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "30": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "32": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "34": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "36": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "38": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "4": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "40": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "42": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "44": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "46": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "48": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "50": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "52": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "54": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "56": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "58": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "6": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "60": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "62": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "64": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "66": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "68": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "70": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "72": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      },
+      "8": {
+       "10": "number",
+       "12": "number",
+       "14": "number",
+       "16": "number",
+       "18": "number",
+       "20": "number",
+       "22": "number",
+       "24": "number",
+       "26": "number",
+       "28": "number",
+       "30": "number",
+       "32": "number",
+       "34": "number",
+       "36": "number",
+       "6": "number",
+       "8": "number"
+      }
+     },
+     "printed_page": "null",
+     "rules": [
+      "str"
+     ],
+     "widths": [
+      "number"
+     ]
+    }
+   ]
+  },
+  "status": 200
+ }
+}

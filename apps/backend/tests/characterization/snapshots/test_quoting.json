@@ -1,0 +1,775 @@
+{
+ "DELETE /api/projects/{code}/quote/lines/{line_id}": {
+  "body": {
+   "totals": {
+    "cost": "number",
+    "freight": "null",
+    "freightNote": "str",
+    "grandTotal": "number",
+    "groups": [
+     {
+      "group": "str",
+      "line_count": "number",
+      "subtotal": "number"
+     }
+    ],
+    "margin": "number",
+    "subtotal": "number",
+    "tax": "number",
+    "taxJurisdiction": "str",
+    "taxNote": "str",
+    "taxRate": "number",
+    "unpricedLines": "number"
+   }
+  },
+  "status": 200
+ },
+ "DELETE /api/projects/{code}/quote/lines/{line_id} #already deleted": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "GET /api/projects/{code}/feedback-events": {
+  "body": {
+   "feedbackEvents": [
+    {
+     "appliedToLearning": "bool",
+     "bidRequestId": "id",
+     "correctedValue": {
+      "value": "number"
+     },
+     "estimateLineId": "id",
+     "eventType": "str",
+     "field": "str",
+     "id": "id",
+     "matchConfidenceAtTime": "null",
+     "occurredAt": "datetime",
+     "openingId": "null",
+     "proposedValue": {
+      "value": "number"
+     },
+     "reason": "str",
+     "userId": "str"
+    }
+   ]
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/proposal": {
+  "body": {
+   "project": {
+    "autopilot": "bool",
+    "bidAlternates": [],
+    "bidDue": "null",
+    "code": "str",
+    "createdAt": "datetime",
+    "gc": "str",
+    "id": "id",
+    "initiator": "str",
+    "intakeChannel": "str",
+    "mode": "str",
+    "name": "str",
+    "orgId": "id",
+    "progress": "number",
+    "slug": "str",
+    "stage": "str",
+    "state": "str",
+    "updatedAt": "datetime"
+   },
+   "proposal": {
+    "customer": {
+     "name": "str"
+    },
+    "date": "str",
+    "estimator": {},
+    "exclusions": [
+     "str"
+    ],
+    "markup": "number",
+    "proposalNo": "str",
+    "salesRep": {
+     "name": "str"
+    },
+    "sentAt": "null",
+    "signoff": [],
+    "validityDays": "number"
+   },
+   "readiness": {
+    "blocking": "bool",
+    "degraded": "bool",
+    "degradedNote": "null",
+    "flaggedLineItems": "number",
+    "note": "str",
+    "producedBy": "null",
+    "unpricedQuoteLines": "number"
+   },
+   "sections": [
+    {
+     "key": "str",
+     "lines": [
+      {
+       "description": "str",
+       "division": "str",
+       "extPrice": "number",
+       "group": "null",
+       "part": "null",
+       "priceStatus": "null",
+       "qty": "number",
+       "substitutionNote": "null",
+       "unitPrice": "number",
+       "uom": "str"
+      }
+     ],
+     "subtotal": "number",
+     "title": "str"
+    }
+   ],
+   "totals": {
+    "cost": "number",
+    "freight": "null",
+    "freightNote": "str",
+    "grandTotal": "number",
+    "groups": [
+     {
+      "group": "str",
+      "line_count": "number",
+      "subtotal": "number"
+     }
+    ],
+    "margin": "number",
+    "markup": "number",
+    "subtotal": "number",
+    "tax": "number",
+    "taxJurisdiction": "str",
+    "taxNote": "str",
+    "taxRate": "number",
+    "unpricedLines": "number"
+   }
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/proposal/email-draft": {
+  "body": {
+   "body": "str",
+   "note": "str",
+   "sent": "bool",
+   "subject": "str",
+   "to": "str"
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/proposal/pdf": {
+  "body": {
+   "content-type": "application/pdf"
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/proposal/pdf #no local renderer": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 501
+ },
+ "GET /api/projects/{code}/proposal/render": {
+  "body": {
+   "content-type": "text/html"
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/quote": {
+  "body": {
+   "edited": {
+    "count": "number",
+    "firstId": "null"
+   },
+   "groups": [],
+   "lapsedCount": "number",
+   "lineCount": "number",
+   "quote": "null",
+   "reviewWindowMonths": "number",
+   "totals": {
+    "cost": "number",
+    "freight": "null",
+    "freightNote": "str",
+    "grandTotal": "number",
+    "groups": [],
+    "margin": "null",
+    "subtotal": "number",
+    "tax": "number",
+    "taxJurisdiction": "str",
+    "taxNote": "str",
+    "taxRate": "number",
+    "unpricedLines": "number"
+   }
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/quote #with lines": {
+  "body": {
+   "edited": {
+    "count": "number",
+    "firstId": "id"
+   },
+   "groups": [
+    {
+     "division": "str",
+     "lines": [
+      {
+       "addedByHand": "bool",
+       "basis": "str",
+       "cost": "number",
+       "costSnapshot": {
+        "cost": "number",
+        "costSource": "null",
+        "costSourceDetail": "null",
+        "frozenAt": "datetime"
+       },
+       "createdAt": "datetime",
+       "description": "str",
+       "division": "str",
+       "extended": "number",
+       "flags": [],
+       "id": "id",
+       "lapsed": "bool",
+       "lineKey": "str",
+       "margin": "number",
+       "marginCheck": {
+        "applied_margin": "number",
+        "flag": "null",
+        "floor": "number",
+        "note": "str",
+        "product_type": "str",
+        "status": "str"
+       },
+       "marginOverridden": "bool",
+       "marginSnapshot": {
+        "band": "str",
+        "frozenAt": "datetime",
+        "overridden": "bool",
+        "rate": "number",
+        "resolvedFrom": "str"
+       },
+       "multiplierTierSnapshot": "null",
+       "priceBookSnapshot": "null",
+       "priceError": "null",
+       "productType": "str",
+       "projectId": "id",
+       "qty": "number",
+       "sell": "number"
+      }
+     ],
+     "subtotal": "number"
+    }
+   ],
+   "lapsedCount": "number",
+   "lineCount": "number",
+   "quote": {
+    "cost": "number",
+    "createdAt": "datetime",
+    "freight": "null",
+    "freightNote": "str",
+    "grandTotal": "number",
+    "groups": [
+     {
+      "group": "str",
+      "line_count": "number",
+      "subtotal": "number"
+     }
+    ],
+    "id": "id",
+    "margin": "number",
+    "projectId": "id",
+    "quoteNumber": "str",
+    "subtotal": "number",
+    "tax": "number",
+    "taxJurisdiction": "str",
+    "taxNote": "str",
+    "taxRate": "number",
+    "unpricedLines": "number",
+    "updatedAt": "datetime"
+   },
+   "reviewWindowMonths": "number",
+   "totals": {
+    "cost": "number",
+    "freight": "null",
+    "freightNote": "str",
+    "grandTotal": "number",
+    "groups": [
+     {
+      "group": "str",
+      "line_count": "number",
+      "subtotal": "number"
+     }
+    ],
+    "margin": "number",
+    "subtotal": "number",
+    "tax": "number",
+    "taxJurisdiction": "str",
+    "taxNote": "str",
+    "taxRate": "number",
+    "unpricedLines": "number"
+   }
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/rfis": {
+  "body": {
+   "rfis": []
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/takeoffs": {
+  "body": {
+   "takeoffs": []
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/vendor-rfqs": {
+  "body": {
+   "vendorRfqs": []
+  },
+  "status": 200
+ },
+ "PATCH /api/projects/{code}/proposal": {
+  "body": {
+   "project": {
+    "autopilot": "bool",
+    "bidAlternates": [],
+    "bidDue": "null",
+    "code": "str",
+    "createdAt": "datetime",
+    "gc": "str",
+    "id": "id",
+    "initiator": "str",
+    "intakeChannel": "str",
+    "mode": "str",
+    "name": "str",
+    "orgId": "id",
+    "progress": "number",
+    "slug": "str",
+    "stage": "str",
+    "state": "str",
+    "updatedAt": "datetime"
+   },
+   "proposal": {
+    "customer": {
+     "name": "str"
+    },
+    "date": "str",
+    "estimator": {},
+    "exclusions": [
+     "str"
+    ],
+    "markup": "number",
+    "proposalNo": "str",
+    "salesRep": {
+     "name": "str"
+    },
+    "sentAt": "null",
+    "signoff": [],
+    "validityDays": "number"
+   },
+   "readiness": {
+    "blocking": "bool",
+    "degraded": "bool",
+    "degradedNote": "null",
+    "flaggedLineItems": "number",
+    "note": "str",
+    "producedBy": "null",
+    "unpricedQuoteLines": "number"
+   },
+   "sections": [
+    {
+     "key": "str",
+     "lines": [
+      {
+       "description": "str",
+       "division": "str",
+       "extPrice": "number",
+       "group": "null",
+       "part": "null",
+       "priceStatus": "null",
+       "qty": "number",
+       "substitutionNote": "null",
+       "unitPrice": "number",
+       "uom": "str"
+      }
+     ],
+     "subtotal": "number",
+     "title": "str"
+    }
+   ],
+   "totals": {
+    "cost": "number",
+    "freight": "null",
+    "freightNote": "str",
+    "grandTotal": "number",
+    "groups": [
+     {
+      "group": "str",
+      "line_count": "number",
+      "subtotal": "number"
+     }
+    ],
+    "margin": "number",
+    "markup": "number",
+    "subtotal": "number",
+    "tax": "number",
+    "taxJurisdiction": "str",
+    "taxNote": "str",
+    "taxRate": "number",
+    "unpricedLines": "number"
+   }
+  },
+  "status": 200
+ },
+ "PATCH /api/projects/{code}/proposal #markup above the cap": {
+  "body": {
+   "detail": [
+    {
+     "ctx": {
+      "le": "number"
+     },
+     "input": "number",
+     "loc": [
+      "str"
+     ],
+     "msg": "str",
+     "type": "str"
+    }
+   ]
+  },
+  "status": 422
+ },
+ "PATCH /api/projects/{code}/quote/lines/{line_id}": {
+  "body": {
+   "line": {
+    "addedByHand": "bool",
+    "basis": "str",
+    "cost": "number",
+    "costSnapshot": {
+     "cost": "number",
+     "costSource": "null",
+     "costSourceDetail": "null",
+     "frozenAt": "datetime"
+    },
+    "createdAt": "datetime",
+    "description": "str",
+    "division": "str",
+    "extended": "number",
+    "flags": [],
+    "id": "id",
+    "lineKey": "str",
+    "margin": "number",
+    "marginCheck": {
+     "applied_margin": "number",
+     "flag": "null",
+     "floor": "number",
+     "note": "str",
+     "product_type": "str",
+     "status": "str"
+    },
+    "marginOverridden": "bool",
+    "marginSnapshot": {
+     "band": "str",
+     "frozenAt": "datetime",
+     "overridden": "bool",
+     "rate": "number",
+     "resolvedFrom": "str"
+    },
+    "multiplierTierSnapshot": "null",
+    "overrideReason": "str",
+    "overrides": [
+     {
+      "after": {
+       "margin": "number"
+      },
+      "at": "datetime",
+      "before": {
+       "margin": "number"
+      },
+      "by": "str",
+      "reason": "str"
+     }
+    ],
+    "priceBookSnapshot": "null",
+    "priceError": "null",
+    "productType": "str",
+    "projectId": "id",
+    "qty": "number",
+    "sell": "number",
+    "updatedAt": "datetime"
+   },
+   "totals": {
+    "cost": "number",
+    "freight": "null",
+    "freightNote": "str",
+    "grandTotal": "number",
+    "groups": [
+     {
+      "group": "str",
+      "line_count": "number",
+      "subtotal": "number"
+     }
+    ],
+    "margin": "number",
+    "subtotal": "number",
+    "tax": "number",
+    "taxJurisdiction": "str",
+    "taxNote": "str",
+    "taxRate": "number",
+    "unpricedLines": "number"
+   }
+  },
+  "status": 200
+ },
+ "PATCH /api/projects/{code}/quote/lines/{line_id} #missing line": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "PATCH /api/projects/{code}/quote/settings": {
+  "body": {
+   "totals": {
+    "cost": "number",
+    "freight": "null",
+    "freightNote": "str",
+    "grandTotal": "number",
+    "groups": [],
+    "margin": "null",
+    "subtotal": "number",
+    "tax": "number",
+    "taxJurisdiction": "str",
+    "taxNote": "str",
+    "taxRate": "number",
+    "unpricedLines": "number"
+   }
+  },
+  "status": 200
+ },
+ "PATCH /api/projects/{code}/vendor-rfqs/{rfq_id}": {
+  "body": {
+   "bidRequestId": "id",
+   "blocksBid": "bool",
+   "createdAt": "datetime",
+   "createdBy": "str",
+   "dueBy": "null",
+   "id": "id",
+   "orgId": "id",
+   "projectId": "id",
+   "requestedAt": "null",
+   "requestedBy": "null",
+   "requestedItems": [],
+   "rfqNumber": "str",
+   "schemaVersion": "number",
+   "status": "str",
+   "statusHistory": [
+    {
+     "at": "datetime",
+     "by": "str",
+     "status": "str"
+    }
+   ],
+   "triggerReason": "str",
+   "updatedAt": "datetime",
+   "updatedBy": "str",
+   "vendorId": "null"
+  },
+  "status": 200
+ },
+ "PATCH /api/projects/{code}/vendor-rfqs/{rfq_id} #illegal transition": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 400
+ },
+ "POST /api/projects/{code}/proposal/complete": {
+  "body": {
+   "draftPath": "str",
+   "handedOffTo": "str",
+   "message": "str",
+   "sent": "bool",
+   "status": "str"
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/quote/continue-to-proposal": {
+  "body": {
+   "job": {
+    "attempts": "number",
+    "createdAt": "datetime",
+    "createdBy": "str",
+    "error": "null",
+    "finishedAt": "null",
+    "id": "id",
+    "idempotencyKey": "str",
+    "log": "null",
+    "nextAttemptAt": "null",
+    "payload": {},
+    "projectId": "id",
+    "startedAt": "null",
+    "status": "str",
+    "traceId": "str",
+    "type": "str"
+   }
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/quote/continue-to-proposal #build already queued": {
+  "body": {
+   "job": {
+    "attempts": "number",
+    "createdAt": "datetime",
+    "createdBy": "str",
+    "error": "null",
+    "finishedAt": "null",
+    "id": "id",
+    "idempotencyKey": "str",
+    "log": "null",
+    "nextAttemptAt": "null",
+    "payload": {},
+    "projectId": "id",
+    "startedAt": "null",
+    "status": "str",
+    "traceId": "str",
+    "type": "str"
+   }
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/quote/lines": {
+  "body": {
+   "line": {
+    "addedByHand": "bool",
+    "basis": "str",
+    "cost": "number",
+    "costSnapshot": {
+     "cost": "number",
+     "costSource": "null",
+     "costSourceDetail": "null",
+     "frozenAt": "datetime"
+    },
+    "createdAt": "datetime",
+    "description": "str",
+    "division": "str",
+    "extended": "number",
+    "flags": [],
+    "id": "id",
+    "lineKey": "str",
+    "margin": "number",
+    "marginCheck": {
+     "applied_margin": "number",
+     "flag": "null",
+     "floor": "number",
+     "note": "str",
+     "product_type": "str",
+     "status": "str"
+    },
+    "marginOverridden": "bool",
+    "marginSnapshot": {
+     "band": "str",
+     "frozenAt": "datetime",
+     "overridden": "bool",
+     "rate": "number",
+     "resolvedFrom": "str"
+    },
+    "multiplierTierSnapshot": "null",
+    "priceBookSnapshot": "null",
+    "priceError": "null",
+    "productType": "str",
+    "projectId": "id",
+    "qty": "number",
+    "sell": "number"
+   },
+   "totals": {
+    "cost": "number",
+    "freight": "null",
+    "freightNote": "str",
+    "grandTotal": "number",
+    "groups": [
+     {
+      "group": "str",
+      "line_count": "number",
+      "subtotal": "number"
+     }
+    ],
+    "margin": "number",
+    "subtotal": "number",
+    "tax": "number",
+    "taxJurisdiction": "str",
+    "taxNote": "str",
+    "taxRate": "number",
+    "unpricedLines": "number"
+   }
+  },
+  "status": 201
+ },
+ "POST /api/projects/{code}/rfis": {
+  "body": {
+   "bidRequestId": "id",
+   "blocksFinalization": "bool",
+   "category": "str",
+   "id": "id",
+   "projectId": "id",
+   "question": "str",
+   "raisedAt": "datetime",
+   "raisedBy": "str",
+   "rfiNumber": "str",
+   "status": "str",
+   "statusHistory": [
+    {
+     "at": "datetime",
+     "by": "str",
+     "status": "str"
+    }
+   ],
+   "subject": "str"
+  },
+  "status": 201
+ },
+ "POST /api/projects/{code}/takeoffs": {
+  "body": {
+   "bidRequestId": "id",
+   "constantsUsed": "null",
+   "flags": [
+    "str"
+   ],
+   "id": "id",
+   "insideCorners": "number",
+   "notes": "null",
+   "outsideCorners": "number",
+   "perimeterLf": "number",
+   "projectId": "id",
+   "status": "str",
+   "takeoffType": "str",
+   "wallHeightFt": "number"
+  },
+  "status": 201
+ },
+ "POST /api/projects/{code}/vendor-rfqs": {
+  "body": {
+   "bidRequestId": "id",
+   "blocksBid": "bool",
+   "dueBy": "null",
+   "id": "id",
+   "projectId": "id",
+   "requestedAt": "null",
+   "requestedBy": "null",
+   "requestedItems": [],
+   "rfqNumber": "str",
+   "status": "str",
+   "statusHistory": [
+    {
+     "at": "datetime",
+     "by": "str",
+     "status": "str"
+    }
+   ],
+   "triggerReason": "str",
+   "vendorId": "null"
+  },
+  "status": 201
+ }
+}
