@@ -1,56 +1,31 @@
 # Architecture
 
-CBC Estimating Copilot runs as a **modular monolith**.
+CBC Estimating Copilot runs as a **modular monolith**. The full description - modules,
+what each owns, the dependency rule, the seams between modules, and how to add a slice
+or a module - is in [ARCHITECTURE.md](../ARCHITECTURE.md) at the repository root.
+The decision record is [ADR-005](adr/005-modules-own-their-data.md), which supersedes
+[ADR-004](adr/004-modular-monolith-apps-backend.md)'s dependency rule.
 
 ```
-apps/web  ──►  platform (apps/backend :8001)  ──►  MongoDB
-                      │
-                      ├── modules/{platform,intake,extraction,pricing,quoting,catalog}
-                      ├── shared kernel (domain, schemas, services, pageindex, …)
-                      └── enqueue jobs
-worker (WORKER_CLAIM_ALL=1)  ──►  claim any job  ──►  Claude CLI + MCP
+apps/web  ──►  platform API (apps/backend :8001, cbc.app.main:create_app)  ──►  MongoDB
+                      modules/{ops,projects,catalog,intake,extraction,pricing,quoting}
+worker (WORKER_CLAIM_ALL=1, python -m cbc.worker)  ──►  claim  ──►  Claude CLI + MCP
 ```
 
-Compose service name for the API remains `platform`; one `worker` claims all
-job types. There is **no** inter-service HTTP between domains; the worker and
-API share MongoDB, disk/S3, and the job queue.
-
-Legacy trees `services/` and `packages/cbc` (plus the pre-cutover root
-`Dockerfile` and root `tests/`) are archived under `archive/pre-monolith/` for
-rollback. They are not the default compose runtime path. See
-[ADR-004](adr/004-modular-monolith-apps-backend.md).
-
-## Live package layout
-
-```
-apps/backend/src/cbc/
-  api/              FastAPI factory (mounts all module routers)
-  modules/          vertical slices: api / application / domain / jobs
-  domain/           pure estimating rules
-  schemas/          Pydantic contracts
-  services/         application services (pricing, quote, sync, …)
-  worker_kit/       Claude job claim loop + handlers
-  worker/           `python -m cbc.worker` entry
-  pageindex/        vendor catalog page index
-  http/             shared FastAPI helpers
-mcp-servers/        six MCP servers on shared _runtime
-apps/web/           Next.js Ops-Hub (PLATFORM_URL, audience platform)
-```
+Compose service name for the API remains `platform`; one `worker` claims all job types.
+There is no HTTP between modules; API and worker share MongoDB, disk/S3 and the job queue.
 
 ## Dependency rule
 
-Module routers must not import another module’s API layer. Enforced by
+A module imports another only through `cbc.modules.<other>.api`; nothing outside a module
+imports its `features`, `domain` or `infrastructure`; `shared` imports no module; no module
+names another module's collection. Enforced by
 `apps/backend/tests/architecture/test_layering.py`.
-
-```
-modules.*.api  →  shared kernel (services, domain, schemas, db)
-worker_kit     →  shared kernel + pageindex + validation
-```
 
 ## Data model
 
-See [collections.mongodb.md](collections.mongodb.md) for the collection
-specification and [data_model.md](data_model.md) for what is implemented.
+See [collections.mongodb.md](collections.mongodb.md) for the collection specification and
+[data_model.md](data_model.md) for what is implemented.
 
 ## Runtime
 

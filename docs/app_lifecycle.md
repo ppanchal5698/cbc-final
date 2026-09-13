@@ -51,7 +51,7 @@ flowchart TD
 
 | Component | Entry Point File Path | Purpose |
 | --- | --- | --- |
-| **platform API** | `apps/backend` → `cbc.api.main:app` | FastAPI monolith: auth, projects, documents, line-items, quote, catalog, … |
+| **platform API** | `apps/backend` → `cbc.app.main:create_app` (factory) | FastAPI monolith: seven modules registered by one composition root |
 | **Worker** | `python -m cbc.worker` (`WORKER_CLAIM_ALL=1` in compose) | Claim and run Claude / local catalog jobs |
 | **Web** | `apps/web` | Next.js Ops-Hub; proxies to `PLATFORM_URL` |
 | **Compose** | `infra/docker-compose.yml` | mongo, clamav, platform, worker, web |
@@ -65,16 +65,16 @@ docker compose -f infra/docker-compose.yml up -d --build
 Start (native API):
 
 ```bash
-cd apps/backend && pip install -e ".[dev]" && uvicorn cbc.api.main:app --port 8001
+cd apps/backend && pip install -e ".[dev]" && uvicorn cbc.app.main:create_app --factory --port 8001
 ```
 
 ## 4. Startup Sequence
 
 1. **Infrastructure**: `infra/docker-compose.yml` boots `mongo` (and optional `litellm` / `clamav`).
-2. **platform API**: `uvicorn cbc.api.main:app` from `apps/backend`.
-   - Lifespan runs `ensure_indexes()`, `ensure_readonly_user()`, OAuth sweep.
-   - All domain routers mount on one FastAPI app (`SERVICE_AUDIENCE=platform`).
-3. **Worker**: compose `worker` with `WORKER_CLAIM_ALL=1`; claim loop in `cbc.worker_kit.runtime` (local runs may set `WORKER_DOMAIN`).
+2. **platform API**: `uvicorn cbc.app.main:create_app --factory` from `apps/backend`.
+   - Lifespan runs the migrations, then each module's `ensure_indexes()`, `ensure_readonly_user()`, and ops' OAuth session sweep.
+   - Each module's `register(app)` mounts its slices on one FastAPI app (`SERVICE_AUDIENCE=platform`).
+3. **Worker**: compose `worker` with `WORKER_CLAIM_ALL=1`; ops' claim loop runs each job with the Claude pipeline `cbc/worker/main.py` binds in (local runs may set `WORKER_DOMAIN`).
 4. **Web**: `next start`; `/api/proxy/*` forwards to `PLATFORM_URL` with audience `platform`.
 
 ## 5. Core Lifecycle Flows
@@ -83,8 +83,8 @@ cd apps/backend && pip install -e ".[dev]" && uvicorn cbc.api.main:app --port 80
 1. **Trigger**: User posts credentials via the Next.js UI (`apps/web/app/signin`).
 2. **NextAuth**: `apps/web/auth.ts` intercepts via the `Credentials` provider.
 3. **Internal Call**: NextAuth calls `${API_BASE}/api/auth/verify` via HTTP.
-4. **platform API**: auth router under `apps/backend` (`cbc.modules.platform`) receives the request.
-5. **Database**: Queries `db.users`, compares password hashes, records `db.auth_attempts`.
+4. **platform API**: ops' `VerifyCredentials` slice (`cbc.modules.ops`) receives the request.
+5. **Database**: Reads ops' `users` collection, compares password hashes, records `authAttempts`.
 6. **Response**: User object returned to NextAuth; session JWT issued; redirect to `/dashboard`.
 
 ```mermaid
@@ -104,11 +104,11 @@ sequenceDiagram
 
 ### Flow 2: Queued Job (Document Upload & Extraction)
 1. **Trigger**: User uploads a PDF via the web proxy to platform documents API.
-2. **Route**: Intake documents router in `apps/backend` receives the file.
+2. **Route**: intake's `UploadDocument` slice receives the file.
 3. **Storage**: PDF saved under `projects/{slug}/uploads/raw/`.
-4. **Enqueue**: Pipeline job (e.g. `extract_bid_set`) inserted into `db.jobs`.
+4. **Enqueue**: Pipeline job (e.g. `extract_bid_set`) queued through `cbc.modules.ops.api.jobs`.
 5. **Worker Poll**: compose `worker` (`WORKER_CLAIM_ALL=1`) claims the job.
-6. **Execution**: `cbc.worker_kit.runtime` runs a headless Claude Code pass (or local handler).
+6. **Execution**: the bound runner (`cbc.worker_kit.runtime`) runs a headless Claude Code pass, or a module's local job handler.
 7. **Heartbeat**: Updates `heartbeatAt` so the job is not reaped.
 8. **Sync**: Disk JSON artifacts synced into Mongo.
 9. **Orchestration**: Autopilot may enqueue the next phase (e.g. `match_and_price`).
@@ -145,14 +145,14 @@ sequenceDiagram
 | Module / Package | Responsibility | Key Files |
 | --- | --- | --- |
 | `apps/web` | Next.js Ops-Hub | proxy, auth, pages |
-| `apps/backend` | Live modular monolith API + worker runtime | `cbc.api.main`, `cbc.modules.*`, `cbc.worker_kit` |
+| `apps/backend` | Live modular monolith API + worker | `cbc.app.main`, `cbc.worker.main`, `cbc.modules.*` |
 | `mcp-servers` | Claude MCP tools | per-server `server.py` |
 | `archive/pre-monolith/` | Pre-cutover services/packages/Dockerfile/tests | rollback only |
 
 ## 7. Data Layer
 * **Storage Engines**: MongoDB + shared disk (`/app/data/projects`, `/app/data/pricebooks`).
-* **Collections / indexes**: `cbc.db` in `apps/backend` (`ensure_indexes` on boot).
-* **Migrations**: Startup helpers on the monolith lifespan.
+* **Collections / indexes**: each module's `infrastructure/collections.py` (`ensure_indexes` on boot, after the migrations).
+* **Migrations**: `cbc.persistence.migrations` - forward-only, run first at startup.
 
 ## 8. Auth & Security Flow
 1. NextAuth on `apps/web`.
@@ -160,10 +160,10 @@ sequenceDiagram
 3. Read-only Mongo user for catalog MCP (`ensure_readonly_user`).
 
 ## 9. Error Handling & Observability
-Worker retry/backoff and `reap_abandoned` in `cbc.worker_kit.runtime`; audit + run_metrics via shared services.
+Worker retry/backoff and `reap_abandoned` in ops' worker loop; the audit trail and run metrics through `cbc.modules.ops.api`.
 
 ## 10. Configuration & Environments
-Compose injects `MONGODB_URI`, `STORAGE_ROOT`, `PLATFORM_URL` / `API_BASE_URL`, `INTERNAL_*`, `APP_ENV`, `WORKER_CLAIM_ALL`. Settings via `cbc.config`.
+Compose injects `MONGODB_URI`, `STORAGE_ROOT`, `PLATFORM_URL` / `API_BASE_URL`, `INTERNAL_*`, `APP_ENV`, `WORKER_CLAIM_ALL`. Settings via `cbc.shared.config`.
 
 ## 11. External Integrations
 Optional LiteLLM; Claude Code in worker image; MCP under `mcp-servers/`.
@@ -183,7 +183,7 @@ API lifespan cancels background tasks; workers handle SIGTERM/SIGINT; stale jobs
 
 ## 15. Glossary
 * **Autopilot**: A mode where extraction, matching, and pricing are chained automatically without user intervention between steps.
-* **Domain module**: A vertical slice under `apps/backend/src/cbc/modules/` (HTTP); jobs are claimed by the compose claim-all worker (or a filtered `WORKER_DOMAIN` process locally).
+* **Module**: one of seven bounded contexts under `apps/backend/src/cbc/modules/`, each a set of vertical slices that owns its collections; jobs are claimed by the compose claim-all worker (or a filtered `WORKER_DOMAIN` process locally).
 * **MCP Server**: Model Context Protocol servers used to give Claude Code structured, read-only tools to view MongoDB data (like price books).
 * **Price Book**: A structured catalog of construction materials and their costs.
 * **Bid Set**: The PDF architectural drawings uploaded by the user to be quoted.

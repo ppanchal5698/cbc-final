@@ -1,0 +1,140 @@
+# Architecture
+
+The CBC Estimating Copilot backend (`apps/backend`) is a **modular monolith**: one
+API process and one worker process, built from the same package, split inside into
+seven modules that each own their data and meet only through small public surfaces.
+There are no microservices and no network calls between modules.
+
+```
+apps/web ──HTTP──► API process   cbc.app.main:create_app     ──┐
+                    seven modules, each registered by the root  ├─► MongoDB, disk/S3
+worker process ──► cbc.worker (ops' loop + the bound runner)  ──┘
+```
+
+## The modules
+
+| Module | What it is | Owns (MongoDB) |
+|---|---|---|
+| **ops** | Running the platform: sign-in and users, system settings, the job queue, the worker loop, the audit trail, spend and run metrics | `users`, `authAttempts`, `oauthSessions`, `settings`, `jobs`, `auditLogs`, `runMetrics` |
+| **projects** | The bid record everything hangs off: create/list/update/delete a bid, prior-quote reuse, calls/notes/RFIs logged against it, the autopilot saga | `bidRequests`, `calls`, `counters` |
+| **catalog** | Vendor parts and the price books they come from; the jobs that index each book's pages | `catalogItems`, `priceBooks` (`pageIndex` via `cbc.pageindex`) |
+| **intake** | Getting a bid set in: document upload, pages, frozen addendum versions | `documents`, `estimateVersions` |
+| **extraction** | What the drawings say: openings the estimator confirms or corrects, FRP takeoffs, correction feedback | `openings`, `failedExtractions`, `takeoffs`, `feedbackEvents` |
+| **pricing** | Pricing policy: margins, tax, adders, tiers, nets, finishes, frame depths, FRP constants | `referenceData`, `referenceDataRevisions` |
+| **quoting** | The customer-facing document: priced lines, totals, alternates, the proposal (which never sends), vendor RFQs, RFIs | `estimateLines`, `quotes`, `proposals`, `vendorRfqs`, `rfis` |
+
+## Layout
+
+```
+apps/backend/src/cbc/
+  app/main.py              API composition root: middleware, error mapping, health,
+                           lifespan (migrate, then each module's indexes), registration
+  worker/main.py           worker composition root: binds the runner into ops' loop
+  modules/<module>/
+    __init__.py            register(app), ensure_indexes() - all the root calls
+    api/                   the ONLY thing another module may import
+    features/<UseCase>.py  one file per use case: route (or job), validation, data access
+    domain/                request models and pure rules the module's slices share
+    infrastructure/        collections.py (its collections + indexes), shared adapters
+  shared/                  config, auth, mongo client + primitives, events, logging,
+                           tracing, otel, envfile - no module imports allowed
+```
+
+`apps/backend/src/cbc` also still holds the pre-module kernel the modules lean on
+(see *Still legacy* below).
+
+## The dependency rule
+
+A module may import another module **only** as `cbc.modules.<other>.api`. Nothing
+outside a module - the kernel, the composition roots, MCP servers, scripts - may
+import a module's `features`, `domain` or `infrastructure`. `shared` imports no
+module. No module names another module's collection. All of this is enforced by
+`apps/backend/tests/architecture/test_layering.py`.
+
+Who depends on whom (no cycles):
+
+```
+ops         ─ (nothing)
+pricing     → ops
+projects    → ops
+catalog     → ops, pricing
+extraction  → ops, projects
+quoting     → ops, projects, catalog, extraction, pricing
+intake      → ops, projects, extraction, quoting
+```
+
+When the dependency would point the wrong way, the owner does not get imported -
+it gets **plugged in**:
+
+| Seam | Declared by | Supplied by | Wired in |
+|---|---|---|---|
+| project code → id, bid names for the dead-letter list | `ops.api.project_lookup` | `projects.api.lookup` | `app/main.py` |
+| who is an admin | `shared.auth.set_role_lookup` | `ops.api.identity.role_of` | `app/main.py` |
+| what runs a claimed job | `ops.api.worker.bind` | `worker_kit.runtime` (the Claude pipeline) | `worker/main.py` |
+| board counts: documents, openings, quotes | `projects.api.board_sources` | intake, extraction, quoting | each module's `register` |
+
+and **events** (`shared/events.py`: in-process, awaited in order, no broker):
+
+| Event | Published by | Handled by |
+|---|---|---|
+| `ops.job_requeued` | ops `RetryJob` | projects - the bid's saga returns to the job's start state |
+| `projects.project_deleted` | projects `DeleteProject` | intake, extraction, quoting - each deletes its own rows |
+
+Typed errors stay transport-free and the root maps them: `ops.api.jobs.PipelineJobActive`
+→ 409, `projects.api.lookup.ProjectNotFound` → 404, `ValueError` → 400.
+
+## Adding a slice
+
+1. Create `modules/<module>/features/<UseCase>.py` with its own
+   `router = APIRouter(prefix=..., tags=[...])`, its request model, and its handler.
+   Read and write only your module's collections (`infrastructure/collections.py`).
+2. Add it to the tuple in `modules/<module>/__init__.py:register`. Order matters only
+   where paths overlap: literal paths before `{param}` paths.
+3. Need another module's data? Import `cbc.modules.<other>.api`. If it has no port
+   for what you need, add a small, named one there - not a generic query.
+4. Test it: `tests/characterization` pins every endpoint's status and shape;
+   `REQUIRE_MONGO=1 pytest` must stay green, and `test_layering` must pass.
+
+## Adding a module
+
+1. `modules/<name>/{__init__,api/__init__,features/__init__,domain/__init__,infrastructure/__init__}.py`.
+2. `infrastructure/collections.py`: one accessor per owned collection (names from
+   `cbc.persistence.names`) and `ensure_indexes()`.
+3. `__init__.py`: `register(app)` and `ensure_indexes()`.
+4. In `app/main.py`: import it, call `register` in `create_app`, and add its
+   `ensure_indexes` to `migrate_and_index` (after the migrations).
+5. Decide where it sits in the dependency graph above before its first import.
+
+## Data
+
+One Motor client (`shared/mongo.py`), one database, per-module collections and
+indexes. Migrations (`cbc/persistence/migrations`) are forward-only, run once at
+startup before any module's indexes, and are the one deliberate cross-collection
+exception - they rename and backfill across modules.
+
+## Still legacy - and where it goes
+
+The modules still import parts of the pre-module kernel; each such import is marked
+`ponytail:` with its destination, and `test_layering` fails on an unmarked one.
+
+- `cbc.db` - the `projects`, `jobs`, `settings` and `runMetrics` accessors for the
+  runner and `scripts/backfill_runmetrics.py`; the migration entry; the catalog's
+  read-only Mongo user.
+- `cbc.worker_kit.runtime` - the Claude pipeline that runs a claimed job, bound into
+  ops. It dissolves into job slices in extraction, pricing and quoting.
+- `cbc.services` - storage, PDF reading, malware scan, the extraction/geometry syncs,
+  matchcache, manifests, pretakeoff, render, sheetmap, the matching gate.
+- `cbc.schemas` - the shared vocabulary (`common`), job and user shapes, the
+  operational-collection specification.
+- `cbc.core`, `cbc.domain`, `cbc.pageindex`, `cbc.persistence`, `cbc.validation` -
+  kernel packages, unchanged by the rewrite.
+
+## Known inconsistencies (recorded, not resolved)
+
+- RFIs live in two places: `rfis` (quoting) and `calls` with `kind="rfi"` (projects).
+  Neither is authoritative; merging them changes behaviour.
+- `DELETE /api/users/{id}` and `DELETE /api/projects/{code}/quote/lines/{id}` answer
+  200, every other delete 204.
+- Out-of-scope products (`.claude/rules/scope-boundaries.md`) are documented, not enforced.
+- `projects.api.lookup.load` returns the stored bid document rather than a typed
+  reference; it narrows once its readers are sliced.

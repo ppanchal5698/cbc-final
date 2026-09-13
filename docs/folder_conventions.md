@@ -4,14 +4,15 @@
 
 | Path | Owns |
 |---|---|
-| `apps/backend/src/cbc/domain/` | Pure estimating rules |
-| `apps/backend/src/cbc/schemas/` | Pydantic shapes |
-| `apps/backend/src/cbc/services/` | Application services (pricing, quote, sync, …) |
-| `apps/backend/src/cbc/modules/{platform,…}/` | Domain HTTP + jobs stubs |
-| `apps/backend/src/cbc/worker_kit/` | Claude worker runtime |
-| `apps/backend/src/cbc/worker/` | `python -m cbc.worker` entry |
-| `apps/backend/src/cbc/pageindex/` | Vendor catalog page index |
-| `apps/backend/src/cbc/http/` | Shared FastAPI helpers |
+| `apps/backend/src/cbc/app/` | API composition root (`create_app`): middleware, error mapping, lifespan, module registration |
+| `apps/backend/src/cbc/worker/` | Worker composition root: `python -m cbc.worker` binds the runner into ops' loop |
+| `apps/backend/src/cbc/modules/<module>/api/` | The module's public surface - the only part another module may import |
+| `apps/backend/src/cbc/modules/<module>/features/` | One file per use case (endpoint or job) |
+| `apps/backend/src/cbc/modules/<module>/domain/` | Request models and pure rules the module's slices share |
+| `apps/backend/src/cbc/modules/<module>/infrastructure/` | The module's collections, indexes and adapters |
+| `apps/backend/src/cbc/shared/` | Config, auth, Mongo client + primitives, events, logging, tracing |
+| `apps/backend/src/cbc/{core,domain,pageindex,persistence,validation}/` | Kernel packages the modules build on |
+| `apps/backend/src/cbc/{db.py,services,schemas,worker_kit}/` | Legacy kernel, being worked down (see ARCHITECTURE.md) |
 | `apps/web/` | Next.js Ops-Hub |
 | `mcp-servers/` | One folder per MCP server; shared `_runtime` |
 | `.claude/` | Single agent-runtime source; Docker copies to `/app/agent-runtime` |
@@ -33,10 +34,10 @@ See [`archive/pre-monolith/README.md`](../archive/pre-monolith/README.md) for re
 
 ## Rules
 
-1. Prefer new work under `apps/backend/src/cbc/` and `apps/web/`.
-2. No upward imports across module API layers (see
-   `apps/backend/tests/architecture/test_layering.py`).
-3. Money math lives only in pure domain calc (not in routers).
-4. Do not start archived `services/*-api`; the live API is `platform`.
-5. Shell workflows (`workflows/_phase.sh`, etc.) use
-   `PYTHONPATH=…/apps/backend/src`.
+1. New backend work goes in a module slice under `apps/backend/src/cbc/modules/`.
+2. A module reaches another only through `cbc.modules.<other>.api`; see
+   [ARCHITECTURE.md](../ARCHITECTURE.md) and `apps/backend/tests/architecture/test_layering.py`.
+3. A module reads and writes only its own collections.
+4. Money math lives only in pure domain calc (not in routes).
+5. Do not start archived `services/*-api`; the live API is `platform`.
+6. Shell workflows (`workflows/_phase.sh`, etc.) use `PYTHONPATH=…/apps/backend/src`.

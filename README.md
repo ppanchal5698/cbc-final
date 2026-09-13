@@ -6,8 +6,10 @@ all Mongo jobs via `WORKER_CLAIM_ALL=1`.
 
 See [`docs/collections.mongodb.md`](docs/collections.mongodb.md),
 [`docs/app_lifecycle.md`](docs/app_lifecycle.md), and
-[`docs/architecture.md`](docs/architecture.md). ADR:
-[`docs/adr/004-modular-monolith-apps-backend.md`](docs/adr/004-modular-monolith-apps-backend.md).
+[`docs/architecture.md`](docs/architecture.md). The module map and its rules are in
+[`ARCHITECTURE.md`](ARCHITECTURE.md); decision records
+[`ADR-004`](docs/adr/004-modular-monolith-apps-backend.md) and
+[`ADR-005`](docs/adr/005-modules-own-their-data.md).
 
 ## Quick start
 
@@ -21,7 +23,7 @@ docker compose -f infra/docker-compose.yml up -d --build
 
 ## Layout
 
-- `apps/backend` — modular monolith (HTTP modules + `cbc.worker_kit`)
+- `apps/backend` — modular monolith: seven modules under `cbc.modules` ([`ARCHITECTURE.md`](ARCHITECTURE.md)), one API and one worker process
 - `apps/web` — Next.js Ops-Hub (proxies `/api` to `PLATFORM_URL`, audience `platform`)
 - `infra/docker-compose.yml` — mongo, clamav, platform, worker, web
 - `mcp-servers` / `.claude` — Claude Code tools and agents
@@ -36,7 +38,7 @@ Prefer the package-local editable install when developing the API alone:
 ```bash
 cd apps/backend
 python -m pip install -e ".[dev]"
-uvicorn cbc.api.main:app --port 8001
+uvicorn cbc.app.main:create_app --factory --port 8001
 ```
 
 Worker (compose uses claim-all; filter locally if needed):

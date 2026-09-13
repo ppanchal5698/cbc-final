@@ -1,7 +1,8 @@
 # CBC Backend (modular monolith)
 
-**Live modules:** Platform + Intake + Extraction + Pricing + Quoting + Catalog.
-**Workers:** Shared `cbc.worker_kit` via `python -m cbc.worker`
+**Modules:** ops, projects, catalog, intake, extraction, pricing, quoting - see
+[ARCHITECTURE.md](../../ARCHITECTURE.md).
+**Worker:** `python -m cbc.worker` - ops' claim loop with the Claude pipeline bound in
 (`WORKER_CLAIM_ALL=1` in compose; `WORKER_DOMAIN` for filtered local runs).
 
 Compose: one API container (`platform` on **8001**, `SERVICE_AUDIENCE=platform`)
@@ -16,7 +17,7 @@ started by the default compose file. CI gates this package's pytest suite.
 ```bash
 cd apps/backend
 python -m pip install -e ".[dev]"
-uvicorn cbc.api.main:app --port 8001
+uvicorn cbc.app.main:create_app --factory --port 8001
 pytest
 ```
 
@@ -41,7 +42,7 @@ docker compose -f infra/docker-compose.yml up -d \
 Expect:
 
 - `GET http://127.0.0.1:8001/api/health` → `200` with `"service":"platform"` and `"status":"ok"`
-- App version is `0.10.0-monolith` (OpenAPI / `cbc.api.app`)
+- App version is `0.10.0-monolith` (OpenAPI / `cbc.app.main`)
 - Web at `http://localhost:3000` → `302`/`200`
 - Worker logs `worker up - polling` (not a restart loop)
 
