@@ -23,7 +23,7 @@ from bson import ObjectId  # noqa: E402
 from bson.errors import InvalidId  # noqa: E402
 
 from cbc.db import db, ensure_indexes  # noqa: E402
-from cbc.services import runmetrics  # noqa: E402
+from cbc.modules.ops.api import runmetrics  # noqa: E402
 
 
 def _recordings() -> list[Path]:

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from cbc.services import provider  # ponytail: provider moves into ops with the worker (step 3.3d)
+from cbc.modules.ops.api import provider
 
 
 class ClaudeSettings(BaseModel):

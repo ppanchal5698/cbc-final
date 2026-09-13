@@ -121,7 +121,7 @@ def run_claude(
     answer prompts. The safety comes from the PreToolUse hooks, which fire
     regardless of permission mode and block every send and destructive delete.
 
-    `env` comes from `api.services.provider.build_env`, so which provider serves
+    `env` comes from `cbc.modules.ops.api.provider.build_env`, so which provider serves
     a job is a configured choice rather than a property of the shell that
     happened to launch the worker. Passing None inherits the environment, which
     is what preflight from a terminal wants.

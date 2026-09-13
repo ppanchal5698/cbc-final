@@ -10,7 +10,7 @@ FIXTURES = FIXTURES / "recordings"
 
 
 def test_parser_takes_last_result_and_strips_ansi() -> None:
-    from cbc.services import runmetrics
+    from cbc.modules.ops.api import runmetrics
 
     parsed = runmetrics.parse_recording(FIXTURES / "extract_bid_set.jsonl")
     assert parsed["totalCostUsd"] == 1.9990174
@@ -27,7 +27,7 @@ def test_parser_takes_last_result_and_strips_ansi() -> None:
 
 
 def test_document_for_tags_straggler_merge() -> None:
-    from cbc.services import runmetrics
+    from cbc.modules.ops.api import runmetrics
 
     doc = runmetrics.document_for(
         {"_id": "abc", "type": "extract_bid_set", "payload": {"stragglerMerge": True}, "attempts": 1},
@@ -38,7 +38,7 @@ def test_document_for_tags_straggler_merge() -> None:
 
 
 def test_parser_second_known_total() -> None:
-    from cbc.services import runmetrics
+    from cbc.modules.ops.api import runmetrics
 
     parsed = runmetrics.parse_recording(FIXTURES / "match_and_price.jsonl")
     assert parsed["totalCostUsd"] == 1.2621052500000003
@@ -52,7 +52,7 @@ def test_cold_prefix_tokens_cannot_exceed_the_cache_writes_they_are_part_of() ->
     835,071 cold-prefix tokens against a 241,256 cacheCreate total - a subset
     larger than its own set, which is the only signal the bug gave.
     """
-    from cbc.services import runmetrics
+    from cbc.modules.ops.api import runmetrics
 
     for name in ("extract_bid_set.jsonl", "match_and_price.jsonl"):
         tokens = runmetrics.parse_recording(FIXTURES / name)["tokens"]
@@ -66,7 +66,7 @@ def test_image_bytes_are_counted_from_the_result_not_the_tool_name() -> None:
     Keyed on the tool name this counted 1,084 chars of JSON paths and missed the
     2,054,388 chars of base64 that were 89% of the run's tool-result bytes.
     """
-    from cbc.services import runmetrics
+    from cbc.modules.ops.api import runmetrics
 
     events = [
         {
@@ -113,7 +113,7 @@ def test_image_bytes_are_counted_from_the_result_not_the_tool_name() -> None:
     "context hash is null in production too, not only in a checkout."
 ))
 def test_context_hashes_cover_prompt_rules_agents_and_skills() -> None:
-    from cbc.services import runmetrics
+    from cbc.modules.ops.api import runmetrics
 
     first = runmetrics.context_hashes("hello")
     second = runmetrics.context_hashes("hello")
@@ -129,7 +129,7 @@ def test_context_hashes_cover_prompt_rules_agents_and_skills() -> None:
 
 
 def test_document_id_is_job_and_attempt() -> None:
-    from cbc.services import runmetrics
+    from cbc.modules.ops.api import runmetrics
 
     parsed = runmetrics.parse_recording(FIXTURES / "extract_bid_set.jsonl")
     document = runmetrics.document_for(
@@ -147,7 +147,7 @@ def test_document_id_is_job_and_attempt() -> None:
 
 
 def test_parse_recording_name_splits_retry_suffix() -> None:
-    from cbc.services import runmetrics
+    from cbc.modules.ops.api import runmetrics
 
     assert runmetrics.parse_recording_name("abc.log") == ("abc", 1)
     assert runmetrics.parse_recording_name("abc-attempt3.log") == ("abc", 3)

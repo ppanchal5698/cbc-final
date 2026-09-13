@@ -39,7 +39,7 @@ def _repo_root() -> Path:
 REPO_ROOT = _repo_root()
 
 from cbc.shared import envfile
-from cbc.services import provider
+from cbc.modules.ops.api import provider
 
 envfile.apply_to_environ(skip=provider.MANAGED)
 
@@ -47,7 +47,8 @@ from cbc.db import db
 from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
 from cbc.modules.ops.api import audit
 from cbc.services import quote as quote_service, render, storage, sync
-from cbc.services import manifests, matchcache, pretakeoff, runmetrics, sheetmap
+from cbc.services import manifests, matchcache, pretakeoff, sheetmap
+from cbc.modules.ops.api import runmetrics
 from cbc.core import claude_cli as runner, streaming
 from cbc.shared import logs
 from cbc.validation import ArtifactValidationError, validate_job_artifacts
@@ -190,7 +191,7 @@ async def claim() -> dict | None:
     if CLAIMABLE_TYPES is not None:
         base_query["type"] = {"$in": sorted(CLAIMABLE_TYPES)}
 
-    from cbc.services import cost_budget
+    from cbc.modules.ops.api import cost_budget
 
     if not cost_budget.caps_enabled():
         return await db.jobs.find_one_and_update(
@@ -231,7 +232,7 @@ async def claim() -> dict | None:
             if not alerted:
                 alerted = True
                 try:
-                    from cbc.services import alerts
+                    from cbc.modules.ops.api import alerts
 
                     alerts.notify(
                         f"Worker cost budget blocked claim: {reason}",
@@ -405,7 +406,8 @@ async def _lease_held(job: dict) -> bool:
 
 async def _dead_letter(job: dict, detail: str) -> None:
     """Mark the bid's saga as blocked and ping operators."""
-    from cbc.services import alerts, chain
+    from cbc.modules.ops.api import alerts
+    from cbc.services import chain
 
     job_type = job.get("type") or ""
     state = chain.FAIL_STATE.get(job_type, "awaiting_manual_retry")

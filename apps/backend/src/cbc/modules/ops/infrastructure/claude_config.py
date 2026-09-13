@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from cbc.modules.ops.infrastructure.collections import settings_collection
-from cbc.services import provider  # ponytail: provider moves into ops with the worker (step 3.3d)
+from cbc.modules.ops.api import provider
 
 
 DOC_ID = "claude"

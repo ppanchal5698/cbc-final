@@ -26,7 +26,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from cbc.shared import envfile, logs
-from cbc.services.provider import MANAGED
+from cbc.modules.ops.api.provider import MANAGED
 
 envfile.apply_to_environ(skip=MANAGED)
 

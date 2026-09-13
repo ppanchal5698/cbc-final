@@ -33,7 +33,7 @@ from cbc.modules.ops.features.ClaudeOAuth.terminal import (
 )
 from cbc.modules.ops.infrastructure.claude_config import DOC_ID, load_config
 from cbc.modules.ops.infrastructure.collections import oauth_sessions, settings_collection
-from cbc.services import provider  # ponytail: provider moves into ops with the worker (step 3.3d)
+from cbc.modules.ops.api import provider
 from cbc.shared.auth import Actor, require_admin
 
 # Every settings route is admin-only: they read or write provider credentials,

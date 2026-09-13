@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 import pytest
 from bson import ObjectId
 
-from cbc.services import cost_budget
+from cbc.modules.ops.api import cost_budget
 
 
 def test_caps_disabled_by_default(monkeypatch) -> None:
@@ -34,7 +34,7 @@ def test_spend_usd_sums_aggregation(monkeypatch) -> None:
     class _DB:
         run_metrics = _RM()
 
-    monkeypatch.setattr(cost_budget, "db", _DB())
+    monkeypatch.setattr(cost_budget, "run_metrics", lambda: _DB.run_metrics)
     spent = asyncio.run(
         cost_budget.spend_usd(since=datetime.now(timezone.utc))
     )
@@ -76,10 +76,10 @@ def test_claim_skips_when_over_budget(monkeypatch) -> None:
     monkeypatch.setattr(runtime, "db", _DB())
     monkeypatch.setattr(runtime, "CLAIMABLE_TYPES", {"extract_bid_set"})
     monkeypatch.setattr(
-        "cbc.services.cost_budget.over_budget",
+        "cbc.modules.ops.api.cost_budget.over_budget",
         AsyncMock(return_value="daily spend $2.00 >= cap $1.00"),
     )
     monkeypatch.setattr(
-        "cbc.services.alerts.notify", lambda *a, **k: True
+        "cbc.modules.ops.api.alerts.notify", lambda *a, **k: True
     )
     assert asyncio.run(runtime.claim()) is None

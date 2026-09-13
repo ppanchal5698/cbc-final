@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from cbc.core import secrets
 from cbc.modules.ops.domain.claude_settings import ClaudeSettings, is_masked
 from cbc.modules.ops.infrastructure.claude_config import load_config
-from cbc.services import provider  # ponytail: provider moves into ops with the worker (step 3.3d)
+from cbc.modules.ops.api import provider
 from cbc.shared.auth import require_admin
 
 # Every settings route is admin-only: they read or write provider credentials,

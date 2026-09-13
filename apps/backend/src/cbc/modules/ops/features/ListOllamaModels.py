@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from cbc.services import provider  # ponytail: provider moves into ops with the worker (step 3.3d)
+from cbc.modules.ops.api import provider
 from cbc.shared.auth import require_admin
 
 # Every settings route is admin-only: they read or write provider credentials,

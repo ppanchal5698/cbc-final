@@ -1,7 +1,7 @@
 """Operator webhook is a no-op without ALERT_WEBHOOK_URL."""
 from __future__ import annotations
 
-from cbc.services import alerts
+from cbc.modules.ops.api import alerts
 
 
 def test_notify_is_silent_without_url(monkeypatch) -> None:

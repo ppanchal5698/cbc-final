@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from cbc.shared.paths import repo_root
-from cbc.db import db
+from cbc.modules.ops.infrastructure.collections import run_metrics as run_metrics_collection
 
 ROOT = repo_root()
 
@@ -421,5 +421,5 @@ async def record(
         outcome_status=outcome_status,
         error_code=error_code,
     )
-    await db.run_metrics.replace_one({"_id": document["_id"]}, document, upsert=True)
+    await run_metrics_collection().replace_one({"_id": document["_id"]}, document, upsert=True)
     return document

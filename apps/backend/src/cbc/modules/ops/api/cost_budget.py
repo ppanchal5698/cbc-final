@@ -7,7 +7,7 @@ from typing import Any
 
 from bson import ObjectId
 
-from cbc.db import db
+from cbc.modules.ops.infrastructure.collections import run_metrics
 
 
 async def spend_usd(
@@ -30,7 +30,7 @@ async def spend_usd(
         {"$match": match},
         {"$group": {"_id": None, "total": {"$sum": "$totalCostUsd"}}},
     ]
-    rows = await db.run_metrics.aggregate(pipeline).to_list(1)
+    rows = await run_metrics().aggregate(pipeline).to_list(1)
     if not rows:
         return 0.0
     return float(rows[0].get("total") or 0.0)

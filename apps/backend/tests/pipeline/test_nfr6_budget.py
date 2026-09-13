@@ -15,7 +15,7 @@ def test_runmetrics_records_duration_field() -> None:
     """runMetrics must expose a duration we can assert the budget against."""
     import inspect
 
-    from cbc.services import runmetrics
+    from cbc.modules.ops.api import runmetrics
 
     source = inspect.getsource(runmetrics)
     assert "duration" in source or "elapsed" in source or "total_cost" in source

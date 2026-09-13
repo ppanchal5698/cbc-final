@@ -16,6 +16,9 @@ red. Hence both trees are scanned here, not just the backend package.
 `compileall` cannot catch this and neither can a smoke import: the import is
 syntactically fine and sits inside a function nothing calls at start-up. This
 catches it by resolving the name every `from <package> import <name>` asks for.
+
+alerts has since moved again, deliberately, into ops' public surface
+(`cbc.modules.ops.api.alerts`); the regression check follows it there.
 """
 from __future__ import annotations
 
@@ -43,6 +46,9 @@ NAMESPACE_PACKAGES = frozenset(
         "cbc.pageindex",
         "cbc.http",
         "cbc.persistence",
+        # A module's public surface is a package of submodules too, and the
+        # worker reaches it through the same deferred imports that hid this defect.
+        "cbc.modules.ops.api",
     }
 )
 
@@ -94,5 +100,5 @@ def test_namespace_package_imports_all_resolve() -> None:
 
 def test_the_three_known_regressions_resolve() -> None:
     """Named explicitly so re-archiving any of these three is unmistakable."""
-    for dotted in ("cbc.services.alerts", "cbc.services.matching_gate", "cbc.core.pdftext"):
+    for dotted in ("cbc.modules.ops.api.alerts", "cbc.services.matching_gate", "cbc.core.pdftext"):
         assert _resolves(dotted), f"{dotted} is gone again - see this module's docstring"

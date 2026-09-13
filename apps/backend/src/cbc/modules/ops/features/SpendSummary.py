@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 
 from cbc.modules.ops.infrastructure.collections import run_metrics
-from cbc.services import cost_budget  # ponytail: moves into ops with the worker claim loop (step 3.3d)
+from cbc.modules.ops.api import cost_budget
 from cbc.shared.auth import require_admin
 
 router = APIRouter(prefix="/api/ops", tags=["ops"], dependencies=[Depends(require_admin)])

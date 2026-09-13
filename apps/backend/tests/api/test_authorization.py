@@ -146,27 +146,27 @@ def test_a_documentation_placeholder_is_refused(client, as_role) -> None:
     ],
 )
 def test_the_documented_providers_are_allowed(url: str) -> None:
-    from cbc.services import provider
+    from cbc.modules.ops.api import provider
 
     provider.check_base_url(url)  # must not raise
 
 
 def test_settings_placeholder_host_is_refused() -> None:
-    from cbc.services import provider
+    from cbc.modules.ops.api import provider
 
     with pytest.raises(ValueError, match="placeholder"):
         provider.check_base_url("https://gateway.example.com")
 
 
 def test_a_non_http_scheme_is_refused() -> None:
-    from cbc.services import provider
+    from cbc.modules.ops.api import provider
 
     with pytest.raises(ValueError, match="http or https"):
         provider.check_base_url("file:///etc/passwd")
 
 
 def test_an_operator_can_widen_the_allowlist(monkeypatch) -> None:
-    from cbc.services import provider
+    from cbc.modules.ops.api import provider
 
     with pytest.raises(ValueError):
         provider.check_base_url("https://gateway.internal.corp")
