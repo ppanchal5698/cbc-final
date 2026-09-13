@@ -1,4 +1,4 @@
-"""The in-process event bus, and the one event carried across a module boundary today."""
+"""The in-process event bus, and every event carried across a module boundary."""
 from __future__ import annotations
 
 import asyncio
@@ -113,3 +113,77 @@ def test_deleting_a_bid_reaches_the_module_that_owns_its_quote(monkeypatch) -> N
     asyncio.run(events.publish(bids.PROJECT_DELETED, project_id="p1"))
 
     assert deleted == ["p1"]
+
+
+def test_a_version_snapshot_reaches_the_modules_that_own_its_lines(monkeypatch) -> None:
+    """intake announces the version; extraction and quoting each stamp their own live rows."""
+    from fastapi import FastAPI
+
+    from cbc.modules import extraction, quoting
+    from cbc.modules.extraction.api import openings
+    from cbc.modules.quoting.api import lines
+    from cbc.shared import events
+
+    monkeypatch.setattr(events, "_subscribers", {})
+    stamped: list[tuple] = []
+
+    async def stamp_openings(project_id, version_id):
+        stamped.append(("openings", project_id, version_id))
+
+    async def stamp_lines(project_id, version_id):
+        stamped.append(("lines", project_id, version_id))
+
+    monkeypatch.setattr(openings, "set_version", stamp_openings)
+    monkeypatch.setattr(lines, "set_version", stamp_lines)
+    extraction.register(FastAPI())
+    quoting.register(FastAPI())
+    asyncio.run(events.publish(events.VERSION_SNAPSHOT_REQUESTED, project_id="p1", version_id="v2"))
+
+    assert stamped == [("openings", "p1", "v2"), ("lines", "p1", "v2")]
+
+
+def test_confirming_openings_drops_the_quote_totals_cache(monkeypatch) -> None:
+    """extraction announces confirmed openings; quoting's next totals read recomputes."""
+    from fastapi import FastAPI
+
+    from cbc.modules import quoting
+    from cbc.modules.extraction.api.openings import LINES_CONFIRMED
+    from cbc.modules.quoting.api import quote
+    from cbc.shared import events
+
+    monkeypatch.setattr(events, "_subscribers", {})
+    monkeypatch.setitem(quote._totals_cache, "p1", (0.0, {}, []))
+    quoting.register(FastAPI())
+    asyncio.run(events.publish(LINES_CONFIRMED, project_id="p1", count=3))
+
+    assert "p1" not in quote._totals_cache
+
+
+def test_a_completed_quote_ends_the_saga_in_the_api_and_in_the_worker(monkeypatch) -> None:
+    """quoting announces the drafted proposal; projects ends the saga at complete and the stage at 100.
+
+    The worker mounts no routes, so `projects.subscribe` must work on its own - a
+    build_proposal pass would otherwise leave the bid short of complete.
+    """
+    from fastapi import FastAPI
+
+    from cbc.modules import projects
+    from cbc.modules.projects.api import bids, saga
+    from cbc.shared import events
+
+    moved: list[tuple] = []
+
+    async def set_state(project_id, state, *, detail=None):
+        moved.append(("state", project_id, state))
+
+    async def set_stage(project_id, stage, progress, *, phase=None):
+        moved.append(("stage", project_id, stage, progress))
+
+    monkeypatch.setattr(saga, "set_state", set_state)
+    monkeypatch.setattr(bids, "set_stage", set_stage)
+    for compose in (lambda: projects.register(FastAPI()), projects.subscribe):
+        monkeypatch.setattr(events, "_subscribers", {})
+        compose()
+        asyncio.run(events.publish(events.QUOTE_COMPLETED, project_id="p1"))
+
+    assert moved == [("state", "p1", "complete"), ("stage", "p1", "proposal", 100)] * 2

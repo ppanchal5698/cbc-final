@@ -13,6 +13,13 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+# Topics heard by a module the publisher itself depends on, which could not import a
+# constant from the publisher. A topic every listener can import stays with its
+# publisher: ops.api.jobs.JOB_REQUEUED, projects.api.bids.PROJECT_DELETED,
+# extraction.api.openings.LINES_CONFIRMED.
+VERSION_SNAPSHOT_REQUESTED = "intake.version_snapshot_requested"  # project_id, version_id
+QUOTE_COMPLETED = "quoting.quote_completed"  # project_id
+
 Handler = Callable[..., Awaitable[None]]
 
 _subscribers: dict[str, list[Handler]] = {}

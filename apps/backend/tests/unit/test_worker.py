@@ -35,3 +35,11 @@ def test_smoke_version_includes_monolith() -> None:
     from cbc.app.main import create_app
 
     assert "monolith" in create_app().version
+
+
+def test_the_worker_root_ends_the_saga_on_a_completed_quote(wired_worker) -> None:
+    """build_proposal runs in the worker, which mounts no routes: it subscribes projects itself."""
+    from cbc.modules.projects.api import saga
+    from cbc.shared import events
+
+    assert saga.on_quote_completed in events._subscribers[events.QUOTE_COMPLETED]

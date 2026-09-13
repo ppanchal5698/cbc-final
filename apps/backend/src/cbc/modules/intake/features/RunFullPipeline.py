@@ -12,9 +12,9 @@ from typing import Any
 from cbc.modules.extraction.api import door_schedule, passes
 from cbc.modules.intake.api import documents
 from cbc.modules.ops.api import jobs as ops_jobs
-from cbc.modules.projects.api import bids, pipeline, saga
+from cbc.modules.projects.api import pipeline
 from cbc.modules.quoting.api import priced_lines, proposal_artifacts, quote
-from cbc.shared import manifests
+from cbc.shared import events, manifests
 
 
 async def run(job: dict[str, Any]) -> None:
@@ -56,8 +56,7 @@ async def sync_results(job: dict[str, Any], project: dict[str, Any] | None) -> s
     await quote.persist(project)
     failed = await asyncio.to_thread(proposal_artifacts.render_artifacts, job["type"], project["slug"])
     artifacts = await proposal_artifacts.import_proposal_artifacts(project)
-    await saga.set_state(project["_id"], "complete")
-    await bids.set_stage(project["_id"], "proposal", 100)
+    await events.publish(events.QUOTE_COMPLETED, project_id=project["_id"])
     written = sum(1 for present in artifacts.values() if present)
     note = (
         f"{openings['inserted'] + openings['updated']} opening(s), "

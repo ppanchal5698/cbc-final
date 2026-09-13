@@ -6,9 +6,11 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 
+from cbc.modules.extraction.api.openings import LINES_CONFIRMED
 from cbc.modules.extraction.infrastructure.collections import openings
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api.lookup import load
+from cbc.shared import events
 from cbc.shared.auth import Actor
 from cbc.shared.mongo import oid, serialise
 
@@ -34,4 +36,5 @@ async def confirm_line_item(code: str, item_id: str, actor: Actor) -> dict:
     await audit.record(
         "line_item.confirm", actor, {"projectId": project["_id"], "lineItemId": item["_id"]}
     )
+    await events.publish(LINES_CONFIRMED, project_id=project["_id"], count=1)
     return serialise(await openings().find_one({"_id": item["_id"]}))

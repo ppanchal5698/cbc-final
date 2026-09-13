@@ -13,6 +13,7 @@ from cbc.modules.intake.infrastructure.collections import versions
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api import bids
 from cbc.modules.intake.domain import versioning
+from cbc.shared import events
 from cbc.shared.mongo import serialise
 
 
@@ -94,9 +95,8 @@ async def snapshot(project: dict[str, Any], reason: str, actor: str) -> dict[str
 
     # Live lines belong to this version (spec: estimateLines.estimateVersionId).
     # Embedded snapshot stays as the immutable freeze for diffs until S3 fully
-    # migrates readers off the blob.
-    await quoting_lines.set_version(project_id, document["_id"])
-    await extraction_openings.set_version(project_id, document["_id"])
+    # migrates readers off the blob. Extraction and quoting each stamp their own.
+    await events.publish(events.VERSION_SNAPSHOT_REQUESTED, project_id=project_id, version_id=document["_id"])
 
     if previous is not None:
         # Sealing happens after the new version exists, so a crash between the two

@@ -6,9 +6,11 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter
 
+from cbc.modules.extraction.api.openings import LINES_CONFIRMED
 from cbc.modules.extraction.infrastructure.collections import openings
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api.lookup import load
+from cbc.shared import events
 from cbc.shared.auth import Actor
 
 router = APIRouter(prefix="/api/projects/{code}/line-items", tags=["line-items"])
@@ -32,4 +34,5 @@ async def confirm_all(code: str, actor: Actor) -> dict:
         {"projectId": project["_id"]},
         after={"confirmed": result.modified_count},
     )
+    await events.publish(LINES_CONFIRMED, project_id=project["_id"], count=result.modified_count)
     return {"confirmed": result.modified_count}

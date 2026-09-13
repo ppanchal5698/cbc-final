@@ -6,10 +6,12 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter
 
+from cbc.modules.extraction.api.openings import LINES_CONFIRMED
 from cbc.modules.extraction.domain.openings import BulkAction
 from cbc.modules.extraction.infrastructure.collections import openings
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api.lookup import load
+from cbc.shared import events
 from cbc.shared.auth import Actor
 from cbc.shared.mongo import oid
 
@@ -47,4 +49,6 @@ async def bulk_action(code: str, body: BulkAction, actor: Actor) -> dict:
         {"projectId": project["_id"]},
         after={"requested": len(body.ids), "affected": affected},
     )
+    if body.action == "confirm":
+        await events.publish(LINES_CONFIRMED, project_id=project["_id"], count=affected)
     return {"action": body.action, "requested": len(body.ids), "affected": affected}

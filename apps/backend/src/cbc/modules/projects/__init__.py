@@ -10,13 +10,19 @@ Other modules import only `cbc.modules.projects.api`. Slices are imported inside
 from __future__ import annotations
 
 
-def register(app) -> None:
-    """Mount this module's routes, and subscribe to what it listens for."""
+def subscribe() -> None:
+    """What projects listens for. `register` calls it; the worker, which mounts no routes, calls it itself."""
     from cbc.modules.ops.api import jobs as ops_jobs
     from cbc.modules.projects.api import saga
     from cbc.shared import events
 
     events.subscribe(ops_jobs.JOB_REQUEUED, saga.on_job_requeued)
+    events.subscribe(events.QUOTE_COMPLETED, saga.on_quote_completed)
+
+
+def register(app) -> None:
+    """Mount this module's routes, and subscribe to what it listens for."""
+    subscribe()
 
     from cbc.modules.projects.features import (
         CreateProject,

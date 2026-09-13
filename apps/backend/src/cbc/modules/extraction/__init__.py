@@ -21,6 +21,8 @@ def register(app) -> None:
     # the board's opening counts and listens for a bid being deleted.
     board_sources.bind_opening_counts(openings_api.counts_by_project)
     events.subscribe(bids.PROJECT_DELETED, delete_for_project)
+    # intake depends on extraction too: it announces a version, extraction stamps its openings.
+    events.subscribe(events.VERSION_SNAPSHOT_REQUESTED, openings_api.set_version)
 
     from cbc.modules.extraction.features import (
         AddLineItemByHand,

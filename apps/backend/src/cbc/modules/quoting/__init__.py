@@ -11,7 +11,9 @@ from __future__ import annotations
 
 def register(app) -> None:
     """Mount this module's routes, and plug in what it supplies to projects."""
+    from cbc.modules.extraction.api import openings as openings_api
     from cbc.modules.projects.api import bids, board_sources
+    from cbc.modules.quoting.api import lines as lines_api
     from cbc.modules.quoting.api import quote as quote_api
     from cbc.modules.quoting.infrastructure.collections import delete_for_project
     from cbc.shared import events
@@ -20,6 +22,10 @@ def register(app) -> None:
     # board's quote totals and listens for a bid being deleted.
     board_sources.bind_quotes(quote_api.by_project)
     events.subscribe(bids.PROJECT_DELETED, delete_for_project)
+    # intake announces a version, and quoting stamps its live lines; extraction
+    # announces confirmed openings, and quoting drops the bid's totals cache.
+    events.subscribe(events.VERSION_SNAPSHOT_REQUESTED, lines_api.set_version)
+    events.subscribe(openings_api.LINES_CONFIRMED, quote_api.on_lines_confirmed)
 
     from cbc.modules.quoting.features import (
         AddQuoteLine,

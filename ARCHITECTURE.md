@@ -85,6 +85,15 @@ and **events** (`shared/events.py`: in-process, awaited in order, no broker):
 |---|---|---|
 | `ops.job_requeued` | ops `RetryJob` | projects - the bid's saga returns to the job's start state |
 | `projects.project_deleted` | projects `DeleteProject` | intake, extraction, quoting - each deletes its own rows |
+| `intake.version_snapshot_requested` | intake's snapshot (`CreateVersion`, `UploadDocument`) | extraction, quoting - each stamps its live rows with the new version |
+| `extraction.lines_confirmed` | extraction `ConfirmLineItem`, `ConfirmAllLineItems`, `BulkLineItemAction`, `ResolveDuplicate` | quoting - drops the bid's totals cache |
+| `quoting.quote_completed` | quoting `BuildProposal`, intake `RunFullPipeline` | projects - the saga ends at `complete`, the board at proposal 100% |
+
+A topic lives with its publisher when every listener can import it; the two heard
+by modules the publisher depends on are named in `shared/events.py`. The worker
+mounts no routes, so `app/worker.py` calls `projects.subscribe()` itself. The
+plan also had ops audit each of these; every publisher already writes its own
+audit row, so no listener was added for it.
 
 Typed errors stay transport-free and the root maps them: `ops.api.jobs.PipelineJobActive`
 → 409, `projects.api.lookup.ProjectNotFound` → 404, `ValueError` → 400.

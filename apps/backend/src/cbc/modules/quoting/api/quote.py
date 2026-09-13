@@ -46,6 +46,11 @@ def invalidate_totals_cache(project_id) -> None:
     _totals_cache.pop(_cache_key(project_id), None)
 
 
+async def on_lines_confirmed(project_id, count: int) -> None:
+    """extraction confirmed openings: the next totals read recomputes rather than serve the cache."""
+    invalidate_totals_cache(project_id)
+
+
 async def lines_for(project_id) -> list[dict[str, Any]]:
     lines = await estimate_lines().find({"projectId": project_id}).sort("division", 1).to_list(
         MAX_QUOTE_LINES + 1

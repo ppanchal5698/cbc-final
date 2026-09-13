@@ -6,6 +6,9 @@ from typing import Any
 
 from cbc.modules.extraction.infrastructure.collections import failed_extractions, openings
 
+# An estimator confirmed openings on a bid: project_id, count.
+LINES_CONFIRMED = "extraction.lines_confirmed"
+
 
 async def list_for_project(
     project_id: Any, *, sort: list[tuple[str, int]] | None = None, limit: int | None = None

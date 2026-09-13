@@ -159,15 +159,18 @@ def auth_headers():
 
 @pytest.fixture
 def wired_worker(monkeypatch):
-    """The worker's composition root wired - ops' job registry and the ports it fills
-    are put back afterwards, so no later test finishes a job into real hooks."""
+    """The worker's composition root wired - ops' job registry, the ports it fills and
+    the event subscriptions are put back afterwards, so no later test finishes a job
+    into real hooks."""
     from cbc.modules.extraction.api import documents
     from cbc.modules.ops.api import worker
     from cbc.app import worker as main
+    from cbc.shared import events
 
     for name, empty in (("_handlers", {}), ("_after", {}), ("_after_finish", None), ("_on_dead", None)):
         monkeypatch.setattr(worker, name, empty)
     for name in ("_mark_received", "_count_received_after"):
         monkeypatch.setattr(documents, name, None)
+    monkeypatch.setattr(events, "_subscribers", {topic: list(heard) for topic, heard in events._subscribers.items()})
     main.wire()
     return worker

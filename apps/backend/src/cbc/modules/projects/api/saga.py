@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Literal
 
+from cbc.modules.projects.api import bids
 from cbc.modules.projects.infrastructure.collections import bid_requests
 
 ChainState = Literal[
@@ -145,3 +146,12 @@ async def on_job_requeued(job: dict[str, Any]) -> None:
     start = START_STATE.get(job.get("type") or "")
     if start and job.get("projectId") is not None:
         await set_state(job["projectId"], start, detail="Requeued from the dead-letter queue.")
+
+
+async def on_quote_completed(project_id: Any) -> None:
+    """quoting drafted the proposal: the saga ends at complete, the board at proposal 100%.
+
+    A draft for the estimator, never a sent quote (NFR-1).
+    """
+    await set_state(project_id, "complete")
+    await bids.set_stage(project_id, "proposal", 100)
