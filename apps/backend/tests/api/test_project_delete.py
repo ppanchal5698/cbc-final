@@ -111,7 +111,7 @@ def test_admin_delete_purges_mongo_and_disk(client) -> None:
 
 
 def test_admin_delete_removes_queued_job_history(client) -> None:
-    from cbc.services.jobs import enqueue
+    from cbc.modules.ops.api.jobs import enqueue
 
     project = _create_project(client)
     project_id = _project_id(project)

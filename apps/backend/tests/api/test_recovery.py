@@ -186,7 +186,7 @@ def test_only_one_active_pipeline_job_per_project(database) -> None:
     """Autopilot and manual pricing must not run as two Claude sessions on one bid."""
     from bson import ObjectId
 
-    from cbc.services import jobs
+    from cbc.modules.ops.api import jobs
 
     project_id = ObjectId()
     autopilot = run(jobs.enqueue("run_full_pipeline", project_id))
@@ -208,7 +208,7 @@ def test_only_one_active_pipeline_job_per_project(database) -> None:
 def test_enqueue_exclusive_refuses_a_second_pipeline_type(database) -> None:
     from bson import ObjectId
 
-    from cbc.services import jobs
+    from cbc.modules.ops.api import jobs
 
     project_id = ObjectId()
     run(jobs.enqueue("extract_bid_set", project_id))
@@ -266,7 +266,7 @@ def test_two_price_book_ingests_can_queue_together(database) -> None:
     The second upload was handed back the first one's job and its sheet was never
     read - while the API reported success.
     """
-    from cbc.services.jobs import enqueue
+    from cbc.modules.ops.api.jobs import enqueue
 
     async def both():
         return (
@@ -284,7 +284,7 @@ def test_a_second_extraction_on_one_bid_is_still_the_same_job(database) -> None:
     """The double-click guard this index exists for still has to work."""
     from bson import ObjectId
 
-    from cbc.services.jobs import enqueue
+    from cbc.modules.ops.api.jobs import enqueue
 
     project_id = ObjectId()
 
@@ -415,7 +415,7 @@ def test_re_uploading_a_sheet_does_not_queue_a_second_index(database) -> None:
     over one sheet raced to write the same pageIndex document. Indexing is
     idempotent on the file hash, so the second was waste even when it won.
     """
-    from cbc.services import jobs
+    from cbc.modules.ops.api import jobs
 
     payload = {"priceBookId": "0" * 24, "filename": "hager_price_book_18.pdf"}
     first = run(jobs.enqueue("index_catalog", payload=dict(payload)))
@@ -426,7 +426,7 @@ def test_re_uploading_a_sheet_does_not_queue_a_second_index(database) -> None:
 
 
 def test_a_different_sheet_still_gets_its_own_job(database) -> None:
-    from cbc.services import jobs
+    from cbc.modules.ops.api import jobs
 
     first = run(jobs.enqueue("index_catalog", payload={"filename": "rockwood.pdf"}))
     second = run(jobs.enqueue("index_catalog", payload={"filename": "pemko.pdf"}))
@@ -437,7 +437,7 @@ def test_a_different_sheet_still_gets_its_own_job(database) -> None:
 
 def test_a_finished_index_does_not_block_a_re_index(database) -> None:
     """Coalescing is about work in flight. A sheet that changed must re-index."""
-    from cbc.services import jobs
+    from cbc.modules.ops.api import jobs
 
     first = run(jobs.enqueue("index_catalog", payload={"filename": "gamco.pdf"}))
     database["jobs"].update_one({"_id": first["_id"]}, {"$set": {"status": "done"}})
@@ -447,7 +447,7 @@ def test_a_finished_index_does_not_block_a_re_index(database) -> None:
 
 
 def test_same_file_sha_coalesces_even_when_filenames_differ(database) -> None:
-    from cbc.services import jobs
+    from cbc.modules.ops.api import jobs
 
     first = run(
         jobs.enqueue(
@@ -466,7 +466,7 @@ def test_same_file_sha_coalesces_even_when_filenames_differ(database) -> None:
 
 
 def test_a_different_file_sha_still_gets_its_own_job(database) -> None:
-    from cbc.services import jobs
+    from cbc.modules.ops.api import jobs
 
     first = run(
         jobs.enqueue(
@@ -489,7 +489,7 @@ def test_a_different_file_sha_still_gets_its_own_job(database) -> None:
 
 def test_metrics_report_depth_throughput_and_failures(database) -> None:
     """The only operational view of the queue was `docker logs`."""
-    from cbc.services import jobs
+    from cbc.modules.ops.api import jobs
 
     now = _now()
     # Distinct projects: `exclusive_active_job` is a unique partial index over
@@ -522,7 +522,7 @@ def test_metrics_report_depth_throughput_and_failures(database) -> None:
 
 def test_a_running_job_does_not_drag_the_average_down(database) -> None:
     """It has a startedAt and no finishedAt, so it has no duration yet."""
-    from cbc.services import jobs
+    from cbc.modules.ops.api import jobs
 
     now = _now()
     database["jobs"].insert_many([
@@ -537,7 +537,7 @@ def test_a_running_job_does_not_drag_the_average_down(database) -> None:
 
 def test_no_finished_jobs_reports_no_rate_rather_than_zero(database) -> None:
     """A 0% failure rate over zero jobs is not good news, it is no news."""
-    from cbc.services import jobs
+    from cbc.modules.ops.api import jobs
 
     database["jobs"].insert_one(
         {"type": "extract_bid_set", "status": "queued", "createdAt": _now()}
@@ -588,7 +588,7 @@ def test_artifact_validation_failure_is_not_retried(database) -> None:
 def test_a_dead_job_can_be_retried(database) -> None:
     from bson import ObjectId
 
-    from cbc.services import jobs
+    from cbc.modules.ops.api import jobs
 
     job_id = ObjectId()
     project_id = ObjectId()

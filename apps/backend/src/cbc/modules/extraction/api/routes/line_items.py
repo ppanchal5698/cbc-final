@@ -16,7 +16,7 @@ from cbc.shared.mongo import oid, serialise
 from cbc.shared.auth import Actor
 from cbc.schemas import BulkAction, LineItemCreate, LineItemUpdate
 from cbc.http.projects_access import load
-from cbc.http.pipeline_jobs import enqueue_pipeline
+from cbc.modules.ops.api.jobs import enqueue_pipeline
 from cbc.persistence import repos
 from cbc.modules.ops.api import audit
 from cbc.services import feedback, sync

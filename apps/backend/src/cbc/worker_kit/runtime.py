@@ -398,7 +398,7 @@ def _owns_job(job: dict, current: dict | None) -> bool:
 
 async def _lease_held(job: dict) -> bool:
     """Running lease still matches this worker's fencing token."""
-    from cbc.services.jobs import holds_lease
+    from cbc.modules.ops.api.jobs import holds_lease
 
     return await holds_lease(job)
 
@@ -660,7 +660,7 @@ async def _queue_straggler_reextract(job: dict[str, Any]) -> dict[str, Any] | No
     if not fresh.get("stragglerPending") and not stragglers:
         return None
 
-    from cbc.services import jobs as job_service
+    from cbc.modules.ops.api import jobs as job_service
 
     payload = dict(fresh.get("payload") or {})
     # Merge-only follow-up: do not rewrite scope_summary / openings from scratch.

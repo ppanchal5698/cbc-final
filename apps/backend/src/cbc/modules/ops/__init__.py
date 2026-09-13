@@ -1,9 +1,9 @@
 """ops: running the platform.
 
 Sign-in and users, the audit trail, spend, integration status and system
-settings - and, as the remaining steps land, the job queue and the worker that
+settings, the job queue and its routes - and, in the next step, the worker that
 drains it. It owns `users`, `authAttempts`, `auditLogs`, `runMetrics`,
-`settings` and `oauthSessions`.
+`settings`, `oauthSessions` and `jobs`.
 
 Other modules import only `cbc.modules.ops.api`. This file stays light: slices are
 imported inside `register`, so a module that only wants `ops.api.audit` does not
@@ -17,18 +17,27 @@ OAUTH_SWEEP_SECONDS = 60
 def register(app) -> None:
     """Mount this module's routes on the application."""
     from cbc.modules.ops.features import (
+        CancelJob,
         ClaudeOAuth,
         ClaudeSettings,
+        CreateJob,
         CreateUser,
         DeleteUser,
         FreshnessSettings,
+        GetJob,
         GetMe,
+        GetTerminal,
         IntegrationStatus,
+        JobMetrics,
         ListAudit,
+        ListDeadJobs,
+        ListJobs,
         ListOllamaModels,
         ListUsers,
         PipelineSettings,
+        RetryJob,
         SpendSummary,
+        StreamTerminal,
         TestClaudeSettings,
         UpdateUser,
         VerifyCredentials,
@@ -50,6 +59,17 @@ def register(app) -> None:
         TestClaudeSettings,
         ListOllamaModels,
         ClaudeOAuth,
+        # Static /api/jobs paths before /api/jobs/{job_id}: routes match in the
+        # order they are registered, so otherwise "metrics" is read as a job id.
+        ListJobs,
+        JobMetrics,
+        ListDeadJobs,
+        GetJob,
+        CreateJob,
+        CancelJob,
+        RetryJob,
+        GetTerminal,
+        StreamTerminal,
     ):
         app.include_router(feature.router)
 

@@ -80,7 +80,7 @@ async def import_quote_lines(
 ) -> dict[str, int]:
     """Load `priced/line_items.json` into `quoteLines`."""
     if job is not None:
-        from cbc.services.jobs import holds_lease
+        from cbc.modules.ops.api.jobs import holds_lease
 
         if not await holds_lease(job):
             return {"inserted": 0, "updated": 0, "skipped": 0, "aborted": True}
@@ -171,7 +171,7 @@ async def import_quote_lines(
 
     if bulk:
         if job is not None:
-            from cbc.services.jobs import holds_lease
+            from cbc.modules.ops.api.jobs import holds_lease
 
             if not await holds_lease(job):
                 return {"inserted": 0, "updated": 0, "skipped": 0, "aborted": True}

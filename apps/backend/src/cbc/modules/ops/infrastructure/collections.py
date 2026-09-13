@@ -8,7 +8,8 @@ from __future__ import annotations
 from pymongo import ASCENDING, DESCENDING
 
 from cbc.persistence import names
-from cbc.shared.mongo import database
+from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
+from cbc.shared.mongo import database, replace_index
 
 # How long a failed sign-in stays counted. The TTL index below and
 # VerifyCredentials' window both read it from here, so they cannot disagree.
@@ -39,6 +40,10 @@ def oauth_sessions():
     return database()[names.OAUTH_SESSIONS]
 
 
+def jobs():
+    return database()[names.JOBS]
+
+
 async def ensure_indexes() -> None:
     """Idempotent. Runs after the migrations, because m001 renames auditLog."""
     await users().create_index([("email", ASCENDING)], unique=True)
@@ -60,3 +65,29 @@ async def ensure_indexes() -> None:
     await oauth_sessions().create_index(
         [("expiresAt", ASCENDING)], name="oauth_session_ttl", expireAfterSeconds=0
     )
+    await jobs().create_index([("status", ASCENDING), ("createdAt", ASCENDING)])
+    await jobs().create_index([("projectId", ASCENDING), ("createdAt", DESCENDING)])
+    await replace_index(
+        jobs(),
+        "exclusive_active_job",
+        [("projectId", ASCENDING)],
+        unique=True,
+        partialFilterExpression={
+            "status": {"$in": ["queued", "running"]},
+            # One Claude session per bid: at most one active pipeline job per
+            # project, regardless of type (autopilot must not overlap pricing).
+            "type": {"$in": list(EXCLUSIVE_JOB_TYPES)},
+        },
+    )
+    await replace_index(
+        jobs(),
+        "idempotency_active_job",
+        [("idempotencyKey", ASCENDING)],
+        unique=True,
+        partialFilterExpression={
+            "status": {"$in": ["queued", "running"]},
+            "idempotencyKey": {"$exists": True, "$type": "string"},
+        },
+    )
+    await jobs().create_index([("status", ASCENDING), ("heartbeatAt", ASCENDING)])
+    await jobs().create_index([("status", ASCENDING), ("finishedAt", DESCENDING)])

@@ -16,10 +16,10 @@ from cbc.shared.mongo import oid, serialise
 from cbc.shared.auth import Actor
 from cbc.schemas import QuoteLineCreate, QuoteLineUpdate, QuoteSettings
 from cbc.http.projects_access import load
-from cbc.http.pipeline_jobs import enqueue_pipeline
+from cbc.modules.ops.api.jobs import enqueue_pipeline
 from cbc.modules.ops.api import audit
 from cbc.modules.ops.api import freshness as freshness_settings
-from cbc.services import feedback, jobs, quote as quote_service, sync
+from cbc.services import feedback, quote as quote_service, sync
 
 router = APIRouter(prefix="/api/projects/{code}/quote", tags=["quote"])
 

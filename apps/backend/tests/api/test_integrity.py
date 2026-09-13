@@ -123,7 +123,7 @@ def test_pricebook_ingest_is_not_an_exclusive_job() -> None:
     first one's job instead of being queued.
     """
     from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
-    from cbc.services.jobs import EXCLUSIVE
+    from cbc.modules.ops.api.jobs import EXCLUSIVE
 
     assert "ingest_pricebook" not in EXCLUSIVE_JOB_TYPES
     assert EXCLUSIVE == set(EXCLUSIVE_JOB_TYPES)
@@ -133,9 +133,9 @@ def test_exclusive_active_job_index_is_one_per_project() -> None:
     """Two pipeline types on one bid must not both be active at once."""
     import inspect
 
-    from cbc import db as db_module
+    from cbc.modules.ops.infrastructure import collections
 
-    source = inspect.getsource(db_module.ensure_indexes)
+    source = inspect.getsource(collections.ensure_indexes)
     assert '"exclusive_active_job"' in source
     assert '("projectId", ASCENDING)]' in source
     assert '("projectId", ASCENDING), ("type", ASCENDING)' not in source

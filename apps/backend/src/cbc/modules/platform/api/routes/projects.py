@@ -14,7 +14,7 @@ from cbc.db import db
 from cbc.shared.mongo import oid, serialise
 from cbc.shared.auth import AdminActor, Actor
 from cbc.schemas import ProjectCreate, ProjectUpdate
-from cbc.modules.ops.api import audit, pipeline as ops_pipeline
+from cbc.modules.ops.api import audit, jobs as ops_jobs, pipeline as ops_pipeline
 from cbc.services import storage, reuse
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -115,12 +115,7 @@ async def _decorate_many(projects: list[dict[str, Any]]) -> list[dict[str, Any]]
         quote["projectId"]: quote
         for quote in await db.quotes.find({"projectId": {"$in": ids}}).to_list(len(ids) + 1)
     }
-    # Newest first, so the first one seen per project is the current active job.
-    active: dict[Any, dict[str, Any]] = {}
-    for job in await db.jobs.find(
-        {"projectId": {"$in": ids}, "status": {"$in": ["queued", "running"]}}
-    ).sort("createdAt", -1).to_list(length=None):
-        active.setdefault(job["projectId"], job)
+    active = await ops_jobs.active_by_project(ids)
 
     documents = await _count_by_project(db.documents, ids)
     calls = await _count_by_project(db.calls, ids)
@@ -330,17 +325,7 @@ async def delete_project(code: str, actor: AdminActor) -> Response:
     project_id = project["_id"]
     slug = project.get("slug") or ""
 
-    await db.jobs.update_many(
-        {"projectId": project_id, "status": {"$in": ["queued", "running"]}},
-        {
-            "$set": {
-                "status": "cancelled",
-                "cancelledAt": datetime.now(timezone.utc),
-                "cancelledBy": actor,
-                "note": "project deleted",
-            }
-        },
-    )
+    await ops_jobs.cancel_active_for_project(project_id, actor, note="project deleted")
     for collection in (
         db.line_items,
         db.quote_lines,
@@ -351,7 +336,7 @@ async def delete_project(code: str, actor: AdminActor) -> Response:
         db.calls,
     ):
         await collection.delete_many({"projectId": project_id})
-    await db.jobs.delete_many({"projectId": project_id})
+    await ops_jobs.delete_for_project(project_id)
     await db.projects.delete_one({"_id": project_id})
 
     try:

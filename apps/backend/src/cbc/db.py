@@ -17,9 +17,8 @@ from pymongo import ASCENDING, DESCENDING, TEXT
 from pymongo.errors import DuplicateKeyError, OperationFailure, PyMongoError
 
 from cbc.shared.config import settings
-from cbc.shared.mongo import client, database
+from cbc.shared.mongo import INDEX_BUILD_ABORTED, client, create_index_resilient, database, replace_index
 from cbc.persistence import names
-from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
 
 log = logging.getLogger("cbc.api.db")
 
@@ -126,48 +125,6 @@ class Collections:
 db = Collections()
 
 
-# Mongo aborts an in-flight build when another client drops the same index
-# name (common when every API runs ensure_indexes on compose up).
-_INDEX_BUILD_ABORTED = 276
-
-
-async def _create_index_resilient(collection, keys, **options) -> None:
-    """create_index with a short retry when a peer aborts the build."""
-    delay = 0.2
-    for attempt in range(5):
-        try:
-            await collection.create_index(keys, **options)
-            return
-        except OperationFailure as exc:
-            # Peer dropped this index mid-build.
-            if exc.code == _INDEX_BUILD_ABORTED and attempt < 4:
-                await asyncio.sleep(delay)
-                delay = min(delay * 2, 2.0)
-                continue
-            # Same key under another name (e.g. auto-named part_1 vs part_lookup).
-            if exc.code == 85 and "different name" in (exc.details or {}).get("errmsg", exc.errmsg or ""):
-                other = None
-                msg = (exc.details or {}).get("errmsg") or exc.errmsg or ""
-                # "... different name: part_1"
-                if "different name:" in msg:
-                    other = msg.rsplit("different name:", 1)[-1].strip().rstrip(".")
-                if other and options.get("name") and other != options["name"]:
-                    try:
-                        await collection.drop_index(other)
-                        log.info(
-                            "dropped %s.%s (same key as %s)",
-                            collection.name,
-                            other,
-                            options["name"],
-                        )
-                    except OperationFailure:
-                        pass
-                    await asyncio.sleep(delay)
-                    delay = min(delay * 2, 2.0)
-                    continue
-            raise
-
-
 async def _ensure_part_lookup_index() -> None:
     """Ensure non-unique `part_lookup`; migrate away from auto-named `part_1`.
 
@@ -187,33 +144,12 @@ async def _ensure_part_lookup_index() -> None:
             await db.products.drop_index("part_1")
             log.info("dropped products.part_1 (migrating to part_lookup)")
         except OperationFailure as exc:
-            if exc.code != _INDEX_BUILD_ABORTED:
+            if exc.code != INDEX_BUILD_ABORTED:
                 log.debug("products.part_1 drop skipped: %s", exc)
             await asyncio.sleep(0.3)
-    await _create_index_resilient(
+    await create_index_resilient(
         db.products, [("part", ASCENDING)], name="part_lookup"
     )
-
-
-async def _replace_index(collection, name: str, keys, **options) -> None:
-    """Create an index, replacing an existing one whose options differ.
-
-    `create_index` is idempotent only while the options match; changing them on an
-    index that already exists raises rather than migrating, which would leave a
-    tightened constraint silently un-applied on every database that already had
-    the old one - that is, all of them.
-    """
-    try:
-        await _create_index_resilient(collection, keys, name=name, **options)
-        return
-    except OperationFailure as exc:
-        if exc.code not in (85, 86):  # IndexOptionsConflict, IndexKeySpecsConflict
-            raise
-    try:
-        await collection.drop_index(name)
-    except OperationFailure:
-        pass
-    await _create_index_resilient(collection, keys, name=name, **options)
 
 
 async def ensure_indexes() -> None:
@@ -232,7 +168,7 @@ async def ensure_indexes() -> None:
     await db.projects.create_index([("slug", ASCENDING)], unique=True)
     await db.projects.create_index([("stage", ASCENDING), ("bidDue", ASCENDING)])
     await db.documents.create_index([("projectId", ASCENDING)])
-    await _replace_index(
+    await replace_index(
         db.documents,
         "project_content_sha",
         [("projectId", ASCENDING), ("contentSha", ASCENDING)],
@@ -242,7 +178,7 @@ async def ensure_indexes() -> None:
         },
     )
     await db.line_items.create_index([("projectId", ASCENDING), ("status", ASCENDING)])
-    await _replace_index(
+    await replace_index(
         db.line_items,
         "opening_door_identity",
         [("orgId", ASCENDING), ("projectId", ASCENDING), ("doorNumber", ASCENDING)],
@@ -265,9 +201,9 @@ async def ensure_indexes() -> None:
     # abort index builds, and a leftover non-unique `part_1` blocks creating
     # `part_lookup`. Migrate explicitly via `_ensure_part_lookup_index`.
     await _ensure_part_lookup_index()
-    await _create_index_resilient(db.products, [("division", ASCENDING)])
+    await create_index_resilient(db.products, [("division", ASCENDING)])
     try:
-        await _replace_index(
+        await replace_index(
             db.products,
             "product_identity",
             [("manufacturer", ASCENDING), ("part", ASCENDING)],
@@ -284,38 +220,12 @@ async def ensure_indexes() -> None:
         name="product_search",
     )
     await db.price_books.create_index([("vendor", ASCENDING), ("program", ASCENDING)])
-    await db.jobs.create_index([("status", ASCENDING), ("createdAt", ASCENDING)])
-    await db.jobs.create_index([("projectId", ASCENDING), ("createdAt", DESCENDING)])
-    await _replace_index(
-        db.jobs,
-        "exclusive_active_job",
-        [("projectId", ASCENDING)],
-        unique=True,
-        partialFilterExpression={
-            "status": {"$in": ["queued", "running"]},
-            # One Claude session per bid: at most one active pipeline job per
-            # project, regardless of type (autopilot must not overlap pricing).
-            "type": {"$in": list(EXCLUSIVE_JOB_TYPES)},
-        },
-    )
-    await _replace_index(
-        db.jobs,
-        "idempotency_active_job",
-        [("idempotencyKey", ASCENDING)],
-        unique=True,
-        partialFilterExpression={
-            "status": {"$in": ["queued", "running"]},
-            "idempotencyKey": {"$exists": True, "$type": "string"},
-        },
-    )
-    await db.jobs.create_index([("status", ASCENDING), ("heartbeatAt", ASCENDING)])
-    await db.jobs.create_index([("status", ASCENDING), ("finishedAt", DESCENDING)])
     await db.failed_extractions.create_index(
         [("projectId", ASCENDING), ("createdAt", DESCENDING)]
     )
     await db.failed_extractions.create_index([("jobId", ASCENDING)])
     await db.calls.create_index([("projectId", ASCENDING), ("createdAt", DESCENDING)])
-    await _replace_index(
+    await replace_index(
         db.versions,
         "project_version",
         [("projectId", ASCENDING), ("version", DESCENDING)],

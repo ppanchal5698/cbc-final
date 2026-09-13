@@ -57,7 +57,7 @@ def database(monkeypatch):
 
 
 def test_capped_next_attempt_never_past_ceiling():
-    from cbc.services.jobs import capped_next_attempt
+    from cbc.modules.ops.api.jobs import capped_next_attempt
 
     now = datetime(2026, 9, 5, 12, 0, 0, tzinfo=timezone.utc)
     ceiling = now + timedelta(minutes=5)
@@ -69,7 +69,7 @@ def test_capped_next_attempt_never_past_ceiling():
 
 def test_repeated_uploads_do_not_starve_past_ceiling(database) -> None:
     """Each sibling may push nextAttemptAt, but never past coalesceUntil."""
-    from cbc.services import jobs
+    from cbc.modules.ops.api import jobs
 
     project_id = ObjectId()
     first = run(jobs.enqueue("extract_bid_set", project_id, delay_seconds=60))
@@ -87,7 +87,7 @@ def test_repeated_uploads_do_not_starve_past_ceiling(database) -> None:
 
 
 def test_upload_while_running_marks_straggler(database) -> None:
-    from cbc.services import jobs
+    from cbc.modules.ops.api import jobs
 
     project_id = ObjectId()
     job = run(jobs.enqueue("extract_bid_set", project_id, delay_seconds=0))
@@ -144,7 +144,7 @@ def test_extract_prompt_includes_straggler_merge_block() -> None:
 
 
 def test_waiting_for_siblings_helper():
-    from cbc.services.jobs import waiting_for_siblings
+    from cbc.modules.ops.api.jobs import waiting_for_siblings
 
     future = datetime.now(timezone.utc) + timedelta(seconds=30)
     assert waiting_for_siblings({"status": "queued", "nextAttemptAt": future}) is True
@@ -153,7 +153,7 @@ def test_waiting_for_siblings_helper():
 
 
 def test_coalesce_note_states_debounce_ceiling():
-    from cbc.services import jobs
+    from cbc.modules.ops.api import jobs
 
     future = datetime.now(timezone.utc) + timedelta(seconds=45)
     ceiling = datetime.now(timezone.utc) + timedelta(seconds=300)

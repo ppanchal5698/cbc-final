@@ -16,7 +16,8 @@ from bson import ObjectId
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
-from cbc.db import db
+from cbc.modules.ops.infrastructure.collections import jobs as jobs_collection
+from cbc.shared.mongo import serialise
 from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
 from cbc.modules.ops.api import audit
 
@@ -141,12 +142,12 @@ def _coalesce_lookup(
     return None
 
 
-async def _extend_queued_coalesce(
+async def extend_queued_coalesce(
     job_id: ObjectId, delay_seconds: int, session=None
 ) -> dict[str, Any] | None:
     """Atomically push nextAttemptAt for a still-queued job, capped by coalesceUntil."""
     session_kw = {"session": session} if session is not None else {}
-    job = await db.jobs.find_one({"_id": job_id, "status": "queued"}, **session_kw)
+    job = await jobs_collection().find_one({"_id": job_id, "status": "queued"}, **session_kw)
     if not job:
         return None
     ceiling = job.get("coalesceUntil")
@@ -154,7 +155,7 @@ async def _extend_queued_coalesce(
         created = job.get("createdAt") or _now()
         ceiling = coalesce_ceiling(created)
     next_at = capped_next_attempt(delay_seconds, ceiling)
-    return await db.jobs.find_one_and_update(
+    return await jobs_collection().find_one_and_update(
         {"_id": job_id, "status": "queued"},
         {
             "$set": {
@@ -170,7 +171,7 @@ async def _extend_queued_coalesce(
 async def _mark_straggler(job_id: ObjectId, session=None) -> dict[str, Any] | None:
     """Note that a PDF landed while this extract was already running."""
     session_kw = {"session": session} if session is not None else {}
-    return await db.jobs.find_one_and_update(
+    return await jobs_collection().find_one_and_update(
         {"_id": job_id, "status": "running"},
         {"$set": {"stragglerPending": True}},
         return_document=ReturnDocument.AFTER,
@@ -197,7 +198,7 @@ async def enqueue(
     coalesce = _coalesce_lookup(job_type, payload)
     if coalesce and project_id is None:
         field, value = coalesce
-        running = await db.jobs.find_one(
+        running = await jobs_collection().find_one(
             {
                 "type": job_type,
                 field: value,
@@ -216,7 +217,7 @@ async def enqueue(
             # variant that raises PipelineJobActive instead.
             if running["type"] == job_type and delay_seconds:
                 if running["status"] == "queued":
-                    extended = await _extend_queued_coalesce(
+                    extended = await extend_queued_coalesce(
                         running["_id"], delay_seconds, session=session
                     )
                     return extended or running
@@ -259,7 +260,7 @@ async def enqueue(
         job["coalesceUntil"] = ceiling
 
     try:
-        result = await db.jobs.insert_one(job, **session_kw)
+        result = await jobs_collection().insert_one(job, **session_kw)
     except DuplicateKeyError:
         if project_id is not None:
             existing = await active_pipeline_job(project_id, session=session)
@@ -269,7 +270,7 @@ async def enqueue(
                     and delay_seconds
                     and existing["status"] == "queued"
                 ):
-                    extended = await _extend_queued_coalesce(
+                    extended = await extend_queued_coalesce(
                         existing["_id"], delay_seconds, session=session
                     )
                     return extended or existing
@@ -280,7 +281,7 @@ async def enqueue(
                     marked = await _mark_straggler(existing["_id"], session=session)
                     return marked or {**existing, "stragglerPending": True}
                 return existing
-        existing = await db.jobs.find_one(
+        existing = await jobs_collection().find_one(
             {
                 "idempotencyKey": job["idempotencyKey"],
                 "status": {"$in": ["queued", "running"]},
@@ -301,7 +302,7 @@ async def enqueue(
 
 
 async def latest_for_project(project_id: ObjectId) -> dict[str, Any] | None:
-    return await db.jobs.find_one({"projectId": project_id}, sort=[("createdAt", -1)])
+    return await jobs_collection().find_one({"projectId": project_id}, sort=[("createdAt", -1)])
 
 
 async def active_pipeline_job(
@@ -309,7 +310,7 @@ async def active_pipeline_job(
 ) -> dict[str, Any] | None:
     """Newest queued or running pipeline job on this bid (one session per bid)."""
     session_kw = {"session": session} if session is not None else {}
-    return await db.jobs.find_one(
+    return await jobs_collection().find_one(
         {
             "projectId": project_id,
             "type": {"$in": list(EXCLUSIVE_JOB_TYPES)},
@@ -336,7 +337,7 @@ async def enqueue_exclusive(
 
 async def active_for_project(project_id: ObjectId) -> dict[str, Any] | None:
     """Most recent queued or running job on this bid."""
-    return await db.jobs.find_one(
+    return await jobs_collection().find_one(
         {"projectId": project_id, "status": {"$in": ["queued", "running"]}},
         sort=[("createdAt", -1)],
     )
@@ -346,7 +347,7 @@ async def holds_lease(job: dict[str, Any]) -> bool:
     """True when this worker's claimGeneration is still the running lease."""
     if job.get("_id") is None:
         return False
-    current = await db.jobs.find_one(
+    current = await jobs_collection().find_one(
         {
             "_id": job["_id"],
             "workerId": job.get("workerId"),
@@ -368,7 +369,7 @@ class JobNotRetryable(Exception):
 
 async def retry(job_id: ObjectId, actor: str = "estimator") -> dict[str, Any]:
     """Re-queue a dead or failed job. Refuses if another pipeline job is active."""
-    job = await db.jobs.find_one({"_id": job_id})
+    job = await jobs_collection().find_one({"_id": job_id})
     if job is None:
         raise KeyError(job_id)
     if job.get("status") not in ("dead", "failed"):
@@ -377,7 +378,7 @@ async def retry(job_id: ObjectId, actor: str = "estimator") -> dict[str, Any]:
         active = await active_pipeline_job(job["projectId"])
         if active is not None and active["_id"] != job["_id"]:
             raise PipelineJobActive(active)
-    updated = await db.jobs.find_one_and_update(
+    updated = await jobs_collection().find_one_and_update(
         {"_id": job_id, "status": {"$in": ["dead", "failed"]}},
         {
             "$set": {
@@ -410,7 +411,7 @@ async def active_count(project_id: ObjectId | None = None) -> int:
     query: dict[str, Any] = {"status": {"$in": ["queued", "running"]}}
     if project_id is not None:
         query["projectId"] = project_id
-    return await db.jobs.count_documents(query)
+    return await jobs_collection().count_documents(query)
 
 
 async def metrics(window_hours: int = 24) -> dict[str, Any]:
@@ -429,7 +430,7 @@ async def metrics(window_hours: int = 24) -> dict[str, Any]:
 
     depth = {
         row["_id"]: row["count"]
-        async for row in db.jobs.aggregate(
+        async for row in jobs_collection().aggregate(
             [
                 {"$match": {"status": {"$in": ["queued", "running"]}}},
                 {"$group": {"_id": "$status", "count": {"$sum": 1}}},
@@ -438,7 +439,7 @@ async def metrics(window_hours: int = 24) -> dict[str, Any]:
     }
 
     by_type: dict[str, dict[str, Any]] = {}
-    async for row in db.jobs.aggregate(
+    async for row in jobs_collection().aggregate(
         [
             {"$match": {"createdAt": {"$gte": since}}},
             {
@@ -477,7 +478,7 @@ async def metrics(window_hours: int = 24) -> dict[str, Any]:
 
     # The oldest thing still waiting is the number that says "backed up", and it
     # is the one a count of queued jobs cannot tell you.
-    oldest = await db.jobs.find_one(
+    oldest = await jobs_collection().find_one(
         {"status": "queued"}, {"createdAt": 1}, sort=[("createdAt", 1)]
     )
 
@@ -493,3 +494,120 @@ async def metrics(window_hours: int = 24) -> dict[str, Any]:
         "failureRate": round(failed / finished, 3) if finished else None,
         "byType": by_type,
     }
+
+
+# ── one Claude session per bid (was http/pipeline_jobs.py) ────────────────────
+#
+# These used to raise an HTTP 409 from inside queue policy, which tied the
+# policy to HTTP and kept anything but a route from reusing it. They raise
+# PipelineJobActive now; the composition root maps it to the same 409 and body.
+
+
+def conflict_detail(active: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "message": "A Claude run is already in progress for this bid",
+        "activeJob": serialise(active),
+    }
+
+
+def raise_if_pipeline_blocked(active: dict[str, Any] | None, job_type: str) -> None:
+    if active and active["type"] != job_type:
+        raise PipelineJobActive(active)
+
+
+async def reserve(project_id: Any, job_type: str) -> dict[str, Any] | None:
+    """Decide - and refuse - before the caller writes anything.
+
+    The gate used to run after the PDF had landed, the document row was inserted
+    and, for an addendum, a version was snapshotted. A 409 then left all three
+    orphaned: a file on disk and a frozen version with no job that would ever
+    read them.
+
+    An addendum is the one type that may take the slot rather than be refused.
+    It revises a bid that may already be priced, so it has to be recorded
+    (Matrix 4.1), and the schema allows one active pipeline job per bid - so
+    something gives. A queued run has not started and has read nothing, and the
+    addendum changes what it should read, so the addendum supersedes it. A run
+    that has already started cannot be interrupted, and that is the one case
+    that still returns 409.
+
+    Returns the job it superseded, or None.
+    """
+    active = await active_pipeline_job(project_id)
+    if active is None or active["type"] == job_type:
+        return None
+
+    if job_type != "ingest_addendum" or active["status"] != "queued":
+        raise PipelineJobActive(active)
+
+    # Conditional on still being queued: the worker may have claimed it between
+    # the read above and this write, and a cancelled-but-running job is exactly
+    # the two-writers-one-directory case the exclusivity rule exists to prevent.
+    result = await jobs_collection().update_one(
+        {"_id": active["_id"], "status": "queued"},
+        {
+            "$set": {
+                "status": "cancelled",
+                "note": (
+                    "superseded by an addendum - re-run once the differences "
+                    "have been reviewed"
+                ),
+                "finishedAt": datetime.now(timezone.utc),
+            }
+        },
+    )
+    if not result.matched_count:
+        current = await active_pipeline_job(project_id) or active
+        raise PipelineJobActive(current)
+    return active
+
+
+async def enqueue_pipeline(
+    job_type: str,
+    project_id: Any,
+    *,
+    payload: dict[str, Any] | None = None,
+    actor: str = "estimator",
+    delay_seconds: int = 0,
+    session=None,
+) -> dict[str, Any]:
+    """Enqueue when no other pipeline type is active; raise PipelineJobActive otherwise."""
+    active = await active_pipeline_job(project_id, session=session)
+    raise_if_pipeline_blocked(active, job_type)
+    return await enqueue(
+        job_type, project_id, payload, actor, delay_seconds, session=session
+    )
+
+
+# ── what other modules ask of the queue about their bids ─────────────────────
+
+
+async def active_by_project(project_ids) -> dict[Any, dict[str, Any]]:
+    """The newest queued or running job on each of these bids."""
+    # Newest first, so the first one seen per project is the current active job.
+    active: dict[Any, dict[str, Any]] = {}
+    for job in await jobs_collection().find(
+        {"projectId": {"$in": project_ids}, "status": {"$in": ["queued", "running"]}}
+    ).sort("createdAt", -1).to_list(length=None):
+        active.setdefault(job["projectId"], job)
+    return active
+
+
+async def cancel_active_for_project(project_id: Any, actor: str, *, note: str) -> None:
+    """Cancel whatever is queued or running on a bid."""
+    await jobs_collection().update_many(
+        {"projectId": project_id, "status": {"$in": ["queued", "running"]}},
+        {
+            "$set": {
+                "status": "cancelled",
+                "cancelledAt": datetime.now(timezone.utc),
+                "cancelledBy": actor,
+                "note": note,
+            }
+        },
+    )
+
+
+async def delete_for_project(project_id: Any) -> None:
+    """Remove a bid's job history."""
+    await jobs_collection().delete_many({"projectId": project_id})

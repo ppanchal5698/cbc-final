@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from cbc.services import jobs as job_service
+from cbc.modules.ops.api import jobs as job_service
 from cbc.services.domains import ORCHESTRATED_CHAIN
 
 __all__ = ["ORCHESTRATED_CHAIN", "enqueue_autopilot", "maybe_continue_chain", "next_in_chain"]

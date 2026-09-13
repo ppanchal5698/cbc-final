@@ -20,7 +20,8 @@ from cbc.shared.auth import Actor, AdminActor
 from cbc.schemas import PriceBookCreate, PriceBookUpdate
 from cbc.modules.ops.api import audit
 from cbc.modules.ops.api import freshness as freshness_settings
-from cbc.services import jobs, storage
+from cbc.modules.ops.api import jobs
+from cbc.services import storage
 from cbc.pageindex import basis, store as catalog_store
 from cbc.services.reference_library import sync_vendor_categories
 

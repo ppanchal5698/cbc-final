@@ -7,7 +7,7 @@ from cbc.shared.mongo import serialise
 from cbc.shared.auth import Actor
 from cbc.http.projects_access import load
 from cbc.services import orchestrator
-from cbc.services.jobs import PipelineJobActive
+from cbc.modules.ops.api.jobs import PipelineJobActive
 
 router = APIRouter(prefix="/api/projects/{code}/orchestrate", tags=["orchestrate"])
 

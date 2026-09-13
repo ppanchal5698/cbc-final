@@ -72,10 +72,10 @@ def test_enqueue_copies_trace_id_top_level(monkeypatch) -> None:
     async def _audit(*_a, **_k):
         return None
 
-    monkeypatch.setattr("cbc.services.jobs.db", _FakeDb())
-    monkeypatch.setattr("cbc.services.jobs.audit.record", _audit)
+    monkeypatch.setattr("cbc.modules.ops.api.jobs.jobs_collection", lambda: _FakeDb.jobs)
+    monkeypatch.setattr("cbc.modules.ops.api.jobs.audit.record", _audit)
 
-    from cbc.services import jobs as job_service
+    from cbc.modules.ops.api import jobs as job_service
 
     token = tracing.set_current_trace_id("hop-abc")
     try:

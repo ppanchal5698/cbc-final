@@ -6,6 +6,8 @@ None. Collection accessors do not live here: a module names its own.
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 from datetime import datetime
 from typing import Any
@@ -13,8 +15,11 @@ from typing import Any
 from bson import ObjectId
 from bson.errors import InvalidId
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo.errors import OperationFailure
 
 from cbc.shared.config import settings
+
+log = logging.getLogger("cbc.api.db")  # the name these index messages have always logged under
 
 _client: AsyncIOMotorClient | None = None
 
@@ -82,3 +87,69 @@ def serialise(document: Any) -> Any:
     if isinstance(document, datetime):
         return document.isoformat()
     return document
+
+
+# ── index builds that survive a peer racing them ─────────────────────────────
+
+
+# Mongo aborts an in-flight build when another client drops the same index
+# name (common when every API runs ensure_indexes on compose up).
+INDEX_BUILD_ABORTED = 276
+
+
+async def create_index_resilient(collection, keys, **options) -> None:
+    """create_index with a short retry when a peer aborts the build."""
+    delay = 0.2
+    for attempt in range(5):
+        try:
+            await collection.create_index(keys, **options)
+            return
+        except OperationFailure as exc:
+            # Peer dropped this index mid-build.
+            if exc.code == INDEX_BUILD_ABORTED and attempt < 4:
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 2.0)
+                continue
+            # Same key under another name (e.g. auto-named part_1 vs part_lookup).
+            if exc.code == 85 and "different name" in (exc.details or {}).get("errmsg", exc.errmsg or ""):
+                other = None
+                msg = (exc.details or {}).get("errmsg") or exc.errmsg or ""
+                # "... different name: part_1"
+                if "different name:" in msg:
+                    other = msg.rsplit("different name:", 1)[-1].strip().rstrip(".")
+                if other and options.get("name") and other != options["name"]:
+                    try:
+                        await collection.drop_index(other)
+                        log.info(
+                            "dropped %s.%s (same key as %s)",
+                            collection.name,
+                            other,
+                            options["name"],
+                        )
+                    except OperationFailure:
+                        pass
+                    await asyncio.sleep(delay)
+                    delay = min(delay * 2, 2.0)
+                    continue
+            raise
+
+
+async def replace_index(collection, name: str, keys, **options) -> None:
+    """Create an index, replacing an existing one whose options differ.
+
+    `create_index` is idempotent only while the options match; changing them on an
+    index that already exists raises rather than migrating, which would leave a
+    tightened constraint silently un-applied on every database that already had
+    the old one - that is, all of them.
+    """
+    try:
+        await create_index_resilient(collection, keys, name=name, **options)
+        return
+    except OperationFailure as exc:
+        if exc.code not in (85, 86):  # IndexOptionsConflict, IndexKeySpecsConflict
+            raise
+    try:
+        await collection.drop_index(name)
+    except OperationFailure:
+        pass
+    await create_index_resilient(collection, keys, name=name, **options)

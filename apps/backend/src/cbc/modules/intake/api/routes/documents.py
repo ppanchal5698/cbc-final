@@ -17,11 +17,12 @@ from cbc.shared.config import settings
 from cbc.db import db
 from cbc.shared.mongo import oid, run_transaction, serialise
 from cbc.shared.auth import Actor
-from cbc.http.pipeline_jobs import enqueue_pipeline, reserve
+from cbc.modules.ops.api.jobs import enqueue_pipeline, reserve
 from cbc.http.projects_access import load
 from cbc.modules.intake.api.routes.versions import snapshot
 from cbc.modules.ops.api import audit
-from cbc.services import jobs as job_service, pdf, storage
+from cbc.modules.ops.api import jobs as job_service
+from cbc.services import pdf, storage
 
 router = APIRouter(prefix="/api/projects/{code}/documents", tags=["documents"])
 
@@ -102,7 +103,7 @@ async def upload_document(
             and job_type == "extract_bid_set"
         ):
             job = (
-                await job_service._extend_queued_coalesce(
+                await job_service.extend_queued_coalesce(
                     active["_id"], PIPELINE_DEBOUNCE_SECONDS
                 )
                 or active

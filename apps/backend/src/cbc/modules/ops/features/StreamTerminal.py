@@ -1,4 +1,4 @@
-"""Streaming a job's terminal recording to the browser.
+"""GET /api/jobs/{job_id}/terminal/stream - Streaming a job's terminal recording to the browser.
 
 The worker runs Claude Code on a pty and appends every byte to
 `projects/{slug}/.runs/{job_id}.log`. Both containers share that volume, so the
@@ -20,11 +20,12 @@ from typing import AsyncIterator
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
+from cbc.modules.ops.infrastructure.collections import jobs as jobs_collection
 from cbc.shared.config import settings
-from cbc.db import db
 from cbc.shared.mongo import oid
 
 router = APIRouter(prefix="/api/jobs/{job_id}/terminal", tags=["terminal"])
+
 
 POLL_SECONDS = 0.4
 # The recording is tailed often, because that is what makes it feel live. The job
@@ -36,7 +37,7 @@ IDLE_TIMEOUT = 900  # a stream with nothing to say for this long has been abando
 
 
 async def _job(job_id: str) -> dict:
-    job = await db.jobs.find_one({"_id": oid(job_id)})
+    job = await jobs_collection().find_one({"_id": oid(job_id)})
     if not job:
         raise HTTPException(404, "job not found")
     return job
@@ -51,36 +52,6 @@ def _recording_of(job: dict) -> Path | None:
     if not str(path).startswith(str(settings.repo_root.resolve())):
         raise HTTPException(400, "recording path is outside the project tree")
     return path
-
-
-@router.get("")
-async def get_terminal(job_id: str) -> dict:
-    """The whole recording so far, for replaying a finished run."""
-    job = await _job(job_id)
-    path = _recording_of(job)
-
-    if path is None or not path.exists():
-        return {
-            "jobId": job_id,
-            "status": job.get("status"),
-            "available": False,
-            "reason": (
-                "Detailed logs aren't available for this run."
-                if job.get("status") in ("done", "failed", "cancelled")
-                else "Nothing has been written yet."
-            ),
-            "data": "",
-        }
-
-    payload = await asyncio.to_thread(path.read_bytes)
-    return {
-        "jobId": job_id,
-        "status": job.get("status"),
-        "available": True,
-        "bytes": len(payload),
-        # base64 so the escape sequences survive JSON intact.
-        "data": base64.b64encode(payload).decode("ascii"),
-    }
 
 
 @router.get("/stream")

@@ -50,7 +50,7 @@ async def import_extraction(
     Pass `job` to abort without writing when the worker's lease was stolen.
     """
     if job is not None:
-        from cbc.services.jobs import holds_lease
+        from cbc.modules.ops.api.jobs import holds_lease
 
         if not await holds_lease(job):
             return {"inserted": 0, "updated": 0, "skipped": 0, "aborted": True}
@@ -160,7 +160,7 @@ async def import_extraction(
 
     if bulk:
         if job is not None:
-            from cbc.services.jobs import holds_lease
+            from cbc.modules.ops.api.jobs import holds_lease
 
             if not await holds_lease(job):
                 return {"inserted": 0, "updated": 0, "skipped": 0, "aborted": True}

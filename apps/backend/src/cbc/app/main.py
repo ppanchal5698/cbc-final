@@ -31,10 +31,10 @@ from cbc.services.provider import MANAGED
 envfile.apply_to_environ(skip=MANAGED)
 
 from cbc.shared.config import settings  # noqa: E402  - must follow apply_to_environ
-from cbc.db import ensure_indexes, ensure_readonly_user  # noqa: E402
+from cbc.db import db, ensure_indexes, ensure_readonly_user  # noqa: E402
 from cbc.http import projects_access  # noqa: E402
 from cbc.modules import ops  # noqa: E402
-from cbc.modules.ops.api import identity, project_lookup  # noqa: E402
+from cbc.modules.ops.api import identity, jobs as ops_jobs, project_lookup  # noqa: E402
 from cbc.modules.catalog.api.router import router as catalog_router  # noqa: E402
 from cbc.modules.extraction.api.router import router as extraction_router  # noqa: E402
 from cbc.modules.intake.api.router import router as intake_router  # noqa: E402
@@ -122,6 +122,12 @@ async def _project_id(code_or_id: str):
     return (await projects_access.load(code_or_id))["_id"]
 
 
+async def _project_summaries(project_ids: list[Any]) -> dict[Any, dict[str, Any]]:
+    """Bid names for the dead-letter list; the projects module answers this in 3.4."""
+    cursor = db.projects.find({"_id": {"$in": project_ids}}, {"code": 1, "name": 1, "slug": 1})
+    return {project["_id"]: project async for project in cursor}
+
+
 def create_app(*, background: bool = True):
     """Build the API.
 
@@ -139,7 +145,7 @@ def create_app(*, background: bool = True):
     # Dependencies that point the other way: shared and ops each need an answer
     # they may not import. The owners are plugged in here, and only here.
     set_role_lookup(identity.role_of)
-    project_lookup.bind(_project_id)
+    project_lookup.bind(_project_id, _project_summaries)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -181,6 +187,12 @@ def create_app(*, background: bool = True):
     @app.exception_handler(ValueError)
     async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
         return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+    # Queue policy refuses with a typed error; this is where it becomes HTTP - the
+    # same 409 and body the policy used to raise itself.
+    @app.exception_handler(ops_jobs.PipelineJobActive)
+    async def pipeline_job_active_handler(request: Request, exc: ops_jobs.PipelineJobActive) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": ops_jobs.conflict_detail(exc.active)})
 
     for router in ROUTERS:
         app.include_router(router)

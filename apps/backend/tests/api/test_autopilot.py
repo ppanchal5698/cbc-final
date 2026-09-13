@@ -20,7 +20,7 @@ from tests.shared import FIXTURE_PDF, FIXTURES, ROOT, mongo_client
 def test_the_pipeline_job_is_exclusive_per_bid() -> None:
     """A second drawing on a running bid is more files, not a second run."""
     from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
-    from cbc.services.jobs import EXCLUSIVE
+    from cbc.modules.ops.api.jobs import EXCLUSIVE
 
     assert "run_full_pipeline" in EXCLUSIVE_JOB_TYPES
     assert "run_full_pipeline" in EXCLUSIVE

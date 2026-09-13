@@ -20,7 +20,7 @@ from cbc.schemas.common import (
     Stage,
 )
 from cbc.schemas.documents import Document
-from cbc.schemas.jobs import Job, JobCreate
+from cbc.schemas.jobs import Job
 from cbc.schemas.line_items import BulkAction, LineItem, LineItemCreate, LineItemUpdate
 from cbc.schemas.projects import Project, ProjectCreate, ProjectUpdate
 from cbc.schemas.reference import (
@@ -67,7 +67,6 @@ __all__ = [
     "HandOff",
     "HagerAddersUpdate",
     "Job",
-    "JobCreate",
     "JobStatus",
     "JobType",
     "LineItem",

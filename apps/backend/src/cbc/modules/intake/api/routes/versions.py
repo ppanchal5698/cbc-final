@@ -12,7 +12,7 @@ from cbc.shared.mongo import serialise
 from cbc.shared.auth import Actor
 from cbc.schemas import VersionCreate
 from cbc.http.projects_access import load
-from cbc.http.pipeline_jobs import enqueue_pipeline, reserve
+from cbc.modules.ops.api.jobs import enqueue_pipeline, reserve
 from cbc.persistence import versioning
 from cbc.modules.ops.api import audit
 

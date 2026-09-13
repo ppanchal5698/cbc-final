@@ -8,12 +8,6 @@ from pydantic import BaseModel
 from cbc.schemas.common import JobStatus, JobType
 
 
-class JobCreate(BaseModel):
-    type: JobType
-    projectId: str | None = None
-    payload: dict[str, Any] = {}
-
-
 class Job(BaseModel):
     id: str
     type: JobType
