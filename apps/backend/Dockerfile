@@ -72,4 +72,4 @@ RUN pip install -e ./mcp-servers \
     && chown -R cbc:cbc /app /home/cbc
 
 USER cbc
-CMD ["python", "-m", "cbc.worker"]
+CMD ["python", "-m", "cbc.app.worker"]

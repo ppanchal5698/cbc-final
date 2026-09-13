@@ -74,7 +74,7 @@ def register(app) -> None:
 
 
 def run_worker() -> int:
-    """The worker process: claim and run jobs until stopped. `python -m cbc.worker` calls this."""
+    """The worker process: claim and run jobs until stopped. `python -m cbc.app.worker` calls this."""
     from cbc.modules.ops.features.WorkerLoop import main
 
     return main()

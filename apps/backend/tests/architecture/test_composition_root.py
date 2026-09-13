@@ -37,7 +37,7 @@ print(json.dumps(seen))
 """
 
 
-@pytest.mark.parametrize("root", ["cbc.app.main", "cbc.worker.main"])
+@pytest.mark.parametrize("root", ["cbc.app.main", "cbc.app.worker"])
 def test_env_file_is_applied_before_settings_are_built(tmp_path, root) -> None:
     env = {
         **os.environ,

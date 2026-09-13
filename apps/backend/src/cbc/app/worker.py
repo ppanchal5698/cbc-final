@@ -1,6 +1,6 @@
 """The worker's composition root: ops' claim loop, with every module's jobs plugged in.
 
-The import order is load-bearing, as in app/main.py: `envfile` writes `.env` into
+The import order is load-bearing, as in main.py beside it: `envfile` writes `.env` into
 `os.environ` before anything reads settings, and logging is set up before any
 module logs. tests/architecture/test_composition_root.py checks the first.
 """
@@ -27,3 +27,7 @@ def wire() -> None:
 def main() -> int:
     wire()
     return ops.run_worker()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -3,7 +3,7 @@
 > **Live runtime (Phase 5+):** one FastAPI process under `apps/backend`
 > (compose service `platform` on port 8001). Web proxies all `/api` traffic to
 > `PLATFORM_URL` with JWT audience `platform`. One compose `worker` claims all
-> Mongo jobs via `WORKER_CLAIM_ALL=1` using `python -m cbc.worker`. Pre-monolith
+> Mongo jobs via `WORKER_CLAIM_ALL=1` using `python -m cbc.app.worker`. Pre-monolith
 > trees are under `archive/pre-monolith/` (rollback only).
 
 ## 1. Overview
@@ -52,7 +52,7 @@ flowchart TD
 | Component | Entry Point File Path | Purpose |
 | --- | --- | --- |
 | **platform API** | `apps/backend` → `cbc.api.main:app` | FastAPI monolith: auth, projects, documents, line-items, quote, catalog, … |
-| **Worker** | `python -m cbc.worker` (`WORKER_CLAIM_ALL=1` in compose) | Claim and run Claude / local catalog jobs |
+| **Worker** | `python -m cbc.app.worker` (`WORKER_CLAIM_ALL=1` in compose) | Claim and run Claude / local catalog jobs |
 | **Web** | `apps/web` | Next.js Ops-Hub; proxies to `PLATFORM_URL` |
 | **Compose** | `infra/docker-compose.yml` | mongo, clamav, platform, worker, web |
 
@@ -74,7 +74,7 @@ cd apps/backend && pip install -e ".[dev]" && uvicorn cbc.api.main:app --port 80
 2. **platform API**: `uvicorn cbc.api.main:app` from `apps/backend`.
    - Lifespan runs `ensure_indexes()`, `ensure_readonly_user()`, OAuth sweep.
    - All domain routers mount on one FastAPI app (`SERVICE_AUDIENCE=platform`).
-3. **Worker**: compose `worker` with `WORKER_CLAIM_ALL=1`; claim loop in `cbc.modules.ops.features.WorkerLoop`, job slices registered by `cbc.worker.main` (local runs may set `WORKER_DOMAIN`).
+3. **Worker**: compose `worker` with `WORKER_CLAIM_ALL=1`; claim loop in `cbc.modules.ops.features.WorkerLoop`, job slices registered by `cbc.app.worker` (local runs may set `WORKER_DOMAIN`).
 4. **Web**: `next start`; `/api/proxy/*` forwards to `PLATFORM_URL` with audience `platform`.
 
 ## 5. Core Lifecycle Flows

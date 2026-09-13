@@ -9,7 +9,7 @@ The decision record is [ADR-005](adr/005-modules-own-their-data.md), which super
 ```
 apps/web  ──►  platform API (apps/backend :8001, cbc.app.main:create_app)  ──►  MongoDB
                       modules/{ops,projects,catalog,intake,extraction,pricing,quoting}
-worker (WORKER_CLAIM_ALL=1, python -m cbc.worker)  ──►  claim  ──►  Claude CLI + MCP
+worker (WORKER_CLAIM_ALL=1, python -m cbc.app.worker)  ──►  claim  ──►  Claude CLI + MCP
 ```
 
 Compose service name for the API remains `platform`; one `worker` claims all job types.

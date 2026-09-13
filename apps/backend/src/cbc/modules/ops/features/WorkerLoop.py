@@ -1,12 +1,12 @@
 """The job worker: claim queued jobs, run them, recover the ones a dead worker held.
 
-    python -m cbc.worker              # run the loop
-    python -m cbc.worker --once       # process at most one job, then exit
-    python -m cbc.worker --preflight  # check the Claude CLI is usable
+    python -m cbc.app.worker              # run the loop
+    python -m cbc.app.worker --once       # process at most one job, then exit
+    python -m cbc.app.worker --preflight  # check the Claude CLI is usable
 
 This is the queue side. What runs a claimed job - a job slice in the module that
 owns it - is registered through cbc.modules.ops.api.worker by the worker's
-composition root, cbc/worker/main.py.
+composition root, cbc/app/worker.py.
 """
 from __future__ import annotations
 
@@ -401,7 +401,7 @@ def main() -> int:
         return 0
 
     if not ops_worker.bound():
-        raise RuntimeError("no job handlers registered; start the worker with `python -m cbc.worker`")
+        raise RuntimeError("no job handlers registered; start the worker with `python -m cbc.app.worker`")
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:

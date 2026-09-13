@@ -24,7 +24,7 @@ collections owned by three domains, and deleting a bid cascaded by naming seven.
 4. Where a dependency would form a cycle, the owner is plugged in (bound ports in
    `ops.api.project_lookup`, `ops.api.worker`, `projects.api.board_sources`) or told
    (`shared/events.py`: `ops.job_requeued`, `projects.project_deleted`).
-5. One composition root per process (`cbc/app/main.py`, `cbc/worker/main.py`)
+5. One composition root per process (`cbc/app/main.py`, `cbc/app/worker.py`)
    registers modules, binds ports and maps typed errors to HTTP.
 6. URLs, methods, status codes, bodies, auth, the database and its collection names
    are unchanged. `tests/characterization` pins all 124 routes.

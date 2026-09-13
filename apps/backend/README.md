@@ -2,7 +2,7 @@
 
 **Modules:** ops, projects, catalog, intake, extraction, pricing, quoting - see
 [ARCHITECTURE.md](../../ARCHITECTURE.md).
-**Worker:** `python -m cbc.worker` - ops' claim loop with the Claude pipeline bound in
+**Worker:** `python -m cbc.app.worker` - ops' claim loop with the Claude pipeline bound in
 (`WORKER_CLAIM_ALL=1` in compose; `WORKER_DOMAIN` for filtered local runs).
 
 Compose: one API container (`platform` on **8001**, `SERVICE_AUDIENCE=platform`)
@@ -24,8 +24,8 @@ pytest
 ### Worker
 
 ```bash
-WORKER_CLAIM_ALL=1 python -m cbc.worker --once
-WORKER_DOMAIN=catalog python -m cbc.worker --preflight
+WORKER_CLAIM_ALL=1 python -m cbc.app.worker --once
+WORKER_DOMAIN=catalog python -m cbc.app.worker --preflight
 ```
 
 ## Stack smoke

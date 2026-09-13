@@ -31,7 +31,7 @@ dev = [
 
 [project.scripts]
 cbc-api = "cbc.app.main:run"
-cbc-worker = "cbc.worker.main:main"
+cbc-worker = "cbc.app.worker:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

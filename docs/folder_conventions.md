@@ -5,7 +5,7 @@
 | Path | Owns |
 |---|---|
 | `apps/backend/src/cbc/app/` | API composition root (`create_app`): middleware, error mapping, lifespan, module registration |
-| `apps/backend/src/cbc/worker/` | Worker composition root: `python -m cbc.worker` registers every module's jobs into ops' loop |
+| `apps/backend/src/cbc/app/worker.py` | Worker composition root: `python -m cbc.app.worker` registers every module's jobs into ops' loop |
 | `apps/backend/src/cbc/modules/<module>/api/` | The module's public surface - the only part another module may import |
 | `apps/backend/src/cbc/modules/<module>/features/` | One file per use case (endpoint or job) |
 | `apps/backend/src/cbc/modules/<module>/domain/` | Request models and pure rules the module's slices share |

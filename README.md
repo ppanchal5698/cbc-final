@@ -44,8 +44,8 @@ uvicorn cbc.app.main:create_app --factory --port 8001
 Worker (compose uses claim-all; filter locally if needed):
 
 ```bash
-WORKER_CLAIM_ALL=1 python -m cbc.worker
-# or: WORKER_DOMAIN=catalog python -m cbc.worker --once
+WORKER_CLAIM_ALL=1 python -m cbc.app.worker
+# or: WORKER_DOMAIN=catalog python -m cbc.app.worker --once
 ```
 
 Root [`Dockerfile`](archive/pre-monolith/Dockerfile) builds the pre-cutover

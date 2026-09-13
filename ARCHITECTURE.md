@@ -8,7 +8,7 @@ There are no microservices and no network calls between modules.
 ```
 apps/web ──HTTP──► API process   cbc.app.main:create_app     ──┐
                     seven modules, each registered by the root  ├─► MongoDB, disk/S3
-worker process ──► cbc.worker (ops' loop + modules' jobs)     ──┘
+worker process ──► cbc.app.worker (ops' loop + modules' jobs) ──┘
 ```
 
 ## The modules
@@ -30,7 +30,7 @@ apps/backend/src/cbc/
   app/main.py              API composition root: middleware, error mapping, health,
                            lifespan (migrate, then each module's indexes), registration
   app/migrations/          forward-only migrations - the one cross-collection code
-  worker/main.py           worker composition root: registers every module's jobs into ops' loop
+  app/worker.py            worker composition root: registers every module's jobs into ops' loop
   modules/<module>/
     __init__.py            register(app), ensure_indexes(), register_jobs() - all the roots call
     api/                   the ONLY thing another module may import
@@ -74,8 +74,8 @@ it gets **plugged in**:
 |---|---|---|---|
 | project code → id, bid names for the dead-letter list | `ops.api.project_lookup` | `projects.api.lookup` | `app/main.py` |
 | who is an admin | `shared.auth.set_role_lookup` | `ops.api.identity.role_of` | `app/main.py` |
-| what runs a claimed job | `ops.api.worker.register` | each module's job slices | each module's `register_jobs`, called by `worker/main.py` |
-| what follows any job's end, unless its type says | `ops.api.worker.bind` | `projects.api.pipeline` (`after_pass`, `dead_letter`) | `worker/main.py` |
+| what runs a claimed job | `ops.api.worker.register` | each module's job slices | each module's `register_jobs`, called by `app/worker.py` |
+| what follows any job's end, unless its type says | `ops.api.worker.bind` | `projects.api.pipeline` (`after_pass`, `dead_letter`) | `app/worker.py` |
 | a bid's documents, for an extraction pass | `extraction.api.documents` | `intake.api.documents` | intake's `register_jobs` |
 | board counts: documents, openings, quotes | `projects.api.board_sources` | intake, extraction, quoting | each module's `register` |
 
@@ -131,7 +131,7 @@ A job type runs as a slice in the module that owns what it writes.
 2. `infrastructure/collections.py`: one accessor per owned collection (names from
    `cbc.shared.persistence.names`) and `ensure_indexes()`.
 3. `__init__.py`: `register(app)` and `ensure_indexes()`; `register_jobs()` too if it runs
-   jobs, and add it to `wire()` in `worker/main.py`.
+   jobs, and add it to `wire()` in `app/worker.py`.
 4. In `app/main.py`: import it, call `register` in `create_app`, and add its
    `ensure_indexes` to `migrate_and_index` (after the migrations).
 5. Decide where it sits in the dependency graph above before its first import.
@@ -147,8 +147,8 @@ startup creates the user behind it (`ensure_readonly_user`).
 
 ## What is not a module
 
-Everything under `cbc/` is a module, `shared/`, or a composition root (`app/`,
-`worker/`) - except `cbc.worker_kit`, a Claude pass's prompt templates and its
+Everything under `cbc/` is a module, `shared/`, or a composition root (`app/`) -
+except `cbc.worker_kit`, a Claude pass's prompt templates and its
 sandbox. It sits above the modules on purpose: building a pass's prompt reads
 catalog's match cache while ops' Claude pass calls it, so no module could hold it
 without a cycle. `workflows/*.sh`, CI and the sandbox image also run it by module

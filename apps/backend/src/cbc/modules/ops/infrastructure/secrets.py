@@ -7,7 +7,7 @@ Three separate jobs, because a credential leaks in three different ways:
   * echoed into a job log, which the UI renders and Mongo keeps
 
 Encryption here protects the first. `mask` protects the second. `redact`
-protects the third, and is the one that is easy to forget - `worker/main.py`
+protects the third, and is the one that is easy to forget - `app/worker.py`
 stores 8000 characters of Claude's output on every job.
 """
 from __future__ import annotations

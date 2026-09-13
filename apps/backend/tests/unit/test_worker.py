@@ -14,7 +14,7 @@ def _worker_domain(monkeypatch):
 
 
 def test_worker_main_callable() -> None:
-    from cbc.worker.main import main
+    from cbc.app.worker import main
 
     assert callable(main)
 

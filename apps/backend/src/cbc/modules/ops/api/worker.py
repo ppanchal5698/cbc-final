@@ -2,7 +2,7 @@
 
 ops' worker loop claims a job and hands it to the handler registered here for its
 type: a job slice in the module that owns the work, registered from that module's
-`register_jobs` by the worker's composition root, cbc/worker/main.py. The handler
+`register_jobs` by the worker's composition root, cbc/app/worker.py. The handler
 calls back into these to keep its lease alive, to notice a cancel or a shutdown,
 and to record how the job ended.
 

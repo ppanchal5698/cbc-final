@@ -163,7 +163,7 @@ def wired_worker(monkeypatch):
     are put back afterwards, so no later test finishes a job into real hooks."""
     from cbc.modules.extraction.api import documents
     from cbc.modules.ops.api import worker
-    from cbc.worker import main
+    from cbc.app import worker as main
 
     for name, empty in (("_handlers", {}), ("_after", {}), ("_after_finish", None), ("_on_dead", None)):
         monkeypatch.setattr(worker, name, empty)

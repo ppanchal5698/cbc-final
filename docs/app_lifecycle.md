@@ -3,7 +3,7 @@
 > **Live runtime (Phase 5+):** one FastAPI process under `apps/backend`
 > (compose service `platform` on port 8001). Web proxies all `/api` traffic to
 > `PLATFORM_URL` with JWT audience `platform`. One compose `worker` claims all
-> Mongo jobs via `WORKER_CLAIM_ALL=1` using `python -m cbc.worker`. Pre-monolith
+> Mongo jobs via `WORKER_CLAIM_ALL=1` using `python -m cbc.app.worker`. Pre-monolith
 > trees are under `archive/pre-monolith/` (rollback only).
 
 ## 1. Overview
@@ -52,7 +52,7 @@ flowchart TD
 | Component | Entry Point File Path | Purpose |
 | --- | --- | --- |
 | **platform API** | `apps/backend` → `cbc.app.main:create_app` (factory) | FastAPI monolith: seven modules registered by one composition root |
-| **Worker** | `python -m cbc.worker` (`WORKER_CLAIM_ALL=1` in compose) | Claim and run Claude / local catalog jobs |
+| **Worker** | `python -m cbc.app.worker` (`WORKER_CLAIM_ALL=1` in compose) | Claim and run Claude / local catalog jobs |
 | **Web** | `apps/web` | Next.js Ops-Hub; proxies to `PLATFORM_URL` |
 | **Compose** | `infra/docker-compose.yml` | mongo, clamav, platform, worker, web |
 
@@ -74,7 +74,7 @@ cd apps/backend && pip install -e ".[dev]" && uvicorn cbc.app.main:create_app --
 2. **platform API**: `uvicorn cbc.app.main:create_app --factory` from `apps/backend`.
    - Lifespan runs the migrations, then each module's `ensure_indexes()`, `ensure_readonly_user()`, and ops' OAuth session sweep.
    - Each module's `register(app)` mounts its slices on one FastAPI app (`SERVICE_AUDIENCE=platform`).
-3. **Worker**: compose `worker` with `WORKER_CLAIM_ALL=1`; ops' claim loop runs each job with the Claude pipeline `cbc/worker/main.py` binds in (local runs may set `WORKER_DOMAIN`).
+3. **Worker**: compose `worker` with `WORKER_CLAIM_ALL=1`; ops' claim loop runs each job with the Claude pipeline `cbc/app/worker.py` binds in (local runs may set `WORKER_DOMAIN`).
 4. **Web**: `next start`; `/api/proxy/*` forwards to `PLATFORM_URL` with audience `platform`.
 
 ## 5. Core Lifecycle Flows
@@ -145,7 +145,7 @@ sequenceDiagram
 | Module / Package | Responsibility | Key Files |
 | --- | --- | --- |
 | `apps/web` | Next.js Ops-Hub | proxy, auth, pages |
-| `apps/backend` | Live modular monolith API + worker | `cbc.app.main`, `cbc.worker.main`, `cbc.modules.*` |
+| `apps/backend` | Live modular monolith API + worker | `cbc.app.main`, `cbc.app.worker`, `cbc.modules.*` |
 | `mcp-servers` | Claude MCP tools | per-server `server.py` |
 | `archive/pre-monolith/` | Pre-cutover services/packages/Dockerfile/tests | rollback only |
 

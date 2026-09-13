@@ -94,7 +94,7 @@ def test_both_services_use_the_shared_setup() -> None:
 
     # One worker composition root, one API composition root.
     entries = [
-        PKG / "worker" / "main.py",
+        PKG / "app" / "worker.py",
         PKG / "app" / "main.py",
     ]
     assert all(path.is_file() for path in entries), entries
