@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 
-from cbc import db as cbc_db
+from cbc.shared import mongo as cbc_db
 
 
 def test_run_transaction_fallback_without_flag(monkeypatch) -> None:

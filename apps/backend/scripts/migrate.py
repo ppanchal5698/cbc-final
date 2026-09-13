@@ -17,7 +17,7 @@ import argparse
 import asyncio
 import logging
 
-from cbc.db import database
+from cbc.shared.mongo import database
 from cbc.persistence import migrations
 
 

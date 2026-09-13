@@ -11,8 +11,9 @@ from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Response
 
-from cbc.db import db, oid, serialise
-from cbc.http.deps import Actor
+from cbc.db import db
+from cbc.shared.mongo import oid, serialise
+from cbc.shared.auth import Actor
 from cbc.schemas import BulkAction, LineItemCreate, LineItemUpdate
 from cbc.http.projects_access import load
 from cbc.http.pipeline_jobs import enqueue_pipeline

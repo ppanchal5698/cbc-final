@@ -33,7 +33,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-from cbc.config import settings  # noqa: E402
+from cbc.shared.config import settings  # noqa: E402
 from cbc.pageindex import query, store  # noqa: E402
 from cbc.pageindex.models import PageIndexDocument  # noqa: E402
 
@@ -117,7 +117,7 @@ async def _time(fn, rounds: int) -> tuple[float, float]:
 
 
 async def run(counts: list[int], rounds: int) -> int:
-    from cbc import db as db_module
+    from cbc.shared import mongo as db_module
 
     previous, settings.mongodb_db = settings.mongodb_db, BENCH_DB
     db_module._client = None

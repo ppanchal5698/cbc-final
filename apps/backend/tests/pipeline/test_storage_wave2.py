@@ -67,7 +67,7 @@ class _FakeBackend:
 
 
 def test_after_local_write_pushes_to_backend(tmp_path, monkeypatch) -> None:
-    from cbc.config import settings
+    from cbc.shared.config import settings
 
     previous = settings.storage_root
     settings.storage_root = tmp_path
@@ -86,7 +86,7 @@ def test_after_local_write_pushes_to_backend(tmp_path, monkeypatch) -> None:
 
 
 def test_ensure_local_hydrates_missing_file(tmp_path, monkeypatch) -> None:
-    from cbc.config import settings
+    from cbc.shared.config import settings
 
     previous = settings.storage_root
     settings.storage_root = tmp_path

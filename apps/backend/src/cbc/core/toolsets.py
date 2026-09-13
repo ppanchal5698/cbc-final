@@ -19,7 +19,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Any
-from cbc.core.paths import repo_root
+from cbc.shared.paths import repo_root
 
 REPO_ROOT = repo_root()
 

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from cbc.core import pdfpages
-from cbc.core.paths import repo_root
+from cbc.shared.paths import repo_root
 from cbc.services.storage import atomic_write_json
 
 ROOT = repo_root()

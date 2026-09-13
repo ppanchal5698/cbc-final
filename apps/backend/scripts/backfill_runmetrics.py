@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-from cbc.core.envfile import apply_to_environ  # noqa: E402
+from cbc.shared.envfile import apply_to_environ  # noqa: E402
 
 apply_to_environ()
 

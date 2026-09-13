@@ -18,7 +18,7 @@ from typing import Any
 import fitz
 
 from cbc.core import pdfpages, pdfrows
-from cbc.core.paths import repo_root
+from cbc.shared.paths import repo_root
 
 ROOT = repo_root()
 CACHE_DB = ROOT / ".cache" / "pdftext.db"

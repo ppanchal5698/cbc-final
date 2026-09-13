@@ -11,7 +11,7 @@ from bson import ObjectId
 
 from cbc.pageindex import basis
 from cbc.db import db
-from cbc.core.paths import repo_root
+from cbc.shared.paths import repo_root
 
 REPO_ROOT = repo_root()
 

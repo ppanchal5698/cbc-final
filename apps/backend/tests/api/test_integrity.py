@@ -12,7 +12,7 @@ import sys
 
 import pytest
 
-from cbc.config import settings
+from cbc.shared.config import settings
 from tests.shared import ROOT
 
 # â”€â”€ sync: identity keys must survive a re-run â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

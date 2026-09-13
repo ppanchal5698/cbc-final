@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
 
-from cbc.http.deps import require_admin
+from cbc.shared.auth import require_admin
 from cbc.services import spend_ops
 
 router = APIRouter(

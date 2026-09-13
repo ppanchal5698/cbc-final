@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from pymongo import MongoClient
 
-from cbc.config import settings
+from cbc.shared.config import settings
 from tests.shared import TEST_ACTOR, opshub_client, mongo_client
 
 TEST_DB = "cbc_opshub_test_authz"
@@ -181,7 +181,7 @@ def test_an_operator_can_widen_the_allowlist(monkeypatch) -> None:
 def _clear_attempts() -> None:
     from pymongo import MongoClient
 
-    from cbc.config import settings
+    from cbc.shared.config import settings
 
     raw = mongo_client()
     try:
@@ -211,7 +211,7 @@ def test_the_attempt_budget_is_shared_rather_than_per_process(client) -> None:
     """
     from pymongo import MongoClient
 
-    from cbc.config import settings
+    from cbc.shared.config import settings
 
     _clear_attempts()
     body = {"email": "shared@example.com", "password": "wrong"}
@@ -234,7 +234,7 @@ def test_a_correct_password_clears_the_budget(client) -> None:
     """Otherwise four typos and a success still locks the person out."""
     from pymongo import MongoClient
 
-    from cbc.config import settings
+    from cbc.shared.config import settings
     from tests.shared import TEST_ACTOR
 
     _clear_attempts()

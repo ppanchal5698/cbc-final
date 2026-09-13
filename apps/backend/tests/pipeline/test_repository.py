@@ -21,8 +21,8 @@ OTHER = "org-someone-else"
 
 @pytest.fixture()
 def repo():
-    from cbc import db as db_module
-    from cbc.config import settings
+    from cbc.shared import mongo as db_module
+    from cbc.shared.config import settings
 
     raw = mongo_client()
     try:
@@ -45,7 +45,7 @@ def repo():
 
 
 def run(coro):
-    from cbc import db as db_module
+    from cbc.shared import mongo as db_module
 
     db_module._client = None
     try:

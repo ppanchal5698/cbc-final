@@ -9,8 +9,8 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from cbc.http import tracing
-from cbc.http.tracing import TRACE_HEADER, TraceMiddleware
+from cbc.shared import tracing
+from cbc.shared.tracing import TRACE_HEADER, TraceMiddleware
 
 
 async def _echo(request: Request) -> JSONResponse:

@@ -16,7 +16,7 @@ routers it mounts, and whether it has any background work. Those are the
 parameters here.
 
 The import order at the top of this module is load-bearing. `envfile` writes the
-`.env` into `os.environ`, and `cbc.config.settings` reads `os.environ` once at
+`.env` into `os.environ`, and `cbc.shared.config.settings` reads `os.environ` once at
 import. Applying the file after settings are built produces a service that
 silently ignores its own configuration, which is why every main.py had these two
 lines in this order before importing anything else. Doing it here means six files
@@ -30,15 +30,15 @@ from collections.abc import Awaitable, Callable, Iterable, Sequence
 from contextlib import asynccontextmanager
 from typing import Any
 
-from cbc.core import envfile, logs
+from cbc.shared import envfile, logs
 from cbc.services.provider import MANAGED
 
 envfile.apply_to_environ(skip=MANAGED)
 
-from cbc.config import settings  # noqa: E402  - must follow apply_to_environ
+from cbc.shared.config import settings  # noqa: E402  - must follow apply_to_environ
 from cbc.db import ensure_indexes, ensure_readonly_user  # noqa: E402
-from cbc.http.deps import InternalAuthMiddleware  # noqa: E402
-from cbc.http.tracing import TraceMiddleware  # noqa: E402
+from cbc.shared.auth import InternalAuthMiddleware  # noqa: E402
+from cbc.shared.tracing import TraceMiddleware  # noqa: E402
 from cbc.pageindex import store as pageindex_store  # noqa: E402
 
 # A background job that runs for the life of the service: an async callable and
@@ -112,7 +112,7 @@ def create_service_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        from cbc.http import otel
+        from cbc.shared import otel
 
         otel.configure(f"cbc.{name}.api")
         await ensure_indexes()

@@ -298,8 +298,8 @@ def upsert_mongo(uri: str, db_name: str) -> dict[str, str]:
 
 
 async def index_price_book(book_id: str, filename: str) -> str:
-    from cbc import db as db_module
-    from cbc.config import settings
+    from cbc.shared import mongo as db_module
+    from cbc.shared.config import settings
     from cbc.services.jobs import enqueue
 
     settings.mongodb_db = os.environ.get("MONGODB_DB", "cbc_opshub")

@@ -13,7 +13,7 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
-from cbc.db import database
+from cbc.shared.mongo import database
 from cbc.pageindex.models import PageIndexDocument
 
 COLLECTION = "pageIndex"

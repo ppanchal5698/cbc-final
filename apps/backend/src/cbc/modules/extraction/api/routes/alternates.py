@@ -7,8 +7,9 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from cbc.db import db, oid
-from cbc.http.deps import Actor
+from cbc.db import db
+from cbc.shared.mongo import oid
+from cbc.shared.auth import Actor
 from cbc.schemas import AlternateCreate
 from cbc.http.projects_access import load
 from cbc.services import audit, pricing

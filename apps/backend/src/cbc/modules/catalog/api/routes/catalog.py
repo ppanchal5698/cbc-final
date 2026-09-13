@@ -12,8 +12,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Response
 from pymongo.errors import DuplicateKeyError
 
-from cbc.db import db, oid, serialise
-from cbc.http.deps import Actor, AdminActor
+from cbc.db import db
+from cbc.shared.mongo import oid, serialise
+from cbc.shared.auth import Actor, AdminActor
 from cbc.schemas import ProductCreate, ProductUpdate
 from cbc.services import audit, catalog_search, pricing
 

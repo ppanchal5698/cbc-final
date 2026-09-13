@@ -13,9 +13,10 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse, Response as PlainResponse
 
-from cbc.config import settings
-from cbc.db import db, oid, run_transaction, serialise
-from cbc.http.deps import Actor
+from cbc.shared.config import settings
+from cbc.db import db
+from cbc.shared.mongo import oid, run_transaction, serialise
+from cbc.shared.auth import Actor
 from cbc.http.pipeline_jobs import enqueue_pipeline, reserve
 from cbc.http.projects_access import load
 from cbc.modules.intake.api.routes.versions import snapshot

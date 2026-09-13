@@ -5,8 +5,9 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 
-from cbc.db import db, serialise
-from cbc.http.deps import Actor, require_admin
+from cbc.db import db
+from cbc.shared.mongo import serialise
+from cbc.shared.auth import Actor, require_admin
 
 router = APIRouter(prefix="/api/audit", tags=["audit"], dependencies=[Depends(require_admin)])
 

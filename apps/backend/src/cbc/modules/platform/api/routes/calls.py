@@ -11,8 +11,9 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
-from cbc.db import db, oid, serialise
-from cbc.http.deps import Actor
+from cbc.db import db
+from cbc.shared.mongo import oid, serialise
+from cbc.shared.auth import Actor
 from cbc.schemas import CallCreate
 from cbc.http.projects_access import load
 from cbc.services import audit

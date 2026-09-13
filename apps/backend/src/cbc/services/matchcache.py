@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from cbc.core.paths import repo_root
+from cbc.shared.paths import repo_root
 from cbc.services import manifests
 
 ROOT = repo_root()
@@ -43,7 +43,7 @@ def cache_path(slug: str) -> Path:
 def catalog_watermark() -> str:
     """max(builtAt) across pageIndex; empty when the collection is unreachable."""
     try:
-        from cbc.db import database
+        from cbc.shared.mongo import database
 
         rows = list(database()["pageIndex"].find({}, {"builtAt": 1}).limit(200))
     except Exception:

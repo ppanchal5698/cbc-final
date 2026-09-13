@@ -8,7 +8,7 @@ import sys
 from fastapi.testclient import TestClient
 from pymongo import MongoClient
 
-from cbc.config import settings
+from cbc.shared.config import settings
 
 # One app again, after the monolith cutover. This used to import
 # `tests.combined_app`, the pre-cutover harness that mounted six service apps

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from cbc.config import settings
+from cbc.shared.config import settings
 from tests.shared import ROOT, opshub_client, mongo_client
 from cbc.persistence import names
 

@@ -11,12 +11,13 @@ from cbc.persistence import names
 
 def run(coro):
     from cbc import db as db_module
+    from cbc.shared import mongo as shared_mongo
 
-    db_module._client = None
+    shared_mongo._client = None
     try:
         return asyncio.run(coro)
     finally:
-        db_module._client = None
+        shared_mongo._client = None
 
 
 @pytest.fixture()
@@ -27,7 +28,8 @@ def database(monkeypatch):
     from pymongo import MongoClient
 
     from cbc import db as db_module
-    from cbc.config import settings
+    from cbc.shared import mongo as shared_mongo
+    from cbc.shared.config import settings
     from tests.shared import mongo_client
 
     raw = mongo_client(serverSelectionTimeoutMS=5000)
@@ -42,7 +44,7 @@ def database(monkeypatch):
     previous = settings.mongodb_db
     settings.mongodb_db = name
     raw.drop_database(name)
-    db_module._client = None
+    shared_mongo._client = None
     run(db_module.ensure_indexes())
 
     try:
@@ -51,7 +53,7 @@ def database(monkeypatch):
         raw.drop_database(name)
         raw.close()
         settings.mongodb_db = previous
-        db_module._client = None
+        shared_mongo._client = None
 
 
 def test_capped_next_attempt_never_past_ceiling():

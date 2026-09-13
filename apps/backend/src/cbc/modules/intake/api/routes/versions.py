@@ -7,8 +7,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pymongo.errors import DuplicateKeyError
 
-from cbc.db import db, serialise
-from cbc.http.deps import Actor
+from cbc.db import db
+from cbc.shared.mongo import serialise
+from cbc.shared.auth import Actor
 from cbc.schemas import VersionCreate
 from cbc.http.projects_access import load
 from cbc.http.pipeline_jobs import enqueue_pipeline, reserve

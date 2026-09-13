@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 import render_quote
-from cbc.config import settings
+from cbc.shared.config import settings
 from tests.shared import ROOT
 
 BANDS = json.loads(

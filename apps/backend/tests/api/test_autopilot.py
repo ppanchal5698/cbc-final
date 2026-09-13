@@ -283,7 +283,7 @@ def test_several_drawings_become_one_run(client) -> None:
 def test_the_installation_default_applies_when_the_bid_says_nothing(client) -> None:
     from pymongo import MongoClient
 
-    from cbc.config import settings
+    from cbc.shared.config import settings
 
     raw = mongo_client(serverSelectionTimeoutMS=5000)
     try:

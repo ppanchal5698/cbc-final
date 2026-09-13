@@ -17,7 +17,8 @@ import pytest
 from pymongo import MongoClient
 
 from cbc import db as db_module
-from cbc.config import settings
+from cbc.shared import mongo as shared_mongo
+from cbc.shared.config import settings
 from tests.shared import mongo_client
 from cbc.persistence import names
 
@@ -37,26 +38,26 @@ def database():
 
     previous, settings.mongodb_db = settings.mongodb_db, TEST_DB
     raw.drop_database(TEST_DB)
-    db_module._client = None
+    shared_mongo._client = None
 
     asyncio.run(db_module.ensure_indexes())
-    db_module._client = None
+    shared_mongo._client = None
     try:
         yield raw[TEST_DB]
     finally:
         raw.drop_database(TEST_DB)
         raw.close()
         settings.mongodb_db = previous
-        db_module._client = None
+        shared_mongo._client = None
 
 
 def run(coro):
     """Each test gets its own loop, so the motor client binds to it."""
-    db_module._client = None
+    shared_mongo._client = None
     try:
         return asyncio.run(coro)
     finally:
-        db_module._client = None
+        shared_mongo._client = None
 
 
 def _now():
@@ -119,7 +120,7 @@ def test_an_extract_job_is_not_reaped_after_three_minutes(database) -> None:
 def test_import_extraction_aborts_when_the_lease_was_stolen(database, monkeypatch, tmp_path) -> None:
     from bson import ObjectId
 
-    from cbc.config import settings
+    from cbc.shared.config import settings
     from cbc.services import storage, sync
 
     previous = settings.storage_root

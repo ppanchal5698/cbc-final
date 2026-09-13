@@ -10,8 +10,9 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
-from cbc.db import db, oid, serialise
-from cbc.http.deps import AdminActor, Actor
+from cbc.db import db
+from cbc.shared.mongo import oid, serialise
+from cbc.shared.auth import AdminActor, Actor
 from cbc.schemas import ProjectCreate, ProjectUpdate
 from cbc.services import audit, storage, reuse
 

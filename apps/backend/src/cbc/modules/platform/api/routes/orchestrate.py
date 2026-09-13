@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from cbc.db import serialise
-from cbc.http.deps import Actor
+from cbc.shared.mongo import serialise
+from cbc.shared.auth import Actor
 from cbc.http.projects_access import load
 from cbc.services import orchestrator
 from cbc.services.jobs import PipelineJobActive

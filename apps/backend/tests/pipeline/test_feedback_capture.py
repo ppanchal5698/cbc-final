@@ -21,8 +21,8 @@ TEST_DB = "cbc_opshub_test_feedback"
 
 @pytest.fixture()
 def events():
-    from cbc import db as db_module
-    from cbc.config import settings
+    from cbc.shared import mongo as db_module
+    from cbc.shared.config import settings
 
     raw = mongo_client()
     try:
@@ -43,7 +43,7 @@ def events():
 
 
 def run(coro):
-    from cbc import db as db_module
+    from cbc.shared import mongo as db_module
 
     db_module._client = None
     try:

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from cbc.config import settings
+from cbc.shared.config import settings
 from tests.shared import ROOT
 
 # The seed JSON moved to data/reference-library in the monolith cutover, and the

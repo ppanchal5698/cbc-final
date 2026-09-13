@@ -13,9 +13,10 @@ from typing import Any
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse
 
-from cbc.config import settings
-from cbc.db import db, oid, serialise
-from cbc.http.deps import Actor, AdminActor
+from cbc.shared.config import settings
+from cbc.db import db
+from cbc.shared.mongo import oid, serialise
+from cbc.shared.auth import Actor, AdminActor
 from cbc.schemas import PriceBookCreate, PriceBookUpdate
 from cbc.services import audit, freshness as freshness_settings, jobs, storage
 from cbc.pageindex import basis, store as catalog_store

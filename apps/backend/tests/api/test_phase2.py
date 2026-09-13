@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from cbc.config import settings
+from cbc.shared.config import settings
 from cbc.persistence import names
 from tests.shared import FIXTURE_PDF, ROOT, opshub_client  # noqa: E402
 

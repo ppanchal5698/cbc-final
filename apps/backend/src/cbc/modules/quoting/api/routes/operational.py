@@ -7,8 +7,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from cbc.db import db, oid, serialise
-from cbc.http.deps import Actor
+from cbc.db import db
+from cbc.shared.mongo import oid, serialise
+from cbc.shared.auth import Actor
 from cbc.http.projects_access import load
 from cbc.persistence import repos
 from cbc.schemas.operational import RFQ_TRANSITIONS

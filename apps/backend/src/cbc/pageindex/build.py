@@ -27,7 +27,7 @@ from pathlib import Path
 
 import fitz
 
-from cbc.core.paths import repo_root
+from cbc.shared.paths import repo_root
 from cbc.pageindex import basis, store
 from cbc.pageindex.describe import describe_page, needs_a_second_look
 from cbc.pageindex.models import BUILDER_VERSION, PageIndexDocument, PageProfile

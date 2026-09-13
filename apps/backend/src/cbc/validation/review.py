@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from cbc.core import calc
-from cbc.core.paths import repo_root
+from cbc.shared.paths import repo_root
 from cbc.services import pricing
 
 ROOT = repo_root()

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 
-from cbc.config import Settings
+from cbc.shared.config import Settings
 
 
 def test_protected_route_rejects_missing_token(client) -> None:

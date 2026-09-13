@@ -1,8 +1,8 @@
 """Optional OTel module: no-op without endpoint; span attributes when stubbed."""
 from __future__ import annotations
 
-from cbc.http import otel, tracing
-from cbc.http.tracing import TRACE_HEADER, TraceMiddleware
+from cbc.shared import otel, tracing
+from cbc.shared.tracing import TRACE_HEADER, TraceMiddleware
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse

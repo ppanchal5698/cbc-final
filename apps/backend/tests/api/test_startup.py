@@ -92,7 +92,7 @@ def test_pricebook_ingest_refuses_a_path_outside_the_cache() -> None:
 
 
 def test_production_rejects_the_default_secrets(monkeypatch) -> None:
-    from cbc.config import DEV_SECRET, Settings
+    from cbc.shared.config import DEV_SECRET, Settings
 
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("APP_SECRET_KEY", DEV_SECRET)
@@ -103,7 +103,7 @@ def test_production_rejects_the_default_secrets(monkeypatch) -> None:
 
 
 def test_production_starts_on_real_secrets(monkeypatch) -> None:
-    from cbc.config import Settings
+    from cbc.shared.config import Settings
 
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("APP_SECRET_KEY", "a-real-secret-from-secrets-manager")
@@ -120,7 +120,7 @@ def test_production_starts_on_real_secrets(monkeypatch) -> None:
 def test_development_keeps_working_with_no_configuration(monkeypatch) -> None:
     for name in ("APP_ENV", "APP_SECRET_KEY", "INTERNAL_API_TOKEN", "MONGODB_URI"):
         monkeypatch.delenv(name, raising=False)
-    from cbc.config import DEV_SECRET, Settings
+    from cbc.shared.config import DEV_SECRET, Settings
 
     assert Settings().internal_api_token == DEV_SECRET
 

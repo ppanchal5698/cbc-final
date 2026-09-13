@@ -31,7 +31,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from cbc.core.paths import repo_root
+from cbc.shared.paths import repo_root
 
 LIST = "list"
 NET = "net"

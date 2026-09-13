@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from cbc.config import settings
+from cbc.shared.config import settings
 from tests.characterization._harness import pdf_bytes
 from tests.shared import ROOT, opshub_client
 

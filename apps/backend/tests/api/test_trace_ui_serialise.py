@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from bson import ObjectId
 
-from cbc.db import serialise
+from cbc.shared.mongo import serialise
 
 
 def test_serialise_preserves_trace_id() -> None:

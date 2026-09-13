@@ -36,8 +36,8 @@ def _fake(name: str, version: int, description: str, body):
 def database():
     """A throwaway database. The runner is async, so it gets the motor handle;
     the tests assert with pymongo, which is easier to read."""
-    from cbc import db as db_module
-    from cbc.config import settings
+    from cbc.shared import mongo as db_module
+    from cbc.shared.config import settings
 
     raw = mongo_client()
     try:
@@ -58,7 +58,7 @@ def database():
 
 
 def _pending() -> list:
-    from cbc import db as db_module
+    from cbc.shared import mongo as db_module
 
     db_module._client = None
     try:
@@ -69,7 +69,7 @@ def _pending() -> list:
 
 def _run() -> list:
     """Apply pending migrations against the database settings currently name."""
-    from cbc import db as db_module
+    from cbc.shared import mongo as db_module
 
     db_module._client = None
     try:

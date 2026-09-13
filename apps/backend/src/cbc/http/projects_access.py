@@ -5,7 +5,8 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from cbc.db import db, oid
+from cbc.db import db
+from cbc.shared.mongo import oid
 
 STAGE_PROGRESS = {"intake": 0, "extraction": 33, "quote": 67, "proposal": 100}
 

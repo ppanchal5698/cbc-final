@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from cbc.db import database
+from cbc.shared.mongo import database
 from cbc.persistence import envelope, names
 from cbc.persistence.repository import Repository
 

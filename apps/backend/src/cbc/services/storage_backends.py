@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 from typing import Protocol
 
-from cbc.config import settings
+from cbc.shared.config import settings
 
 log = logging.getLogger("cbc.storage_backends")
 

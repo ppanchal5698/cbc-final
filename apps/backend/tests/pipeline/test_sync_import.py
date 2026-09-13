@@ -18,7 +18,7 @@ import pytest
 from bson import ObjectId
 from pymongo import MongoClient
 
-from cbc.config import settings
+from cbc.shared.config import settings
 from tests.shared import FIXTURES, ROOT, mongo_client
 from cbc.persistence import names
 
@@ -28,7 +28,7 @@ SLUG = "sync_import_fixture"
 
 def run(coro):
     """Each test gets its own loop, so the motor client binds to it."""
-    from cbc import db as db_module
+    from cbc.shared import mongo as db_module
 
     db_module._client = None
     try:
@@ -40,7 +40,7 @@ def run(coro):
 @pytest.fixture()
 def project():
     """A throwaway database and an isolated projects/ root, with one bid in it."""
-    from cbc import db as db_module
+    from cbc.shared import mongo as db_module
 
     raw = mongo_client(serverSelectionTimeoutMS=5000)
     try:

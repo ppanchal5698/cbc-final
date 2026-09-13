@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from cbc.core.paths import repo_root
+from cbc.shared.paths import repo_root
 
 ROOT = repo_root()
 

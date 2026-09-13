@@ -385,7 +385,7 @@ def test_saving_bedrock_settings_round_trips(client):
 
     from pymongo import MongoClient
 
-    from cbc.config import settings as app_settings
+    from cbc.shared.config import settings as app_settings
 
     raw = MongoClient(app_settings.mongodb_uri)
     try:
@@ -396,7 +396,7 @@ def test_saving_bedrock_settings_round_trips(client):
     assert secrets.decrypt(stored["bedrockApiKey"]) == "ABSK-test-bedrock-key-valueWT0="
     assert stored["model"] == "anthropic.claude-sonnet-4-5-20250929-v1:0"
 
-    from cbc.core import envfile
+    from cbc.shared import envfile
 
     on_disk = envfile.read()
     assert on_disk["AWS_BEARER_TOKEN_BEDROCK"] == "ABSK-test-bedrock-key-valueWT0="
@@ -407,7 +407,7 @@ def test_saving_bedrock_settings_round_trips(client):
 
 
 def test_dotenv_beats_mongo_and_does_not_lock_the_field(tmp_path, monkeypatch):
-    from cbc.core import envfile
+    from cbc.shared import envfile
 
     envfile.upsert({"AWS_BEARER_TOKEN_BEDROCK": "ABSK-from-dotenv-fileWT0=", "AWS_REGION": "ap-south-1"})
     env, sources = provider.build_env({"mode": provider.BEDROCK, "bedrockApiKey": secrets.encrypt("ABSK-from-mongoWT0=")})
@@ -417,7 +417,7 @@ def test_dotenv_beats_mongo_and_does_not_lock_the_field(tmp_path, monkeypatch):
 
 
 def test_process_env_still_beats_the_dotenv_file(monkeypatch):
-    from cbc.core import envfile
+    from cbc.shared import envfile
 
     envfile.upsert({"AWS_BEARER_TOKEN_BEDROCK": "ABSK-from-dotenv-fileWT0="})
     monkeypatch.setenv("AWS_BEARER_TOKEN_BEDROCK", "ABSK-from-process-envWT0=")
@@ -428,7 +428,7 @@ def test_process_env_still_beats_the_dotenv_file(monkeypatch):
 
 
 def test_envfile_upsert_preserves_unrelated_keys_and_comments(tmp_path, monkeypatch):
-    from cbc.core import envfile
+    from cbc.shared import envfile
 
     target = tmp_path / ".env"
     target.write_text("# keep me\nMONGODB_DB=cbc_opshub\nAWS_REGION=us-east-1\n", encoding="utf-8")
@@ -444,7 +444,7 @@ def test_envfile_upsert_preserves_unrelated_keys_and_comments(tmp_path, monkeypa
 
 def test_envfile_upsert_falls_back_when_replace_is_busy(tmp_path, monkeypatch):
     """Docker Desktop single-file bind mounts reject os.replace with EBUSY."""
-    from cbc.core import envfile
+    from cbc.shared import envfile
 
     target = tmp_path / ".env"
     target.write_text("FOO=1\n", encoding="utf-8")
@@ -512,7 +512,7 @@ def test_a_masked_value_sent_back_unedited_keeps_the_stored_credential(client):
     # The credential itself, not merely "configured" - which a mask satisfies too.
     from pymongo import MongoClient
 
-    from cbc.config import settings as app_settings
+    from cbc.shared.config import settings as app_settings
 
     raw = MongoClient(app_settings.mongodb_uri)
     try:
@@ -528,7 +528,7 @@ def test_saving_settings_records_the_change_without_the_values(client):
     """The trail has to show that a credential changed, and never what it became."""
     from pymongo import MongoClient
 
-    from cbc.config import settings as app_settings
+    from cbc.shared.config import settings as app_settings
 
     client.put(
         "/api/settings/claude",

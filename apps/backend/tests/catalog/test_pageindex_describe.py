@@ -178,7 +178,7 @@ def test_the_read_only_uri_authenticates_where_the_user_was_made() -> None:
     `readonly_uri` inherited `authSource=admin` from the root connection string.
     The first real connection failed authentication.
     """
-    from cbc.config import settings
+    from cbc.shared.config import settings
     from cbc.db import readonly_uri
 
     uri = readonly_uri()

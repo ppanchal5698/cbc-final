@@ -8,8 +8,8 @@ import shutil
 from pathlib import Path
 from typing import Iterable
 
-from cbc.config import settings
-from cbc.core.paths import repo_root
+from cbc.shared.config import settings
+from cbc.shared.paths import repo_root
 from cbc.services import storage
 
 log = logging.getLogger("cbc.sandbox")

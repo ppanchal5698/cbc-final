@@ -248,7 +248,7 @@ async def enqueue(
     }
     # Top-level only: putting traceId in payload would bust idempotency keys.
     try:
-        from cbc.http import tracing as hop_tracing
+        from cbc.shared import tracing as hop_tracing
 
         hop = hop_tracing.current_trace_id()
         if hop:

@@ -13,7 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import Response
 
-from cbc.http import otel
+from cbc.shared import otel
 
 TRACE_HEADER = "X-Trace-Id"
 

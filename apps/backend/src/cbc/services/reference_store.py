@@ -18,7 +18,7 @@ from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.errors import PyMongoError
 
-from cbc.config import settings
+from cbc.shared.config import settings
 
 log = logging.getLogger("cbc.reference_store")
 

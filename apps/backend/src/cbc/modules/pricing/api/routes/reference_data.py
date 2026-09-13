@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from cbc.core import calc
-from cbc.http.deps import Actor, AdminActor
+from cbc.shared.auth import Actor, AdminActor
 from cbc.schemas import (
     CustomOtherMatrixReplace,
     FinishesUpdate,

@@ -21,7 +21,7 @@ def test_allowlist_rejects_escapes_and_secrets() -> None:
 
 
 def test_promote_copies_allowlisted_files_only(tmp_path, monkeypatch) -> None:
-    from cbc.config import settings
+    from cbc.shared.config import settings
 
     previous = settings.storage_root
     settings.storage_root = tmp_path
@@ -72,7 +72,7 @@ def test_ensure_workspace_trusted_writes_claude_json(tmp_path) -> None:
 
 
 def test_prepare_marks_scratch_workspace_trusted(tmp_path, monkeypatch) -> None:
-    from cbc.config import settings
+    from cbc.shared.config import settings
 
     previous = settings.storage_root
     settings.storage_root = tmp_path

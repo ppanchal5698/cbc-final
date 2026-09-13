@@ -19,7 +19,7 @@ from typing import Any
 import threading
 
 from cbc.core import secrets
-from cbc.core.paths import repo_root
+from cbc.shared.paths import repo_root
 
 REPO_ROOT = repo_root()
 

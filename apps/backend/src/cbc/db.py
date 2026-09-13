@@ -1,25 +1,23 @@
 """MongoDB access for the CBC Ops-Hub API.
 
-One motor client for the process. Collection accessors are plain attributes so
-callers read as prose: `db.line_items.find({...})`.
+Collection accessors, index builds and the catalog's read-only user. The client
+itself and the primitives (`oid`, `serialise`, transactions) are in
+`cbc.shared.mongo`. Accessors are plain attributes so callers read as prose:
+`db.line_items.find({...})`.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 import os
-from datetime import datetime
-from typing import Any
 
 from urllib.parse import quote_plus, urlsplit
 
-from bson import ObjectId
-from bson.errors import InvalidId
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, TEXT
 from pymongo.errors import DuplicateKeyError, OperationFailure, PyMongoError
 
-from cbc.config import settings
+from cbc.shared.config import settings
+from cbc.shared.mongo import client, database
 from cbc.persistence import names
 from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
 
@@ -29,26 +27,6 @@ log = logging.getLogger("cbc.api.db")
 # endpoint because the TTL index below has to agree with it, and `cbc` cannot
 # import the application that serves the route.
 AUTH_ATTEMPT_TTL = 300
-
-_client: AsyncIOMotorClient | None = None
-
-
-def client() -> AsyncIOMotorClient:
-    global _client
-    if _client is None:
-        _client = AsyncIOMotorClient(
-            settings.mongodb_uri,
-            tz_aware=True,
-            serverSelectionTimeoutMS=5000,
-            connectTimeoutMS=5000,
-            socketTimeoutMS=30000,
-            maxPoolSize=50,
-        )
-    return _client
-
-
-def database() -> AsyncIOMotorDatabase:
-    return client()[settings.mongodb_db]
 
 
 class Collections:
@@ -394,53 +372,6 @@ async def ensure_indexes() -> None:
     from cbc.services.reference_store import ensure_reference_seed
 
     await ensure_reference_seed()
-
-
-def oid(value: str | ObjectId) -> ObjectId:
-    """Coerce to ObjectId, raising a ValueError the routers turn into a 400."""
-    if isinstance(value, ObjectId):
-        return value
-    try:
-        return ObjectId(value)
-    except (InvalidId, TypeError) as exc:
-        raise ValueError(f"not a valid id: {value!r}") from exc
-
-
-def transactions_enabled() -> bool:
-    """Compose sets MONGODB_TRANSACTIONS=1 with the single-node replica set."""
-    return os.environ.get("MONGODB_TRANSACTIONS", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-    }
-
-
-async def run_transaction(callback):
-    """Run `await callback(session)` inside a Mongo transaction when enabled.
-
-    When transactions are off (pytest / standalone), calls `callback(None)` so
-    writers use ordinary single-document semantics.
-    """
-    if not transactions_enabled():
-        return await callback(None)
-    async with await client().start_session() as session:
-        async with session.start_transaction():
-            return await callback(session)
-
-
-def serialise(document: Any) -> Any:
-    """Recursively turn ObjectId and datetime into JSON-safe values."""
-    if isinstance(document, list):
-        return [serialise(item) for item in document]
-    if isinstance(document, dict):
-        return {
-            ("id" if key == "_id" else key): serialise(value) for key, value in document.items()
-        }
-    if isinstance(document, ObjectId):
-        return str(document)
-    if isinstance(document, datetime):
-        return document.isoformat()
-    return document
 
 
 # ── read-only access for the catalog MCP server ─────────────────────────────

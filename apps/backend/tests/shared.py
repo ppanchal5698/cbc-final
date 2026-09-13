@@ -9,7 +9,7 @@ harness they need.
 Two things changed in the move:
 
 - `ROOT` used to be the repo root because `tests/` sat there. It now comes from
-  `cbc.core.paths.repo_root()`, which walks up to a marker file, so the tests
+  `cbc.shared.paths.repo_root()`, which walks up to a marker file, so the tests
   reach `.claude/`, `workflows/`, `docs/` and `templates/` wherever the suite is
   run from.
 - `opshub_client` built its app from `tests.combined_app`, the harness that
@@ -29,7 +29,7 @@ from typing import Iterator
 
 import pytest
 
-from cbc.core.paths import repo_root
+from cbc.shared.paths import repo_root
 
 ROOT = repo_root()
 
@@ -95,7 +95,7 @@ def mongo_client(**kwargs):
     """A pymongo client that can actually reach the compose Mongo."""
     from pymongo import MongoClient
 
-    from cbc.config import settings
+    from cbc.shared.config import settings
 
     kwargs.setdefault("serverSelectionTimeoutMS", 5000)
     return MongoClient(direct_uri(settings.mongodb_uri), **kwargs)
@@ -110,7 +110,7 @@ def require_mongo(client) -> None:
     tests, so the flag has been inert and the API suite has been stubbing Mongo
     out entirely.
     """
-    from cbc.config import settings
+    from cbc.shared.config import settings
 
     try:
         client.server_info()
@@ -132,9 +132,9 @@ def opshub_client(
     """A TestClient against a throwaway database, seeded with one actor."""
     from fastapi.testclient import TestClient
 
-    from cbc import db as db_module
+    from cbc.shared import mongo as db_module
     from cbc.api.app import create_app
-    from cbc.config import settings
+    from cbc.shared.config import settings
 
     previous_db = settings.mongodb_db
     settings.mongodb_db = db_name

@@ -21,7 +21,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from cbc.db import db, serialise
+from cbc.db import db
+from cbc.shared.mongo import serialise
 from cbc.pageindex import basis, query as page_query, store as page_store
 
 

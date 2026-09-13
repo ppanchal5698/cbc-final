@@ -6,8 +6,9 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from cbc.db import db, oid, serialise
-from cbc.http.deps import Actor, require_admin
+from cbc.db import db
+from cbc.shared.mongo import oid, serialise
+from cbc.shared.auth import Actor, require_admin
 from cbc.modules.platform.api.routes.auth import hash_password
 from cbc.schemas import UserCreate, UserUpdate
 from cbc.services import audit

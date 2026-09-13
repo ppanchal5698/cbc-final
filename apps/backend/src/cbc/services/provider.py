@@ -19,7 +19,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from cbc.core import envfile, secrets
+from cbc.shared import envfile
+from cbc.core import secrets
 
 SUBSCRIPTION = "subscription"
 ANTHROPIC_API = "anthropic_api"

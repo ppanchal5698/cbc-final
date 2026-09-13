@@ -21,8 +21,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from cbc.config import settings
-from cbc.db import db, oid
+from cbc.shared.config import settings
+from cbc.db import db
+from cbc.shared.mongo import oid
 from cbc.pageindex import build as pageindex_build
 from cbc.pageindex import store as pageindex_store
 

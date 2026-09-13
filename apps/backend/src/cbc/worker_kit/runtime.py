@@ -38,18 +38,17 @@ def _repo_root() -> Path:
 
 REPO_ROOT = _repo_root()
 
-from cbc.core import envfile
+from cbc.shared import envfile
 from cbc.services import provider
 
 envfile.apply_to_environ(skip=provider.MANAGED)
 
-from cbc import db as db_module
 from cbc.db import db
 from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
 from cbc.services import audit, quote as quote_service, render, storage, sync
 from cbc.services import manifests, matchcache, pretakeoff, runmetrics, sheetmap
 from cbc.core import claude_cli as runner, streaming
-from cbc.core import logs
+from cbc.shared import logs
 from cbc.validation import ArtifactValidationError, validate_job_artifacts
 from cbc.validation import review as review_flags
 from cbc.worker_kit import prompts
@@ -990,7 +989,7 @@ async def process_locally(job: dict) -> None:
 
 async def process(job: dict) -> None:
     """Run one claimed job; optional OTLP span when OTEL endpoint is set."""
-    from cbc.http import otel
+    from cbc.shared import otel
 
     payload = job.get("payload") or {}
     trace_id = job.get("traceId") or payload.get("traceId")
@@ -1529,7 +1528,7 @@ async def loop(once: bool = False) -> int:
     # none, because a pricing pass with no catalog flags every line MANUAL and
     # looks like a model failure rather than a missing credential.
     from cbc.db import readonly_uri
-    from cbc.http import otel
+    from cbc.shared import otel
 
     otel.configure(os.environ.get("OTEL_SERVICE_NAME") or "cbc.worker")
 

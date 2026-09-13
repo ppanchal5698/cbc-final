@@ -25,7 +25,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from cbc.core.paths import repo_root
+from cbc.shared.paths import repo_root
 
 REPO_ROOT = repo_root()
 

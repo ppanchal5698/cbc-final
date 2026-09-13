@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from cbc.config import settings
+from cbc.shared.config import settings
 
 SUBDIRS = (
     "uploads/raw",

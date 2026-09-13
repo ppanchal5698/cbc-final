@@ -5,8 +5,9 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 
-from cbc.db import db, oid, serialise
-from cbc.http.deps import ADMIN_ROLES, Actor
+from cbc.db import db
+from cbc.shared.mongo import oid, serialise
+from cbc.shared.auth import ADMIN_ROLES, Actor
 from cbc.schemas import JobCreate
 from cbc.schemas.common import ESTIMATOR_JOB_TYPES, EXCLUSIVE_JOB_TYPES
 from cbc.http.projects_access import load

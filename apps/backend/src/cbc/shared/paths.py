@@ -47,7 +47,7 @@ def _demo() -> None:
     )
     assert (root / "apps" / "web").is_dir(), "apps/web should sit under the root"
     assert repo_root() is root, "result should be cached"
-    print(f"cbc.core.paths OK - {root}")
+    print(f"cbc.shared.paths OK - {root}")
 
 
 if __name__ == "__main__":

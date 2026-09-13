@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from cbc.config import settings
+from cbc.shared.config import settings
 from tests.shared import TEST_ACTOR
 
 PROBE_PATH = "/api/projects"
@@ -76,7 +76,7 @@ def test_an_empty_configured_token_does_not_open_the_api(
 
 def test_production_rejects_an_empty_token(monkeypatch) -> None:
     """And it never gets as far as serving a request."""
-    from cbc.config import Settings
+    from cbc.shared.config import Settings
 
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("APP_SECRET_KEY", "a-real-secret-from-secrets-manager")

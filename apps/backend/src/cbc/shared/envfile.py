@@ -17,7 +17,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from cbc.core.paths import repo_root
+from cbc.shared.paths import repo_root
 
 log = logging.getLogger("cbc.envfile")
 

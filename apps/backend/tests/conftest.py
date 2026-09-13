@@ -20,7 +20,7 @@ os.environ["APP_ENV"] = "development"
 os.environ.setdefault("WORKER_CLAIM_ALL", "1")
 # REFERENCE_DIR defaults to a repo-root `reference-library/` that exists only
 # inside the image; a checkout keeps the seed JSON at `data/reference-library`.
-# Must be set before anything imports cbc.config, which reads os.environ once at
+# Must be set before anything imports cbc.shared.config, which reads os.environ once at
 # import. setdefault, so an in-container run (Dockerfile sets it) is untouched.
 os.environ.setdefault("REFERENCE_DIR", "data/reference-library")
 # Same for PRICEBOOK_DIR: pageindex/basis.py falls back to repo_root()/"pricebooks",
@@ -41,12 +41,12 @@ from tests.shared import FIXTURE_PDF, ROOT, direct_uri  # noqa: E402
 # pymongo in the fixtures and motor inside `cbc.db` alike. Fixing it per client
 # was not enough before: a fixture connected, then `db.ensure_indexes()` built its
 # own motor client from the untouched URI and failed anyway.
-from cbc.config import settings  # noqa: E402
+from cbc.shared.config import settings  # noqa: E402
 
 settings.mongodb_uri = direct_uri(settings.mongodb_uri)
 assert settings.mongodb_db != DEV_DB, (
     f"the test process resolved MONGODB_DB to {DEV_DB!r}, the dev database; "
-    "something imported cbc.config before this conftest forced it"
+    "something imported cbc.shared.config before this conftest forced it"
 )
 
 
@@ -55,7 +55,7 @@ def isolate_dotenv(tmp_path, monkeypatch):
     """Never let a test Save write the developer's real `.env`.
 
     `POST /api/settings/claude` rewrites the env file through
-    `core.envfile.apply_to_environ`, so without this a settings test edits the
+    `shared.envfile.apply_to_environ`, so without this a settings test edits the
     working tree.
     """
     monkeypatch.setenv("CBC_ENV_FILE", str(tmp_path / ".env"))
@@ -111,15 +111,15 @@ def app(monkeypatch):
     monkeypatch.setattr("cbc.http.service_app.ensure_readonly_user", _ok)
     monkeypatch.setattr("cbc.http.service_app.pageindex_store.ensure_indexes", _ok)
 
-    # No settings refresh here. This fixture used to rebuild `cbc.config.settings`
+    # No settings refresh here. This fixture used to rebuild `cbc.shared.config.settings`
     # and assign the new object onto config, http.deps and http.service_app -
     # directly, never restored. Every module that had already done
-    # `from cbc.config import settings` (services.storage, storage_backends,
+    # `from cbc.shared.config import settings` (services.storage, storage_backends,
     # worker_kit.sandbox) kept the old object, so any later test that set
     # `settings.storage_root` patched the new one while the code under test read
     # the old: five tests in pipeline/ and api/test_service_jwt passed alone and
     # failed after any test that used `client`. The env is forced at the top of
-    # this file before anything imports cbc.config, so the original object was
+    # this file before anything imports cbc.shared.config, so the original object was
     # already correct and there was nothing to refresh.
     from cbc.api.app import create_app
 

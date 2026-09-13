@@ -6,7 +6,8 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from cbc.db import db, serialise
+from cbc.db import db
+from cbc.shared.mongo import serialise
 from cbc.services import jobs as job_service
 
 

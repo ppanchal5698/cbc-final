@@ -7,8 +7,8 @@ import pytest
 from bson import ObjectId
 from pymongo import MongoClient
 
-from cbc import db as db_module
-from cbc.config import settings
+from cbc.shared import mongo as db_module
+from cbc.shared.config import settings
 from tests.shared import FIXTURE_PDF, TEST_ACTOR, opshub_client, mongo_client
 from cbc.persistence import names
 

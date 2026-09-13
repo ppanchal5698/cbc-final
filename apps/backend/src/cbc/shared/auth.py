@@ -8,8 +8,8 @@ from fastapi import Depends, HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse, Response
 
-from cbc.config import settings
-from cbc.http import service_jwt
+from cbc.shared.config import settings
+from cbc.shared import service_jwt
 
 # Endpoints that must stay reachable without the internal service token.
 PUBLIC_PATHS = frozenset({"/api/health", "/api/auth/verify"})

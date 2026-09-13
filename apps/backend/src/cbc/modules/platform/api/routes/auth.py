@@ -11,7 +11,8 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 from fastapi import APIRouter, HTTPException
 
-from cbc.db import AUTH_ATTEMPT_TTL, db, serialise
+from cbc.db import AUTH_ATTEMPT_TTL, db
+from cbc.shared.mongo import serialise
 from cbc.schemas import Credentials
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])

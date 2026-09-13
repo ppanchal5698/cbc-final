@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from cbc.config import settings
+from cbc.shared.config import settings
 from cbc.db import db
 
 log = logging.getLogger("cbc.api.audit")

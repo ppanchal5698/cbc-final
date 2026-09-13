@@ -24,7 +24,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from cbc.core.paths import repo_root
+from cbc.shared.paths import repo_root
 from cbc.services import sheetmap, storage
 from cbc.services.storage import atomic_write_json
 
@@ -338,7 +338,7 @@ def _demo() -> None:
     import tempfile
     from pathlib import Path
 
-    from cbc.config import settings
+    from cbc.shared.config import settings
 
     previous = settings.storage_root
     with tempfile.TemporaryDirectory() as scratch:

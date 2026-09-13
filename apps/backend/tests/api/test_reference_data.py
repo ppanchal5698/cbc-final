@@ -210,7 +210,7 @@ def admin_client():
 
 @pytest.fixture()
 def as_role():
-    from cbc.config import settings
+    from cbc.shared.config import settings
     from pymongo import MongoClient
 
     raw = mongo_client(serverSelectionTimeoutMS=5000)

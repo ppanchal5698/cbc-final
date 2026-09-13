@@ -22,7 +22,7 @@ def client():
 def as_role(client):
     from pymongo import MongoClient
 
-    from cbc.config import settings
+    from cbc.shared.config import settings
 
     raw = mongo_client(serverSelectionTimeoutMS=5000)
 

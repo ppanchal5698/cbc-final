@@ -21,7 +21,7 @@ from typing import Any
 
 from fastapi.routing import APIRoute
 
-from cbc.http.deps import require_admin
+from cbc.shared.auth import require_admin
 
 SNAPSHOTS = Path(__file__).parent / "snapshots"
 UPDATE = os.environ.get("UPDATE_SNAPSHOTS", "").strip() == "1"

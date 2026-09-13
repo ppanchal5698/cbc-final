@@ -20,8 +20,9 @@ from typing import AsyncIterator
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from cbc.config import settings
-from cbc.db import db, oid
+from cbc.shared.config import settings
+from cbc.db import db
+from cbc.shared.mongo import oid
 
 router = APIRouter(prefix="/api/jobs/{job_id}/terminal", tags=["terminal"])
 

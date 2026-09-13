@@ -12,7 +12,7 @@ import logging
 
 import pytest
 
-from cbc.core import logs
+from cbc.shared import logs
 
 
 @pytest.fixture(autouse=True)

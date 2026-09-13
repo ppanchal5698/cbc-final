@@ -11,9 +11,9 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from cbc.config import settings
-from cbc.http import service_jwt
-from cbc.http.deps import InternalAuthMiddleware
+from cbc.shared.config import settings
+from cbc.shared import service_jwt
+from cbc.shared.auth import InternalAuthMiddleware
 from tests.shared import TEST_ACTOR
 
 
