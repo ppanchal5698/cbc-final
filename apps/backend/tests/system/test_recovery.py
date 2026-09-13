@@ -5,7 +5,7 @@ reproduces: a worker killed mid-run, two estimators clicking at the same moment,
 two vendors selling the same part number. They need the real indexes, so they
 need the real database.
 
-    docker compose up -d mongo && python -m pytest tests/api/test_recovery.py -q
+    docker compose up -d mongo && python -m pytest tests/system/test_recovery.py -q
 """
 from __future__ import annotations
 

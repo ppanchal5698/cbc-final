@@ -16,7 +16,7 @@ os.environ["APP_ENV"] = "development"
 # the way the one compose worker runs (WORKER_CLAIM_ALL=1). This was
 # WORKER_DOMAIN=catalog, which scoped `claim()` to catalog jobs for the whole
 # process, so test_recovery's backoff test could never claim the extract_bid_set
-# job it queued. tests/unit/test_worker.py sets its own domain and reloads.
+# job it queued. tests/modules/ops/test_worker.py sets its own domain and reloads.
 os.environ.setdefault("WORKER_CLAIM_ALL", "1")
 # REFERENCE_DIR defaults to a repo-root `reference-library/` that exists only
 # inside the image; a checkout keeps the seed JSON at `data/reference-library`.

@@ -110,8 +110,11 @@ Typed errors stay transport-free and the root maps them: `ops.api.jobs.PipelineJ
    that hands back a stored document declares what it holds in a TypedDict beside
    it (`ProjectRef`, `JobRef`, `ProductRef`, `OpeningRef`, `EstimateLineRef`); a
    field you read must be on it, or `test_port_types` fails.
-4. Test it: `tests/characterization` pins every endpoint's status and shape;
-   `REQUIRE_MONGO=1 pytest` must stay green, and `test_layering` must pass.
+4. Test it in `tests/modules/<module>/features/<Slice>_test.py`, beside that module's
+   rule suites in `tests/modules/<module>/`; checks that span modules, `shared/` or
+   the roots live in `tests/system/`. `tests/characterization` pins every endpoint's
+   status and shape; `REQUIRE_MONGO=1 pytest` must stay green, and `test_layering`
+   must pass.
 
 ## Adding a job
 
@@ -134,7 +137,7 @@ A job type runs as a slice in the module that owns what it writes.
    has more to do when it ends than `projects.api.pipeline.after_pass`.
 3. Declare the type in `JobType` (ops' `domain/jobs.py`). A Claude pass needs a template
    in `cbc.worker_kit.prompts`, and every job type a
-   domain in `DOMAIN_JOB_TYPES` (ops' `WorkerLoop`); `tests/pipeline/test_toolset_registry.py` fails
+   domain in `DOMAIN_JOB_TYPES` (ops' `WorkerLoop`); `tests/modules/ops/test_toolset_registry.py` fails
    on a job type nothing runs.
 
 ## Adding a module

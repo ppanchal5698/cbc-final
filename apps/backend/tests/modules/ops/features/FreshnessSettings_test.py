@@ -16,7 +16,7 @@ def test_freshness_settings_ship_the_windows_the_workbook_states():
 
     The two used to be one number. This endpoint reports the price-sheet window,
     which is unchanged; the cost window moved to Matrix 6.2 and is asserted in
-    tests/pipeline/test_freshness.py.
+    tests/modules/ops/test_freshness.py.
     """
     from cbc.modules.ops.api import freshness_rules as core
 

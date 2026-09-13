@@ -9,7 +9,7 @@ from tests.shared import TEST_ACTOR, opshub_client, mongo_client
 TEST_DB = "cbc_opshub_test_job_authz"
 
 
-# `client` and `as_role` are declared per-file across tests/api/ rather than in a
+# `client` and `as_role` are declared per-file per test file rather than in a
 # conftest. This file asked for both and defined neither, so every test in it
 # errored in setup with "fixture 'client' not found" - it had never once run.
 @pytest.fixture(scope="module")

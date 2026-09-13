@@ -9,7 +9,7 @@ production bid run died on `Extra inputs are not permitted` against a file the
 system had written itself.
 
 The models are the source. This module renders the same documents from them, and
-`tests/pipeline/test_schema_generated.py` fails if the committed files differ
+`tests/modules/extraction/test_schema_generated.py` fails if the committed files differ
 from what it renders. Adding a field to a model and forgetting the schema is now
 a red test rather than a dead run.
 

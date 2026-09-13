@@ -1,6 +1,6 @@
 """Driving `claude setup-token` through a pseudo-terminal: what to look for, and reading it.
 
-Every pattern here comes from bytes the real CLI emitted; tests/api/test_oauth_flow.py
+Every pattern here comes from bytes the real CLI emitted; tests/modules/ops/features/ClaudeOAuth_test.py
 pins them against those captures.
 """
 from __future__ import annotations
