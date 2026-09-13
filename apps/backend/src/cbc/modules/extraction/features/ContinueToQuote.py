@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from cbc.modules.extraction.api import door_schedule
 from cbc.modules.extraction.infrastructure.collections import openings
 from cbc.modules.ops.api import audit
 from cbc.modules.ops.api.jobs import enqueue_pipeline
 from cbc.modules.projects.api.lookup import load
-from cbc.services import sync  # ponytail: legacy kernel; the export moves with the extraction job (Phase 4)
 from cbc.shared.auth import Actor
 from cbc.shared.mongo import serialise
 
@@ -23,7 +23,7 @@ async def continue_to_quote(code: str, actor: Actor) -> dict:
     outstanding = await openings().count_documents(
         {"projectId": project["_id"], "status": "needs_look"}
     )
-    await sync.export_line_items(project)
+    await door_schedule.export_line_items(project)
 
     job = await enqueue_pipeline("match_and_price", project["_id"], actor=actor)
     await audit.record(

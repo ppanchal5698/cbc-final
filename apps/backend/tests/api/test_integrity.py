@@ -24,7 +24,8 @@ def test_repeated_marks_get_their_own_stable_keys() -> None:
     Keying both on `mark:05` made each run insert two fresh rows and orphan the
     previous pair, because the lookup built before the loop only held one of them.
     """
-    from cbc.services.sync_phases._common import _distinct_keys, _identity
+    from cbc.modules.extraction.domain.schedule import _identity
+    from cbc.shared.pass_files import distinct_keys as _distinct_keys
 
     openings = [{"mark": "01"}, {"mark": "05"}, {"mark": "05"}, {"mark": "07"}]
     keys = _distinct_keys(openings, _identity)
@@ -37,7 +38,8 @@ def test_repeated_marks_get_their_own_stable_keys() -> None:
 
 def test_priced_lines_key_on_content_not_position() -> None:
     """Re-ordering a re-priced quote must not duplicate every line."""
-    from cbc.services.sync_phases._common import _content_key, _distinct_keys
+    from cbc.modules.quoting.api.priced_lines import _content_key
+    from cbc.shared.pass_files import distinct_keys as _distinct_keys
 
     first = [
         {"part_number": "150CX18", "description": "Hinge", "division": "08 71 00"},
@@ -51,7 +53,7 @@ def test_priced_lines_key_on_content_not_position() -> None:
 
 
 def test_an_explicit_line_id_wins() -> None:
-    from cbc.services.sync_phases._common import _content_key
+    from cbc.modules.quoting.api.priced_lines import _content_key
 
     assert _content_key({"line_id": "L-7", "part_number": "X"}) == "L-7"
 
@@ -99,7 +101,7 @@ def test_quote_line_schema_rejects_a_negative_cost() -> None:
 
 def test_a_bad_cost_from_a_pipeline_run_is_flagged_not_stored() -> None:
     """The schema bounds what an estimator types; a run writes straight to Mongo."""
-    from cbc.services.sync_phases._common import _sane_cost
+    from cbc.modules.quoting.api.priced_lines import _sane_cost
 
     cost, flags = _sane_cost({"cost": -45})
     assert cost is None and "negative cost" in flags[0]

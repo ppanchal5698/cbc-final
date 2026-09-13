@@ -113,12 +113,12 @@ def test_every_shape_a_pass_has_written_is_imported(project, shape) -> None:
     success, which is the worst available outcome: the bid looks empty rather
     than broken.
     """
-    from cbc.services import sync
+    from cbc.modules.extraction.api import door_schedule
 
     record, database, directory = project
     _write(directory, "extracted/door_schedule.json", shape([_opening("101"), _opening("102")]))
 
-    counts = run(sync.import_extraction(record))
+    counts = run(door_schedule.import_extraction(record))
 
     assert counts["inserted"] == 2, counts
     assert database[names.OPENINGS].count_documents({"projectId": record["_id"]}) == 2
@@ -126,18 +126,18 @@ def test_every_shape_a_pass_has_written_is_imported(project, shape) -> None:
 
 def test_importing_twice_updates_rather_than_duplicates(project) -> None:
     """A rerun must not double the schedule."""
-    from cbc.services import sync
+    from cbc.modules.extraction.api import door_schedule
 
     record, database, directory = project
     _write(directory, "extracted/door_schedule.json", {"openings": [_opening("101")]})
-    run(sync.import_extraction(record))
+    run(door_schedule.import_extraction(record))
 
     _write(
         directory,
         "extracted/door_schedule.json",
         {"openings": [_opening("101", finish="US32D")]},
     )
-    second = run(sync.import_extraction(record))
+    second = run(door_schedule.import_extraction(record))
 
     assert database[names.OPENINGS].count_documents({"projectId": record["_id"]}) == 1
     assert second["inserted"] == 0
@@ -147,7 +147,7 @@ def test_importing_twice_updates_rather_than_duplicates(project) -> None:
 
 def test_import_normalizes_finish_and_maps_alternate(project) -> None:
     """FR-2 alternate designation and NR-3 finish pair land on the line item."""
-    from cbc.services import sync
+    from cbc.modules.extraction.api import door_schedule
 
     record, database, directory = project
     _write(
@@ -165,7 +165,7 @@ def test_import_normalizes_finish_and_maps_alternate(project) -> None:
         },
     )
 
-    run(sync.import_extraction(record))
+    run(door_schedule.import_extraction(record))
     stored = database[names.OPENINGS].find_one({"projectId": record["_id"]})
     assert stored["finish"] == "US26D (626)"
     assert stored["alternateGroup"] == "Alternate 1"
@@ -173,7 +173,7 @@ def test_import_normalizes_finish_and_maps_alternate(project) -> None:
 
 
 def test_import_flags_ambiguous_finish_without_guessing(project) -> None:
-    from cbc.services import sync
+    from cbc.modules.extraction.api import door_schedule
 
     record, database, directory = project
     _write(
@@ -182,14 +182,14 @@ def test_import_flags_ambiguous_finish_without_guessing(project) -> None:
         {"openings": [_opening("101", finish="619")]},
     )
 
-    run(sync.import_extraction(record))
+    run(door_schedule.import_extraction(record))
     stored = database[names.OPENINGS].find_one({"projectId": record["_id"]})
     assert stored["finish"] == "619"
     assert "finish_ambiguous" in stored["flags"]
 
 
 def test_scope_metadata_lands_on_the_project(project) -> None:
-    from cbc.services import sync
+    from cbc.modules.projects.api import scope_metadata
 
     record, database, directory = project
     _write(
@@ -198,14 +198,14 @@ def test_scope_metadata_lands_on_the_project(project) -> None:
         {"project_name": "Dutch Bros MacArthur", "state": "OH", "architect": "HDA"},
     )
 
-    assert run(sync.import_scope_metadata(record)) is True
+    assert run(scope_metadata.import_scope_metadata(record)) is True
     stored = database[names.BID_REQUESTS].find_one({"_id": record["_id"]})
     assert stored.get("state") == "OH"
 
 
 def test_scope_metadata_maps_bid_due_to_bidDue(project) -> None:
     """Agent bid_due_date must land on project.bidDue — never bidDueDate."""
-    from cbc.services import sync
+    from cbc.modules.projects.api import scope_metadata
 
     record, database, directory = project
     _write(
@@ -214,7 +214,7 @@ def test_scope_metadata_maps_bid_due_to_bidDue(project) -> None:
         {"bid_due_date": "2026-09-15", "mode": "templated", "bid_alternates": ["Alternate 1"]},
     )
 
-    assert run(sync.import_scope_metadata(record)) is True
+    assert run(scope_metadata.import_scope_metadata(record)) is True
     stored = database[names.BID_REQUESTS].find_one({"_id": record["_id"]})
     bid_due = stored.get("bidDue")
     assert getattr(bid_due, "isoformat", lambda: bid_due)()[:10] == "2026-09-15" or str(bid_due)[:10] == "2026-09-15"
@@ -224,7 +224,7 @@ def test_scope_metadata_maps_bid_due_to_bidDue(project) -> None:
 
 
 def test_scope_metadata_does_not_clobber_ops_hub_mode(project) -> None:
-    from cbc.services import sync
+    from cbc.modules.projects.api import scope_metadata
 
     record, database, directory = project
     database[names.BID_REQUESTS].update_one(
@@ -245,7 +245,7 @@ def test_scope_metadata_does_not_clobber_ops_hub_mode(project) -> None:
         },
     )
 
-    assert run(sync.import_scope_metadata(record)) is True
+    assert run(scope_metadata.import_scope_metadata(record)) is True
     stored = database[names.BID_REQUESTS].find_one({"_id": record["_id"]})
     assert stored.get("mode") == "one_off"
     assert stored.get("initiator") == "Rebecca"
@@ -256,7 +256,7 @@ def test_scope_metadata_fills_empties_with_provenance(project) -> None:
     """Create-form gaps get PDF values + intakeFieldSources; Ops-Hub due date stays."""
     from datetime import datetime, timezone
 
-    from cbc.services import sync
+    from cbc.modules.projects.api import scope_metadata
 
     record, database, directory = project
     due = datetime(2026, 9, 20, tzinfo=timezone.utc)
@@ -293,7 +293,7 @@ def test_scope_metadata_fills_empties_with_provenance(project) -> None:
         },
     )
 
-    assert run(sync.import_scope_metadata(record)) is True
+    assert run(scope_metadata.import_scope_metadata(record)) is True
     stored = database[names.BID_REQUESTS].find_one({"_id": record["_id"]})
     assert stored.get("brand") == "Dutch Bros Coffee"
     assert stored.get("state") == "LA"
@@ -312,7 +312,7 @@ def test_scope_metadata_fills_empties_with_provenance(project) -> None:
 
 def test_scope_metadata_imports_without_door_schedule(project) -> None:
     """Finishes-only / early checkpoint still updates the job record."""
-    from cbc.services import sync
+    from cbc.modules.extraction.api import door_schedule
 
     record, database, directory = project
     _write(
@@ -321,7 +321,7 @@ def test_scope_metadata_imports_without_door_schedule(project) -> None:
         {"brand": "BK", "state": "OH", "source_page": 3},
     )
 
-    counts = run(sync.import_extraction(record))
+    counts = run(door_schedule.import_extraction(record))
     assert counts == {"inserted": 0, "updated": 0, "skipped": 0}
     stored = database[names.BID_REQUESTS].find_one({"_id": record["_id"]})
     assert stored.get("brand") == "BK"
@@ -355,12 +355,12 @@ def _line(line_id: str, **overrides):
 
 
 def test_priced_lines_are_imported(project) -> None:
-    from cbc.services import sync
+    from cbc.modules.quoting.api import priced_lines
 
     record, database, directory = project
     _write(directory, "priced/line_items.json", {"lines": [_line("L1"), _line("L2")]})
 
-    counts = run(sync.import_quote_lines(record))
+    counts = run(priced_lines.import_quote_lines(record))
 
     assert counts["inserted"] == 2, counts
     assert database[names.ESTIMATE_LINES].count_documents({"projectId": record["_id"]}) == 2
@@ -368,7 +368,7 @@ def test_priced_lines_are_imported(project) -> None:
 
 def test_a_manual_line_keeps_a_null_cost(project) -> None:
     """NR-13. A number here would be an invented price that looks finished."""
-    from cbc.services import sync
+    from cbc.modules.quoting.api import priced_lines
 
     record, database, directory = project
     _write(
@@ -378,7 +378,7 @@ def test_a_manual_line_keeps_a_null_cost(project) -> None:
                           cost_source="MANUAL",
                           cost_source_detail="9ft leaf - custom size, no catalog price")]},
     )
-    run(sync.import_quote_lines(record))
+    run(priced_lines.import_quote_lines(record))
 
     stored = database[names.ESTIMATE_LINES].find_one({"projectId": record["_id"]})
     assert stored["cost"] is None
@@ -387,11 +387,11 @@ def test_a_manual_line_keeps_a_null_cost(project) -> None:
 
 def test_a_negative_cost_is_flagged_rather_than_stored(project) -> None:
     """The schema bounds what an estimator types; a run writes straight through."""
-    from cbc.services import sync
+    from cbc.modules.quoting.api import priced_lines
 
     record, database, directory = project
     _write(directory, "priced/line_items.json", {"lines": [_line("L1", cost=-45)]})
-    run(sync.import_quote_lines(record))
+    run(priced_lines.import_quote_lines(record))
 
     stored = database[names.ESTIMATE_LINES].find_one({"projectId": record["_id"]})
     assert stored["cost"] is None
@@ -402,14 +402,14 @@ def test_a_negative_cost_is_flagged_rather_than_stored(project) -> None:
 
 
 def test_proposal_artifacts_are_recorded_when_present(project) -> None:
-    from cbc.services import sync
+    from cbc.modules.quoting.api import proposal_artifacts
 
     record, _database, directory = project
     (directory).mkdir(parents=True, exist_ok=True)
     (directory / "quotation.html").write_text("<html>quote</html>", encoding="utf-8")
     _write(directory, "review/review_flags.json", [])
 
-    written = run(sync.import_proposal_artifacts(record))
+    written = run(proposal_artifacts.import_proposal_artifacts(record))
 
     assert written["quotationHtml"] is True
     assert written["reviewFlags"] is True
@@ -417,10 +417,10 @@ def test_proposal_artifacts_are_recorded_when_present(project) -> None:
 
 def test_a_missing_artifact_is_reported_as_missing(project) -> None:
     """Not an exception, and not silently true - the proposal screen reads this."""
-    from cbc.services import sync
+    from cbc.modules.quoting.api import proposal_artifacts
 
     record, _database, _directory = project
-    written = run(sync.import_proposal_artifacts(record))
+    written = run(proposal_artifacts.import_proposal_artifacts(record))
     assert all(present is False for present in written.values()), written
 
 
@@ -433,10 +433,10 @@ def test_an_absent_schedule_imports_nothing_and_does_not_raise(project) -> None:
     The importer's job is to be honest about finding nothing, not to invent an
     error the validation layer already raises with a better message.
     """
-    from cbc.services import sync
+    from cbc.modules.extraction.api import door_schedule
 
     record, database, _directory = project
-    counts = run(sync.import_extraction(record))
+    counts = run(door_schedule.import_extraction(record))
 
     assert counts["inserted"] == 0
     assert database[names.OPENINGS].count_documents({"projectId": record["_id"]}) == 0

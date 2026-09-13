@@ -9,13 +9,12 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from cbc.modules.extraction.api import passes
+from cbc.modules.extraction.api import door_schedule, passes
 from cbc.modules.intake.api import documents
 from cbc.modules.ops.api import jobs as ops_jobs
 from cbc.modules.projects.api import bids, pipeline, saga
 from cbc.modules.quoting.api import priced_lines, proposal_artifacts, quote
-# ponytail: legacy kernel; phase manifests and import_extraction move when services/ is sliced
-from cbc.services import manifests, sync
+from cbc.services import manifests  # ponytail: legacy kernel; phase manifests move when services/ is sliced
 
 
 async def run(job: dict[str, Any]) -> None:
@@ -45,7 +44,7 @@ async def sync_results(job: dict[str, Any], project: dict[str, Any] | None) -> s
     note = await passes.check_output(job, project)
     if note is not None:
         return note
-    openings = await sync.import_extraction(project, job=job)
+    openings = await door_schedule.import_extraction(project, job=job)
     if openings.get("aborted"):
         return "lease stolen; discarded output"
     await documents.mark_all_read(project["_id"])

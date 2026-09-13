@@ -16,10 +16,11 @@ from pathlib import Path
 from typing import Any
 
 from cbc.modules.extraction.api import openings
+from cbc.modules.extraction.infrastructure import geometry
 from cbc.modules.ops.api import jobs as ops_jobs, worker as ops_worker
-from cbc.modules.projects.api import bids, lookup
-# ponytail: legacy kernel; the sheet map, take-off seeds, manifests, match cache and syncs move when services/ is sliced
-from cbc.services import manifests, matchcache, pretakeoff, sheetmap, sync
+from cbc.modules.projects.api import bids, lookup, scope_metadata
+# ponytail: legacy kernel; the sheet map, take-off seeds, manifests and match cache move when services/ is sliced
+from cbc.services import manifests, matchcache, pretakeoff, sheetmap
 from cbc.validation import ArtifactValidationError, validate_job_artifacts
 from cbc.validation.contracts import raise_if_invalid
 
@@ -148,7 +149,7 @@ async def watch_progress(project: dict[str, Any], directory: Path) -> None:
                 continue
             fresh = await lookup.get(project["_id"]) or project
             try:
-                filled = await sync.import_scope_metadata(fresh)
+                filled = await scope_metadata.import_scope_metadata(fresh)
             except Exception:
                 log.exception(
                     "%s mid-run scope metadata sync failed", project.get("code")
@@ -219,13 +220,13 @@ def _sync_blocking_pre(job: dict, project: dict) -> dict:
     """BBox measurement, frame depths, and artifact validation — all sync I/O."""
     slug = project["slug"]
     if job["type"] in ("extract_bid_set", "rerun_extraction", "run_full_pipeline"):
-        attached, unmatched = sync.measure_bboxes(project)
+        attached, unmatched = geometry.measure_bboxes(project)
         if attached or unmatched:
             log.info(
                 "%s bbox: %d measured from the sheet, %d left null and flagged",
                 project.get("code", slug), attached, unmatched,
             )
-        derived, no_depth = sync.derive_frame_depths(project)
+        derived, no_depth = geometry.derive_frame_depths(project)
         if derived or no_depth:
             log.info(
                 "%s frame depth: %d derived from wall type, %d flagged for review",

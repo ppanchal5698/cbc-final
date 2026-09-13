@@ -37,7 +37,7 @@ apps/backend/src/cbc/
     domain/                request models and pure rules the module's slices share
     infrastructure/        collections.py (its collections + indexes), shared adapters
   shared/                  config, auth, mongo client + primitives, events, logging,
-                           tracing, otel, envfile - no module imports allowed
+                           tracing, otel, envfile, pass files - no module imports allowed
 ```
 
 `apps/backend/src/cbc` also still holds the pre-module kernel the modules lean on
@@ -58,7 +58,7 @@ ops         ─ (nothing)
 pricing     → ops
 projects    → ops
 catalog     → ops, pricing
-extraction  → ops, projects
+extraction  → ops, projects, pricing
 quoting     → ops, projects, catalog, extraction, pricing
 intake      → ops, projects, extraction, quoting
 ```
@@ -143,13 +143,13 @@ exception - they rename and backfill across modules.
 The modules still import parts of the pre-module kernel; each such import is marked
 `ponytail:` with its destination, and `test_layering` fails on an unmarked one.
 
-- `cbc.db` - the `projects`, `jobs`, `settings` and `runMetrics` accessors for the
-  extraction sync (`services/sync_phases/extraction.py`) and `scripts/backfill_runmetrics.py`; the migration entry; the catalog's
+- `cbc.db` - the `projects`, `jobs`, `settings` and `runMetrics` accessors, read now only by
+  `scripts/backfill_runmetrics.py`; the migration entry; the catalog's
   read-only Mongo user.
 - `cbc.worker_kit` - a Claude pass's prompt templates and its sandbox. `workflows/*.sh`,
   CI and the sandbox image run them by module path, so they stay where they are.
-- `cbc.services` - storage, PDF reading, malware scan, the extraction/geometry syncs,
-  matchcache, manifests, pretakeoff, render, sheetmap, the matching gate.
+- `cbc.services` - storage, PDF reading, malware scan, matchcache,
+  manifests, pretakeoff, render, sheetmap, the matching gate.
 - `cbc.schemas` - the shared vocabulary (`common`), job and user shapes, the
   operational-collection specification.
 - `cbc.core`, `cbc.domain`, `cbc.pageindex`, `cbc.persistence`, `cbc.validation` -

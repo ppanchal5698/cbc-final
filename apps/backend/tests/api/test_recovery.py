@@ -121,7 +121,8 @@ def test_import_extraction_aborts_when_the_lease_was_stolen(database, monkeypatc
     from bson import ObjectId
 
     from cbc.shared.config import settings
-    from cbc.services import storage, sync
+    from cbc.modules.extraction.api import door_schedule
+    from cbc.services import storage
 
     previous = settings.storage_root
     settings.storage_root = tmp_path
@@ -150,7 +151,7 @@ def test_import_extraction_aborts_when_the_lease_was_stolen(database, monkeypatc
     project = {"_id": project_id, "slug": slug, "code": "LS-1"}
     try:
         counts = run(
-            sync.import_extraction(
+            door_schedule.import_extraction(
                 project,
                 job={"_id": job_id, "workerId": "a", "claimGeneration": 1},
             )

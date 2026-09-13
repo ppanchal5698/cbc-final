@@ -10,13 +10,9 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from cbc.services import storage
-from cbc.services.sync_phases._common import (
-    _normalize_schedule_payload,
-    _read_json,
-    _write_json,
-    door_number,
-)
+from cbc.modules.extraction.domain.schedule import _normalize_schedule_payload, door_number
+from cbc.services import storage  # ponytail: legacy kernel; where a project's tree lives, until storage moves to shared
+from cbc.shared.pass_files import read_json, write_json
 
 log = logging.getLogger("cbc.services.sync")
 
@@ -38,7 +34,7 @@ def measure_bboxes(project: dict[str, Any]) -> tuple[int, int]:
     slug = project["slug"]
     directory = storage.project_dir(slug)
     path = directory / "extracted" / "door_schedule.json"
-    payload = _read_json(path)
+    payload = read_json(path)
     if payload is None:
         return 0, 0
 
@@ -126,11 +122,13 @@ def measure_bboxes(project: dict[str, Any]) -> tuple[int, int]:
         # Written back in the shape it arrived in, so a run that wrote a bare
         # array or a `lines` wrapper still recognises its own file.
         if isinstance(payload, list):
-            _write_json(path, openings)
+            write_json(path, openings)
         else:
             key = "openings" if "openings" in payload else "lines"
-            _write_json(path, {**payload, key: openings})
+            write_json(path, {**payload, key: openings})
     return attached, unmatched
+
+
 def derive_frame_depths(project: dict[str, Any]) -> tuple[int, int]:
     """Fill in each opening's frame throat from its wall construction.
 
@@ -152,7 +150,7 @@ def derive_frame_depths(project: dict[str, Any]) -> tuple[int, int]:
 
     slug = project["slug"]
     path = storage.project_dir(slug) / "extracted" / "door_schedule.json"
-    payload = _read_json(path)
+    payload = read_json(path)
     if payload is None:
         return 0, 0
     openings = _normalize_schedule_payload(payload)["openings"]
@@ -181,8 +179,8 @@ def derive_frame_depths(project: dict[str, Any]) -> tuple[int, int]:
 
     if derived:
         if isinstance(payload, list):
-            _write_json(path, openings)
+            write_json(path, openings)
         else:
             key = "openings" if "openings" in payload else "lines"
-            _write_json(path, {**payload, key: openings})
+            write_json(path, {**payload, key: openings})
     return derived, flagged

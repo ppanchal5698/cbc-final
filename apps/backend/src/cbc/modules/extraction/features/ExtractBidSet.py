@@ -10,10 +10,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from cbc.modules.extraction.api import documents, openings, passes
+from cbc.modules.extraction.api import documents, door_schedule, openings, passes
 from cbc.modules.ops.api import jobs as ops_jobs
 from cbc.modules.projects.api import bids, pipeline, saga
-from cbc.services import sync  # ponytail: legacy kernel; import_extraction moves here when services/sync_phases is sliced
 from cbc.validation.contracts import extraction_review_verdict
 
 JOB_TYPES = ("extract_bid_set", "rerun_extraction")
@@ -27,7 +26,7 @@ async def sync_results(job: dict[str, Any], project: dict[str, Any] | None) -> s
     note = await passes.check_output(job, project)
     if note is not None:
         return note
-    counts = await sync.import_extraction(project, job=job)
+    counts = await door_schedule.import_extraction(project, job=job)
     if counts.get("aborted"):
         return "lease stolen; discarded output"
     started = job.get("startedAt") or job.get("createdAt")

@@ -6,6 +6,8 @@ reconciles against it rather than overwriting it.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -13,17 +15,70 @@ from pymongo import InsertOne, UpdateOne
 
 from cbc.modules.quoting.infrastructure.collections import estimate_lines, quotes
 from cbc.services import storage  # ponytail: legacy kernel; the file tree moves to shared/ in Phase 4
-# ponytail: legacy kernel; the sync helpers move with the pricing job's slice (Phase 4)
-from cbc.services.sync_phases._common import (
-    _content_key,
-    _distinct_keys,
-    _group_type,
-    _lines_in,
-    _now,
-    _read_json,
-    _sane_cost,
-    _write_json,
-)
+from cbc.shared.pass_files import distinct_keys, read_json, write_json
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _lines_in(payload: dict[str, Any] | list[Any], filename: str, key: str) -> list[Any]:
+    """The records in a priced artifact, whether or not they came wrapped.
+
+    A run is asked for `{"lines": [...]}` and writes a bare array about as often.
+    The door-schedule path has accepted both since early on; the priced path did
+    not, so a full pipeline that had completed all six phases and written a whole
+    quote failed on `'list' object has no attribute 'get'` at the very last step.
+
+    The wrapper carries nothing the records do not - taking either shape loses no
+    information and no check: every line still goes through validation.
+    """
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        return payload.get(key, [])
+    raise ValueError(f"{filename} must be a JSON object or an array")
+
+
+def _sane_cost(line: dict[str, Any]) -> tuple[float | None, list[str]]:
+    """A cost Claude wrote, or None with a flag saying why it was not taken.
+
+    The API schema bounds what an estimator can type, but a pipeline run writes
+    straight into Mongo. A negative or non-numeric cost is not priceable, and
+    NFR-2 says an unusable value is flagged rather than guessed at - so it lands
+    as unpriced with a reason instead of as a number nothing can divide by.
+    """
+    raw = line.get("cost")
+    flags = list(line.get("flags") or [])
+    if raw is None:
+        return None, flags
+    try:
+        cost = float(raw)
+    except (TypeError, ValueError):
+        return None, flags + [f"unreadable cost {raw!r} - priced manually"]
+    if cost < 0:
+        return None, flags + [f"negative cost {cost} - priced manually"]
+    return cost, flags
+
+
+def _content_key(line: dict[str, Any]) -> str:
+    if line.get("line_id"):
+        return str(line["line_id"])
+    material = "|".join(
+        str(line.get(field) or "")
+        for field in ("part_number", "part", "description", "division")
+    ).strip().lower()
+    return "auto:" + hashlib.sha1(material.encode("utf-8")).hexdigest()[:16]
+
+
+def _group_type(division: str | None) -> str:
+    if not division:
+        return "door"
+    if division.startswith("10"):
+        return "accessories"
+    if division.startswith("06"):
+        return "frp"
+    return "door"
 
 
 async def import_quote_lines(
@@ -36,7 +91,7 @@ async def import_quote_lines(
         if not await holds_lease(job):
             return {"inserted": 0, "updated": 0, "skipped": 0, "aborted": True}
     slug, project_id = project["slug"], project["_id"]
-    payload = _read_json(storage.project_dir(slug) / "priced" / "line_items.json")
+    payload = read_json(storage.project_dir(slug) / "priced" / "line_items.json")
     source = storage.project_dir(slug) / "priced" / "line_items.json"
     if source.exists() and payload is None:
         raise ValueError("priced/line_items.json is missing or invalid JSON")
@@ -54,7 +109,7 @@ async def import_quote_lines(
     priced_lines = _lines_in(payload, "priced/line_items.json", "lines")
     inserted = updated = skipped = 0
     bulk: list[InsertOne | UpdateOne] = []
-    for key, line in zip(_distinct_keys(priced_lines, _content_key), priced_lines):
+    for key, line in zip(distinct_keys(priced_lines, _content_key), priced_lines):
         cost, flags = _sane_cost(line)
         fields = {
             "lineKey": key,
@@ -178,5 +233,5 @@ async def export_quote_lines(project: dict[str, Any]) -> Path:
         "estimator": {"name": quote.get("estimatorName")},
         "lines": lines,
     }
-    await asyncio.to_thread(_write_json, path, payload)
+    await asyncio.to_thread(write_json, path, payload)
     return path

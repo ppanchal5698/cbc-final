@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from cbc.modules.extraction.api import door_schedule
 from cbc.modules.ops.api.jobs import enqueue_pipeline
 from cbc.modules.projects.api.lookup import load
-from cbc.services import sync  # ponytail: legacy kernel; the export moves with the extraction job (Phase 4)
 from cbc.shared.auth import Actor
 from cbc.shared.mongo import serialise
 
@@ -21,6 +21,6 @@ async def rerun_extraction(code: str, actor: Actor) -> dict:
     re-run reconciles against the estimator's decisions instead of overwriting them.
     """
     project = await load(code)
-    await sync.export_line_items(project)
+    await door_schedule.export_line_items(project)
     job = await enqueue_pipeline("rerun_extraction", project["_id"], actor=actor)
     return {"job": serialise(job)}
