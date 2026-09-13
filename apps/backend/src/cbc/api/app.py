@@ -14,6 +14,19 @@ OAUTH_SWEEP_SECONDS = 60
 VERSION = "0.10.0-monolith"
 
 
+async def _catalog_index() -> dict[str, str]:
+    """Whether a part can actually be found, not just whether Mongo answers ping.
+
+    The pre-monolith catalog service added this to /api/health. The cutover
+    mounted its routers here but not its health field, so `catalogIndex` quietly
+    left the payload. service_app catches a failing extra, so this cannot take
+    health down.
+    """
+    from cbc.services import catalog_search
+
+    return {"catalogIndex": "ready" if await catalog_search.index_available() else "missing"}
+
+
 def create_app(*, background: bool = True):
     """Build the monolith with all domain HTTP modules wired.
 
@@ -39,5 +52,6 @@ def create_app(*, background: bool = True):
             catalog_router,
         ),
         background=jobs,
+        health_extra=_catalog_index,
         version=VERSION,
     )

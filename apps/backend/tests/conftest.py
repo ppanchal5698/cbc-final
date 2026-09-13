@@ -12,8 +12,12 @@ os.environ["INTERNAL_API_TOKEN"] = "cbc-local-dev-key-change-me"
 os.environ["INTERNAL_JWT_SECRET"] = "cbc-local-dev-key-change-me"
 os.environ["SERVICE_AUDIENCE"] = "platform"
 os.environ["APP_ENV"] = "development"
-# worker_kit.runtime resolves CLAIMABLE_TYPES at import time.
-os.environ.setdefault("WORKER_DOMAIN", "catalog")
+# worker_kit.runtime resolves CLAIMABLE_TYPES once, at import. Claim every type,
+# the way the one compose worker runs (WORKER_CLAIM_ALL=1). This was
+# WORKER_DOMAIN=catalog, which scoped `claim()` to catalog jobs for the whole
+# process, so test_recovery's backoff test could never claim the extract_bid_set
+# job it queued. tests/unit/test_worker.py sets its own domain and reloads.
+os.environ.setdefault("WORKER_CLAIM_ALL", "1")
 # REFERENCE_DIR defaults to a repo-root `reference-library/` that exists only
 # inside the image; a checkout keeps the seed JSON at `data/reference-library`.
 # Must be set before anything imports cbc.config, which reads os.environ once at
@@ -22,6 +26,14 @@ os.environ.setdefault("REFERENCE_DIR", "data/reference-library")
 # Same for PRICEBOOK_DIR: pageindex/basis.py falls back to repo_root()/"pricebooks",
 # which exists only as the image's /app/pricebooks symlink.
 os.environ.setdefault("PRICEBOOK_DIR", "data/pricebooks")
+# The test process never talks to the dev database. MONGODB_DB defaults to
+# `cbc_opshub` in config.py, compose and .env.example, so any test that reached
+# Mongo without switching databases wrote there - test_authorization's
+# `_clear_attempts` runs `delete_many({})` on `authAttempts` in whatever
+# `settings.mongodb_db` names. Assigned, not setdefault: a shell that exported
+# MONGODB_DB=cbc_opshub must not win.
+DEV_DB = "cbc_opshub"
+os.environ["MONGODB_DB"] = "cbc_opshub_pytest"
 
 from tests.shared import FIXTURE_PDF, ROOT, direct_uri  # noqa: E402
 
@@ -32,6 +44,10 @@ from tests.shared import FIXTURE_PDF, ROOT, direct_uri  # noqa: E402
 from cbc.config import settings  # noqa: E402
 
 settings.mongodb_uri = direct_uri(settings.mongodb_uri)
+assert settings.mongodb_db != DEV_DB, (
+    f"the test process resolved MONGODB_DB to {DEV_DB!r}, the dev database; "
+    "something imported cbc.config before this conftest forced it"
+)
 
 
 @pytest.fixture(autouse=True)

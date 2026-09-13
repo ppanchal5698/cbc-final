@@ -136,6 +136,7 @@ def opshub_client(
     from cbc.api.app import create_app
     from cbc.config import settings
 
+    previous_db = settings.mongodb_db
     settings.mongodb_db = db_name
     db_module._client = None
 
@@ -164,6 +165,9 @@ def opshub_client(
         raw.drop_database(db_name)
         db_module._client = None
         raw.close()
+        # Restored, like storage_root always was. Without it the first test to use
+        # this left every later test pointed at a database it had just dropped.
+        settings.mongodb_db = previous_db
         settings.storage_root = previous_storage
         if scratch is not None:
             shutil.rmtree(scratch, ignore_errors=True)
