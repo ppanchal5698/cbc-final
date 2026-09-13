@@ -6,11 +6,13 @@ import asyncio
 
 from fastapi import APIRouter, HTTPException, Response
 
-from cbc.db import db  # ponytail: other modules' rows deleted directly until each owns its collection (steps 3.6-3.9)
+from cbc.db import db  # ponytail: other modules' rows deleted directly until each owns its collection (steps 3.7-3.9)
 from cbc.modules.ops.api import audit, jobs as ops_jobs
+from cbc.modules.projects.api import bids
 from cbc.modules.projects.api.lookup import load
 from cbc.modules.projects.infrastructure.collections import bid_requests, calls
 from cbc.services import storage  # ponytail: legacy kernel; the bid's file tree moves to shared/ in Phase 4
+from cbc.shared import events
 from cbc.shared.auth import AdminActor
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -35,11 +37,10 @@ async def delete_project(code: str, actor: AdminActor) -> Response:
         db.quote_lines,
         db.quotes,
         db.proposals,
-        db.documents,
-        db.versions,
         calls(),
     ):
         await collection.delete_many({"projectId": project_id})
+    await events.publish(bids.PROJECT_DELETED, project_id=project_id)
     await ops_jobs.delete_for_project(project_id)
     await bid_requests().delete_one({"_id": project_id})
 

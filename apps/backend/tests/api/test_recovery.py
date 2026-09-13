@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from pymongo import MongoClient
 
-from cbc import db as db_module
+from cbc.app.main import migrate_and_index
 from cbc.shared import mongo as shared_mongo
 from cbc.shared.config import settings
 from tests.shared import mongo_client
@@ -40,7 +40,7 @@ def database():
     raw.drop_database(TEST_DB)
     shared_mongo._client = None
 
-    asyncio.run(db_module.ensure_indexes())
+    asyncio.run(migrate_and_index())  # every module's indexes, not only the legacy set
     shared_mongo._client = None
     try:
         yield raw[TEST_DB]
@@ -391,7 +391,7 @@ def test_two_versions_cannot_share_a_number(database) -> None:
     """Two addenda both became version n+1 and the diff attached to either one."""
     from bson import ObjectId
 
-    from cbc.modules.intake.api.routes.versions import snapshot
+    from cbc.modules.intake.infrastructure.snapshot import snapshot
 
     project = {"_id": ObjectId(), "slug": "concurrent-addenda"}
 

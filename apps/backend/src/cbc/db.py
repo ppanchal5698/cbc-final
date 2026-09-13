@@ -34,10 +34,6 @@ class Collections:
         return database()[names.BID_REQUESTS]
 
     @property
-    def documents(self):
-        return database()[names.DOCUMENTS]
-
-    @property
     def line_items(self):
         return database()[names.OPENINGS]
 
@@ -56,10 +52,6 @@ class Collections:
     @property
     def jobs(self):
         return database()[names.JOBS]
-
-    @property
-    def versions(self):
-        return database()[names.ESTIMATE_VERSIONS]
 
     @property
     def settings(self):
@@ -117,16 +109,6 @@ async def ensure_indexes() -> None:
 
     await migrations.run(database())
 
-    await db.documents.create_index([("projectId", ASCENDING)])
-    await replace_index(
-        db.documents,
-        "project_content_sha",
-        [("projectId", ASCENDING), ("contentSha", ASCENDING)],
-        unique=True,
-        partialFilterExpression={
-            "contentSha": {"$exists": True, "$type": "string"},
-        },
-    )
     await db.line_items.create_index([("projectId", ASCENDING), ("status", ASCENDING)])
     await replace_index(
         db.line_items,
@@ -146,12 +128,6 @@ async def ensure_indexes() -> None:
         [("projectId", ASCENDING), ("createdAt", DESCENDING)]
     )
     await db.failed_extractions.create_index([("jobId", ASCENDING)])
-    await replace_index(
-        db.versions,
-        "project_version",
-        [("projectId", ASCENDING), ("version", DESCENDING)],
-        unique=True,
-    )
     # Alternates are queried per group on both the extraction and quote screens.
     await db.line_items.create_index([("projectId", ASCENDING), ("alternateGroup", ASCENDING)])
     await db.quote_lines.create_index([("projectId", ASCENDING), ("alternateGroup", ASCENDING)])

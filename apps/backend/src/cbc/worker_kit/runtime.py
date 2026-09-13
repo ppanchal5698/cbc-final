@@ -49,6 +49,7 @@ from cbc.validation import ArtifactValidationError, validate_job_artifacts
 from cbc.validation import review as review_flags
 from cbc.worker_kit import prompts
 from cbc.modules.catalog.api.jobs import delete_catalog, index_catalog, ingest_pricebook
+from cbc.modules.intake.api import documents as intake_documents
 
 log = logs.configure("cbc.worker")
 
@@ -222,11 +223,7 @@ async def _mark_docs_for_pass(
     project_id: Any, started_at: datetime | None, *, state: str
 ) -> int:
     """Flip documents that belonged to this pass; leave later uploads alone."""
-    query: dict[str, Any] = {"projectId": project_id, "state": "received"}
-    if started_at is not None:
-        query["uploadedAt"] = {"$lte": started_at}
-    result = await db.documents.update_many(query, {"$set": {"state": state}})
-    return int(result.modified_count)
+    return await intake_documents.mark_received(project_id, state, uploaded_by=started_at)
 
 
 async def _queue_straggler_reextract(job: dict[str, Any]) -> dict[str, Any] | None:
@@ -239,10 +236,7 @@ async def _queue_straggler_reextract(job: dict[str, Any]) -> dict[str, Any] | No
 
     fresh = await ops_jobs.get(job["_id"]) or job
     started = fresh.get("startedAt") or fresh.get("createdAt")
-    received_query: dict[str, Any] = {"projectId": project_id, "state": "received"}
-    if started is not None:
-        received_query["uploadedAt"] = {"$gt": started}
-    stragglers = await db.documents.count_documents(received_query)
+    stragglers = await intake_documents.count_received_after(project_id, started)
     if not fresh.get("stragglerPending") and not stragglers:
         return None
 
@@ -405,13 +399,7 @@ async def sync_results(job: dict, project: dict | None) -> str:
         if counts.get("aborted"):
             return "lease stolen; discarded output"
         started = job.get("startedAt") or job.get("createdAt")
-        query: dict[str, Any] = {
-            "projectId": project["_id"],
-            "state": "received",
-        }
-        if started is not None:
-            query["uploadedAt"] = {"$lte": started}
-        await db.documents.update_many(query, {"$set": {"state": "read"}})
+        await intake_documents.mark_received(project["_id"], "read", uploaded_by=started)
         verdict = extraction_review_verdict(slug)
         if verdict == "needs_review":
             await db.line_items.update_many(
@@ -461,9 +449,7 @@ async def sync_results(job: dict, project: dict | None) -> str:
         openings = await sync.import_extraction(project, job=job)
         if openings.get("aborted"):
             return "lease stolen; discarded output"
-        await db.documents.update_many(
-            {"projectId": project["_id"]}, {"$set": {"state": "read"}}
-        )
+        await intake_documents.mark_all_read(project["_id"])
         if not await _lease_held(job):
             return "lease stolen; discarded output"
         priced = await sync.import_quote_lines(project, job=job)

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from pydantic import BaseModel, Field
 
 
@@ -14,19 +12,3 @@ class AlternateAssign(BaseModel):
     alternate: str | None = None
     scope: str = Field(default="line-items", pattern="^(line-items|quote-lines)$")
 
-
-class VersionCreate(BaseModel):
-    reason: str = Field(min_length=1, max_length=200, description="e.g. 'Addendum 1'")
-    documentId: str | None = None
-
-
-class EstimateVersion(BaseModel):
-    id: str
-    projectId: str
-    version: int
-    reason: str
-    createdAt: datetime
-    createdBy: str
-    lineItemCount: int
-    quoteLineCount: int
-    reconciled: bool = False

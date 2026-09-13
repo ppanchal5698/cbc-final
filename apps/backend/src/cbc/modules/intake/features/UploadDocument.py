@@ -1,4 +1,4 @@
-"""Bid documents - upload, list, serve, and the trigger that wakes Claude.
+"""POST /api/projects/{code}/documents - upload a PDF and wake the pipeline.
 
 Uploading a building plan is the event the whole pipeline hangs off: the file
 lands in `projects/{slug}/uploads/raw/`, a document row is written, and an
@@ -11,35 +11,28 @@ import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
-from fastapi.responses import FileResponse, Response as PlainResponse
 
-from cbc.shared.config import settings
-from cbc.db import db
-from cbc.shared.mongo import oid, run_transaction, serialise
-from cbc.shared.auth import Actor
+from cbc.modules.intake.infrastructure.collections import documents
+from cbc.modules.intake.infrastructure.snapshot import snapshot
+from cbc.modules.ops.api import audit, jobs as job_service
 from cbc.modules.ops.api.jobs import enqueue_pipeline, reserve
 from cbc.modules.projects.api.lookup import load
-from cbc.modules.intake.api.routes.versions import snapshot
-from cbc.modules.ops.api import audit
-from cbc.modules.ops.api import jobs as job_service
-from cbc.services import pdf, storage
+from cbc.services import pdf, storage  # ponytail: legacy kernel; PDF reading and the file tree move to shared/ in Phase 4
+from cbc.shared.auth import Actor
+from cbc.shared.config import settings
+from cbc.shared.mongo import run_transaction, serialise
 
 router = APIRouter(prefix="/api/projects/{code}/documents", tags=["documents"])
 
+
 PDF_MAGIC = b"%PDF-"
+
 
 # How long extract_bid_set waits after an upload, so several PDFs dropped
 # together are read as one bid set rather than starting a run that misses them
 # (Matrix 8.0 — one combined PDF or several separate PDFs). Quiet window default
 # 60s; hard cap PIPELINE_COALESCE_MAX_SECONDS (default 300s) lives in jobs.py.
 PIPELINE_DEBOUNCE_SECONDS = int(os.environ.get("PIPELINE_DEBOUNCE_SECONDS", "60"))
-
-
-@router.get("")
-async def list_documents(code: str) -> dict:
-    project = await load(code)
-    docs = await db.documents.find({"projectId": project["_id"]}).sort("uploadedAt", 1).to_list(200)
-    return {"documents": serialise(docs)}
 
 
 @router.post("")
@@ -87,7 +80,7 @@ async def upload_document(
         raise HTTPException(422, "could not read that PDF - it may be corrupt")
 
     content_sha = await asyncio.to_thread(storage.content_sha256, target)
-    existing = await db.documents.find_one(
+    existing = await documents().find_one(
         {"projectId": project["_id"], "contentSha": content_sha}
     )
     if existing:
@@ -141,7 +134,7 @@ async def upload_document(
 
     async def _persist(session):
         session_kw = {"session": session} if session is not None else {}
-        result = await db.documents.insert_one(document, **session_kw)
+        result = await documents().insert_one(document, **session_kw)
         document["_id"] = result.inserted_id
         if job_type == "ingest_addendum":
             return await enqueue_pipeline(
@@ -210,84 +203,3 @@ async def upload_document(
         "stragglerPending": bool(job.get("stragglerPending")),
         "note": "; ".join(notes) or None,
     }
-
-
-async def _document(code: str, document_id: str) -> dict:
-    """The document, scoped to the bid in the URL.
-
-    Every one of these routes used to look up `{"_id": oid(document_id)}` alone.
-    `await load(code)` proved the project existed and its _id was then never
-    used, so any signed-in estimator could read or DELETE a document belonging
-    to a different bid by id - another customer's drawings, on a system whose
-    whole point is that a bid set is confidential. Every sibling router already
-    filters on projectId (line_items.py, quote.py, calls.py); one helper here
-    means a fifth route cannot quietly regress.
-    """
-    project = await load(code)
-    document = await db.documents.find_one(
-        {"_id": oid(document_id), "projectId": project["_id"]}
-    )
-    if not document:
-        raise HTTPException(404, "document not found")
-    return document
-
-
-@router.get("/{document_id}/file")
-async def get_file(code: str, document_id: str) -> FileResponse:
-    """Serve the raw PDF so the reviewer sees the actual drawing, not a re-rendering."""
-    document = await _document(code, document_id)
-
-    path = storage.absolute(document["path"])
-    if not path.exists():
-        raise HTTPException(410, f"file missing on disk: {document['path']}")
-
-    return FileResponse(
-        path,
-        media_type="application/pdf",
-        filename=document["filename"],
-        headers={"Cache-Control": "private, max-age=3600"},
-    )
-
-
-@router.get("/{document_id}/page/{page_number}")
-async def get_page(code: str, document_id: str, page_number: int, dpi: int = 110) -> Response:
-    """A rendered page image, for viewers that cannot run pdf.js."""
-    document = await _document(code, document_id)
-
-    try:
-        image = await asyncio.to_thread(
-            pdf.render_page, storage.absolute(document["path"]), page_number, dpi
-        )
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
-
-    return PlainResponse(
-        await asyncio.to_thread(image.read_bytes),
-        media_type="image/png",
-        headers={"Cache-Control": "private, max-age=86400"},
-    )
-
-
-@router.get("/{document_id}/page/{page_number}/size")
-async def get_page_size(code: str, document_id: str, page_number: int) -> dict:
-    """Page dimensions in PDF points - the frame every stored bbox is measured against."""
-    document = await _document(code, document_id)
-    return await asyncio.to_thread(
-        pdf.page_size, storage.absolute(document["path"]), page_number
-    )
-
-
-@router.delete("/{document_id}", status_code=204, response_class=Response)
-async def delete_document(code: str, document_id: str, actor: Actor) -> Response:
-    """Detach a document from the bid. The file itself stays - raw uploads are immutable."""
-    document = await _document(code, document_id)
-
-    await db.documents.delete_one({"_id": document["_id"]})
-    await audit.record(
-        "document.delete",
-        actor,
-        {"projectId": document["projectId"], "documentId": document["_id"]},
-        before=document.get("filename"),
-        note="file retained on disk",
-    )
-    return Response(status_code=204)

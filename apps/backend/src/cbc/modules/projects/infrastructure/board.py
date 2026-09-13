@@ -1,15 +1,16 @@
 """The counts the board and the stage bar render beside each bid.
 
-Openings, quotes and documents belong to modules not built yet, so this still
-reads their collections directly; each becomes a port on that module's api as
-it lands. Jobs already come through ops.
+Openings and quotes belong to modules not built yet, so this still reads their
+collections directly; each becomes a port on that module's api as it lands.
+Documents come from intake through a bound source, jobs through ops.
 """
 from __future__ import annotations
 
 from typing import Any
 
-from cbc.db import db  # ponytail: openings, quotes and documents read directly until their modules own them (steps 3.6-3.9)
+from cbc.db import db  # ponytail: openings and quotes read directly until their modules own them (steps 3.7-3.9)
 from cbc.modules.ops.api import jobs as ops_jobs
+from cbc.modules.projects.api import board_sources
 from cbc.modules.projects.infrastructure.collections import calls as calls_collection
 from cbc.shared.mongo import serialise
 
@@ -73,7 +74,7 @@ async def decorate_many(projects: list[dict[str, Any]]) -> list[dict[str, Any]]:
     }
     active = await ops_jobs.active_by_project(ids)
 
-    documents = await _count_by_project(db.documents, ids)
+    documents = await board_sources.document_counts(ids)
     calls = await _count_by_project(calls_collection(), ids)
 
     decorated = []

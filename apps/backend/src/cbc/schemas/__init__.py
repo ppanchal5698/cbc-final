@@ -9,7 +9,6 @@ from cbc.schemas.common import (
     ProductType,
     Stage,
 )
-from cbc.schemas.documents import Document
 from cbc.schemas.jobs import Job
 from cbc.schemas.line_items import BulkAction, LineItem, LineItemCreate, LineItemUpdate
 from cbc.schemas.reference import (
@@ -37,7 +36,7 @@ from cbc.schemas.quote import (
     QuoteTotals,
 )
 from cbc.schemas.users import UserPublic
-from cbc.schemas.versions import AlternateCreate, AlternateAssign, EstimateVersion, VersionCreate
+from cbc.schemas.versions import AlternateCreate, AlternateAssign
 
 __all__ = [
     "AlternateCreate",
@@ -45,8 +44,6 @@ __all__ = [
     "BulkAction",
     "CallKind",
     "CostSource",
-    "Document",
-    "EstimateVersion",
     "Evidence",
     "FinishesUpdate",
     "FrameDepthsUpdate",
@@ -78,5 +75,4 @@ __all__ = [
     "VendorCategoriesUpdate",
     "TaxRatesUpdate",
     "UserPublic",
-    "VersionCreate",
 ]

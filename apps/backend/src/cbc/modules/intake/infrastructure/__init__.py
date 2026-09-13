@@ -1,3 +1,1 @@
-"""Module infrastructure."""
-from __future__ import annotations
-
+"""Where intake keeps its data."""

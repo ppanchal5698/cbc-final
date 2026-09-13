@@ -9,6 +9,7 @@ from typing import Any
 from pymongo import InsertOne, UpdateOne
 
 from cbc.db import db
+from cbc.modules.intake.api import versions as intake_versions
 from cbc.services import reference_library, storage
 from cbc.services.sync_phases._common import (
     _distinct_keys,
@@ -358,17 +359,8 @@ async def import_addendum(project: dict[str, Any], job: dict[str, Any]) -> dict[
     if version is None:
         raise ValueError("ingest_addendum job missing payload.version")
 
-    result = await db.versions.update_one(
-        {"projectId": project["_id"], "version": int(version)},
-        {
-            "$set": {
-                "addendumDiff": payload,
-                "reconciled": False,
-                "diffImportedAt": _now(),
-            }
-        },
-    )
-    if not result.matched_count:
+    recorded = await intake_versions.record_addendum_diff(project["_id"], int(version), payload)
+    if not recorded:
         raise ValueError(f"version {version} not found for addendum diff import")
 
     return {
