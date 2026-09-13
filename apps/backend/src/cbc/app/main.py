@@ -39,7 +39,6 @@ from cbc.modules.catalog.api.router import router as catalog_router  # noqa: E40
 from cbc.modules.extraction.api.router import router as extraction_router  # noqa: E402
 from cbc.modules.intake.api.router import router as intake_router  # noqa: E402
 from cbc.modules.platform.api.router import router as platform_router  # noqa: E402
-from cbc.modules.platform.api.routes import settings as settings_router  # noqa: E402
 from cbc.modules.pricing.api.router import router as pricing_router  # noqa: E402
 from cbc.modules.quoting.api.router import router as quoting_router  # noqa: E402
 from cbc.pageindex import store as pageindex_store  # noqa: E402
@@ -50,7 +49,6 @@ from cbc.shared.tracing import TraceMiddleware  # noqa: E402
 NAME = "platform"  # the compose service name, the log/trace name, and health's `service`
 TITLE = "CBC Estimating Copilot API"
 VERSION = "0.10.0-monolith"
-OAUTH_SWEEP_SECONDS = 60
 
 ROUTERS = (
     platform_router,
@@ -136,7 +134,7 @@ def create_app(*, background: bool = True):
     from fastapi.responses import JSONResponse
 
     log = logs.configure(f"cbc.{NAME}.api")
-    jobs = [(settings_router.sweep_oauth_sessions, OAUTH_SWEEP_SECONDS)] if background else []
+    jobs = ops.background_jobs() if background else []
 
     # Dependencies that point the other way: shared and ops each need an answer
     # they may not import. The owners are plugged in here, and only here.

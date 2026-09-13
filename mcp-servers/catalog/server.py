@@ -35,7 +35,7 @@ from cbc.pageindex import models as page_models
 from cbc.pageindex import query as page_query
 from cbc.pageindex import reader
 
-from cbc.services.freshness import load_sync
+from cbc.modules.ops.api.freshness import load_sync
 from cbc.services import reference_library as reflib  # noqa: E402
 
 MAX_LIMIT = 25

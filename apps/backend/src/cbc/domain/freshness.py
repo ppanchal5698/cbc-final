@@ -18,7 +18,7 @@ p21-connector tool description, the cost-sourcing memory file and the
 p21-read-only rule, so five places moved together.
 
 Admins can change the windows from Settings. Those live values are loaded in
-`cbc.services.freshness`; this module is the rule itself: defaults, conversion,
+`cbc.modules.ops.api.freshness`; this module is the rule itself: defaults, conversion,
 and classification with no I/O.
 """
 from __future__ import annotations

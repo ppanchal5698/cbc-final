@@ -88,11 +88,6 @@ class Collections:
         return database()[names.SETTINGS]
 
     @property
-    def oauth_sessions(self):
-        """In-flight Claude OAuth browser sign-ins, expired by a TTL index."""
-        return database()[names.OAUTH_SESSIONS]
-
-    @property
     def run_metrics(self):
         """Per-Claude-run cost and provenance, parsed from `.runs/*.log`."""
         return database()[names.RUN_METRICS]
@@ -329,9 +324,6 @@ async def ensure_indexes() -> None:
     # Alternates are queried per group on both the extraction and quote screens.
     await db.line_items.create_index([("projectId", ASCENDING), ("alternateGroup", ASCENDING)])
     await db.quote_lines.create_index([("projectId", ASCENDING), ("alternateGroup", ASCENDING)])
-    await db.oauth_sessions.create_index(
-        [("expiresAt", ASCENDING)], name="oauth_session_ttl", expireAfterSeconds=0
-    )
     await db.reference_data.create_index([("family", ASCENDING)], unique=True)
     await db.reference_data.create_index([("updatedAt", DESCENDING)])
     from cbc.services.reference_store import ensure_reference_seed

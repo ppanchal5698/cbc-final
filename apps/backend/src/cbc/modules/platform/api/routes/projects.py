@@ -14,7 +14,7 @@ from cbc.db import db
 from cbc.shared.mongo import oid, serialise
 from cbc.shared.auth import AdminActor, Actor
 from cbc.schemas import ProjectCreate, ProjectUpdate
-from cbc.modules.ops.api import audit
+from cbc.modules.ops.api import audit, pipeline as ops_pipeline
 from cbc.services import storage, reuse
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -185,8 +185,7 @@ async def create_project(body: ProjectCreate, actor: Actor) -> dict[str, Any]:
     # openings nobody has checked.
     autopilot = body.autopilot
     if autopilot is None:
-        pipeline = await db.settings.find_one({"_id": "pipeline"}) or {}
-        autopilot = bool(pipeline.get("autopilotDefault", False))
+        autopilot = await ops_pipeline.autopilot_default()
 
     slug = storage.slugify(body.name)
     if await db.projects.find_one({"slug": slug}):

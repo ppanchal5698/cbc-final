@@ -4,7 +4,7 @@ from __future__ import annotations
 from pymongo import MongoClient
 
 from cbc.shared.config import settings
-from cbc.services import freshness as freshness_settings
+from cbc.modules.ops.api import freshness as freshness_settings
 from tests.shared import TEST_ACTOR, opshub_client, mongo_client
 from cbc.persistence import names
 

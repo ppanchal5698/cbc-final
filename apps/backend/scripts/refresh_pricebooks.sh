@@ -24,7 +24,7 @@ from pathlib import Path
 root = Path(sys.argv[1])
 sys.path.insert(0, str(root / "src"))
 
-from cbc.services.freshness import load_sync  # noqa: E402
+from cbc.modules.ops.api.freshness import load_sync  # noqa: E402
 
 raw_days = sys.argv[2] if len(sys.argv) > 2 else ""
 days = int(raw_days) if raw_days else load_sync().catalog_stale_days

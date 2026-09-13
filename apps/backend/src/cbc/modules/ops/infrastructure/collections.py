@@ -31,6 +31,14 @@ def run_metrics():
     return database()[names.RUN_METRICS]
 
 
+def settings_collection():
+    return database()[names.SETTINGS]
+
+
+def oauth_sessions():
+    return database()[names.OAUTH_SESSIONS]
+
+
 async def ensure_indexes() -> None:
     """Idempotent. Runs after the migrations, because m001 renames auditLog."""
     await users().create_index([("email", ASCENDING)], unique=True)
@@ -48,4 +56,7 @@ async def ensure_indexes() -> None:
     await run_metrics().create_index([("contextHashes.prompt", ASCENDING)])
     await run_metrics().create_index(
         [("outcome.errorCode", ASCENDING), ("startedAt", DESCENDING)]
+    )
+    await oauth_sessions().create_index(
+        [("expiresAt", ASCENDING)], name="oauth_session_ttl", expireAfterSeconds=0
     )

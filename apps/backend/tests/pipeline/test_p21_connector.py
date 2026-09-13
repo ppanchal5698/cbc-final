@@ -13,7 +13,7 @@ search_item = _server.search_item
 @pytest.fixture(autouse=True)
 def _clear_freshness_cache():
     """API settings tests share a process-wide bands cache with load_sync()."""
-    from cbc.services import freshness as freshness_settings
+    from cbc.modules.ops.api import freshness as freshness_settings
 
     freshness_settings.clear_cache()
     yield
@@ -69,7 +69,7 @@ def test_freshness_respects_a_narrower_admin_window(monkeypatch) -> None:
     from datetime import date, timedelta
 
     from cbc.domain import freshness as core
-    from cbc.services.freshness import Bands
+    from cbc.modules.ops.api.freshness import Bands
 
     bands = Bands(
         catalog_stale_months=6,

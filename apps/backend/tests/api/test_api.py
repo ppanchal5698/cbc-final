@@ -367,7 +367,7 @@ def test_stale_price_books_are_reported(client):
 def test_a_mid_age_price_book_follows_the_review_window(client):
     from datetime import date, timedelta
 
-    from cbc.services import freshness as freshness_settings
+    from cbc.modules.ops.api import freshness as freshness_settings
 
     effective = (date.today() - timedelta(days=400)).isoformat()
     client.post(

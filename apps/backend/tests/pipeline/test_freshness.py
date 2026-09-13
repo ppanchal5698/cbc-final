@@ -13,7 +13,7 @@ permissive than 6.2 on the first threshold - and so locked the deviation in.
 from __future__ import annotations
 
 from cbc.domain import freshness as core
-from cbc.services.freshness import DEFAULTS, from_document
+from cbc.modules.ops.api.freshness import DEFAULTS, from_document
 
 # Matrix 6.2, as stated. The defaults must sit inside these ranges.
 UNRELIABLE_AFTER_MONTHS = (6, 8)

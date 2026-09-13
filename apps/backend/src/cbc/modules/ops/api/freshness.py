@@ -98,10 +98,10 @@ async def load() -> Bands:
     hit = _cached()
     if hit is not None:
         return hit
-    from cbc.db import db
+    from cbc.modules.ops.infrastructure.collections import settings_collection
 
     try:
-        doc = await db.settings.find_one({"_id": DOC_ID})
+        doc = await settings_collection().find_one({"_id": DOC_ID})
     except Exception:
         return _remember(DEFAULTS)
     return _remember(from_document(doc))
