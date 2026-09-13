@@ -11,7 +11,13 @@ from __future__ import annotations
 
 
 def register(app) -> None:
-    """Mount this module's routes on the application."""
+    """Mount this module's routes, and subscribe to what it listens for."""
+    from cbc.modules.ops.api import jobs as ops_jobs
+    from cbc.modules.projects.api import saga
+    from cbc.shared import events
+
+    events.subscribe(ops_jobs.JOB_REQUEUED, saga.on_job_requeued)
+
     from cbc.modules.projects.features import (
         CreateProject,
         DeleteCall,

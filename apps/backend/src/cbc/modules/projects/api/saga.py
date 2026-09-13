@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from cbc.db import db
+from cbc.modules.projects.infrastructure.collections import bid_requests
 
 ChainState = Literal[
     "idle",
@@ -129,7 +129,7 @@ async def set_state(
         sets["$unset"] = {"pipelineNote": ""}
     if state in DISABLE_AUTOPILOT:
         update["autopilot"] = False
-    await db.projects.update_one({"_id": project_id}, sets)
+    await bid_requests().update_one({"_id": project_id}, sets)
 
 
 def can_advance(job_type: str, chain_state: str | None) -> bool:
@@ -138,3 +138,10 @@ def can_advance(job_type: str, chain_state: str | None) -> bool:
     if allowed is None:
         return False
     return chain_state in allowed
+
+
+async def on_job_requeued(job: dict[str, Any]) -> None:
+    """A dead or failed job went back on the queue: its bid returns to that job's starting state."""
+    start = START_STATE.get(job.get("type") or "")
+    if start and job.get("projectId") is not None:
+        await set_state(job["projectId"], start, detail="Requeued from the dead-letter queue.")

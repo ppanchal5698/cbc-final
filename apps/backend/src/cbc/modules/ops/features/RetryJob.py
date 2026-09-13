@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from cbc.modules.ops.api import jobs
+from cbc.shared import events
 from cbc.shared.auth import Actor
 from cbc.shared.mongo import oid, serialise
 
@@ -26,11 +27,7 @@ async def retry_job(job_id: str, actor: Actor) -> dict:
                 "activeJob": serialise(exc.active),
             },
         ) from None
-    # ponytail: writes the bid's chainState directly; becomes a JobRequeued event
-    # the projects module handles once it owns chainState (step 3.4).
-    from cbc.services import chain
-
-    start = chain.START_STATE.get(job.get("type") or "")
-    if start and job.get("projectId") is not None:
-        await chain.set_state(job["projectId"], start, detail="Requeued from the dead-letter queue.")
+    # The bid's saga is projects' to move. ops says what happened; projects puts the
+    # bid back in the requeued job's starting state before this responds.
+    await events.publish(jobs.JOB_REQUEUED, job=job)
     return serialise(job)

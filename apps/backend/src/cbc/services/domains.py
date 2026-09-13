@@ -9,13 +9,6 @@ DOMAIN_JOB_TYPES: dict[str, frozenset[str]] = {
     "catalog": frozenset({"index_catalog", "delete_catalog", "ingest_pricebook"}),
 }
 
-# Autopilot is orchestrated by platform as a chain of domain jobs.
-ORCHESTRATED_CHAIN = (
-    "extract_bid_set",
-    "match_and_price",
-    "build_proposal",
-)
-
 
 def claimable_types(domain: str) -> frozenset[str]:
     try:

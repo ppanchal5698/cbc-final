@@ -11,7 +11,15 @@ import logging
 from typing import Any
 
 from cbc.modules.ops.api import jobs as job_service
-from cbc.services.domains import ORCHESTRATED_CHAIN
+from cbc.modules.projects.api import saga as chain
+from cbc.modules.projects.infrastructure.collections import bid_requests
+
+# Autopilot runs as a chain of domain jobs, each started when the last succeeds.
+ORCHESTRATED_CHAIN = (
+    "extract_bid_set",
+    "match_and_price",
+    "build_proposal",
+)
 
 __all__ = ["ORCHESTRATED_CHAIN", "enqueue_autopilot", "maybe_continue_chain", "next_in_chain"]
 
@@ -61,10 +69,7 @@ async def maybe_continue_chain(job: dict[str, Any]) -> dict[str, Any] | None:
         log.warning("orchestrate job %s has no projectId; cannot continue", job["type"])
         return None
 
-    from cbc.db import db
-    from cbc.services import chain
-
-    project = await db.projects.find_one({"_id": project_id}, {"chainState": 1, "autopilot": 1})
+    project = await bid_requests().find_one({"_id": project_id}, {"chainState": 1, "autopilot": 1})
     chain_state = (project or {}).get("chainState")
     if (project or {}).get("autopilot") is False:
         log.info("orchestrate skipped after %s: autopilot is off", job["type"])

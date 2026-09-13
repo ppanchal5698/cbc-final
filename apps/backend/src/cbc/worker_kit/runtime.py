@@ -110,7 +110,7 @@ async def _lease_held(job: dict) -> bool:
 async def dead_letter(job: dict, detail: str) -> None:
     """Mark the bid's saga as blocked and ping operators."""
     from cbc.modules.ops.api import alerts
-    from cbc.services import chain
+    from cbc.modules.projects.api import saga as chain
 
     job_type = job.get("type") or ""
     state = chain.FAIL_STATE.get(job_type, "awaiting_manual_retry")
@@ -182,7 +182,7 @@ async def after_finish(job: dict, status: str, error: str | None, entry) -> None
             )
         else:
             try:
-                from cbc.services import orchestrator
+                from cbc.modules.projects.api import autopilot as orchestrator
 
                 nxt = await orchestrator.maybe_continue_chain(job)
                 if nxt:
@@ -195,7 +195,7 @@ async def after_finish(job: dict, status: str, error: str | None, entry) -> None
                 entry.exception("orchestrate continuation failed after %s", job["type"])
                 nxt_type = None
                 try:
-                    from cbc.services import orchestrator as orch
+                    from cbc.modules.projects.api import autopilot as orch
 
                     nxt_type = orch.next_in_chain(job["type"])
                 except Exception:
@@ -398,7 +398,7 @@ async def sync_results(job: dict, project: dict | None) -> str:
         )
         return "lease stolen; discarded output"
 
-    from cbc.services import chain
+    from cbc.modules.projects.api import saga as chain
     from cbc.validation.contracts import extraction_review_verdict
 
     if job["type"] in ("extract_bid_set", "rerun_extraction"):
@@ -607,7 +607,7 @@ async def _process_body(job: dict) -> None:
             await finish(job, False, "project no longer exists", "")
             return
         storage.scaffold(project["slug"])
-        from cbc.services import chain as chain_service
+        from cbc.modules.projects.api import saga as chain_service
 
         start = chain_service.START_STATE.get(job["type"])
         if start:

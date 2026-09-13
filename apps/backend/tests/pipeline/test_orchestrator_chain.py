@@ -49,7 +49,7 @@ def database():
 
 
 def test_needs_review_does_not_enqueue_pricing(database) -> None:
-    from cbc.services import orchestrator
+    from cbc.modules.projects.api import autopilot as orchestrator
 
     project_id = ObjectId()
     database[names.BID_REQUESTS].insert_one(
@@ -66,7 +66,7 @@ def test_needs_review_does_not_enqueue_pricing(database) -> None:
 
 
 def test_extraction_done_enqueues_pricing(database) -> None:
-    from cbc.services import orchestrator
+    from cbc.modules.projects.api import autopilot as orchestrator
 
     project_id = ObjectId()
     database[names.BID_REQUESTS].insert_one(
@@ -86,7 +86,7 @@ def test_extraction_done_enqueues_pricing(database) -> None:
 
 
 def test_pricing_failure_disables_autopilot(database) -> None:
-    from cbc.services import chain
+    from cbc.modules.projects.api import saga as chain
 
     project_id = ObjectId()
     database[names.BID_REQUESTS].insert_one(
@@ -99,7 +99,7 @@ def test_pricing_failure_disables_autopilot(database) -> None:
 
 
 def test_autopilot_off_does_not_enqueue_quoting(database) -> None:
-    from cbc.services import orchestrator
+    from cbc.modules.projects.api import autopilot as orchestrator
 
     project_id = ObjectId()
     database[names.BID_REQUESTS].insert_one(

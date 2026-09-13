@@ -23,6 +23,9 @@ from cbc.modules.ops.api import audit
 
 EXCLUSIVE = set(EXCLUSIVE_JOB_TYPES)
 
+# Published with job= once a retry has put a dead or failed job back on the queue.
+JOB_REQUEUED = "ops.job_requeued"
+
 # Quiet window after each upload so sibling PDFs join the same extract run.
 # Default 60s; hard cap (COALESCE_MAX_SECONDS) stops indefinite starvation.
 DEFAULT_COALESCE_SECONDS = int(os.environ.get("PIPELINE_DEBOUNCE_SECONDS", "60"))
