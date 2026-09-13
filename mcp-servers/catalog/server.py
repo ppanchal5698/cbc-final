@@ -30,10 +30,10 @@ ROOT = Path(__file__).resolve().parents[2]
 from _runtime import serve
 from tools import TOOLS
 
-from cbc.pageindex import basis as price_basis_of
-from cbc.pageindex import models as page_models
-from cbc.pageindex import query as page_query
-from cbc.pageindex import reader
+from cbc.modules.catalog.api.pageindex import basis as price_basis_of
+from cbc.modules.catalog.api.pageindex import models as page_models
+from cbc.modules.catalog.api.pageindex import query as page_query
+from cbc.modules.catalog.api.pageindex import reader
 
 from cbc.modules.ops.api.freshness import load_sync
 from cbc.modules.pricing.api import reference_library as reflib  # noqa: E402
@@ -261,7 +261,7 @@ def _demo() -> None:
         print(f"catalog demo SKIPPED - {catalogs['error'][:80]}")
         return
 
-    assert catalogs["count"] > 0, "no catalogs indexed - run `python -m cbc.pageindex.build --all`"
+    assert catalogs["count"] > 0, "no catalogs indexed - run `python -m cbc.modules.catalog.api.pageindex.build --all`"
 
     hit = find_pages("3400 lock", vendor="hager", limit=3)
     assert hit["count"] >= 1, hit

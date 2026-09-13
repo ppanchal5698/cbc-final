@@ -21,10 +21,10 @@ from typing import Any
 import fitz
 
 from cbc.core.llm import LLMClient
-from cbc.pageindex.describe import describe_page, page_lines
-from cbc.pageindex.models import CatalogOverview, PageEntry, PageProfile
+from cbc.modules.catalog.api.pageindex.describe import describe_page, page_lines
+from cbc.modules.catalog.api.pageindex.models import CatalogOverview, PageEntry, PageProfile
 
-log = logging.getLogger("cbc.pageindex.profile")
+log = logging.getLogger("cbc.modules.catalog.api.pageindex.profile")
 
 _PROFILE_SYSTEM = """You are indexing a vendor price book so an estimator's assistant can jump
 straight to the right page instead of scanning hundreds.
@@ -198,7 +198,7 @@ def _demo() -> None:
     # And the pages still describe, from their own text.
     entry = describe_page("Hinges\nBB1279  $9.00", 1, PageProfile())
     assert entry.title and entry.has_prices
-    print("cbc.pageindex.profile OK")
+    print("cbc.modules.catalog.api.pageindex.profile OK")
 
 
 class _Broken:

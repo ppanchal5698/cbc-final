@@ -107,7 +107,7 @@ def test_built_at_bump_misses_find_pages_cache(monkeypatch) -> None:
 
 
 def test_all_catalogs_projects_away_profile(monkeypatch) -> None:
-    from cbc.pageindex import reader
+    from cbc.modules.catalog.api.pageindex import reader
 
     seen: dict = {}
 

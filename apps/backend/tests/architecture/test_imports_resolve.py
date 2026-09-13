@@ -43,7 +43,7 @@ NAMESPACE_PACKAGES = frozenset(
         "cbc.shared",
         "cbc.domain",
         "cbc.core",
-        "cbc.pageindex",
+        "cbc.modules.catalog.api.pageindex",
         "cbc.http",
         "cbc.persistence",
         # A module's public surface is a package of submodules too, and the

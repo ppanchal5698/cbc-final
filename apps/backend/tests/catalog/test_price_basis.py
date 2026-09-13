@@ -13,7 +13,7 @@ import json
 import pytest
 
 from cbc.modules.catalog.features.IngestPricebook import _prices_for
-from cbc.pageindex import basis
+from cbc.modules.catalog.api.pageindex import basis
 
 
 @pytest.fixture(autouse=True)

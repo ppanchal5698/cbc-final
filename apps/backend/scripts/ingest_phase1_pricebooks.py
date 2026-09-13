@@ -324,7 +324,7 @@ def main() -> int:
     ids = upsert_mongo(uri, db_name)
 
     if args.no_index:
-        print("\nSkipped index_catalog jobs (--no-index). Run: python -m cbc.pageindex.build --all")
+        print("\nSkipped index_catalog jobs (--no-index). Run: python -m cbc.modules.catalog.api.pageindex.build --all")
         return 0
 
     queued = 0
@@ -337,7 +337,7 @@ def main() -> int:
 
     print(
         f"\nQueued {queued} index job(s). Watch: docker logs -f cbc-worker\n"
-        "Or rebuild locally: python -m cbc.pageindex.build --all"
+        "Or rebuild locally: python -m cbc.modules.catalog.api.pageindex.build --all"
     )
     return 0
 

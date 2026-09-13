@@ -8,8 +8,8 @@
 4. No module names another module's collection. A module declares what it owns
    in `infrastructure/collections.py`; every other module is checked for those
    names.
-5. The retired kernel stays retired: there is no `cbc.db`, `services/` or `schemas/`,
-   and nothing imports any of them.
+5. The retired kernel stays retired: there is no `cbc.db`, `services/`, `schemas/` or
+   `pageindex/` beside the modules, and nothing imports any of them.
 6. Modules import each other one way only: the graph has no cycle.
 
 The old first rule here was the inverse of rule 1 - it forbade the one import the
@@ -118,14 +118,14 @@ def test_no_module_names_another_modules_collection() -> None:
 
 
 def test_the_retired_kernel_stays_retired() -> None:
-    """`cbc.db`, `cbc.services` and `cbc.schemas` held what the modules and `shared` own now; none comes back."""
-    assert not any((SRC / name).exists() for name in ("db.py", "services", "schemas"))
+    """`cbc.db`, `cbc.services`, `cbc.schemas` and `cbc.pageindex` held what the modules and `shared` own now; none comes back."""
+    assert not any((SRC / name).exists() for name in ("db.py", "services", "schemas", "pageindex"))
     importers = [
         f"{path.relative_to(REPO)}:{line} imports {dotted}"
         for root in (SRC, BACKEND / "scripts", BACKEND / "tests", REPO / "mcp-servers")
         for path in _py(root)
         for line, dotted in _imports(path)
-        if re.match(r"cbc\.(db|services|schemas)(\.|$)", dotted)
+        if re.match(r"cbc\.(db|services|schemas|pageindex)(\.|$)", dotted)
     ]
     assert not importers, "imports of the retired kernel:\n" + "\n".join(importers)
 

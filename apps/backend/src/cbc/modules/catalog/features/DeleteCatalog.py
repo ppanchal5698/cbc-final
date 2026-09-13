@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from cbc.modules.catalog.infrastructure.collections import price_books
-from cbc.pageindex import store as pageindex_store
+from cbc.modules.catalog.api.pageindex import store as pageindex_store
 from cbc.shared.mongo import oid
 
 

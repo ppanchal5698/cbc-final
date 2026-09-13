@@ -34,7 +34,7 @@ from cbc.shared.config import settings  # noqa: E402  - must follow apply_to_env
 from cbc.modules import catalog, extraction, intake, ops, pricing, projects, quoting  # noqa: E402
 from cbc.modules.ops.api import identity, jobs as ops_jobs, project_lookup  # noqa: E402
 from cbc.modules.projects.api import lookup as projects_lookup  # noqa: E402
-from cbc.pageindex import store as pageindex_store  # noqa: E402
+from cbc.modules.catalog.api.pageindex import store as pageindex_store  # noqa: E402
 from cbc.shared.auth import InternalAuthMiddleware, set_role_lookup  # noqa: E402
 from cbc.shared.mongo import database, ensure_readonly_user  # noqa: E402
 from cbc.shared.tracing import TraceMiddleware  # noqa: E402

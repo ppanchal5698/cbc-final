@@ -160,7 +160,7 @@ def _demo() -> None:
     assert price_basis("pemko_markar_price_book_2026.pdf", "pemko") == UNKNOWN
     assert price_basis("nonexistent.pdf", "acme") == UNKNOWN
     assert "do not apply a multiplier" in describe(NET)
-    print("cbc.pageindex.basis OK")
+    print("cbc.modules.catalog.api.pageindex.basis OK")
 
 
 if __name__ == "__main__":

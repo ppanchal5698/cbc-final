@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from cbc.pageindex.models import PageEntry, PageKind, PageProfile
+from cbc.modules.catalog.api.pageindex.models import PageEntry, PageKind, PageProfile
 
 # A money-shaped token. Deciding "does this page carry prices" is the difference
 # between a page worth opening and one that is a diagram.
@@ -410,7 +410,7 @@ def _demo() -> None:
         sheet="Program Net", rows=[12, 260],
     )
     assert "sheet Program Net rows 12-260" == sheet.locator(), sheet.locator()
-    print("cbc.pageindex.describe OK")
+    print("cbc.modules.catalog.api.pageindex.describe OK")
 
 
 if __name__ == "__main__":

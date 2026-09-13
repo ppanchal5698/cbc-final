@@ -23,7 +23,7 @@ from typing import Any
 
 from cbc.modules.catalog.infrastructure.collections import products
 from cbc.shared.mongo import serialise
-from cbc.pageindex import basis, query as page_query, store as page_store
+from cbc.modules.catalog.api.pageindex import basis, query as page_query, store as page_store
 
 
 async def index_available() -> bool:

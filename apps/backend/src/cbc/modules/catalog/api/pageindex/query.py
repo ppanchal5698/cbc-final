@@ -15,8 +15,8 @@ import re
 from collections import OrderedDict
 from typing import Any
 
-from cbc.pageindex import store
-from cbc.pageindex.models import PageEntry, PageIndexDocument
+from cbc.modules.catalog.api.pageindex import store
+from cbc.modules.catalog.api.pageindex.models import PageEntry, PageIndexDocument
 
 # Where the vendor books live, relative to the repository root - which is what
 # pdf-tools resolves against.

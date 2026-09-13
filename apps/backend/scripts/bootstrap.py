@@ -81,7 +81,7 @@ def main() -> int:
     # replaced - which no longer exists and never will, so the guard was always
     # true and build_all() walked every catalog on every single start while
     # printing a path it does not write.
-    from cbc.pageindex.store import COLLECTION as PAGE_INDEX
+    from cbc.modules.catalog.api.pageindex.store import COLLECTION as PAGE_INDEX
 
     indexed = db[PAGE_INDEX].count_documents({})
     if indexed:
@@ -92,7 +92,7 @@ def main() -> int:
             pricebook_dir = (ROOT / pricebook_dir).resolve()
         if pricebook_dir.is_dir():
             print(f"[bootstrap] building the page index from {pricebook_dir}")
-            from cbc.pageindex.build import build_all
+            from cbc.modules.catalog.api.pageindex.build import build_all
 
             import asyncio
             asyncio.run(build_all())

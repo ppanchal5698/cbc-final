@@ -1,8 +1,8 @@
 """catalog: the parts CBC can quote, and the vendor price books they come from.
 
 Products, price books, and the jobs that describe each book's pages into the page
-index. It owns `catalogItems` and `priceBooks`; `pageIndex` is written by
-cbc.pageindex, which the catalog's jobs drive.
+index. It owns `catalogItems`, `priceBooks` and `pageIndex`,
+which `api/pageindex` builds, stores and reads.
 
 Other modules import only `cbc.modules.catalog.api`. Slices are imported inside
 `register`, so a module that only wants a part does not load every handler.

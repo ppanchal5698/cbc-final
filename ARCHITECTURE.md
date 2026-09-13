@@ -17,7 +17,7 @@ worker process ──► cbc.worker (ops' loop + modules' jobs)     ──┘
 |---|---|---|
 | **ops** | Running the platform: sign-in and users, system settings, the job queue, the worker loop, the audit trail, spend and run metrics | `users`, `authAttempts`, `oauthSessions`, `settings`, `jobs`, `auditLogs`, `runMetrics` |
 | **projects** | The bid record everything hangs off: create/list/update/delete a bid, prior-quote reuse, calls/notes/RFIs logged against it, the autopilot saga | `bidRequests`, `calls`, `counters` |
-| **catalog** | Vendor parts and the price books they come from; the jobs that index each book's pages | `catalogItems`, `priceBooks` (`pageIndex` via `cbc.pageindex`) |
+| **catalog** | Vendor parts and the price books they come from; the jobs that index each book's pages | `catalogItems`, `priceBooks`, `pageIndex` |
 | **intake** | Getting a bid set in: document upload, pages, frozen addendum versions | `documents`, `estimateVersions` |
 | **extraction** | What the drawings say: openings the estimator confirms or corrects, FRP takeoffs, correction feedback | `openings`, `failedExtractions`, `takeoffs`, `feedbackEvents` |
 | **pricing** | Pricing policy: margins, tax, adders, tiers, nets, finishes, frame depths, FRP constants | `referenceData`, `referenceDataRevisions` |
@@ -145,12 +145,13 @@ startup creates the user behind it (`ensure_readonly_user`).
 ## Still legacy - and where it goes
 
 `cbc.services`, `cbc.db` and `cbc.schemas` are gone - into the modules, `shared/` and the
-API's composition root - and `test_layering` fails if any of them comes back. What the
+API's composition root - `cbc.pageindex` is catalog's now, and `test_layering` fails if
+any of them comes back. What the
 modules still lean on:
 
 - `cbc.worker_kit` - a Claude pass's prompt templates and its sandbox. `workflows/*.sh`,
   CI and the sandbox image run them by module path, so they stay where they are.
-- `cbc.core`, `cbc.domain`, `cbc.pageindex`, `cbc.persistence`, `cbc.validation` -
+- `cbc.core`, `cbc.domain`, `cbc.persistence`, `cbc.validation` -
   kernel packages, unchanged by the rewrite.
 
 ## Known inconsistencies (recorded, not resolved)

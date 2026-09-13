@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from cbc.pageindex.describe import describe_page, needs_a_second_look, page_lines
-from cbc.pageindex.models import PageProfile
+from cbc.modules.catalog.api.pageindex.describe import describe_page, needs_a_second_look, page_lines
+from cbc.modules.catalog.api.pageindex.models import PageProfile
 
 # The real Hager running header: printed number, date, url, then the section.
 HAGER = PageProfile(
@@ -162,7 +162,7 @@ def test_the_catalog_server_never_reaches_the_writable_connection() -> None:
 
 def test_the_reader_refuses_without_a_read_only_credential(monkeypatch) -> None:
     """No credential is not a reason to fall back to the writable one."""
-    from cbc.pageindex import reader
+    from cbc.modules.catalog.api.pageindex import reader
 
     monkeypatch.delenv("MONGODB_READONLY_URI", raising=False)
     reader.reset()
@@ -195,8 +195,8 @@ def test_a_hit_names_where_the_file_is_not_just_what_it_is_called() -> None:
     and guessed the project's own uploads folder. The page was right; the file
     was not there; the line went MANUAL.
     """
-    from cbc.pageindex.models import PageEntry, PageIndexDocument
-    from cbc.pageindex.query import PRICEBOOK_DIR, rank_pages
+    from cbc.modules.catalog.api.pageindex.models import PageEntry, PageIndexDocument
+    from cbc.modules.catalog.api.pageindex.query import PRICEBOOK_DIR, rank_pages
 
     document = PageIndexDocument(
         catalog_id="hager_price_book_18",
@@ -230,8 +230,8 @@ def test_a_whole_part_number_finds_the_page_that_holds_its_family() -> None:
     pass got no page for the part it was asked to price, and invented a cost
     instead. Both directions have to match.
     """
-    from cbc.pageindex.models import PageEntry, PageIndexDocument
-    from cbc.pageindex.query import rank_pages
+    from cbc.modules.catalog.api.pageindex.models import PageEntry, PageIndexDocument
+    from cbc.modules.catalog.api.pageindex.query import rank_pages
 
     document = PageIndexDocument(
         catalog_id="pemko_markar_price_book_2026",
@@ -258,8 +258,8 @@ def test_a_whole_part_number_finds_the_page_that_holds_its_family() -> None:
 
 def test_a_part_from_another_family_still_does_not_match() -> None:
     """Matching both ways must not turn into matching anything."""
-    from cbc.pageindex.models import PageEntry, PageIndexDocument
-    from cbc.pageindex.query import rank_pages
+    from cbc.modules.catalog.api.pageindex.models import PageEntry, PageIndexDocument
+    from cbc.modules.catalog.api.pageindex.query import rank_pages
 
     document = PageIndexDocument(
         catalog_id="pemko_markar_price_book_2026",
@@ -288,8 +288,8 @@ def test_a_page_with_two_money_columns_is_marked() -> None:
     the rightmost number on the row gets MAP, applies the vendor multiplier and
     quotes half what the part costs: the error that wins a bid and loses money.
     """
-    from cbc.pageindex.describe import describe_page
-    from cbc.pageindex.models import PageProfile
+    from cbc.modules.catalog.api.pageindex.describe import describe_page
+    from cbc.modules.catalog.api.pageindex.models import PageProfile
 
     text = "\n".join(
         [
@@ -304,8 +304,8 @@ def test_a_page_with_two_money_columns_is_marked() -> None:
 
 def test_an_ordinary_price_page_is_not_marked() -> None:
     """One money column is a price list, not a trap - Hager prints only list."""
-    from cbc.pageindex.describe import describe_page
-    from cbc.pageindex.models import PageProfile
+    from cbc.modules.catalog.api.pageindex.describe import describe_page
+    from cbc.modules.catalog.api.pageindex.models import PageProfile
 
     text = "\n".join(
         ["Locks - 3400 Series", "3453  Storeroom Lock  US26D  $256.31"]
@@ -315,8 +315,8 @@ def test_an_ordinary_price_page_is_not_marked() -> None:
 
 def test_the_caution_reaches_the_run_that_opens_the_page() -> None:
     """Recorded in the index is not enough; it has to arrive with the page."""
-    from cbc.pageindex.models import PageEntry, PageIndexDocument
-    from cbc.pageindex.query import rank_pages
+    from cbc.modules.catalog.api.pageindex.models import PageEntry, PageIndexDocument
+    from cbc.modules.catalog.api.pageindex.query import rank_pages
 
     document = PageIndexDocument(
         catalog_id="asi_price_list",

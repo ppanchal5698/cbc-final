@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from cbc.shared.mongo import database
-from cbc.pageindex.models import PageIndexDocument
+from cbc.modules.catalog.api.pageindex.models import PageIndexDocument
 
 COLLECTION = "pageIndex"
 

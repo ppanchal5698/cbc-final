@@ -10,7 +10,7 @@ from pymongo import UpdateOne
 
 from cbc.modules.catalog.infrastructure.collections import price_books, products
 from cbc.modules.ops.api import claude_pass
-from cbc.pageindex import basis
+from cbc.modules.catalog.api.pageindex import basis
 from cbc.shared.paths import repo_root
 
 

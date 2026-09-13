@@ -11,7 +11,7 @@ from cbc.modules.catalog.domain.price_books import PriceBookUpdate
 from cbc.modules.catalog.infrastructure.collections import price_books, products
 from cbc.modules.catalog.infrastructure.price_book_view import decorate
 from cbc.modules.ops.api import audit
-from cbc.pageindex import basis
+from cbc.modules.catalog.api.pageindex import basis
 from cbc.modules.pricing.api.reference_library import sync_vendor_categories
 from cbc.shared.auth import AdminActor
 from cbc.shared.mongo import oid

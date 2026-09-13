@@ -13,7 +13,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from cbc.modules.catalog.infrastructure.collections import price_books
 from cbc.modules.catalog.infrastructure.price_book_view import decorate
 from cbc.modules.ops.api import audit, jobs
-from cbc.pageindex import store as catalog_store
+from cbc.modules.catalog.api.pageindex import store as catalog_store
 from cbc.shared import storage
 from cbc.shared.auth import Actor
 from cbc.shared.config import settings

@@ -1,8 +1,8 @@
 """Build one catalog's page index.
 
-    python -m cbc.pageindex.build --all
-    python -m cbc.pageindex.build hager_price_book_18.pdf
-    python -m cbc.pageindex.build --all --force     # ignore the hash, re-read
+    python -m cbc.modules.catalog.api.pageindex.build --all
+    python -m cbc.modules.catalog.api.pageindex.build hager_price_book_18.pdf
+    python -m cbc.modules.catalog.api.pageindex.build --all --force     # ignore the hash, re-read
 
 Three passes, in cost order:
 
@@ -28,11 +28,11 @@ from pathlib import Path
 import fitz
 
 from cbc.shared.paths import repo_root
-from cbc.pageindex import basis, store
-from cbc.pageindex.describe import describe_page, needs_a_second_look
-from cbc.pageindex.models import BUILDER_VERSION, PageIndexDocument, PageProfile
+from cbc.modules.catalog.api.pageindex import basis, store
+from cbc.modules.catalog.api.pageindex.describe import describe_page, needs_a_second_look
+from cbc.modules.catalog.api.pageindex.models import BUILDER_VERSION, PageIndexDocument, PageProfile
 
-log = logging.getLogger("cbc.pageindex.build")
+log = logging.getLogger("cbc.modules.catalog.api.pageindex.build")
 
 # Pages sampled for profile discovery. Spread rather than the first few, because
 # a catalog's front matter looks nothing like its price tables.
@@ -96,7 +96,7 @@ def describe_file(
         samples = _sample_pages(doc)
         profile, overview = (None, None)
         if use_llm:
-            from cbc.pageindex.profile import discover
+            from cbc.modules.catalog.api.pageindex.profile import discover
 
             profile, overview = discover(path.name, vendor, samples)
         if profile is None:
@@ -108,7 +108,7 @@ def describe_file(
 
         weak = [p for p in pages if needs_a_second_look(p)]
         if weak and use_llm:
-            from cbc.pageindex.profile import second_look
+            from cbc.modules.catalog.api.pageindex.profile import second_look
 
             improved = second_look(path.name, vendor, weak, doc)
             by_page = {p.pdf_page: p for p in improved}
@@ -178,7 +178,7 @@ def _fallback_overview(file_name: str, pages: list) -> "object":
     Counted from the pages themselves rather than left blank, so the catalog is
     still navigable without an LLM - and honest that nobody summarised it.
     """
-    from cbc.pageindex.models import CatalogOverview
+    from cbc.modules.catalog.api.pageindex.models import CatalogOverview
 
     priced = sum(1 for p in pages if p.has_prices)
     families: dict[str, int] = {}

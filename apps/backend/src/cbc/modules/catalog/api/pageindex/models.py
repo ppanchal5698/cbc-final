@@ -114,7 +114,7 @@ class PageIndexDocument(BaseModel):
     # Rebuild trigger. An unchanged file is not re-read and costs no LLM call.
     file_hash: str
     kind: str = "price_book"
-    # list | net | unknown, from cbc.pageindex.basis. Whether the numbers on these
+    # list | net | unknown, from cbc.modules.catalog.api.pageindex.basis. Whether the numbers on these
     # pages are list prices to be multiplied, or costs already.
     price_basis: str = "unknown"
     effective_date: str | None = None

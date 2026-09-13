@@ -34,8 +34,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 from cbc.shared.config import settings  # noqa: E402
-from cbc.pageindex import query, store  # noqa: E402
-from cbc.pageindex.models import PageIndexDocument  # noqa: E402
+from cbc.modules.catalog.api.pageindex import query, store  # noqa: E402
+from cbc.modules.catalog.api.pageindex.models import PageIndexDocument  # noqa: E402
 
 BENCH_DB = "cbc_bench_pageindex"
 
@@ -133,7 +133,7 @@ async def run(counts: list[int], rounds: int) -> int:
                 row.append(f"{median:10.1f}")
             print(f"{count:>9}  " + "  ".join(row))
         print("\nA rewrite needs a number from this table, not an intuition. "
-              "See src/cbc/pageindex/README.md for what each variant changes.")
+              "See src/cbc/modules/catalog/api/pageindex/README.md for what each variant changes.")
     finally:
         client = db_module.client()
         await client.drop_database(BENCH_DB)

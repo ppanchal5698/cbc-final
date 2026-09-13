@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from cbc.modules.catalog.infrastructure.collections import price_books
-from cbc.pageindex import build as pageindex_build
+from cbc.modules.catalog.api.pageindex import build as pageindex_build
 from cbc.shared.config import settings
 from cbc.shared.mongo import oid
 
