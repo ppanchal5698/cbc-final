@@ -39,7 +39,7 @@ def test_the_pipeline_job_type_is_a_known_job_type() -> None:
 
 def test_a_full_run_gets_a_bigger_budget_than_one_phase() -> None:
     """60 turns and an hour are sized for one phase; this is nine subagents."""
-    from cbc.worker_kit.runtime import JOB_TIMEOUT, MAX_TURNS, limits_for
+    from cbc.modules.ops.api.claude_pass import JOB_TIMEOUT, MAX_TURNS, limits_for
 
     timeout, turns = limits_for("run_full_pipeline")
     assert timeout > JOB_TIMEOUT and turns > MAX_TURNS
@@ -158,7 +158,7 @@ def test_the_shell_entry_point_uses_the_same_prompt() -> None:
 
 def test_the_board_advances_as_each_phase_lands(tmp_path: Path) -> None:
     """`stage` is only written when a job ends, and this job can run for an hour."""
-    from cbc.worker_kit.runtime import phase_reached
+    from cbc.modules.extraction.api.passes import phase_reached
 
     assert phase_reached(tmp_path) is None, "nothing written yet"
 
@@ -182,7 +182,7 @@ def test_the_board_advances_as_each_phase_lands(tmp_path: Path) -> None:
 
 def test_progress_only_ever_moves_forward(tmp_path: Path) -> None:
     """Phases are reported furthest-first, so an early file cannot pull it back."""
-    from cbc.worker_kit.runtime import phase_reached
+    from cbc.modules.extraction.api.passes import phase_reached
 
     for relative in ("quotation.html", "extracted/scope_metadata.json"):
         target = tmp_path / relative

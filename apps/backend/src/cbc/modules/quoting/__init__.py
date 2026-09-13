@@ -69,6 +69,15 @@ def register(app) -> None:
         app.include_router(feature.router)
 
 
+def register_jobs() -> None:
+    """Plug this module's jobs into ops' worker."""
+    from cbc.modules.ops.api import worker
+    from cbc.modules.quoting.features import BuildProposal, MatchAndPrice
+
+    worker.register("match_and_price", MatchAndPrice.run)
+    worker.register("build_proposal", BuildProposal.run)
+
+
 async def ensure_indexes() -> None:
     from cbc.modules.quoting.infrastructure.collections import ensure_indexes as build
 

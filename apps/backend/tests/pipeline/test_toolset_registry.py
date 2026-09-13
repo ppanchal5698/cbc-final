@@ -97,7 +97,7 @@ def test_pricing_hands_p21_the_readonly_mongo_uri(monkeypatch):
     assert servers["catalog"]["env"]["MONGODB_READONLY_URI"].startswith("mongodb://")
 
 
-def test_every_job_type_is_either_a_prompt_or_a_local_handler():
+def test_every_job_type_is_either_a_prompt_or_a_local_handler(wired_worker):
     """A job type nobody runs is a queue entry that fails at dispatch.
 
     `index_document` and `delete_document` sat in this Literal after the deep-index
@@ -109,13 +109,13 @@ def test_every_job_type_is_either_a_prompt_or_a_local_handler():
     import typing
 
     from cbc.worker_kit import prompts
-    from cbc.worker_kit.runtime import LOCAL_HANDLERS
     from cbc.schemas.common import JobType
 
     declared = set(typing.get_args(JobType))
-    served = set(prompts.TEMPLATES) | set(LOCAL_HANDLERS)
+    served = set(wired_worker._handlers)
+    local = {t for t, h in wired_worker._handlers.items() if getattr(h, "func", None) is wired_worker.run_locally}
 
     assert not declared - served, f"job types nothing runs: {sorted(declared - served)}"
     assert not served - declared, f"handlers for undeclared types: {sorted(served - declared)}"
-    assert not (set(prompts.TEMPLATES) & set(LOCAL_HANDLERS)), "type served twice"
+    assert set(prompts.TEMPLATES) == served - local, "a Claude pass with no template, or a local job with one"
 

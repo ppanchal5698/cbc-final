@@ -74,7 +74,7 @@ cd apps/backend && pip install -e ".[dev]" && uvicorn cbc.api.main:app --port 80
 2. **platform API**: `uvicorn cbc.api.main:app` from `apps/backend`.
    - Lifespan runs `ensure_indexes()`, `ensure_readonly_user()`, OAuth sweep.
    - All domain routers mount on one FastAPI app (`SERVICE_AUDIENCE=platform`).
-3. **Worker**: compose `worker` with `WORKER_CLAIM_ALL=1`; claim loop in `cbc.worker_kit.runtime` (local runs may set `WORKER_DOMAIN`).
+3. **Worker**: compose `worker` with `WORKER_CLAIM_ALL=1`; claim loop in `cbc.modules.ops.features.WorkerLoop`, job slices registered by `cbc.worker.main` (local runs may set `WORKER_DOMAIN`).
 4. **Web**: `next start`; `/api/proxy/*` forwards to `PLATFORM_URL` with audience `platform`.
 
 ## 5. Core Lifecycle Flows
@@ -108,7 +108,7 @@ sequenceDiagram
 3. **Storage**: PDF saved under `projects/{slug}/uploads/raw/`.
 4. **Enqueue**: Pipeline job (e.g. `extract_bid_set`) inserted into `db.jobs`.
 5. **Worker Poll**: compose `worker` (`WORKER_CLAIM_ALL=1`) claims the job.
-6. **Execution**: `cbc.worker_kit.runtime` runs a headless Claude Code pass (or local handler).
+6. **Execution**: the job slice registered for its type runs it - a headless Claude Code pass (`cbc.modules.ops.api.claude_pass`), or in-process work for the catalog's local jobs.
 7. **Heartbeat**: Updates `heartbeatAt` so the job is not reaped.
 8. **Sync**: Disk JSON artifacts synced into Mongo.
 9. **Orchestration**: Autopilot may enqueue the next phase (e.g. `match_and_price`).
@@ -160,7 +160,7 @@ sequenceDiagram
 3. Read-only Mongo user for catalog MCP (`ensure_readonly_user`).
 
 ## 9. Error Handling & Observability
-Worker retry/backoff and `reap_abandoned` in `cbc.worker_kit.runtime`; audit + run_metrics via shared services.
+Worker retry/backoff and `reap_abandoned` in `cbc.modules.ops.features.WorkerLoop`; audit + run_metrics via shared services.
 
 ## 10. Configuration & Environments
 Compose injects `MONGODB_URI`, `STORAGE_ROOT`, `PLATFORM_URL` / `API_BASE_URL`, `INTERNAL_*`, `APP_ENV`, `WORKER_CLAIM_ALL`. Settings via `cbc.config`.

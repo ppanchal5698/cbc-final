@@ -108,7 +108,7 @@ sequenceDiagram
 3. **Storage**: PDF saved under `projects/{slug}/uploads/raw/`.
 4. **Enqueue**: Pipeline job (e.g. `extract_bid_set`) queued through `cbc.modules.ops.api.jobs`.
 5. **Worker Poll**: compose `worker` (`WORKER_CLAIM_ALL=1`) claims the job.
-6. **Execution**: the bound runner (`cbc.worker_kit.runtime`) runs a headless Claude Code pass, or a module's local job handler.
+6. **Execution**: the job slice registered for its type runs it - a headless Claude Code pass (`cbc.modules.ops.api.claude_pass`), or in-process work for the catalog's local jobs.
 7. **Heartbeat**: Updates `heartbeatAt` so the job is not reaped.
 8. **Sync**: Disk JSON artifacts synced into Mongo.
 9. **Orchestration**: Autopilot may enqueue the next phase (e.g. `match_and_price`).

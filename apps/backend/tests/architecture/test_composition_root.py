@@ -16,6 +16,8 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 from tests.shared import PKG
 
 SPY = """
@@ -30,19 +32,20 @@ def spy(*args, **kwargs):
     return original(*args, **kwargs)
 
 envfile.apply_to_environ = spy
-import cbc.app.main
+import ROOT
 print(json.dumps(seen))
 """
 
 
-def test_env_file_is_applied_before_settings_are_built(tmp_path) -> None:
+@pytest.mark.parametrize("root", ["cbc.app.main", "cbc.worker.main"])
+def test_env_file_is_applied_before_settings_are_built(tmp_path, root) -> None:
     env = {
         **os.environ,
         "PYTHONPATH": str(PKG.parent),
         "CBC_ENV_FILE": str(tmp_path / ".env"),
         "APP_ENV": "development",
     }
-    result = subprocess.run([sys.executable, "-c", SPY], capture_output=True, text=True, env=env, timeout=120)
+    result = subprocess.run([sys.executable, "-c", SPY.replace("ROOT", root)], capture_output=True, text=True, env=env, timeout=120)
     assert result.returncode == 0, result.stderr[-2000:]
     seen = json.loads(result.stdout.strip().splitlines()[-1])
     assert seen == {"config_loaded": False}, (

@@ -101,8 +101,8 @@ def test_upload_while_running_marks_straggler(database) -> None:
     assert again.get("stragglerPending") is True
 
 
-def test_straggler_reextract_sets_merge_flag(database) -> None:
-    from cbc.worker_kit import runtime
+def test_straggler_reextract_sets_merge_flag(database, wired_worker) -> None:
+    from cbc.modules.extraction.features import ExtractBidSet
 
     project_id = ObjectId()
     job = {
@@ -118,7 +118,7 @@ def test_straggler_reextract_sets_merge_flag(database) -> None:
     database["jobs"].insert_one(job)
     database[names.BID_REQUESTS].insert_one({"_id": project_id, "code": "CBC-TEST", "slug": "x"})
 
-    follow = run(runtime._queue_straggler_reextract(job))
+    follow = run(ExtractBidSet._queue_straggler_reextract(job))
     assert follow is not None
     assert follow.get("payload", {}).get("stragglerMerge") is True
     assert follow["type"] == "extract_bid_set"

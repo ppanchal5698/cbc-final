@@ -1,4 +1,4 @@
-"""A bid's documents, for the runner that reads them and the board that counts them."""
+"""A bid's documents, for the pass that reads them and the board that counts them."""
 from __future__ import annotations
 
 from datetime import datetime

@@ -305,7 +305,7 @@ def test_the_same_part_from_two_manufacturers_coexists(database) -> None:
     """Keyed on `part` alone, the ingest upserted one vendor's row over another's."""
     from bson import ObjectId
 
-    from cbc.modules.catalog.api.jobs import ingest_pricebook
+    from cbc.modules.catalog.features.IngestPricebook import ingest_pricebook
 
     cache = settings.repo_root / ".cache"
     cache.mkdir(parents=True, exist_ok=True)
@@ -339,7 +339,7 @@ def test_an_ingest_without_a_date_keeps_the_one_purchasing_entered(database) -> 
     """Writing null over it made a lapsed sheet report `stale: false`."""
     from bson import ObjectId
 
-    from cbc.modules.catalog.api.jobs import ingest_pricebook
+    from cbc.modules.catalog.features.IngestPricebook import ingest_pricebook
 
     book_id = ObjectId()
     database["priceBooks"].insert_one({"_id": book_id, "effective": "2020-01-01"})
@@ -650,6 +650,93 @@ def test_finish_hands_the_outcome_to_the_bound_hook(database, monkeypatch) -> No
 
     run(three())
     assert heard == [("dead", "broken"), ("done", None)]
+
+
+def test_a_job_types_own_hook_replaces_the_default(database, monkeypatch) -> None:
+    """An extract has more to do when it ends - its documents, its late uploads - and says so when it registers."""
+    from bson import ObjectId
+
+    from cbc.modules.ops.api import worker
+
+    heard: list[str] = []
+
+    async def default(job, status, error, entry):
+        heard.append(f"default {job['type']}")
+
+    async def own(job, status, error, entry):
+        heard.append(f"own {job['type']}")
+
+    monkeypatch.setattr(worker, "_after_finish", default)
+    monkeypatch.setattr(worker, "_after", {"extract_bid_set": own})
+
+    async def both() -> None:
+        for job_type in ("extract_bid_set", "match_and_price"):
+            job = {
+                "_id": ObjectId(),
+                "type": job_type,
+                "projectId": ObjectId(),
+                "status": "running",
+                "attempts": 1,
+                "workerId": "w",
+                "claimGeneration": 1,
+            }
+            database["jobs"].insert_one(job)
+            await worker.finish(job, True, None, "", "ok")
+
+    run(both())
+    assert heard == ["own extract_bid_set", "default match_and_price"]
+
+
+def test_a_pass_over_a_bid_runs_syncs_and_finishes(database, monkeypatch, tmp_path) -> None:
+    """The path every Claude job takes, with the CLI faked: the bid's saga starts, the
+    pass runs in its sandbox, the slice's sync writes, and the job ends done."""
+    from bson import ObjectId
+
+    from cbc.core.claude_cli import RunResult
+    from cbc.modules.ops.api import claude_pass, worker
+    from cbc.modules.projects.api import pipeline
+    from cbc.worker_kit import sandbox
+
+    monkeypatch.setattr(settings, "storage_root", tmp_path / "projects")
+    monkeypatch.setattr(claude_pass, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sandbox, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sandbox, "ensure_workspace_trusted", lambda workspace: True)  # never the real ~/.claude.json
+    monkeypatch.setattr(sandbox, "mode", lambda: "process")
+    monkeypatch.setattr(
+        claude_pass.runner, "run_claude", lambda **_: RunResult(ok=True, output="ran", error=None, returncode=0)
+    )
+
+    project_id = ObjectId()
+    database[names.BID_REQUESTS].insert_one(
+        {"_id": project_id, "code": "CBC-PASS", "slug": "pass_smoke", "name": "Pass smoke"}
+    )
+    job = {
+        "_id": ObjectId(),
+        "type": "build_proposal",
+        "projectId": project_id,
+        "status": "running",
+        "attempts": 1,
+        "workerId": worker.WORKER_ID,
+        "claimGeneration": 1,
+        "payload": {},
+        "createdAt": _now(),
+    }
+    database["jobs"].insert_one(job)
+    synced: list[str] = []
+
+    async def sync(job, project):
+        synced.append(project["slug"])
+        return "synced"
+
+    run(pipeline.run_pass(job, sync=sync))
+
+    stored = database["jobs"].find_one({"_id": job["_id"]})
+    assert stored["status"] == "done", stored.get("error")
+    assert stored["note"].startswith("synced")
+    assert stored["recording"].startswith("projects/pass_smoke/")
+    assert synced == ["pass_smoke"]
+    bid = database[names.BID_REQUESTS].find_one({"_id": project_id})
+    assert bid["chainState"] == "quoting" and "producedBy" in bid
 
 
 def test_a_reap_that_exhausts_attempts_reaches_the_dead_letter_hook(database, monkeypatch) -> None:

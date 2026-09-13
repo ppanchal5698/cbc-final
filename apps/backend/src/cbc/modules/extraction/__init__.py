@@ -56,6 +56,15 @@ def register(app) -> None:
         app.include_router(feature.router)
 
 
+def register_jobs() -> None:
+    """Plug this module's jobs into ops' worker."""
+    from cbc.modules.extraction.features import ExtractBidSet
+    from cbc.modules.ops.api import worker
+
+    for job_type in ExtractBidSet.JOB_TYPES:
+        worker.register(job_type, ExtractBidSet.run, after_finish=ExtractBidSet.after_finish)
+
+
 async def ensure_indexes() -> None:
     from cbc.modules.extraction.infrastructure.collections import ensure_indexes as build
 

@@ -603,12 +603,11 @@ def test_the_shutdown_requeue_is_guarded_like_finish() -> None:
     """
     import inspect
 
-    from cbc.modules.ops.api import worker as ops_worker
-    from cbc.worker_kit import runtime as worker
+    from cbc.modules.ops.api import claude_pass, worker as ops_worker
 
-    # The runner decides that a shutdown interrupted a failed pass; ops does the
+    # The pass decides that a shutdown interrupted a failed run; ops does the
     # requeue, under the claim. Read both, so neither guard can quietly go.
-    source = inspect.getsource(worker.process) + inspect.getsource(worker._process_body)
+    source = inspect.getsource(claude_pass.run)
     call = source.index("requeue_for_shutdown(job)")
     block = source[source.rindex("if ops_worker.stopping()", 0, call) : call]
     assert "not result.ok" in block, "a successful run is still discarded on shutdown"
@@ -622,13 +621,20 @@ def test_the_shutdown_requeue_is_guarded_like_finish() -> None:
 
 
 def test_sync_results_checks_the_fencing_token() -> None:
+    import importlib
     import inspect
 
-    from cbc.worker_kit import runtime as worker
+    from cbc.modules.extraction.api import passes
 
-    source = inspect.getsource(worker.sync_results)
-    assert "_lease_held" in source
+    source = inspect.getsource(passes.check_output)
+    assert "holds_lease" in source
     assert "lease stolen" in source
+    # And every pass slice asks it before its sync writes anything.
+    for slice_ in ("extraction.features.ExtractBidSet", "quoting.features.MatchAndPrice",
+                   "quoting.features.BuildProposal", "intake.features.IngestAddendum",
+                   "intake.features.RunFullPipeline"):
+        sync = inspect.getsource(importlib.import_module(f"cbc.modules.{slice_}").sync_results)
+        assert sync.index("await passes.check_output(job, project)") == sync.index("await "), slice_
 
 
 def test_heartbeat_watchdog_fires_while_blocked() -> None:

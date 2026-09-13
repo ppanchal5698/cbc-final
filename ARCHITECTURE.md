@@ -8,7 +8,7 @@ There are no microservices and no network calls between modules.
 ```
 apps/web ──HTTP──► API process   cbc.app.main:create_app     ──┐
                     seven modules, each registered by the root  ├─► MongoDB, disk/S3
-worker process ──► cbc.worker (ops' loop + the bound runner)  ──┘
+worker process ──► cbc.worker (ops' loop + modules' jobs)     ──┘
 ```
 
 ## The modules
@@ -29,9 +29,9 @@ worker process ──► cbc.worker (ops' loop + the bound runner)  ──┘
 apps/backend/src/cbc/
   app/main.py              API composition root: middleware, error mapping, health,
                            lifespan (migrate, then each module's indexes), registration
-  worker/main.py           worker composition root: binds the runner into ops' loop
+  worker/main.py           worker composition root: registers every module's jobs into ops' loop
   modules/<module>/
-    __init__.py            register(app), ensure_indexes() - all the root calls
+    __init__.py            register(app), ensure_indexes(), register_jobs() - all the roots call
     api/                   the ONLY thing another module may import
     features/<UseCase>.py  one file per use case: route (or job), validation, data access
     domain/                request models and pure rules the module's slices share
@@ -70,7 +70,9 @@ it gets **plugged in**:
 |---|---|---|---|
 | project code → id, bid names for the dead-letter list | `ops.api.project_lookup` | `projects.api.lookup` | `app/main.py` |
 | who is an admin | `shared.auth.set_role_lookup` | `ops.api.identity.role_of` | `app/main.py` |
-| what runs a claimed job | `ops.api.worker.bind` | `worker_kit.runtime` (the Claude pipeline) | `worker/main.py` |
+| what runs a claimed job | `ops.api.worker.register` | each module's job slices | each module's `register_jobs`, called by `worker/main.py` |
+| what follows any job's end, unless its type says | `ops.api.worker.bind` | `projects.api.pipeline` (`after_pass`, `dead_letter`) | `worker/main.py` |
+| a bid's documents, for an extraction pass | `extraction.api.documents` | `intake.api.documents` | intake's `register_jobs` |
 | board counts: documents, openings, quotes | `projects.api.board_sources` | intake, extraction, quoting | each module's `register` |
 
 and **events** (`shared/events.py`: in-process, awaited in order, no broker):
@@ -95,12 +97,36 @@ Typed errors stay transport-free and the root maps them: `ops.api.jobs.PipelineJ
 4. Test it: `tests/characterization` pins every endpoint's status and shape;
    `REQUIRE_MONGO=1 pytest` must stay green, and `test_layering` must pass.
 
+## Adding a job
+
+A job type runs as a slice in the module that owns what it writes.
+
+| Job | Slice |
+|---|---|
+| `extract_bid_set`, `rerun_extraction` | extraction `ExtractBidSet` |
+| `match_and_price` | quoting `MatchAndPrice` - it writes quote lines and the quote, and pricing may not import quoting |
+| `build_proposal` | quoting `BuildProposal` |
+| `ingest_addendum` | intake `IngestAddendum` |
+| `run_full_pipeline` (retired; queued rows still run) | intake `RunFullPipeline` - the one module that may import every part it touches |
+| `ingest_pricebook`, `index_catalog`, `delete_catalog` | catalog `IngestPricebook`, `IndexCatalog`, `DeleteCatalog` |
+
+1. Create `modules/<module>/features/<JobName>.py` with `async def run(job)`. A Claude
+   pass over a bid calls `projects.api.pipeline.run_pass(job, sync=..., prepare=..., watch=...)`,
+   and its `sync` starts with `extraction.api.passes.check_output`; a pass with no bid
+   calls `ops.api.claude_pass.run`; in-process work goes through `ops.api.worker.run_locally`.
+2. Register it in the module's `register_jobs()`. Pass `after_finish=` only when the job
+   has more to do when it ends than `projects.api.pipeline.after_pass`.
+3. A Claude pass needs a template in `cbc.worker_kit.prompts`, and every job type a
+   domain in `cbc.services.domains`; `tests/pipeline/test_toolset_registry.py` fails
+   on a job type nothing runs.
+
 ## Adding a module
 
 1. `modules/<name>/{__init__,api/__init__,features/__init__,domain/__init__,infrastructure/__init__}.py`.
 2. `infrastructure/collections.py`: one accessor per owned collection (names from
    `cbc.persistence.names`) and `ensure_indexes()`.
-3. `__init__.py`: `register(app)` and `ensure_indexes()`.
+3. `__init__.py`: `register(app)` and `ensure_indexes()`; `register_jobs()` too if it runs
+   jobs, and add it to `wire()` in `worker/main.py`.
 4. In `app/main.py`: import it, call `register` in `create_app`, and add its
    `ensure_indexes` to `migrate_and_index` (after the migrations).
 5. Decide where it sits in the dependency graph above before its first import.
@@ -118,10 +144,10 @@ The modules still import parts of the pre-module kernel; each such import is mar
 `ponytail:` with its destination, and `test_layering` fails on an unmarked one.
 
 - `cbc.db` - the `projects`, `jobs`, `settings` and `runMetrics` accessors for the
-  runner and `scripts/backfill_runmetrics.py`; the migration entry; the catalog's
+  extraction sync (`services/sync_phases/extraction.py`) and `scripts/backfill_runmetrics.py`; the migration entry; the catalog's
   read-only Mongo user.
-- `cbc.worker_kit.runtime` - the Claude pipeline that runs a claimed job, bound into
-  ops. It dissolves into job slices in extraction, pricing and quoting.
+- `cbc.worker_kit` - a Claude pass's prompt templates and its sandbox. `workflows/*.sh`,
+  CI and the sandbox image run them by module path, so they stay where they are.
 - `cbc.services` - storage, PDF reading, malware scan, the extraction/geometry syncs,
   matchcache, manifests, pretakeoff, render, sheetmap, the matching gate.
 - `cbc.schemas` - the shared vocabulary (`common`), job and user shapes, the

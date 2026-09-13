@@ -10,6 +10,7 @@
    names, and no module reads collections through `cbc.db`.
 5. A module's remaining imports of the legacy kernel (`cbc.db`, `cbc.services`)
    are marked `ponytail:` with where they go, so the list can only be worked down.
+6. Modules import each other one way only: the graph has no cycle.
 
 The old first rule here was the inverse of rule 1 - it forbade the one import the
 architecture allows.
@@ -143,3 +144,22 @@ def test_domain_job_map_covers_expected_domains() -> None:
         "quoting",
         "catalog",
     }
+
+
+def test_the_module_graph_has_no_cycles() -> None:
+    """A job slice placed in a module that cannot see what it writes is how a cycle starts."""
+    edges: dict[str, set[str]] = {mod: set() for mod in MODULES}
+    for mod in MODULES:
+        for path in _py(SRC / "modules" / mod):
+            for _, dotted in _imports(path):
+                target = _module_of(dotted)
+                if target and target[0] != mod and target[0] in MODULES:
+                    edges[mod].add(target[0])
+
+    def cycle(node: str, trail: list[str]) -> list[str] | None:
+        if node in trail:
+            return trail[trail.index(node):] + [node]
+        return next((found for nxt in sorted(edges[node]) if (found := cycle(nxt, trail + [node]))), None)
+
+    cycles = [found for mod in MODULES if (found := cycle(mod, []))]
+    assert not cycles, "modules import each other in a circle: " + " -> ".join(cycles[0])

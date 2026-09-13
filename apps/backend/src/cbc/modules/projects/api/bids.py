@@ -31,3 +31,20 @@ async def record_hand_off(project_id: Any, recipient: str | None) -> None:
         {"_id": project_id},
         {"$set": {"handedOffTo": recipient, "handedOffAt": now, "updatedAt": now}},
     )
+
+
+async def note_phase(project_id: Any, phase: str, note: str) -> None:
+    """Where the pipeline stands, in words: the bid's `phase` and the `pipelineNote` under it."""
+    await bid_requests().update_one(
+        {"_id": project_id},
+        {"$set": {"phase": phase, "pipelineNote": note, "updatedAt": datetime.now(timezone.utc)}},
+    )
+
+
+async def set_stage(project_id: Any, stage: str, progress: int, *, phase: str | None = None) -> None:
+    """How far along the board shows the bid - and the phase it has reached, when known."""
+    fields: dict[str, Any] = {"stage": stage, "progress": progress}
+    if phase is not None:
+        fields["phase"] = phase
+    fields["updatedAt"] = datetime.now(timezone.utc)
+    await bid_requests().update_one({"_id": project_id}, {"$set": fields})

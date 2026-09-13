@@ -1,9 +1,10 @@
-"""What a job runner needs from the queue while it holds a claimed job.
+"""What a job's handler needs from the queue while it holds a claimed job.
 
-ops' worker loop claims a job and hands it to whatever is bound here - today the
-Claude pipeline in cbc.worker_kit, bound by the worker's composition root,
-cbc/worker/main.py. The runner calls back into these to keep its lease alive, to
-notice a cancel or a shutdown, and to record how the job ended.
+ops' worker loop claims a job and hands it to the handler registered here for its
+type: a job slice in the module that owns the work, registered from that module's
+`register_jobs` by the worker's composition root, cbc/worker/main.py. The handler
+calls back into these to keep its lease alive, to notice a cancel or a shutdown,
+and to record how the job ended.
 
 claimGeneration is the fencing token throughout: nothing here writes to a job
 this worker no longer holds.
@@ -34,8 +35,8 @@ MAX_ATTEMPTS = int(os.environ.get("WORKER_MAX_ATTEMPTS", "3"))
 # ago", and without that distinction a dead job holds the exclusive-job index
 # against its project forever.
 #
-# claimGeneration is the fencing token (lease) for a claim. finish() and
-# sync_results() only commit when workerId + claimGeneration still match.
+# claimGeneration is the fencing token (lease) for a claim. finish() and a
+# pass's output check only commit when workerId + claimGeneration still match.
 HEARTBEAT_SECONDS = int(os.environ.get("WORKER_HEARTBEAT_SECONDS", "30"))
 
 
@@ -50,8 +51,8 @@ RETRY_BASE_SECONDS = int(os.environ.get("WORKER_RETRY_BASE_SECONDS", "30"))
 WORKER_ID = f"{socket.gethostname()}-{os.getpid()}"
 
 
-# Set by the worker's signal handlers. A runner checks it, so a shutdown stops a
-# Claude pass the same way a cancel does.
+# Set by the worker's signal handlers. A Claude pass checks it, so a shutdown
+# stops it the same way a cancel does.
 _stop = asyncio.Event()
 
 
@@ -63,35 +64,84 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-Runner = Callable[[dict[str, Any]], Awaitable[None]]
+Handler = Callable[[dict[str, Any]], Awaitable[None]]
 AfterFinish = Callable[[dict[str, Any], str, str | None, Any], Awaitable[None]]
 OnDead = Callable[[dict[str, Any], str], Awaitable[None]]
 
-_runner: Runner | None = None
+_handlers: dict[str, Handler] = {}
+_after: dict[str, AfterFinish] = {}
 _after_finish: AfterFinish | None = None
 _on_dead: OnDead | None = None
 
 
-def bind(runner: Runner, *, after_finish: AfterFinish, on_dead: OnDead) -> None:
-    """Plug in what runs a claimed job, and what follows when one ends.
+def register(job_type: str, handler: Handler, *, after_finish: AfterFinish | None = None) -> None:
+    """Plug in what runs a claimed job of this type - and, when the job has more to
+    do when it ends than the default, what follows.
 
     ops cannot import the code that runs a job: it belongs to the modules that
-    own each job type, and they depend on ops. So the worker's composition root
-    binds it here, the way the API's binds ops' project lookup.
+    own each job type, and they depend on ops. Each module registers its job
+    slices from `register_jobs`, which the worker's composition root calls.
     """
-    global _runner, _after_finish, _on_dead
-    _runner, _after_finish, _on_dead = runner, after_finish, on_dead
+    _handlers[job_type] = handler
+    if after_finish is not None:
+        _after[job_type] = after_finish
+
+
+def bind(*, after_finish: AfterFinish, on_dead: OnDead) -> None:
+    """What follows any job's end unless its type registered its own, and whom a
+    dead job tells - the bid's saga, the operators. The worker's root binds both."""
+    global _after_finish, _on_dead
+    _after_finish, _on_dead = after_finish, on_dead
 
 
 def bound() -> bool:
-    return _runner is not None
+    return bool(_handlers)
 
 
 async def run(job: dict[str, Any]) -> None:
-    """Run one claimed job with the bound runner."""
-    if _runner is None:
-        raise RuntimeError("no job runner bound; the worker's composition root binds one")
-    await _runner(job)
+    """Run one claimed job with its type's handler; an OTLP span when OTEL is on."""
+    from cbc.shared import otel
+
+    payload = job.get("payload") or {}
+    trace_id = job.get("traceId") or payload.get("traceId")
+    with otel.span(
+        f"job.{job.get('type', 'unknown')}",
+        attributes={
+            "job.id": str(job.get("_id")),
+            "job.type": job.get("type"),
+            "cbc.trace_id": trace_id,
+        },
+    ):
+        handler = _handlers.get(job.get("type"))
+        if handler is None:
+            raise RuntimeError(
+                f"no handler registered for job type {job.get('type')!r}; "
+                "the worker's composition root registers them"
+            )
+        await handler(job)
+
+
+async def run_locally(
+    job: dict[str, Any],
+    *,
+    work: Callable[[dict[str, Any]], Awaitable[str]],
+    permanent: tuple[type[BaseException], ...],
+) -> None:
+    """Run a job in this process rather than through a Claude pass: beat while
+    `work` runs, then finish with its note. An exception in `permanent` fails the
+    job without spending the rest of its attempts."""
+    heartbeat = asyncio.create_task(
+        beat(job["_id"], job.get("workerId", WORKER_ID), job.get("claimGeneration", 0))
+    )
+    try:
+        note = await work(job)
+    except Exception as exc:
+        log.exception("%s failed", job["type"])
+        await finish(job, False, str(exc), "", permanent=isinstance(exc, permanent))
+        return
+    finally:
+        heartbeat.cancel()
+    await finish(job, True, None, "", note)
 
 
 async def dead_letter(job: dict[str, Any], detail: str) -> None:
@@ -275,8 +325,9 @@ async def finish(
     # What follows beyond the queue - the bid's documents and late uploads, the
     # dead letter, autopilot's next step - belongs to whoever ran the job. A retry
     # is not an ending: the old finish() did nothing past its log line for one.
-    if _after_finish is not None and not retryable:
-        await _after_finish(job, status, error, entry)
+    hook = _after.get(job["type"], _after_finish)
+    if hook is not None and not retryable:
+        await hook(job, status, error, entry)
 
 
 async def requeue_for_shutdown(job: dict[str, Any]) -> bool:

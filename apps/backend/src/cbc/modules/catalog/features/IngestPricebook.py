@@ -1,4 +1,4 @@
-"""The ingest_pricebook job's second half: load the parts a Claude pass read off a sheet.
+"""The ingest_pricebook job: a Claude pass reads a vendor sheet, then its parts load into the catalog.
 """
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from bson import ObjectId
 from pymongo import UpdateOne
 
 from cbc.modules.catalog.infrastructure.collections import price_books, products
+from cbc.modules.ops.api import claude_pass
 from cbc.pageindex import basis
 from cbc.shared.paths import repo_root
 
@@ -117,3 +118,14 @@ async def ingest_pricebook(job: dict) -> str:
     await price_books().update_one({"_id": book_id}, {"$set": changes})
     output_path.unlink(missing_ok=True)
     return f"{written} parts written to the catalog ({sheet_basis} prices)"
+
+
+async def run(job: dict) -> None:
+    """The whole job: the pass writes what it read under .cache/, and ingest_pricebook loads it."""
+    # Assigned, never defaulted. `POST /api/jobs` takes a free-form payload, and
+    # a `setdefault` here let the caller choose a path that the ingest handler
+    # then read and unlinked - arbitrary file deletion through the jobs API.
+    job.setdefault("payload", {})["outputPath"] = f".cache/pricebook-{job['_id']}.json"
+    # ponytail: no bid, even when POST /api/jobs attached one - the old runner loaded
+    # and sandboxed it; give catalog a projects port if a price-book pass ever needs a bid.
+    await claude_pass.run(job, None, sync=lambda job, _project: ingest_pricebook(job), needs_catalog=True)

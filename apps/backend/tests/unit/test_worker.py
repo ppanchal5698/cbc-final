@@ -19,16 +19,15 @@ def test_worker_main_callable() -> None:
     assert callable(main)
 
 
-def test_worker_kit_local_handlers() -> None:
+def test_the_catalog_local_jobs_are_registered(wired_worker) -> None:
     # Re-import after env is set (the loop computes CLAIMABLE_TYPES at import).
     import importlib
 
-    import cbc.worker_kit.runtime as runtime
     from cbc.modules.ops.features import WorkerLoop
 
     importlib.reload(WorkerLoop)
-    assert "index_catalog" in runtime.LOCAL_HANDLERS
-    assert "delete_catalog" in runtime.LOCAL_HANDLERS
+    assert "index_catalog" in wired_worker._handlers
+    assert "delete_catalog" in wired_worker._handlers
     assert callable(WorkerLoop.main)
 
 

@@ -4,9 +4,9 @@
     python -m cbc.worker --once       # process at most one job, then exit
     python -m cbc.worker --preflight  # check the Claude CLI is usable
 
-This is the queue side. What runs a claimed job - a headless Claude Code pass and
-the sync of what it wrote - is bound through cbc.modules.ops.api.worker by the
-worker's composition root, cbc/worker/main.py.
+This is the queue side. What runs a claimed job - a job slice in the module that
+owns it - is registered through cbc.modules.ops.api.worker by the worker's
+composition root, cbc/worker/main.py.
 """
 from __future__ import annotations
 
@@ -190,7 +190,7 @@ async def reap_abandoned() -> int:
     queued - the bid can never be re-extracted through the UI again.
 
     claimGeneration is the fencing token: reaping increments it so a late
-    sync_results() from the dead worker cannot commit.
+    sync from the dead worker cannot commit.
     """
     now = _now()
     min_window = min(
@@ -274,7 +274,7 @@ def _heartbeat_stale(job: dict, now: datetime) -> bool:
 
 
 async def process(job: dict) -> None:
-    """Run one claimed job with the runner the composition root bound."""
+    """Run one claimed job with the handler registered for its type."""
     await ops_worker.run(job)
 
 
@@ -387,7 +387,7 @@ def main() -> int:
         return 0
 
     if not ops_worker.bound():
-        raise RuntimeError("no job runner bound; start the worker with `python -m cbc.worker`")
+        raise RuntimeError("no job handlers registered; start the worker with `python -m cbc.worker`")
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:

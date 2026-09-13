@@ -9,6 +9,8 @@
 - `runmetrics.record` - the cost and provenance of one Claude run, read from its recording.
 - `cost_budget` - the USD spend caps checked before a worker claims a job.
 - `alerts.notify` - tell operators a job was dead-lettered or blocked.
-- `worker` - what a job runner calls while it holds a claimed job, and `bind` for the runner.
+- `worker` - what a job's handler calls while it holds a claimed job; `register` for the
+  handlers, `bind` for what follows a job's end, `run_locally` for in-process work.
+- `claude_pass.run` - a headless Claude Code pass over a claimed job, through to how it ends.
 - `project_lookup` - a port ops needs and the composition root supplies.
 """

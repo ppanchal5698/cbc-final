@@ -1,20 +1,29 @@
-"""Worker entry: `python -m cbc.worker`.
+"""The worker's composition root: ops' claim loop, with every module's jobs plugged in.
 
-The worker's composition root. ops runs the queue; what runs a claimed job - the
-Claude pipeline in cbc.worker_kit, until the modules that own each job type take
-theirs - is bound into it here, and only here.
+The import order is load-bearing, as in app/main.py: `envfile` writes `.env` into
+`os.environ` before anything reads settings, and logging is set up before any
+module logs. tests/architecture/test_composition_root.py checks the first.
 """
 from __future__ import annotations
 
-from cbc.worker_kit import runtime  # first: importing it applies .env before settings are read
-from cbc.modules import ops
-from cbc.modules.ops.api import worker as ops_worker
+from cbc.shared import envfile, logs
+from cbc.modules.ops.api import provider
+
+envfile.apply_to_environ(skip=provider.MANAGED)
+logs.configure("cbc.worker")
+
+from cbc.modules import catalog, extraction, intake, ops, quoting  # noqa: E402
+from cbc.modules.ops.api import worker as ops_worker  # noqa: E402
+from cbc.modules.projects.api import pipeline  # noqa: E402
+
+
+def wire() -> None:
+    """Register every module's jobs, and what follows any job's end. Idempotent."""
+    ops_worker.bind(after_finish=pipeline.after_pass, on_dead=pipeline.dead_letter)
+    for module in (catalog, extraction, intake, quoting):
+        module.register_jobs()
 
 
 def main() -> int:
-    ops_worker.bind(runtime.process, after_finish=runtime.after_finish, on_dead=runtime.dead_letter)
+    wire()
     return ops.run_worker()
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

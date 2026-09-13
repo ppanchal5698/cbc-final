@@ -12,7 +12,7 @@ os.environ["INTERNAL_API_TOKEN"] = "cbc-local-dev-key-change-me"
 os.environ["INTERNAL_JWT_SECRET"] = "cbc-local-dev-key-change-me"
 os.environ["SERVICE_AUDIENCE"] = "platform"
 os.environ["APP_ENV"] = "development"
-# worker_kit.runtime resolves CLAIMABLE_TYPES once, at import. Claim every type,
+# ops' worker loop (WorkerLoop) resolves CLAIMABLE_TYPES once, at import. Claim every type,
 # the way the one compose worker runs (WORKER_CLAIM_ALL=1). This was
 # WORKER_DOMAIN=catalog, which scoped `claim()` to catalog jobs for the whole
 # process, so test_recovery's backoff test could never claim the extract_bid_set
@@ -155,3 +155,19 @@ def auth_headers():
         "X-Internal-Token": "cbc-local-dev-key-change-me",
         "X-Actor": "admin@cbc.local",
     }
+
+
+@pytest.fixture
+def wired_worker(monkeypatch):
+    """The worker's composition root wired - ops' job registry and the ports it fills
+    are put back afterwards, so no later test finishes a job into real hooks."""
+    from cbc.modules.extraction.api import documents
+    from cbc.modules.ops.api import worker
+    from cbc.worker import main
+
+    for name, empty in (("_handlers", {}), ("_after", {}), ("_after_finish", None), ("_on_dead", None)):
+        monkeypatch.setattr(worker, name, empty)
+    for name in ("_mark_received", "_count_received_after"):
+        monkeypatch.setattr(documents, name, None)
+    main.wire()
+    return worker

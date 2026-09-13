@@ -33,6 +33,11 @@ async def load(code_or_id: str) -> dict[str, Any]:
     return project
 
 
+async def get(project_id: Any) -> dict[str, Any] | None:
+    """The stored bid with this id, or None - for a job, which carries the id already."""
+    return await bid_requests().find_one({"_id": project_id})
+
+
 async def project_id(code_or_id: str) -> Any:
     return (await load(code_or_id))["_id"]
 

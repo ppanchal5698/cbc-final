@@ -92,9 +92,9 @@ def test_both_services_use_the_shared_setup() -> None:
     """Neither may go back to its own basicConfig."""
     from tests.shared import PKG
 
-    # One worker runtime, one API composition root.
+    # One worker composition root, one API composition root.
     entries = [
-        PKG / "worker_kit" / "runtime.py",
+        PKG / "worker" / "main.py",
         PKG / "app" / "main.py",
     ]
     assert all(path.is_file() for path in entries), entries

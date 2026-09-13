@@ -48,6 +48,20 @@ def register(app) -> None:
         app.include_router(feature.router)
 
 
+def register_jobs() -> None:
+    """Plug this module's jobs into ops' worker, and supply the documents an extract reads."""
+    from cbc.modules.extraction.api import documents as extraction_documents
+    from cbc.modules.intake.api import documents as documents_api
+    from cbc.modules.intake.features import IngestAddendum, RunFullPipeline
+    from cbc.modules.ops.api import worker
+
+    # extraction may not import intake, which depends on it: intake supplies the
+    # documents an extract marks read and counts late uploads in.
+    extraction_documents.bind(documents_api.mark_received, documents_api.count_received_after)
+    worker.register("ingest_addendum", IngestAddendum.run)
+    worker.register("run_full_pipeline", RunFullPipeline.run)
+
+
 async def ensure_indexes() -> None:
     from cbc.modules.intake.infrastructure.collections import ensure_indexes as build
 

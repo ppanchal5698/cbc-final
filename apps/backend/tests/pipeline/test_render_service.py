@@ -11,39 +11,31 @@ same every time.
 """
 from __future__ import annotations
 
-import re
+import importlib
+import inspect
 
 import pytest
 
 from cbc.services import render
-from tests.shared import PKG, ROOT
-
-# The job branches moved to the shared worker kit with the services/ layout;
-# apps/worker/main.py is gone.
-WORKER = (PKG / "worker_kit" / "runtime.py").read_text(encoding="utf-8")
-
-
-def _branch(job_type: str) -> str:
-    """The body of one `if job["type"] == ...` branch in sync_results."""
-    start = WORKER.index(f'if job["type"] == "{job_type}":')
-    rest = WORKER[start:]
-    nxt = re.search(r'\n    if job\["type"\]', rest[10:])
-    return rest[: nxt.start() + 10] if nxt else rest
 
 
 def test_the_render_helper_calls_both_scripts() -> None:
-    """Rendering is centralized so job branches cannot skip either artifact."""
-    start = WORKER.index("def _sync_blocking_render(")
-    end = WORKER.index("\n\nasync def sync_results", start)
-    body = WORKER[start:end]
+    """Rendering is centralized so job slices cannot skip either artifact."""
+    from cbc.modules.quoting.api import proposal_artifacts
+
+    body = inspect.getsource(proposal_artifacts.render_artifacts)
     assert "render.render_quotation" in body
     assert "render.render_review_summary" in body
 
 
-@pytest.mark.parametrize("job_type", ["build_proposal", "run_full_pipeline"])
-def test_the_worker_renders_both_artifacts_itself(job_type: str) -> None:
-    body = _branch(job_type)
-    assert "_sync_blocking_render" in body, f"{job_type} trusts the pass for rendering"
+@pytest.mark.parametrize(
+    "job_slice",
+    ["quoting.features.BuildProposal", "intake.features.RunFullPipeline"],
+    ids=["build_proposal", "run_full_pipeline"],
+)
+def test_the_worker_renders_both_artifacts_itself(job_slice: str) -> None:
+    body = inspect.getsource(importlib.import_module(f"cbc.modules.{job_slice}").sync_results)
+    assert "render_artifacts" in body, f"{job_slice} trusts the pass for rendering"
 
 
 @pytest.mark.xfail(strict=True, reason=(
