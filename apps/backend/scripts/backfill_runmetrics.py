@@ -4,7 +4,8 @@
     python scripts/backfill_runmetrics.py
     python scripts/backfill_runmetrics.py --dry-run
 
-Safe to re-run: each document is keyed `{jobId}:{attempt}` and upserted.
+Safe to re-run: each document is keyed `{jobId}:{attempt}` and upserted. An operator
+script rather than a module, it reads the collections it reconciles by name.
 """
 from __future__ import annotations
 
@@ -22,8 +23,9 @@ apply_to_environ()
 from bson import ObjectId  # noqa: E402
 from bson.errors import InvalidId  # noqa: E402
 
-from cbc.db import db, ensure_indexes  # noqa: E402
 from cbc.modules.ops.api import runmetrics  # noqa: E402
+from cbc.persistence import migrations, names  # noqa: E402
+from cbc.shared.mongo import database  # noqa: E402
 
 
 def _recordings() -> list[Path]:
@@ -31,16 +33,16 @@ def _recordings() -> list[Path]:
 
 
 async def backfill(*, dry_run: bool = False) -> int:
-    await ensure_indexes()
+    await migrations.run(database())
     written = 0
     for path in _recordings():
         job_id, attempt = runmetrics.parse_recording_name(path.name)
         slug = path.parent.parent.name
         job: dict = {"_id": job_id, "attempts": attempt, "type": "unknown"}
         try:
-            found = await db.jobs.find_one({"_id": ObjectId(job_id)})
+            found = await database()[names.JOBS].find_one({"_id": ObjectId(job_id)})
         except (InvalidId, TypeError):
-            found = await db.jobs.find_one({"_id": job_id})
+            found = await database()[names.JOBS].find_one({"_id": job_id})
         if found:
             job = found
             job["attempts"] = attempt
@@ -48,9 +50,9 @@ async def backfill(*, dry_run: bool = False) -> int:
             job["projectSlug"] = slug
         project = None
         if job.get("projectId"):
-            project = await db.projects.find_one({"_id": job["projectId"]})
+            project = await database()[names.BID_REQUESTS].find_one({"_id": job["projectId"]})
         if project is None and slug not in ("_system",):
-            project = await db.projects.find_one({"slug": slug}) or {"slug": slug}
+            project = await database()[names.BID_REQUESTS].find_one({"slug": slug}) or {"slug": slug}
         parsed = runmetrics.parse_recording(path)
         document = runmetrics.document_for(
             job,
@@ -65,7 +67,7 @@ async def backfill(*, dry_run: bool = False) -> int:
             f"cost={document.get('totalCostUsd')}  {path}"
         )
         if not dry_run:
-            await db.run_metrics.replace_one(
+            await database()[names.RUN_METRICS].replace_one(
                 {"_id": document["_id"]}, document, upsert=True
             )
         written += 1

@@ -3,7 +3,7 @@
 The write side runs in the worker, which is the only writer. The read side is
 used by the API and, through a read-only credential, by the catalog MCP server -
 `provider.WITHHELD` denies the Claude subprocess the root connection string on
-purpose, and `cbc.db.readonly_uri()` is what exists for exactly this.
+purpose, and `cbc.shared.mongo.readonly_uri()` is what exists for exactly this.
 
 Deleting a catalog deletes its index. Nothing here outlives the PDF it describes.
 """

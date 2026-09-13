@@ -87,7 +87,7 @@ async def pending(database) -> list[Migration]:
 async def run(database) -> list[Migration]:
     """Apply every pending migration in order. Returns the ones that ran.
 
-    The database is handed in. This package is below `cbc.db` in the dependency
+    The database is handed in. This package is below `cbc.shared.mongo` in the dependency
     order and must not reach up for a client - `scripts/migrate.py` is the
     operator entry point that knows how to make one.
     """

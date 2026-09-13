@@ -298,8 +298,7 @@ async def loop(once: bool = False) -> int:
     # cannot write, handed to it per job by cbc.core.toolsets. Say so if there is
     # none, because a pricing pass with no catalog flags every line MANUAL and
     # looks like a model failure rather than a missing credential.
-    # ponytail: legacy kernel import; the catalog's read-only credential moves with catalog (step 3.5)
-    from cbc.db import readonly_uri
+    from cbc.shared.mongo import readonly_uri
     from cbc.shared import otel
 
     otel.configure(os.environ.get("OTEL_SERVICE_NAME") or "cbc.worker")
@@ -307,7 +306,7 @@ async def loop(once: bool = False) -> int:
     derived = readonly_uri()
     if derived and not os.environ.get("MONGODB_READONLY_URI"):
         # toolsets.config_for reads the env; derive the local-dev URI once here
-        # so core stays free of cbc.db.
+        # so core stays free of the Mongo client.
         os.environ["MONGODB_READONLY_URI"] = derived
 
     if not derived:

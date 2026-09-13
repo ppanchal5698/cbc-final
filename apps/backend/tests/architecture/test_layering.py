@@ -7,11 +7,10 @@
 3. `shared` imports no module.
 4. No module names another module's collection. A module declares what it owns
    in `infrastructure/collections.py`; every other module is checked for those
-   names, and no module reads collections through `cbc.db`.
-5. A module's remaining imports of the legacy kernel (`cbc.db`)
-   are marked `ponytail:` with where they go, so the list can only be worked down.
+   names.
+5. The retired kernel stays retired: there is no `cbc.db` and no `services/`
+   package, and nothing imports either.
 6. Modules import each other one way only: the graph has no cycle.
-7. There is no `services/` package: what it held belongs to a module, or to `shared`.
 
 The old first rule here was the inverse of rule 1 - it forbade the one import the
 architecture allows.
@@ -115,24 +114,20 @@ def test_no_module_names_another_modules_collection() -> None:
                 elif isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant):
                     if stored.get(node.slice.value, mod) != mod:
                         violations.append(f"{at} indexes {stored[node.slice.value]}'s collection {node.slice.value!r}")
-                elif isinstance(node, ast.ImportFrom) and node.module == "cbc.db":
-                    reached = {alias.name for alias in node.names} - {"readonly_uri"}
-                    if reached:
-                        violations.append(f"{at} reads collections through cbc.db ({', '.join(sorted(reached))})")
     assert not violations, "cross-module collection access:\n" + "\n".join(violations)
 
 
-def test_legacy_kernel_imports_in_modules_are_marked() -> None:
-    unmarked = []
-    for mod in MODULES:
-        for path in _py(SRC / "modules" / mod):
-            lines = path.read_text(encoding="utf-8").splitlines()
-            for i, line in enumerate(lines):
-                if re.match(r"\s*(from|import) cbc\.db\b", line) and "ponytail" not in line and (
-                    i == 0 or "ponytail" not in lines[i - 1]
-                ):
-                    unmarked.append(f"{path.relative_to(SRC)}:{i + 1}: {line.strip()}")
-    assert not unmarked, "legacy-kernel imports without a ponytail marker:\n" + "\n".join(unmarked)
+def test_the_retired_kernel_stays_retired() -> None:
+    """`cbc.db` and `cbc.services` held what the modules and `shared` own now; neither comes back."""
+    assert not (SRC / "db.py").exists() and not (SRC / "services").exists()
+    importers = [
+        f"{path.relative_to(REPO)}:{line} imports {dotted}"
+        for root in (SRC, BACKEND / "scripts", BACKEND / "tests", REPO / "mcp-servers")
+        for path in _py(root)
+        for line, dotted in _imports(path)
+        if re.match(r"cbc\.(db|services)(\.|$)", dotted)
+    ]
+    assert not importers, "imports of the retired kernel:\n" + "\n".join(importers)
 
 
 def test_domain_job_map_covers_expected_domains() -> None:
@@ -164,8 +159,3 @@ def test_the_module_graph_has_no_cycles() -> None:
 
     cycles = [found for mod in MODULES if (found := cycle(mod, []))]
     assert not cycles, "modules import each other in a circle: " + " -> ".join(cycles[0])
-
-
-def test_the_services_kernel_is_gone() -> None:
-    """A new file there would be the old habit back: give it to the module that owns it."""
-    assert not (SRC / "services").exists()

@@ -24,10 +24,11 @@ async def main() -> int:
     )
     args = parser.parse_args()
 
-    from cbc.db import ensure_indexes
+    from cbc.persistence import migrations
+    from cbc.shared.mongo import database
     from cbc.modules.pricing.api.reference_store import FAMILIES, ensure_reference_seed
 
-    await ensure_indexes()
+    await migrations.run(database())
     seeded = await ensure_reference_seed(force=args.force)
     print(f"families known: {len(FAMILIES)}")
     print(f"seeded/updated: {len(seeded)}" + (f" ({', '.join(seeded)})" if seeded else ""))

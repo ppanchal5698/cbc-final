@@ -127,8 +127,7 @@ def _ro_sync_collection() -> Collection | None:
     """Prefer read-only URI for MCP; fall back to primary."""
     if _memory is not None:
         return None
-    # ponytail: legacy kernel; the read-only credential lives in cbc.db until Phase 4
-    from cbc.db import readonly_uri
+    from cbc.shared.mongo import readonly_uri
 
     uri = readonly_uri() or os.environ.get("MONGODB_URI") or settings.mongodb_uri
     try:

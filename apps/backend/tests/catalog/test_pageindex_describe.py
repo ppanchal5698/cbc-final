@@ -147,7 +147,7 @@ def test_the_catalog_server_never_reaches_the_writable_connection() -> None:
     """It runs inside the Claude subprocess, which is denied the root URI.
 
     An earlier cut had the server call the async query helper, which fetches
-    through `cbc.db` - the application's writable client. That silently undid
+    through the application's writable client. That silently undid
     `provider.WITHHELD`: pymongo is in the image, so a run holding that string
     could write to any collection, straight past every read-only assertion the
     tools make about themselves.
@@ -155,7 +155,7 @@ def test_the_catalog_server_never_reaches_the_writable_connection() -> None:
     from tests.shared import ROOT
 
     source = (ROOT / "mcp-servers" / "catalog" / "server.py").read_text(encoding="utf-8")
-    assert "from cbc.db import" not in source
+    assert "cbc.shared.mongo" not in source, "the application's writable client"
     assert "pageindex import store" not in source, "store writes; the server must not import it"
     assert "reader" in source, "the server reads through the read-only reader"
 
@@ -179,7 +179,7 @@ def test_the_read_only_uri_authenticates_where_the_user_was_made() -> None:
     The first real connection failed authentication.
     """
     from cbc.shared.config import settings
-    from cbc.db import readonly_uri
+    from cbc.shared.mongo import readonly_uri
 
     uri = readonly_uri()
     if not uri:

@@ -92,7 +92,7 @@ PROFILES[PREFLIGHT] = []
 def _readonly_uri() -> str | None:
     """The read-only connection string for catalog MCP servers.
 
-    Prefer the env var. Callers that already resolved `cbc.db.readonly_uri` may
+    Prefer the env var. Callers that already resolved `cbc.shared.mongo.readonly_uri` may
     set `READONLY_URI_OVERRIDE` before building the config.
     """
     return os.environ.get("READONLY_URI_OVERRIDE") or os.environ.get("MONGODB_READONLY_URI")

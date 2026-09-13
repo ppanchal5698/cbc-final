@@ -137,16 +137,16 @@ A job type runs as a slice in the module that owns what it writes.
 One Motor client (`shared/mongo.py`), one database, per-module collections and
 indexes. Migrations (`cbc/persistence/migrations`) are forward-only, run once at
 startup before any module's indexes, and are the one deliberate cross-collection
-exception - they rename and backfill across modules.
+exception - they rename and backfill across modules. The catalog MCP server gets a
+connection that cannot write: `shared/mongo.py` derives it (`readonly_uri`), and
+startup creates the user behind it (`ensure_readonly_user`).
 
 ## Still legacy - and where it goes
 
-The modules still import parts of the pre-module kernel; each such import is marked
-`ponytail:` with its destination, and `test_layering` fails on an unmarked one.
+`cbc.services` and `cbc.db` are gone - into the modules, `shared/` and the API's
+composition root - and `test_layering` fails if either comes back. What the
+modules still lean on:
 
-- `cbc.db` - the `projects`, `jobs`, `settings` and `runMetrics` accessors, read now only by
-  `scripts/backfill_runmetrics.py`; the migration entry; the catalog's
-  read-only Mongo user.
 - `cbc.worker_kit` - a Claude pass's prompt templates and its sandbox. `workflows/*.sh`,
   CI and the sandbox image run them by module path, so they stay where they are.
 - `cbc.schemas` - the shared vocabulary (`common`), job and user shapes, the

@@ -10,7 +10,6 @@ from cbc.persistence import names
 
 
 def run(coro):
-    from cbc import db as db_module
     from cbc.shared import mongo as shared_mongo
 
     shared_mongo._client = None
@@ -27,7 +26,7 @@ def database(monkeypatch):
 
     from pymongo import MongoClient
 
-    from cbc import db as db_module
+    from cbc.persistence import migrations
     from cbc.shared import mongo as shared_mongo
     from cbc.shared.config import settings
     from tests.shared import mongo_client
@@ -45,7 +44,7 @@ def database(monkeypatch):
     settings.mongodb_db = name
     raw.drop_database(name)
     shared_mongo._client = None
-    run(db_module.ensure_indexes())
+    run(migrations.run(shared_mongo.database()))
 
     try:
         yield raw[name]

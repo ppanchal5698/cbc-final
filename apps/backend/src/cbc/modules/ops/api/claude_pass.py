@@ -117,8 +117,7 @@ async def run(
         log.info("provider cannot delegate; using the solo prompt for %s", job["type"])
     prompt = prompts.build(job, project, delegates=delegates)
 
-    # ponytail: legacy kernel import; the catalog's read-only credential moves with catalog
-    from cbc.db import readonly_uri
+    from cbc.shared.mongo import readonly_uri
 
     if needs_catalog and not readonly_uri():
         await finish(

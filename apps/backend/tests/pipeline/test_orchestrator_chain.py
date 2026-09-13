@@ -8,7 +8,7 @@ import pytest
 from bson import ObjectId
 from pymongo import MongoClient
 
-from cbc import db as db_module
+from cbc.persistence import migrations
 from cbc.shared import mongo as shared_mongo
 from cbc.shared.config import settings
 from tests.shared import mongo_client
@@ -37,7 +37,7 @@ def database():
     previous, settings.mongodb_db = settings.mongodb_db, TEST_DB
     raw.drop_database(TEST_DB)
     shared_mongo._client = None
-    asyncio.run(db_module.ensure_indexes())
+    asyncio.run(migrations.run(shared_mongo.database()))
     shared_mongo._client = None
     try:
         yield raw[TEST_DB]

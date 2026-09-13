@@ -2,10 +2,10 @@
 """Apply pending database migrations, or say what would run.
 
 The runner itself (`cbc.persistence.migrations`) is handed a database and never
-looks for one - it sits below `cbc.db` in the dependency order. This script is
+looks for one - it sits below `cbc.shared.mongo` in the dependency order. This script is
 the operator entry point that knows how to make a client.
 
-Startup does the same thing automatically (`cbc.db.ensure_indexes`), so this is
+Startup does the same thing automatically (`cbc.app.main.migrate_and_index`), so this is
 for the times you want to see the ledger, or to migrate without booting a service.
 
     python scripts/migrate.py --status

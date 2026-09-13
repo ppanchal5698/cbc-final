@@ -6,10 +6,10 @@ a `project`, an opening was a `lineItem`, a priced line was a `quoteLine` - so a
 reader holding the specification could not find anything, and neither could a
 reviewer asking whether the implementation matches it.
 
-Renaming is cheap here only because `cbc.db.Collections` already resolved every
-name in one class. The names live here now, the migration in
-`migrations/m001_rename_to_specification.py` moves the data, and the accessors in
-`cbc.db` read from this module.
+Renaming was cheap only because one accessor class resolved every name then. The
+names live here now, the migration in `migrations/m001_rename_to_specification.py`
+moves the data, and each module's `infrastructure/collections.py` reads from this
+module.
 
 Names deliberately NOT changed, with the reason:
 

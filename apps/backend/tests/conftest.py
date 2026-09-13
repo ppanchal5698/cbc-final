@@ -38,8 +38,8 @@ os.environ["MONGODB_DB"] = "cbc_opshub_pytest"
 from tests.shared import FIXTURE_PDF, ROOT, direct_uri  # noqa: E402
 
 # Reach the compose Mongo from the host, once, for every client the suite makes -
-# pymongo in the fixtures and motor inside `cbc.db` alike. Fixing it per client
-# was not enough before: a fixture connected, then `db.ensure_indexes()` built its
+# pymongo in the fixtures and motor inside `cbc.shared.mongo` alike. Fixing it per client
+# was not enough before: a fixture connected, then the startup index build made its
 # own motor client from the untouched URI and failed anyway.
 from cbc.shared.config import settings  # noqa: E402
 

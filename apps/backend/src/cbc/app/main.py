@@ -31,13 +31,12 @@ from cbc.modules.ops.api.provider import MANAGED
 envfile.apply_to_environ(skip=MANAGED)
 
 from cbc.shared.config import settings  # noqa: E402  - must follow apply_to_environ
-from cbc.db import ensure_indexes, ensure_readonly_user  # noqa: E402
 from cbc.modules import catalog, extraction, intake, ops, pricing, projects, quoting  # noqa: E402
 from cbc.modules.ops.api import identity, jobs as ops_jobs, project_lookup  # noqa: E402
 from cbc.modules.projects.api import lookup as projects_lookup  # noqa: E402
 from cbc.pageindex import store as pageindex_store  # noqa: E402
 from cbc.shared.auth import InternalAuthMiddleware, set_role_lookup  # noqa: E402
-from cbc.shared.mongo import database  # noqa: E402
+from cbc.shared.mongo import database, ensure_readonly_user  # noqa: E402
 from cbc.shared.tracing import TraceMiddleware  # noqa: E402
 
 NAME = "platform"  # the compose service name, the log/trace name, and health's `service`
@@ -92,12 +91,15 @@ def _forever(job: Callable[[], Awaitable[Any]], every: float, log: logging.Logge
 
 
 async def migrate_and_index() -> None:
-    """Migrations first, then every index: the legacy set in db.py, then each module's.
+    """Migrations first, then each module's indexes.
 
     Order matters. An index built on a collection before migration 1 renames it
-    lands on the wrong collection.
+    lands on the wrong collection; built after, it costs nothing, because
+    renameCollection carries indexes across.
     """
-    await ensure_indexes()
+    from cbc.persistence import migrations
+
+    await migrations.run(database())
     await ops.ensure_indexes()
     await projects.ensure_indexes()
     await catalog.ensure_indexes()
