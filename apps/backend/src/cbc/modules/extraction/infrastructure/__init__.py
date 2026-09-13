@@ -1,3 +1,1 @@
-"""Module infrastructure."""
-from __future__ import annotations
-
+"""Where extraction keeps its data."""

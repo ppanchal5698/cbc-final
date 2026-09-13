@@ -22,7 +22,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from cbc.db import db
+from cbc.modules.extraction.infrastructure.collections import feedback_events
 
 log = logging.getLogger("cbc.services.feedback")
 
@@ -46,7 +46,7 @@ async def record(
 ) -> None:
     """One correction, appended. Never raises."""
     try:
-        await db.feedback_events.insert_one({
+        await feedback_events().insert_one({
             "bidRequestId": bid_request_id,
             "estimateLineId": estimate_line_id,
             "openingId": opening_id,

@@ -3,7 +3,7 @@
 Collection accessors, index builds and the catalog's read-only user. The client
 itself and the primitives (`oid`, `serialise`, transactions) are in
 `cbc.shared.mongo`. Accessors are plain attributes so callers read as prose:
-`db.line_items.find({...})`.
+`db.quote_lines.find({...})`.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from pymongo import ASCENDING, DESCENDING
 from pymongo.errors import OperationFailure, PyMongoError
 
 from cbc.shared.config import settings
-from cbc.shared.mongo import client, database, replace_index
+from cbc.shared.mongo import client, database
 from cbc.persistence import names
 
 
@@ -24,7 +24,7 @@ class Collections:
 
     The names come from `cbc.persistence.names`, which is where the
     specification's vocabulary lives. Property names stay as the code has always
-    spelled them - `db.projects`, `db.line_items` - so this change is a rename of
+    spelled them - `db.projects`, `db.quote_lines` - so this change is a rename of
     the stored collections, not of 160 call sites; those move behind repositories
     in their own step.
     """
@@ -32,10 +32,6 @@ class Collections:
     @property
     def projects(self):
         return database()[names.BID_REQUESTS]
-
-    @property
-    def line_items(self):
-        return database()[names.OPENINGS]
 
     @property
     def quote_lines(self):
@@ -64,16 +60,6 @@ class Collections:
         return database()[names.RUN_METRICS]
 
     @property
-    def failed_extractions(self):
-        """Claude payloads that failed the schema gate, kept for operators."""
-        return database()[names.FAILED_EXTRACTIONS]
-
-    @property
-    def feedback_events(self):
-        """FR-13 - every estimator correction, structured (§3.31)."""
-        return database()[names.FEEDBACK_EVENTS]
-
-    @property
     def vendor_rfqs(self):
         """FR-16 - the third cost path (§3.28)."""
         return database()[names.VENDOR_RFQS]
@@ -82,11 +68,6 @@ class Collections:
     def rfis(self):
         """Phase 5 questions raised before finalizing (§3.29)."""
         return database()[names.RFIS]
-
-    @property
-    def takeoffs(self):
-        """FR-12 - FRP geometry (§3.24)."""
-        return database()[names.TAKEOFFS]
 
     @property
     def reference_data(self):
@@ -109,27 +90,9 @@ async def ensure_indexes() -> None:
 
     await migrations.run(database())
 
-    await db.line_items.create_index([("projectId", ASCENDING), ("status", ASCENDING)])
-    await replace_index(
-        db.line_items,
-        "opening_door_identity",
-        [("orgId", ASCENDING), ("projectId", ASCENDING), ("doorNumber", ASCENDING)],
-        unique=True,
-        partialFilterExpression={
-            "doorNumber": {"$exists": True, "$type": "string"},
-        },
-    )
-    # Legacy non-unique mark lookup kept for list screens that still sort by mark.
-    await db.line_items.create_index([("projectId", ASCENDING), ("mark", ASCENDING)])
     await db.quote_lines.create_index([("projectId", ASCENDING), ("division", ASCENDING)])
     await db.quotes.create_index([("projectId", ASCENDING)], unique=True)
     await db.proposals.create_index([("projectId", ASCENDING)])
-    await db.failed_extractions.create_index(
-        [("projectId", ASCENDING), ("createdAt", DESCENDING)]
-    )
-    await db.failed_extractions.create_index([("jobId", ASCENDING)])
-    # Alternates are queried per group on both the extraction and quote screens.
-    await db.line_items.create_index([("projectId", ASCENDING), ("alternateGroup", ASCENDING)])
     await db.quote_lines.create_index([("projectId", ASCENDING), ("alternateGroup", ASCENDING)])
     await db.reference_data.create_index([("family", ASCENDING)], unique=True)
     await db.reference_data.create_index([("updatedAt", DESCENDING)])

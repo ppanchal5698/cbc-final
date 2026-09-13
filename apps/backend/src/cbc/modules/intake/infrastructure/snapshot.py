@@ -7,7 +7,8 @@ from typing import Any
 
 from pymongo.errors import DuplicateKeyError
 
-from cbc.db import db  # ponytail: openings and quote lines read directly until extraction and quoting own them (steps 3.7, 3.9)
+from cbc.db import db  # ponytail: quote lines read directly until quoting owns them (step 3.9)
+from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.intake.infrastructure.collections import versions
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api import bids
@@ -25,8 +26,7 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-async def _snapshot_all(collection, project_id: Any, label: str) -> list[dict[str, Any]]:
-    found = await collection.find({"projectId": project_id}).to_list(SNAPSHOT_LIMIT + 1)
+def _within_limit(found: list[dict[str, Any]], label: str) -> list[dict[str, Any]]:
     if len(found) > SNAPSHOT_LIMIT:
         raise ValueError(
             f"this bid has more than {SNAPSHOT_LIMIT} {label}, which is more than a "
@@ -39,8 +39,12 @@ async def _snapshot_all(collection, project_id: Any, label: str) -> list[dict[st
 async def snapshot(project: dict[str, Any], reason: str, actor: str) -> dict[str, Any]:
     """Freeze the current line items and quote lines into a new version."""
     project_id = project["_id"]
-    line_items = await _snapshot_all(db.line_items, project_id, "line items")
-    quote_lines = await _snapshot_all(db.quote_lines, project_id, "quote lines")
+    line_items = _within_limit(
+        await extraction_openings.list_for_project(project_id, limit=SNAPSHOT_LIMIT + 1), "line items"
+    )
+    quote_lines = _within_limit(
+        await db.quote_lines.find({"projectId": project_id}).to_list(SNAPSHOT_LIMIT + 1), "quote lines"
+    )
 
     previous = await versions().find_one(
         {"projectId": project_id, "supersededByVersionId": None},
@@ -95,10 +99,7 @@ async def snapshot(project: dict[str, Any], reason: str, actor: str) -> dict[str
         {"projectId": project_id},
         {"$set": {"estimateVersionId": document["_id"]}},
     )
-    await db.line_items.update_many(
-        {"projectId": project_id},
-        {"$set": {"estimateVersionId": document["_id"]}},
-    )
+    await extraction_openings.set_version(project_id, document["_id"])
 
     if previous is not None:
         # Sealing happens after the new version exists, so a crash between the two

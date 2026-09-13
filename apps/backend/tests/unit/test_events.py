@@ -69,3 +69,25 @@ def test_deleting_a_bid_reaches_the_module_that_owns_its_documents(monkeypatch) 
     asyncio.run(events.publish(bids.PROJECT_DELETED, project_id="p1"))
 
     assert deleted == ["p1"]
+
+
+def test_deleting_a_bid_reaches_the_module_that_owns_its_openings(monkeypatch) -> None:
+    """projects announces the deletion; extraction removes the bid's openings."""
+    from fastapi import FastAPI
+
+    from cbc.modules import extraction
+    from cbc.modules.extraction.infrastructure import collections
+    from cbc.modules.projects.api import bids
+    from cbc.shared import events
+
+    monkeypatch.setattr(events, "_subscribers", {})
+    deleted: list[str] = []
+
+    async def delete_for_project(project_id):
+        deleted.append(project_id)
+
+    monkeypatch.setattr(collections, "delete_for_project", delete_for_project)
+    extraction.register(FastAPI())
+    asyncio.run(events.publish(bids.PROJECT_DELETED, project_id="p1"))
+
+    assert deleted == ["p1"]

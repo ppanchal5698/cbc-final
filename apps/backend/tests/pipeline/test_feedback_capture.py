@@ -13,7 +13,7 @@ import asyncio
 import pytest
 
 from cbc.persistence import names
-from cbc.services import feedback
+from cbc.modules.extraction.api import feedback
 from tests.shared import mongo_client
 
 TEST_DB = "cbc_opshub_test_feedback"
@@ -107,7 +107,7 @@ def test_recording_never_breaks_the_edit_that_produced_it(monkeypatch) -> None:
         async def insert_one(self, *_args, **_kwargs):
             raise RuntimeError("mongo is having a day")
 
-    monkeypatch.setattr(type(feedback.db), "feedback_events", property(lambda self: Broken()))
+    monkeypatch.setattr(feedback, "feedback_events", lambda: Broken())
     run(feedback.record(bid_request_id="b1", event_type="lineAdded"))  # must not raise
 
 

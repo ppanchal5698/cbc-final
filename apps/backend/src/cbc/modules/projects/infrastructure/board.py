@@ -1,14 +1,14 @@
 """The counts the board and the stage bar render beside each bid.
 
-Openings and quotes belong to modules not built yet, so this still reads their
-collections directly; each becomes a port on that module's api as it lands.
-Documents come from intake through a bound source, jobs through ops.
+Quotes belong to a module not built yet, so this still reads them directly.
+Openings and documents come from extraction and intake through bound sources,
+jobs through ops.
 """
 from __future__ import annotations
 
 from typing import Any
 
-from cbc.db import db  # ponytail: openings and quotes read directly until their modules own them (steps 3.7-3.9)
+from cbc.db import db  # ponytail: quotes read directly until quoting owns them (step 3.9)
 from cbc.modules.ops.api import jobs as ops_jobs
 from cbc.modules.projects.api import board_sources
 from cbc.modules.projects.infrastructure.collections import calls as calls_collection
@@ -38,35 +38,7 @@ async def decorate_many(projects: list[dict[str, Any]]) -> list[dict[str, Any]]:
     # (`by_hand`) in the same field as review state, so a confirmed hand-added
     # line is not in the `clear` bucket. Confirmation is what "cleared" means to
     # an estimator, so count the thing that records it.
-    status_rows = await db.line_items.aggregate(
-        [
-            {"$match": {"projectId": {"$in": ids}}},
-            {
-                "$group": {
-                    "_id": {"projectId": "$projectId", "status": "$status"},
-                    "n": {"$sum": 1},
-                }
-            },
-        ]
-    ).to_list(length=None)
-
-    confirmed_rows = await db.line_items.aggregate(
-        [
-            {
-                "$match": {
-                    "projectId": {"$in": ids},
-                    "confirmedAt": {"$exists": True, "$ne": None},
-                }
-            },
-            {"$group": {"_id": "$projectId", "n": {"$sum": 1}}},
-        ]
-    ).to_list(length=None)
-
-    counts: dict[Any, dict[str, int]] = {}
-    confirmed = {row["_id"]: row["n"] for row in confirmed_rows}
-    for row in status_rows:
-        project_id, status = row["_id"]["projectId"], row["_id"]["status"]
-        counts.setdefault(project_id, {})[status] = row["n"]
+    counts, confirmed = await board_sources.opening_counts(ids)
 
     quotes = {
         quote["projectId"]: quote

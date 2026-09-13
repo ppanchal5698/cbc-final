@@ -9,6 +9,7 @@ from typing import Any
 
 from cbc.db import db
 from cbc.modules.catalog.api import products as catalog_products
+from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.domain import matching
 
 
@@ -20,7 +21,7 @@ async def apply_to_project(project: dict[str, Any], *, limit: int = 5000) -> dic
     has no fire rating to enforce.
     """
     project_id = project["_id"]
-    openings = await db.line_items.find({"projectId": project_id}).to_list(limit)
+    openings = await extraction_openings.list_for_project(project_id, limit=limit)
     lines: dict[Any, dict[str, Any]] = {}
     async for line in db.quote_lines.find({"projectId": project_id}):
         lines[line.get("mark") or line.get("doorNumber")] = line
@@ -55,6 +56,6 @@ async def apply_to_project(project: dict[str, Any], *, limit: int = 5000) -> dic
         }
         if result["ratingConflict"] or result["ratingMissing"]:
             flagged += 1
-        await db.line_items.update_one({"_id": opening["_id"]}, {"$set": update})
+        await extraction_openings.update_fields(opening["_id"], update)
 
     return {"openings": len(openings), "flagged": flagged}

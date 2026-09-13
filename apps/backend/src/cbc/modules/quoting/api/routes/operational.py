@@ -42,15 +42,6 @@ class RfiCreate(BaseModel):
     blocksFinalization: bool = False
 
 
-class TakeoffCreate(BaseModel):
-    takeoffType: str = "frp"
-    perimeterLf: float | None = None
-    insideCorners: int | None = None
-    outsideCorners: int | None = None
-    wallHeightFt: float | None = None
-    notes: str | None = None
-
-
 @router.get("/vendor-rfqs")
 async def list_vendor_rfqs(code: str) -> dict[str, Any]:
     project = await load(code)
@@ -137,41 +128,3 @@ async def create_rfi(code: str, body: RfiCreate, actor: Actor) -> dict:
     result = await coll.insert(document)
     document["_id"] = result.inserted_id
     return serialise(document)
-
-
-@router.get("/takeoffs")
-async def list_takeoffs(code: str) -> dict[str, Any]:
-    project = await load(code)
-    rows = await db.takeoffs.find({"bidRequestId": project["_id"]}).to_list(100)
-    return {"takeoffs": serialise(rows)}
-
-
-@router.post("/takeoffs", status_code=201)
-async def create_takeoff(code: str, body: TakeoffCreate, actor: Actor) -> dict:
-    project = await load(code)
-    coll = await repos.for_project(db.takeoffs, project, actor)
-    document = {
-        "bidRequestId": project["_id"],
-        "projectId": project["_id"],
-        "takeoffType": body.takeoffType,
-        "perimeterLf": body.perimeterLf,
-        "insideCorners": body.insideCorners,
-        "outsideCorners": body.outsideCorners,
-        "wallHeightFt": body.wallHeightFt,
-        "notes": body.notes,
-        "constantsUsed": None,
-        "status": "pendingConstants",
-        "flags": ["Open Item 5: FRP conversion constants owed by CBC"],
-    }
-    result = await coll.insert(document)
-    document["_id"] = result.inserted_id
-    return serialise(document)
-
-
-@router.get("/feedback-events")
-async def list_feedback(code: str) -> dict[str, Any]:
-    project = await load(code)
-    rows = await db.feedback_events.find({"bidRequestId": project["_id"]}).sort(
-        "occurredAt", -1
-    ).to_list(500)
-    return {"feedbackEvents": serialise(rows)}

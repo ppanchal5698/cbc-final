@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from cbc.db import db  # ponytail: openings and quote lines read directly until extraction and quoting own them (steps 3.7, 3.9)
+from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.intake.domain.versions import PENDING_NOTE
 from cbc.modules.intake.infrastructure.collections import versions
 from cbc.modules.projects.api.lookup import load
@@ -26,7 +26,7 @@ async def diff_version(code: str, version: int) -> dict[str, Any]:
 
     before = {key(i): i for i in stored["snapshot"]["lineItems"]}
     current = {
-        key(i): i for i in await db.line_items.find({"projectId": project["_id"]}).to_list(5000)
+        key(i): i for i in await extraction_openings.list_for_project(project["_id"], limit=5000)
     }
 
     watched = ("description", "size", "qty", "hwSet", "finish", "fireRating", "handing")

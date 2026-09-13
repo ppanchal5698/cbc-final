@@ -1,89 +1,24 @@
-"""Alternate line groups on a bid — interim structure only (Matrix 4.1 / FR-14)."""
+"""POST /api/projects/{code}/alternates/assign - move openings or quote lines into a group.
+"""
 from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from cbc.db import db
-from cbc.shared.mongo import oid
-from cbc.shared.auth import Actor
-from cbc.schemas import AlternateCreate
-from cbc.modules.projects.api.lookup import load
+from cbc.db import db  # ponytail: quote lines and quotes read directly until quoting owns them (step 3.9)
+from cbc.modules.extraction.infrastructure.collections import openings
 from cbc.modules.ops.api import audit
-from cbc.services import pricing
+from cbc.modules.projects.api.lookup import load
+from cbc.shared.auth import Actor
+from cbc.shared.mongo import oid
 
 router = APIRouter(prefix="/api/projects/{code}", tags=["alternates"])
-
-PENDING_NOTE = (
-    "How an addendum reconciles against the previous version, and whether an "
-    "alternate inherits the base bid's confirmations, are still open questions "
-    "(Matrix 4.1 / Open Item 11). Differences are flagged, never merged."
-)
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-@router.get("/alternates")
-async def list_alternates(code: str) -> dict[str, Any]:
-    """Every line group on this bid, with its own independent total."""
-    project = await load(code)
-    project_id = project["_id"]
-
-    names = list(project.get("alternates") or [])
-    names += await db.line_items.distinct("alternateGroup", {"projectId": project_id})
-    names += await db.quote_lines.distinct("alternateGroup", {"projectId": project_id})
-    groups = [None] + sorted({n for n in names if n})
-
-    quote = await db.quotes.find_one({"projectId": project_id}) or {}
-    state = quote.get("taxJurisdiction") or project.get("state")
-
-    out = []
-    for group in groups:
-        query = {"projectId": project_id, "alternateGroup": group}
-        lines = await db.quote_lines.find(query).to_list(2000)
-        totals = pricing.totals(lines, state, quote.get("freight") if group is None else None)
-        out.append(
-            {
-                "name": group,
-                "label": group or "Base bid",
-                "isBase": group is None,
-                "lineItemCount": await db.line_items.count_documents(query),
-                "quoteLineCount": len(lines),
-                "subtotal": totals["subtotal"],
-                "grandTotal": totals["grandTotal"],
-                "unpricedLines": totals["unpricedLines"],
-            }
-        )
-
-    return {"alternates": out, "pending": PENDING_NOTE}
-
-
-@router.post("/alternates", status_code=201)
-async def create_alternate(code: str, body: AlternateCreate, actor: Actor) -> dict:
-    project = await load(code)
-    name = body.name.strip()
-
-    if name in (project.get("alternates") or []):
-        raise HTTPException(409, f"{name} already exists on this bid")
-
-    await db.projects.update_one(
-        {"_id": project["_id"]},
-        {"$addToSet": {"alternates": name}, "$set": {"updatedAt": _now()}},
-    )
-    await audit.record("alternate.create", actor, {"projectId": project["_id"]}, after=name)
-    return {
-        "name": name,
-        "label": name,
-        "isBase": False,
-        "lineItemCount": 0,
-        "quoteLineCount": 0,
-        "note": "Empty. Move lines into it, or add them by hand. " + PENDING_NOTE,
-    }
 
 
 def _parse_assign_payload(
@@ -158,7 +93,7 @@ async def assign_to_alternate(
     )
 
     project = await load(code)
-    collection = db.line_items if scope == "line-items" else db.quote_lines
+    collection = openings() if scope == "line-items" else db.quote_lines
     object_ids = [oid(i) for i in line_ids]
 
     now = _now()

@@ -13,6 +13,7 @@ from typing import Any
 from pymongo import InsertOne, UpdateOne
 
 from cbc.db import db
+from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.services import storage
 from cbc.services.sync_phases._common import (
     _content_key,
@@ -33,7 +34,7 @@ async def export_line_items(project: dict[str, Any]) -> Path:
     """Write the estimator-confirmed state down for Claude's next phase."""
     slug, project_id = project["slug"], project["_id"]
     openings = []
-    async for doc in db.line_items.find({"projectId": project_id}).sort("mark", 1):
+    for doc in await extraction_openings.list_for_project(project_id, sort=[("mark", 1)]):
         if doc.get("status") == "duplicate" and doc.get("duplicateOf"):
             continue
         evidence = doc.get("evidence") or {}

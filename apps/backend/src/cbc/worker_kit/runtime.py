@@ -50,6 +50,7 @@ from cbc.validation import review as review_flags
 from cbc.worker_kit import prompts
 from cbc.modules.catalog.api.jobs import delete_catalog, index_catalog, ingest_pricebook
 from cbc.modules.intake.api import documents as intake_documents
+from cbc.modules.extraction.api import openings as extraction_openings
 
 log = logs.configure("cbc.worker")
 
@@ -146,7 +147,7 @@ async def _quarantine(job: dict, project: dict | None, rows: list[dict]) -> None
             }
         )
     if docs:
-        await db.failed_extractions.insert_many(docs)
+        await extraction_openings.record_failed(docs)
 
 
 async def after_finish(job: dict, status: str, error: str | None, entry) -> None:
@@ -402,10 +403,7 @@ async def sync_results(job: dict, project: dict | None) -> str:
         await intake_documents.mark_received(project["_id"], "read", uploaded_by=started)
         verdict = extraction_review_verdict(slug)
         if verdict == "needs_review":
-            await db.line_items.update_many(
-                {"projectId": project["_id"], "status": "clear"},
-                {"$set": {"status": "needs_look"}},
-            )
+            await extraction_openings.reopen_confirmed(project["_id"])
             await chain.set_state(
                 project["_id"],
                 "extraction_needs_review",

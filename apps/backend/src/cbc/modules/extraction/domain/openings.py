@@ -1,11 +1,12 @@
+"""What an estimator may send to add, change or act on openings.
+"""
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from cbc.schemas.common import Evidence, LineStatus
+from cbc.schemas.common import LineStatus
 
 
 class LineItemBase(BaseModel):
@@ -45,22 +46,6 @@ class LineItemUpdate(BaseModel):
     status: LineStatus | None = None
     notes: str | None = None
     alternateGroup: str | None = None
-
-
-class LineItem(LineItemBase):
-    id: str
-    projectId: str
-    alternateGroup: str | None = None
-    status: LineStatus = "needs_look"
-    confidence: float | None = None
-    flags: list[str] = []
-    evidence: Evidence | None = None
-    duplicateOf: str | None = None
-    duplicateReason: str | None = None
-    addedByHand: bool = False
-    confirmedBy: str | None = None
-    confirmedAt: datetime | None = None
-    createdAt: datetime | None = None
 
 
 class BulkAction(BaseModel):

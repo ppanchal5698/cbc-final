@@ -1,6 +1,7 @@
 """What other modules may record on a bid, and what a bid announces."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from cbc.modules.projects.infrastructure.collections import bid_requests
@@ -13,3 +14,11 @@ PROJECT_DELETED = "projects.project_deleted"
 async def set_version(project_id: Any, number: int) -> None:
     """The bid's current version, after an addendum snapshot."""
     await bid_requests().update_one({"_id": project_id}, {"$set": {"version": number}})
+
+
+async def add_alternate(project_id: Any, name: str) -> None:
+    """Name a new alternate group on the bid."""
+    await bid_requests().update_one(
+        {"_id": project_id},
+        {"$addToSet": {"alternates": name}, "$set": {"updatedAt": datetime.now(timezone.utc)}},
+    )

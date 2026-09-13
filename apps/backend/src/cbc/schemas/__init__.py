@@ -10,7 +10,6 @@ from cbc.schemas.common import (
     Stage,
 )
 from cbc.schemas.jobs import Job
-from cbc.schemas.line_items import BulkAction, LineItem, LineItemCreate, LineItemUpdate
 from cbc.schemas.reference import (
     CustomOtherMatrixReplace,
     FinishesUpdate,
@@ -36,12 +35,8 @@ from cbc.schemas.quote import (
     QuoteTotals,
 )
 from cbc.schemas.users import UserPublic
-from cbc.schemas.versions import AlternateCreate, AlternateAssign
 
 __all__ = [
-    "AlternateCreate",
-    "AlternateAssign",
-    "BulkAction",
     "CallKind",
     "CostSource",
     "Evidence",
@@ -53,9 +48,6 @@ __all__ = [
     "Job",
     "JobStatus",
     "JobType",
-    "LineItem",
-    "LineItemCreate",
-    "LineItemUpdate",
     "LineStatus",
     "MarginFrameworkUpdate",
     "ProductType",

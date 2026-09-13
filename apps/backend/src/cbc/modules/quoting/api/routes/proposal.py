@@ -17,6 +17,7 @@ from cbc.db import db
 from cbc.shared.mongo import serialise
 from cbc.shared.auth import Actor
 from cbc.schemas import HandOff, ProposalSettings
+from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.projects.api.lookup import load
 from cbc.persistence import proposals as proposal_rules
 from cbc.domain import quote_layout
@@ -143,9 +144,7 @@ async def _proposal_payload(project: dict[str, Any]) -> dict[str, Any]:
     stored = await db.proposals.find_one({"projectId": project["_id"]}) or {}
     built = await _build(project, stored.get("markup", 0.0))
 
-    flagged = await db.line_items.count_documents(
-        {"projectId": project["_id"], "status": "needs_look"}
-    )
+    flagged = await extraction_openings.count(project["_id"], status="needs_look")
     unpriced = await db.quote_lines.count_documents(
         {"projectId": project["_id"], "cost": None}
     )

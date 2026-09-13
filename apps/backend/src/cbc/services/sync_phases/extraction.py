@@ -9,6 +9,7 @@ from typing import Any
 from pymongo import InsertOne, UpdateOne
 
 from cbc.db import db
+from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.intake.api import versions as intake_versions
 from cbc.services import reference_library, storage
 from cbc.services.sync_phases._common import (
@@ -71,8 +72,8 @@ async def import_extraction(
 
     existing_docs = [
         doc
-        async for doc in db.line_items.find({"projectId": project_id}).sort(
-            [("mark", 1), ("createdAt", 1)]
+        for doc in await extraction_openings.list_for_project(
+            project_id, sort=[("mark", 1), ("createdAt", 1)]
         )
     ]
     existing_keys = _distinct_keys(
@@ -165,7 +166,7 @@ async def import_extraction(
 
             if not await holds_lease(job):
                 return {"inserted": 0, "updated": 0, "skipped": 0, "aborted": True}
-        await db.line_items.bulk_write(bulk, ordered=False)
+        await extraction_openings.apply_bulk(bulk)
 
     return {"inserted": inserted, "updated": updated, "skipped": skipped}
 def _empty(value: Any) -> bool:

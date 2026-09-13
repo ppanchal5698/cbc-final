@@ -20,7 +20,8 @@ from cbc.modules.projects.api.lookup import load
 from cbc.modules.ops.api.jobs import enqueue_pipeline
 from cbc.modules.ops.api import audit
 from cbc.modules.ops.api import freshness as freshness_settings
-from cbc.services import feedback, quote as quote_service, sync
+from cbc.modules.extraction.api import feedback
+from cbc.services import quote as quote_service, sync
 
 router = APIRouter(prefix="/api/projects/{code}/quote", tags=["quote"])
 
