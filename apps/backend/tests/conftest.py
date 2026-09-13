@@ -107,9 +107,9 @@ def app(monkeypatch):
     async def _ok(*_a, **_k):
         return True
 
-    monkeypatch.setattr("cbc.http.service_app.ensure_indexes", _ok)
-    monkeypatch.setattr("cbc.http.service_app.ensure_readonly_user", _ok)
-    monkeypatch.setattr("cbc.http.service_app.pageindex_store.ensure_indexes", _ok)
+    monkeypatch.setattr("cbc.app.main.ensure_indexes", _ok)
+    monkeypatch.setattr("cbc.app.main.ensure_readonly_user", _ok)
+    monkeypatch.setattr("cbc.app.main.pageindex_store.ensure_indexes", _ok)
 
     # No settings refresh here. This fixture used to rebuild `cbc.shared.config.settings`
     # and assign the new object onto config, http.deps and http.service_app -
@@ -121,7 +121,7 @@ def app(monkeypatch):
     # failed after any test that used `client`. The env is forced at the top of
     # this file before anything imports cbc.shared.config, so the original object was
     # already correct and there was nothing to refresh.
-    from cbc.api.app import create_app
+    from cbc.app.main import create_app
 
     return create_app(background=False)
 

@@ -48,7 +48,7 @@ ENTRYPOINT ["/app/docker/entrypoint.sh"]
 
 FROM base AS api
 EXPOSE 8001
-CMD ["uvicorn", "cbc.api.main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["uvicorn", "cbc.app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8001"]
 
 # ── worker: Claude CLI + Docker CLI + MCP + agent runtime ───────────────────
 FROM base AS worker

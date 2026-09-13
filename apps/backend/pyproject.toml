@@ -30,7 +30,7 @@ dev = [
 ]
 
 [project.scripts]
-cbc-api = "cbc.api.main:run"
+cbc-api = "cbc.app.main:run"
 cbc-worker = "cbc.worker.main:main"
 
 [tool.setuptools.packages.find]

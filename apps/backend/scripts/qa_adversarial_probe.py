@@ -14,7 +14,7 @@ from cbc.shared.config import settings
 # `tests.combined_app`, the pre-cutover harness that mounted six service apps
 # into one - which now exists only under archive/pre-monolith/, so the script
 # could not run at all. Probe the real composition root instead.
-from cbc.api.app import create_app
+from cbc.app.main import create_app
 
 app = create_app()
 

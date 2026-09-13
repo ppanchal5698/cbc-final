@@ -133,7 +133,7 @@ def opshub_client(
     from fastapi.testclient import TestClient
 
     from cbc.shared import mongo as db_module
-    from cbc.api.app import create_app
+    from cbc.app.main import create_app
     from cbc.shared.config import settings
 
     previous_db = settings.mongodb_db

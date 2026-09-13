@@ -19,7 +19,7 @@ import json
 
 import pytest
 
-from cbc.api.app import create_app
+from cbc.app.main import create_app
 from cbc.shared.auth import PUBLIC_PATHS
 from tests.characterization._harness import SNAPSHOTS, UPDATE, fill, route_table
 from tests.shared import TEST_ACTOR, mongo_client, opshub_client

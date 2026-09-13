@@ -32,6 +32,6 @@ def test_worker_kit_local_handlers() -> None:
 
 
 def test_smoke_version_includes_monolith() -> None:
-    from cbc.api.app import create_app
+    from cbc.app.main import create_app
 
     assert "monolith" in create_app().version

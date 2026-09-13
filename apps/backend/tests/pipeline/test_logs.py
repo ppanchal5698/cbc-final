@@ -90,19 +90,15 @@ def test_the_level_is_configurable(capsys, monkeypatch) -> None:
 
 def test_both_services_use_the_shared_setup() -> None:
     """Neither may go back to its own basicConfig."""
-    from tests.shared import PKG, ROOT
+    from tests.shared import PKG
 
-    # One worker kit, one shared API factory (six thin mains call it).
+    # One worker runtime, one API composition root.
     entries = [
         PKG / "worker_kit" / "runtime.py",
-        PKG / "http" / "service_app.py",
+        PKG / "app" / "main.py",
     ]
     assert all(path.is_file() for path in entries), entries
     for path in entries:
         body = path.read_text(encoding="utf-8")
         assert "logs.configure(" in body, path
         assert "logging.basicConfig(" not in body, path
-    for path in (ROOT / "services").glob("*/api/main.py"):
-        body = path.read_text(encoding="utf-8")
-        assert "logging.basicConfig(" not in body, path
-        assert "create_service_app" in body, path

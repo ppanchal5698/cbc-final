@@ -33,7 +33,7 @@ def test_api_app_imports_with_its_routes() -> None:
     FastAPI stores an included router is an internal detail that has already
     changed once (0.141 keeps lazy wrappers where 0.115 flattened).
     """
-    from cbc.api.app import create_app
+    from cbc.app.main import create_app
 
     app = create_app(background=False)
 

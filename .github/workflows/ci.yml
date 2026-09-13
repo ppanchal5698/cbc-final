@@ -61,7 +61,7 @@ jobs:
         run: python -m compileall -q apps/backend mcp-servers scripts
 
       - name: Import the API
-        run: python -c "from cbc.api.main import app; print(len(app.openapi()['paths']), 'paths')"
+        run: python -c "from cbc.app.main import create_app; print(len(create_app().openapi()['paths']), 'paths')"
 
       - name: MCP selftest
         run: python mcp-servers/main.py --selftest
