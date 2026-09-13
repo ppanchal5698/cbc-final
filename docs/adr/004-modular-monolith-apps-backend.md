@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR-005](005-modules-own-their-data.md) as to its dependency rule: modules
+meet only through each other's `api/` and own their collections, where this record
+had every module reach into a shared kernel. Its deployment decisions stand.
 
 ## Context
 
