@@ -9,7 +9,7 @@ computes and a price this API computes cannot drift.
 """
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 from cbc.modules.pricing.api import calc
 
@@ -100,7 +100,24 @@ def check_margin(division: str | None, margin: float | None) -> dict[str, Any]:
     return calc.validate_margin(band_for_division(division), float(margin))
 
 
-def totals(lines: list[dict[str, Any]], state: str | None, freight: float | None = None) -> dict:
+class QuoteTotals(TypedDict):
+    """What `totals` rolls a bid's priced lines up into - every key, always present."""
+
+    subtotal: float
+    margin: float | None
+    cost: float
+    taxRate: float
+    tax: float
+    freight: float | None
+    freightNote: str | None
+    grandTotal: float
+    taxJurisdiction: str | None
+    taxNote: str | None
+    groups: list[dict[str, Any]]
+    unpricedLines: int
+
+
+def totals(lines: list[dict[str, Any]], state: str | None, freight: float | None = None) -> QuoteTotals:
     """Roll priced lines up into group subtotals, tax and a grand total."""
     payload = [
         {

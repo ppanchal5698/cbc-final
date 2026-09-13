@@ -1,12 +1,30 @@
 """A bid's quote lines, for the modules and the gate that read or stamp them."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypedDict
 
 from cbc.modules.quoting.infrastructure.collections import estimate_lines
 
 
-async def list_for_project(project_id: Any, *, limit: int | None = None) -> list[dict[str, Any]]:
+class EstimateLineRef(TypedDict, total=False):
+    """A stored estimate line, as other modules read it.
+
+    Still the stored document at runtime: a TypedDict converts nothing.
+    """
+
+    _id: Any
+    projectId: Any
+    mark: str
+    doorNumber: str
+    part: str
+    partNumber: str
+    division: str
+    qty: float
+    cost: float
+    extended: float
+
+
+async def list_for_project(project_id: Any, *, limit: int | None = None) -> list[EstimateLineRef]:
     return await estimate_lines().find({"projectId": project_id}).to_list(limit)
 
 

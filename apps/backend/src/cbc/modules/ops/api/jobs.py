@@ -1,6 +1,6 @@
 """Job queue - how the estimator's actions reach Claude Code.
 
-The API enqueues; the worker in `worker/` claims and runs. Nothing here spawns a
+The API enqueues; ops' worker loop claims and runs. Nothing here spawns a
 process: extraction on a 30-page CAD set is minutes of work, far longer than a
 web request should hold open, and a dropped connection must not lose the job.
 """
@@ -10,7 +10,7 @@ import hashlib
 import json
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, TypedDict
 
 from bson import ObjectId
 from pymongo import ReturnDocument
@@ -22,6 +22,30 @@ from cbc.modules.ops.domain.jobs import EXCLUSIVE_JOB_TYPES
 from cbc.modules.ops.api import audit
 
 EXCLUSIVE = set(EXCLUSIVE_JOB_TYPES)
+
+
+
+class JobRef(TypedDict, total=False):
+    """A stored job, as other modules read it.
+
+    Still the stored document at runtime: a TypedDict converts nothing.
+    tests/architecture/test_port_types.py fails when another module reads a field
+    not named here.
+    """
+
+    _id: ObjectId
+    type: str
+    projectId: ObjectId | None
+    status: str
+    payload: dict[str, Any]
+    phaseState: dict[str, Any]
+    claimGeneration: int
+    createdAt: datetime
+    createdBy: str
+    startedAt: datetime
+    stragglerPending: bool
+    traceId: str
+
 
 # Published with job= once a retry has put a dead or failed job back on the queue.
 JOB_REQUEUED = "ops.job_requeued"
@@ -147,7 +171,7 @@ def _coalesce_lookup(
 
 async def extend_queued_coalesce(
     job_id: ObjectId, delay_seconds: int, session=None
-) -> dict[str, Any] | None:
+) -> JobRef | None:
     """Atomically push nextAttemptAt for a still-queued job, capped by coalesceUntil."""
     session_kw = {"session": session} if session is not None else {}
     job = await jobs_collection().find_one({"_id": job_id, "status": "queued"}, **session_kw)
@@ -189,7 +213,7 @@ async def enqueue(
     actor: str = "estimator",
     delay_seconds: int = 0,
     session=None,
-) -> dict[str, Any]:
+) -> JobRef:
     """Queue a job. `delay_seconds` holds it back so a burst can coalesce.
 
     A bid set is often several PDFs, and a run reads the whole of uploads/raw/. A
@@ -304,13 +328,13 @@ async def enqueue(
     return job
 
 
-async def latest_for_project(project_id: ObjectId) -> dict[str, Any] | None:
+async def latest_for_project(project_id: ObjectId) -> JobRef | None:
     return await jobs_collection().find_one({"projectId": project_id}, sort=[("createdAt", -1)])
 
 
 async def active_pipeline_job(
     project_id: ObjectId, session=None
-) -> dict[str, Any] | None:
+) -> JobRef | None:
     """Newest queued or running pipeline job on this bid (one session per bid)."""
     session_kw = {"session": session} if session is not None else {}
     return await jobs_collection().find_one(
@@ -330,7 +354,7 @@ async def enqueue_exclusive(
     payload: dict[str, Any] | None = None,
     actor: str = "estimator",
     delay_seconds: int = 0,
-) -> dict[str, Any]:
+) -> JobRef:
     """Queue a pipeline job unless another pipeline type is already active."""
     active = await active_pipeline_job(project_id)
     if active and active["type"] != job_type:
@@ -338,7 +362,7 @@ async def enqueue_exclusive(
     return await enqueue(job_type, project_id, payload, actor, delay_seconds)
 
 
-async def active_for_project(project_id: ObjectId) -> dict[str, Any] | None:
+async def active_for_project(project_id: ObjectId) -> JobRef | None:
     """Most recent queued or running job on this bid."""
     return await jobs_collection().find_one(
         {"projectId": project_id, "status": {"$in": ["queued", "running"]}},
@@ -518,7 +542,7 @@ def raise_if_pipeline_blocked(active: dict[str, Any] | None, job_type: str) -> N
         raise PipelineJobActive(active)
 
 
-async def reserve(project_id: Any, job_type: str) -> dict[str, Any] | None:
+async def reserve(project_id: Any, job_type: str) -> JobRef | None:
     """Decide - and refuse - before the caller writes anything.
 
     The gate used to run after the PDF had landed, the document row was inserted
@@ -573,7 +597,7 @@ async def enqueue_pipeline(
     actor: str = "estimator",
     delay_seconds: int = 0,
     session=None,
-) -> dict[str, Any]:
+) -> JobRef:
     """Enqueue when no other pipeline type is active; raise PipelineJobActive otherwise."""
     active = await active_pipeline_job(project_id, session=session)
     raise_if_pipeline_blocked(active, job_type)
@@ -585,7 +609,7 @@ async def enqueue_pipeline(
 # ── what other modules ask of the queue about their bids ─────────────────────
 
 
-async def active_by_project(project_ids) -> dict[Any, dict[str, Any]]:
+async def active_by_project(project_ids) -> dict[Any, JobRef]:
     """The newest queued or running job on each of these bids."""
     # Newest first, so the first one seen per project is the current active job.
     active: dict[Any, dict[str, Any]] = {}
@@ -619,7 +643,7 @@ async def delete_for_project(project_id: Any) -> None:
 # ── what a running job reads and records on itself ────────────────────────────
 
 
-async def get(job_id: Any, projection: dict[str, Any] | None = None) -> dict[str, Any] | None:
+async def get(job_id: Any, projection: dict[str, Any] | None = None) -> JobRef | None:
     return await jobs_collection().find_one({"_id": job_id}, projection)
 
 
@@ -631,7 +655,7 @@ async def unset_fields(job_id: Any, *names: str) -> None:
     await jobs_collection().update_one({"_id": job_id}, {"$unset": {name: "" for name in names}})
 
 
-async def previous_phase_state(project_id: Any, job_id: Any) -> dict[str, Any] | None:
+async def previous_phase_state(project_id: Any, job_id: Any) -> JobRef | None:
     """The latest other job on this bid that recorded phase progress (B-15)."""
     return await jobs_collection().find_one(
         {

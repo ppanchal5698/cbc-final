@@ -106,7 +106,10 @@ Typed errors stay transport-free and the root maps them: `ops.api.jobs.PipelineJ
 2. Add it to the tuple in `modules/<module>/__init__.py:register`. Order matters only
    where paths overlap: literal paths before `{param}` paths.
 3. Need another module's data? Import `cbc.modules.<other>.api`. If it has no port
-   for what you need, add a small, named one there - not a generic query.
+   for what you need, add a small, named one there - not a generic query. A port
+   that hands back a stored document declares what it holds in a TypedDict beside
+   it (`ProjectRef`, `JobRef`, `ProductRef`, `OpeningRef`, `EstimateLineRef`); a
+   field you read must be on it, or `test_port_types` fails.
 4. Test it: `tests/characterization` pins every endpoint's status and shape;
    `REQUIRE_MONGO=1 pytest` must stay green, and `test_layering` must pass.
 

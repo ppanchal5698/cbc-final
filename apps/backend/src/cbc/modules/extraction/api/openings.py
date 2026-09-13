@@ -2,7 +2,7 @@
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypedDict
 
 from cbc.modules.extraction.infrastructure.collections import failed_extractions, openings
 
@@ -10,9 +10,27 @@ from cbc.modules.extraction.infrastructure.collections import failed_extractions
 LINES_CONFIRMED = "extraction.lines_confirmed"
 
 
+class OpeningRef(TypedDict, total=False):
+    """A stored opening, as other modules read it.
+
+    Still the stored document at runtime: a TypedDict converts nothing.
+    """
+
+    _id: Any
+    projectId: Any
+    mark: str
+    doorNumber: str
+    handing: str
+    finish: str
+    fireRating: str
+    fire_rating: str
+    status: str
+    alternateGroup: str
+
+
 async def list_for_project(
     project_id: Any, *, sort: list[tuple[str, int]] | None = None, limit: int | None = None
-) -> list[dict[str, Any]]:
+) -> list[OpeningRef]:
     cursor = openings().find({"projectId": project_id})
     if sort is not None:
         cursor = cursor.sort(sort)

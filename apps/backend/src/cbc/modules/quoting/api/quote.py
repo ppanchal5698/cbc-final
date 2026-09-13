@@ -226,7 +226,7 @@ def reprice(lines: list[dict[str, Any]], state: str | None, freight: float | Non
 
 async def totals_for(
     project: dict[str, Any], *, use_cache: bool = True
-) -> tuple[dict, list[dict[str, Any]]]:
+) -> tuple[pricing.QuoteTotals, list[dict[str, Any]]]:
     """Current totals and priced lines, without touching the database."""
     key = _cache_key(project["_id"])
     if use_cache:
@@ -243,7 +243,7 @@ async def totals_for(
     return totals, lines
 
 
-async def persist(project: dict[str, Any]) -> dict:
+async def persist(project: dict[str, Any]) -> pricing.QuoteTotals:
     """Re-price, store the results, and return the totals.
 
     Called from the routes that change something and from the worker once a

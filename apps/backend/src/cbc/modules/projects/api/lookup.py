@@ -5,7 +5,7 @@ composition root turns into the 404 this lookup has always returned.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypedDict
 
 from cbc.modules.projects.infrastructure.collections import bid_requests
 from cbc.shared.mongo import oid
@@ -18,9 +18,33 @@ class ProjectNotFound(LookupError):
         super().__init__(f"project not found: {code_or_id}")
 
 
-# ponytail: hands back the stored document, as the shared lookup did; a typed bid
-# reference once the modules that read it are sliced and say which fields they need.
-async def load(code_or_id: str) -> dict[str, Any]:
+class ProjectRef(TypedDict, total=False):
+    """A stored bid, as other modules read it.
+
+    Still the stored document at runtime: a TypedDict converts nothing.
+    tests/architecture/test_port_types.py fails when another module reads a field
+    not named here.
+    """
+
+    _id: Any
+    orgId: Any
+    code: str
+    slug: str
+    name: str
+    version: int
+    autopilot: bool
+    alternates: list[str]
+    state: str
+    location: str
+    gc: str
+    architect: str
+    initiator: str
+    degraded: bool
+    producedBy: str
+    hasTrustDialogAccepted: bool
+
+
+async def load(code_or_id: str) -> ProjectRef:
     """Look a project up by code (CBC-260143), slug, or id - whatever the caller has."""
     query: dict[str, Any] = {"$or": [{"code": code_or_id}, {"slug": code_or_id}]}
     try:
@@ -33,7 +57,7 @@ async def load(code_or_id: str) -> dict[str, Any]:
     return project
 
 
-async def get(project_id: Any) -> dict[str, Any] | None:
+async def get(project_id: Any) -> ProjectRef | None:
     """The stored bid with this id, or None - for a job, which carries the id already."""
     return await bid_requests().find_one({"_id": project_id})
 
