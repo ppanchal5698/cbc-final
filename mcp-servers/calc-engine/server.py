@@ -10,7 +10,7 @@ from __future__ import annotations
 from _runtime import serve
 from tools import TOOLS
 
-from cbc.core.calc import (
+from cbc.modules.pricing.api.calc import (
     apply_margin,
     calculate_line,
     compute_totals,

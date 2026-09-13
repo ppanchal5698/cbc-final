@@ -1,7 +1,7 @@
 """Reference-library loaders cache in-process until invalidate/update."""
 from __future__ import annotations
 
-from cbc.core import calc
+from cbc.modules.pricing.api import calc
 from cbc.modules.pricing.api import reference_library as reflib
 from cbc.modules.pricing.api import reference_store
 

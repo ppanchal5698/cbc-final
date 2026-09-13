@@ -15,7 +15,7 @@ from cbc.validation.artifacts import (
 )
 from tests.shared import ROOT
 
-from cbc.core import calc  # noqa: E402
+from cbc.modules.pricing.api import calc  # noqa: E402
 
 
 def _write(project: str, relative: str, payload) -> Path:

@@ -22,7 +22,7 @@ from typing import Any
 from _runtime import serve
 from tools import TOOLS
 from client import lookup_last_po as _http_lookup, search_item as _http_search
-from cbc.domain.freshness import classify
+from cbc.modules.ops.api.freshness_rules import classify
 from cbc.modules.ops.api.freshness import load_sync
 
 BASE_URL = os.environ.get("P21_BASE_URL", "").strip()

@@ -25,7 +25,7 @@ def line(**overrides):
 
 def _bands(monkeypatch, commodity: float) -> None:
     """Point the live band lookup at a value we control."""
-    from cbc.core import calc
+    from cbc.modules.pricing.api import calc
 
     monkeypatch.setattr(calc, "bands", lambda: {"commodity": commodity})
 

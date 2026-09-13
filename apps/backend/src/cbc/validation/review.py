@@ -21,7 +21,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from cbc.core import calc
+from cbc.modules.pricing.api import calc
 from cbc.shared.paths import repo_root
 from cbc.modules.pricing.api import pricing
 

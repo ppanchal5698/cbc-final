@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from cbc.domain import matching
+from cbc.modules.quoting.domain import matching
 from cbc.modules.catalog.api import products as catalog_products
 from cbc.modules.extraction.api import openings as extraction_openings, passes
 from cbc.modules.projects.api import bids, pipeline

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from cbc.core import calc
+from cbc.modules.pricing.api import calc
 from cbc.modules.pricing.api import reference_store
 from tests.shared import opshub_client
 

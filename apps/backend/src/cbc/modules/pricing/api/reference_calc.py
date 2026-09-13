@@ -1,14 +1,14 @@
 """Live margin / tax / lite-kit lookups used by the arithmetic.
 
-The pure formulas live in `cbc.domain.calc`. This module is the I/O half: Mongo
+The pure formulas live in `cbc.modules.pricing.domain.calc`. This module is the I/O half: Mongo
 (via reference_library) with DEFAULT_* fallbacks.
 """
 from __future__ import annotations
 
 from typing import Any
 
-from cbc.domain import calc as rules
-from cbc.domain.calc import DEFAULT_BANDS, DEFAULT_TAX_RATES
+from cbc.modules.pricing.domain import calc as rules
+from cbc.modules.pricing.domain.calc import DEFAULT_BANDS, DEFAULT_TAX_RATES
 
 _bands_cache: tuple[Any, dict[str, float]] | None = None
 _tax_cache: tuple[Any, dict[str, float]] | None = None

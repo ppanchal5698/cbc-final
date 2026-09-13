@@ -2,6 +2,7 @@
 
 - `reference_store` - the referenceData documents, their revisions and seeding.
 - `reference_library` - each family read, validated and written.
-- `reference_calc` - live margin bands and tax rates (re-exported by cbc.core.calc).
+- `reference_calc` - live margin bands and tax rates.
+- `calc` - the quote arithmetic and the live lookups under one name, for the MCP servers.
 - `pricing` - price a line, a margin band for a division, quote totals.
 """

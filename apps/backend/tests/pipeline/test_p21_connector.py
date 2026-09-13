@@ -68,7 +68,7 @@ def test_a_price_older_than_the_discard_window_is_stale() -> None:
 def test_freshness_respects_a_narrower_admin_window(monkeypatch) -> None:
     from datetime import date, timedelta
 
-    from cbc.domain import freshness as core
+    from cbc.modules.ops.api import freshness_rules as core
     from cbc.modules.ops.api.freshness import Bands
 
     bands = Bands(

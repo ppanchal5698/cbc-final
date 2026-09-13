@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, model_validator
 
-from cbc.domain import freshness as freshness_core
+from cbc.modules.ops.api import freshness_rules as freshness_core
 from cbc.modules.ops.api import audit
 from cbc.modules.ops.api import freshness as freshness_settings
 from cbc.modules.ops.infrastructure.collections import settings_collection

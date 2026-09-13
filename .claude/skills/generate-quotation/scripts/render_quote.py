@@ -46,13 +46,13 @@ def _load(path: Path) -> dict[str, Any]:
 def build_blocks(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Group lines into door / accessories / FRP blocks, each with subtotals.
 
-    The layout itself lives in `cbc.domain.quote_layout`, shared with the
+    The layout itself lives in `cbc.modules.quoting.api.quote_layout`, shared with the
     Ops-Hub renderer. There used to be two implementations of this feeding one
     template, and they disagreed: only this one grouped by door, and only this
     one printed the substitution note, so the document a customer received was
     not the document the pipeline produced.
     """
-    from cbc.domain import quote_layout
+    from cbc.modules.quoting.api import quote_layout
 
     return quote_layout.blocks(lines)
 

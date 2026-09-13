@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from cbc.core import calc
+from cbc.modules.pricing.api import calc
 from cbc.modules.pricing.api import reference_library as reflib
 from cbc.modules.pricing.api import reference_store
 from tests.shared import TEST_ACTOR, opshub_client, mongo_client

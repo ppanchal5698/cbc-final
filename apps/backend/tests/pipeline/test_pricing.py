@@ -162,7 +162,7 @@ def test_an_adder_goes_on_the_list_price_not_the_cost():
     16.57 of cost. Adding it to the cost instead charges the full 57.13 and
     inflates the line by 40.56 before margin.
     """
-    from cbc.core.calc import cost_from_list
+    from cbc.modules.pricing.api.calc import cost_from_list
 
     result = cost_from_list(256.31, 0.29, [{"name": "Anti-microbial", "list_adder": 57.13}])
 
@@ -174,7 +174,7 @@ def test_an_adder_goes_on_the_list_price_not_the_cost():
 
 
 def test_a_line_with_no_adders_is_just_list_times_multiplier():
-    from cbc.core.calc import cost_from_list
+    from cbc.modules.pricing.api.calc import cost_from_list
 
     assert cost_from_list(256.31, 0.29)["cost"] == round(256.31 * 0.29, 2)
 
@@ -265,7 +265,7 @@ def _lite_kits():
 
 
 def test_lite_kit_lookup_matches_known_cell():
-    from cbc.core.calc import lookup_lite_kit_list_price
+    from cbc.modules.pricing.api.calc import lookup_lite_kit_list_price
 
     result = lookup_lite_kit_list_price(12, 12, pdf_page=30)
     assert result["list_price"] == 78
@@ -364,7 +364,7 @@ def test_the_extension_is_rounded_once_not_twice():
     """
     from decimal import ROUND_HALF_UP, Decimal
 
-    from cbc.core.calc import calculate_line
+    from cbc.modules.pricing.api.calc import calculate_line
 
     for cost, margin, quantity in [(74.33, 0.27, 3), (12.01, 0.35, 17), (9.99, 0.56, 40)]:
         line = calculate_line(cost=cost, margin=margin, quantity=quantity)

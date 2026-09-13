@@ -54,7 +54,7 @@ def update_margins(
         payload["accessories_derived"] = accessories
 
     reference_store.put_family_sync("margins", payload)
-    from cbc.core.calc import invalidate_reference_caches
+    from cbc.modules.pricing.api.calc import invalidate_reference_caches
 
     invalidate_reference_caches()
     return payload
@@ -85,7 +85,7 @@ def update_tax_rates(
 
     payload["rates"] = table
     reference_store.put_family_sync("tax", payload)
-    from cbc.core.calc import invalidate_reference_caches
+    from cbc.modules.pricing.api.calc import invalidate_reference_caches
 
     invalidate_reference_caches()
     return payload
@@ -326,7 +326,7 @@ def load_lite_kit_prices() -> dict[str, Any]:
 
 def update_lite_kit_prices(payload: dict[str, Any]) -> dict[str, Any]:
     reference_store.put_family_sync("lite_kit_prices", payload)
-    from cbc.core.calc import invalidate_reference_caches
+    from cbc.modules.pricing.api.calc import invalidate_reference_caches
 
     invalidate_reference_caches()
     return payload

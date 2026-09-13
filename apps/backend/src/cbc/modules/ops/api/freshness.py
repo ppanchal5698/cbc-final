@@ -1,6 +1,6 @@
 """Live freshness bands for catalogs, price books, and P21 last-PO dates.
 
-Defaults live in `cbc.domain.freshness`. Admins override them from Settings; the
+Defaults live in `cbc.modules.ops.api.freshness_rules`. Admins override them from Settings; the
 document is `settings` `_id: "freshness"`. Callers resolve at use time so a
 saved change is visible without restarting the API or an MCP process.
 
@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
 
-from cbc.domain import freshness as core
+from cbc.modules.ops.api import freshness_rules as core
 
 DOC_ID = "freshness"
 _TTL_SECONDS = 30.0

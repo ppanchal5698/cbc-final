@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from cbc.core import calc
+from cbc.modules.pricing.api import calc
 
 
 # The product types margins are banded by. A catalog part carries one, and so does a quote line.

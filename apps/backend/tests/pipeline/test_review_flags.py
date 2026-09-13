@@ -91,7 +91,7 @@ def test_an_unpriced_manual_line_is_flagged_medium(project) -> None:
 
 def test_a_below_band_margin_is_flagged_against_the_real_floor(project) -> None:
     """NFR-8. The floor comes from calc.validate_margin on the division's band."""
-    from cbc.core import calc
+    from cbc.modules.pricing.api import calc
     from cbc.modules.pricing.api import pricing
 
     band = pricing.band_for_division("08 11")

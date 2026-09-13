@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import Any
 
-from cbc.domain import quote_layout
+from cbc.modules.quoting.api import quote_layout
 from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.quoting.api import quote as quote_service
 from cbc.modules.quoting.infrastructure.collections import estimate_lines, proposals
@@ -186,7 +186,7 @@ def render_html(project: dict[str, Any], data: dict[str, Any], autoprint: bool) 
         trim_blocks=True,
         lstrip_blocks=True,
     )
-    # One layout, shared with the pipeline renderer (cbc.domain.quote_layout).
+    # One layout, shared with the pipeline renderer (cbc.modules.quoting.api.quote_layout).
     # This used to build its own blocks: one group per *section* rather than per
     # door, so FR-7's "grouped by door with subtotals" held only on the path a
     # customer never sees - and a hand-built line dict with no key for

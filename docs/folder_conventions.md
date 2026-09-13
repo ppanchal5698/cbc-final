@@ -11,7 +11,7 @@
 | `apps/backend/src/cbc/modules/<module>/domain/` | Request models and pure rules the module's slices share |
 | `apps/backend/src/cbc/modules/<module>/infrastructure/` | The module's collections, indexes and adapters |
 | `apps/backend/src/cbc/shared/` | Config, auth, Mongo client + primitives, events, logging, tracing |
-| `apps/backend/src/cbc/{core,domain,validation}/` | Kernel packages the modules build on |
+| `apps/backend/src/cbc/{core,validation}/` | Kernel packages the modules build on |
 | `apps/backend/src/cbc/worker_kit/` | Legacy kernel, being worked down (see ARCHITECTURE.md) |
 | `apps/web/` | Next.js Ops-Hub |
 | `mcp-servers/` | One folder per MCP server; shared `_runtime` |

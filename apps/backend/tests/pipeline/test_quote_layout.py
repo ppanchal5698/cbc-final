@@ -13,7 +13,7 @@ that note on every one.
 """
 from __future__ import annotations
 
-from cbc.domain import quote_layout as layout
+from cbc.modules.quoting.api import quote_layout as layout
 
 
 def line(**fields):

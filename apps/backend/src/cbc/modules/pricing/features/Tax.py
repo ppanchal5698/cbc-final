@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from cbc.core import calc
+from cbc.modules.pricing.api import calc
 from cbc.modules.ops.api import audit
 from cbc.modules.pricing.api import reference_library as reflib
 from cbc.modules.pricing.domain.reference_updates import TaxRatesUpdate

@@ -18,7 +18,7 @@ def test_freshness_settings_ship_the_windows_the_workbook_states():
     which is unchanged; the cost window moved to Matrix 6.2 and is asserted in
     tests/pipeline/test_freshness.py.
     """
-    from cbc.domain import freshness as core
+    from cbc.modules.ops.api import freshness_rules as core
 
     with opshub_client(TEST_DB) as client:
         freshness_settings.clear_cache()

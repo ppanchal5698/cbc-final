@@ -11,7 +11,7 @@ from typing import Any
 from _runtime import serve
 from tools import TOOLS
 
-from cbc.core.calc import lookup_lite_kit_list_price
+from cbc.modules.pricing.api.calc import lookup_lite_kit_list_price
 from cbc.modules.pricing.api import reference_library as reflib
 from cbc.modules.pricing.api import reference_store
 

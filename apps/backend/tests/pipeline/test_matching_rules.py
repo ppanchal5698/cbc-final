@@ -10,7 +10,7 @@ legal left reports a conflict rather than quietly picking the closest thing.
 """
 from __future__ import annotations
 
-from cbc.domain import matching
+from cbc.modules.quoting.domain import matching
 
 
 def item(part: str, **fields):

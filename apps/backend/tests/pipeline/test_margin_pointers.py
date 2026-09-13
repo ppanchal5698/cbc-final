@@ -1,7 +1,7 @@
 """B-16: margin prose points at JSON; DEFAULT_BANDS stays the fallback."""
 from __future__ import annotations
 
-from cbc.core.calc import DEFAULT_BANDS
+from cbc.modules.pricing.api.calc import DEFAULT_BANDS
 from tests.shared import ROOT
 
 PROSE = (
