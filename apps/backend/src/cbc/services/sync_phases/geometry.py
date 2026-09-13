@@ -148,7 +148,7 @@ def derive_frame_depths(project: dict[str, Any]) -> tuple[int, int]:
 
     Returns (derived, flagged).
     """
-    from cbc.services.reference_library import depth_for_wall_type
+    from cbc.modules.pricing.api.reference_library import depth_for_wall_type
 
     slug = project["slug"]
     path = storage.project_dir(slug) / "extracted" / "door_schedule.json"

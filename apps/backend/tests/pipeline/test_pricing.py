@@ -184,7 +184,7 @@ def test_an_unpriced_adder_is_reported_not_treated_as_zero():
 
     A missing adder must not read as "no adder" - that silently underprices.
     """
-    from cbc.services.reference_library import find_adders
+    from cbc.modules.pricing.api.reference_library import find_adders
 
     result = find_adders(["Anti-microbial (26D finish only)", "electrification"])
     assert [m["list_adder"] for m in result["matched"]] == [57.13]
@@ -193,7 +193,7 @@ def test_an_unpriced_adder_is_reported_not_treated_as_zero():
 
 def test_both_finish_nomenclatures_read_the_same_finish():
     """A schedule mixes them: US26D, 626 and a bare 26D are one satin (NR-3)."""
-    from cbc.services.reference_library import resolve_finish
+    from cbc.modules.pricing.api.reference_library import resolve_finish
 
     for spelling in ("US26D", "626", "26D", "us26d"):
         assert resolve_finish(spelling)["us_code"] == "US26D"
@@ -201,7 +201,7 @@ def test_both_finish_nomenclatures_read_the_same_finish():
 
 def test_us19_is_never_read_as_us26d():
     """They are different satins. A lockset in the wrong one is a return."""
-    from cbc.services.reference_library import resolve_finish
+    from cbc.modules.pricing.api.reference_library import resolve_finish
 
     assert resolve_finish("US19")["us_code"] == "US19"
     assert resolve_finish("US19")["description"] != resolve_finish("US26D")["description"]
@@ -213,7 +213,7 @@ def test_a_numeric_two_finishes_share_is_flagged_not_guessed():
     Picking whichever is listed first is exactly the confusion the crosswalk
     exists to prevent, so it comes back ambiguous with both candidates.
     """
-    from cbc.services.reference_library import resolve_finish
+    from cbc.modules.pricing.api.reference_library import resolve_finish
 
     result = resolve_finish("619")
     assert result["ambiguous"] is True
@@ -222,7 +222,7 @@ def test_a_numeric_two_finishes_share_is_flagged_not_guessed():
 
 def test_normalize_finish_stores_canonical_pair():
     """Import stores US + BHMA together so either spelling matches later (NR-3)."""
-    from cbc.services.reference_library import normalize_finish_value
+    from cbc.modules.pricing.api.reference_library import normalize_finish_value
 
     for spelling in ("US26D", "626", "26D"):
         result = normalize_finish_value(spelling)
@@ -231,7 +231,7 @@ def test_normalize_finish_stores_canonical_pair():
 
 
 def test_normalize_finish_keeps_ambiguous_raw_and_flags():
-    from cbc.services.reference_library import normalize_finish_value
+    from cbc.modules.pricing.api.reference_library import normalize_finish_value
 
     result = normalize_finish_value("619")
     assert result["value"] == "619"
@@ -239,7 +239,7 @@ def test_normalize_finish_keeps_ambiguous_raw_and_flags():
 
 
 def test_normalize_finish_flags_unrecognized():
-    from cbc.services.reference_library import normalize_finish_value
+    from cbc.modules.pricing.api.reference_library import normalize_finish_value
 
     result = normalize_finish_value("NOT-A-FINISH")
     assert result["value"] == "NOT-A-FINISH"
@@ -247,7 +247,7 @@ def test_normalize_finish_flags_unrecognized():
 
 
 def test_normalize_finish_null_stays_null():
-    from cbc.services.reference_library import normalize_finish_value
+    from cbc.modules.pricing.api.reference_library import normalize_finish_value
 
     assert normalize_finish_value(None) == {"value": None, "flags": []}
     assert normalize_finish_value("  ") == {"value": None, "flags": []}
@@ -339,7 +339,7 @@ def test_the_option_rules_survive_their_line_wrapping():
     ],
 )
 def test_an_unusable_number_is_reported_unpriced_not_valued(label, kwargs):
-    from cbc.services.pricing import price_line
+    from cbc.modules.pricing.api.pricing import price_line
 
     line = price_line(**kwargs)
     assert line["priced"] is False, f"{label} was priced anyway: {line}"
@@ -349,7 +349,7 @@ def test_an_unusable_number_is_reported_unpriced_not_valued(label, kwargs):
 
 def test_a_good_line_still_prices():
     """The guard above must not have made every line unpriceable."""
-    from cbc.services.pricing import price_line
+    from cbc.modules.pricing.api.pricing import price_line
 
     assert price_line(cost=100.0, margin=0.27, qty=3)["priced"] is True
 

@@ -32,10 +32,9 @@ envfile.apply_to_environ(skip=MANAGED)
 
 from cbc.shared.config import settings  # noqa: E402  - must follow apply_to_environ
 from cbc.db import ensure_indexes, ensure_readonly_user  # noqa: E402
-from cbc.modules import catalog, extraction, intake, ops, projects  # noqa: E402
+from cbc.modules import catalog, extraction, intake, ops, pricing, projects  # noqa: E402
 from cbc.modules.ops.api import identity, jobs as ops_jobs, project_lookup  # noqa: E402
 from cbc.modules.projects.api import lookup as projects_lookup  # noqa: E402
-from cbc.modules.pricing.api.router import router as pricing_router  # noqa: E402
 from cbc.modules.quoting.api.router import router as quoting_router  # noqa: E402
 from cbc.pageindex import store as pageindex_store  # noqa: E402
 from cbc.shared.auth import InternalAuthMiddleware, set_role_lookup  # noqa: E402
@@ -47,7 +46,6 @@ TITLE = "CBC Estimating Copilot API"
 VERSION = "0.10.0-monolith"
 
 ROUTERS = (
-    pricing_router,
     quoting_router,
 )
 
@@ -111,6 +109,7 @@ async def migrate_and_index() -> None:
     await catalog.ensure_indexes()
     await intake.ensure_indexes()
     await extraction.ensure_indexes()
+    await pricing.ensure_indexes()
 
 
 def create_app(*, background: bool = True):
@@ -188,6 +187,7 @@ def create_app(*, background: bool = True):
     projects.register(app)
     intake.register(app)
     extraction.register(app)
+    pricing.register(app)
     for router in ROUTERS:
         app.include_router(router)
     catalog.register(app)

@@ -11,7 +11,7 @@ import os
 
 from urllib.parse import quote_plus, urlsplit
 
-from pymongo import ASCENDING, DESCENDING
+from pymongo import ASCENDING
 from pymongo.errors import OperationFailure, PyMongoError
 
 from cbc.shared.config import settings
@@ -69,11 +69,6 @@ class Collections:
         """Phase 5 questions raised before finalizing (§3.29)."""
         return database()[names.RFIS]
 
-    @property
-    def reference_data(self):
-        """Curated reference-library documents (margins, tax, tiers, …)."""
-        return database()[names.REFERENCE_DATA]
-
 
 db = Collections()
 
@@ -94,11 +89,6 @@ async def ensure_indexes() -> None:
     await db.quotes.create_index([("projectId", ASCENDING)], unique=True)
     await db.proposals.create_index([("projectId", ASCENDING)])
     await db.quote_lines.create_index([("projectId", ASCENDING), ("alternateGroup", ASCENDING)])
-    await db.reference_data.create_index([("family", ASCENDING)], unique=True)
-    await db.reference_data.create_index([("updatedAt", DESCENDING)])
-    from cbc.services.reference_store import ensure_reference_seed
-
-    await ensure_reference_seed()
 
 
 # ── read-only access for the catalog MCP server ─────────────────────────────

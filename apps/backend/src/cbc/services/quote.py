@@ -21,7 +21,7 @@ from typing import Any
 from pymongo import UpdateOne
 
 from cbc.db import db
-from cbc.services import pricing
+from cbc.modules.pricing.api import pricing
 
 log = logging.getLogger("cbc.services.quote")
 

@@ -127,6 +127,7 @@ def _ro_sync_collection() -> Collection | None:
     """Prefer read-only URI for MCP; fall back to primary."""
     if _memory is not None:
         return None
+    # ponytail: legacy kernel; the read-only credential lives in cbc.db until Phase 4
     from cbc.db import readonly_uri
 
     uri = readonly_uri() or os.environ.get("MONGODB_URI") or settings.mongodb_uri
@@ -276,13 +277,13 @@ def list_families_sync() -> list[str]:
 
 
 async def get_family(family: str) -> dict[str, Any]:
-    from cbc.db import db
+    from cbc.modules.pricing.infrastructure.collections import reference_data
 
     if family not in FAMILIES:
         raise KeyError(f"unknown reference family: {family}")
     if _memory is not None:
         return get_family_sync(family)
-    row = await db.reference_data.find_one({"_id": family})
+    row = await reference_data().find_one({"_id": family})
     if row and isinstance(row.get("data"), dict):
         return deepcopy(row["data"])
     return get_family_sync(family)
@@ -294,7 +295,7 @@ async def put_family(
     *,
     actor: str | None = None,
 ) -> dict[str, Any]:
-    from cbc.db import db
+    from cbc.modules.pricing.infrastructure.collections import reference_data
 
     if family not in FAMILIES:
         raise KeyError(f"unknown reference family: {family}")
@@ -302,17 +303,17 @@ async def put_family(
         return put_family_sync(family, data, actor=actor)
     payload = deepcopy(data)
     doc = _doc(family, payload, actor=actor)
-    previous = await db.reference_data.find_one({"_id": family})
+    previous = await reference_data().find_one({"_id": family})
     if previous is not None:
         await asyncio.to_thread(_archive, previous, superseded_by=actor, at=doc["updatedAt"])
-    await db.reference_data.replace_one({"_id": family}, doc, upsert=True)
+    await reference_data().replace_one({"_id": family}, doc, upsert=True)
     invalidate(family)
     return deepcopy(payload)
 
 
 async def ensure_reference_seed(*, force: bool = False) -> list[str]:
     """Insert missing families from JSON seed. Never overwrite unless force."""
-    from cbc.db import db
+    from cbc.modules.pricing.infrastructure.collections import reference_data
 
     seeded: list[str] = []
     for family, rel in SEED_FILES.items():
@@ -325,7 +326,7 @@ async def ensure_reference_seed(*, force: bool = False) -> list[str]:
                 put_family_sync(family, load_seed_json(family), actor="seed")
                 seeded.append(family)
             continue
-        existing = await db.reference_data.find_one({"_id": family}, {"_id": 1})
+        existing = await reference_data().find_one({"_id": family}, {"_id": 1})
         if existing and not force:
             continue
         data = json.loads(path.read_text(encoding="utf-8"))

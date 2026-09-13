@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from cbc.services import reference_store
+from cbc.modules.pricing.api import reference_store
 
 # The constants the FRP take-off needs before it can convert geometry to quantities.
 # opening_handling is guidance, not arithmetic, so it does not gate the status.

@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from cbc.core import calc
-from cbc.services import reference_library as reflib
-from cbc.services import reference_store
+from cbc.modules.pricing.api import reference_library as reflib
+from cbc.modules.pricing.api import reference_store
 
 
 def test_load_frame_depths_stable_until_invalidate() -> None:

@@ -11,7 +11,8 @@ from pymongo import InsertOne, UpdateOne
 from cbc.db import db
 from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.intake.api import versions as intake_versions
-from cbc.services import reference_library, storage
+from cbc.modules.pricing.api import reference_library
+from cbc.services import storage
 from cbc.services.sync_phases._common import (
     _distinct_keys,
     _identity,

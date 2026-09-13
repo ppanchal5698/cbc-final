@@ -21,7 +21,7 @@ def invalidate_reference_caches() -> None:
     _bands_cache = None
     _tax_cache = None
     _lite_kit_cache = None
-    from cbc.services import reference_store
+    from cbc.modules.pricing.api import reference_store
 
     reference_store.invalidate("margins")
     reference_store.invalidate("tax")
@@ -31,7 +31,7 @@ def invalidate_reference_caches() -> None:
 def bands() -> dict[str, float]:
     """The margin bands from Mongo (seed JSON fallback)."""
     global _bands_cache
-    from cbc.services import reference_library as reflib
+    from cbc.modules.pricing.api import reference_library as reflib
 
     try:
         data = reflib.load_margins()
@@ -53,7 +53,7 @@ def bands() -> dict[str, float]:
 def tax_rates() -> dict[str, float]:
     """Nexus tax rates from Mongo (seed JSON fallback)."""
     global _tax_cache
-    from cbc.services import reference_library as reflib
+    from cbc.modules.pricing.api import reference_library as reflib
 
     try:
         data = reflib.load_tax_rates()
@@ -73,7 +73,7 @@ def _lite_kit_data() -> dict[str, Any] | None:
     global _lite_kit_cache
     if _lite_kit_cache is not None:
         return _lite_kit_cache
-    from cbc.services import reference_library as reflib
+    from cbc.modules.pricing.api import reference_library as reflib
 
     try:
         _lite_kit_cache = reflib.load_lite_kit_prices()

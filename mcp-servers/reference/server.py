@@ -12,8 +12,8 @@ from _runtime import serve
 from tools import TOOLS
 
 from cbc.core.calc import lookup_lite_kit_list_price
-from cbc.services import reference_library as reflib
-from cbc.services import reference_store
+from cbc.modules.pricing.api import reference_library as reflib
+from cbc.modules.pricing.api import reference_store
 
 
 def list_reference_families() -> dict[str, Any]:

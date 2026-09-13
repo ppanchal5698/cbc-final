@@ -16,7 +16,7 @@ the superseded revisions accumulate where an auditor can reach them.
 """
 from __future__ import annotations
 
-from cbc.services import reference_store
+from cbc.modules.pricing.api import reference_store
 
 
 def test_replacing_a_family_keeps_the_revision_it_replaced(memory) -> None:

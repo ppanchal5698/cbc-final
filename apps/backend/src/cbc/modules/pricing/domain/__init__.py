@@ -1,3 +1,1 @@
-"""Module-local domain rules."""
-from __future__ import annotations
-
+"""What pricing means by each reference family, independent of storage and HTTP."""

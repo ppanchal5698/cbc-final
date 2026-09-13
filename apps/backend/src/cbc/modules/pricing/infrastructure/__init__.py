@@ -1,3 +1,1 @@
-"""Module infrastructure."""
-from __future__ import annotations
-
+"""Where pricing keeps its data."""

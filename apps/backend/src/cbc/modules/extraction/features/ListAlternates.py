@@ -10,7 +10,7 @@ from cbc.db import db  # ponytail: quote lines and quotes read directly until qu
 from cbc.modules.extraction.domain.alternates import PENDING_NOTE
 from cbc.modules.extraction.infrastructure.collections import openings
 from cbc.modules.projects.api.lookup import load
-from cbc.services import pricing  # ponytail: totals belong to the pricing module (step 3.8)
+from cbc.modules.pricing.api import pricing
 
 router = APIRouter(prefix="/api/projects/{code}", tags=["alternates"])
 

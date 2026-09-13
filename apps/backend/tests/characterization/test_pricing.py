@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 from cbc.core import calc
-from cbc.services import reference_store
+from cbc.modules.pricing.api import reference_store
 from tests.shared import opshub_client
 
 TEST_DB = "cbc_opshub_char_pricing"

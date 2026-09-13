@@ -86,7 +86,7 @@ def _sheet_kinds() -> dict[str, str]:
 
 
 def _vendor_tiers_payload() -> dict[str, Any]:
-    from cbc.services.reference_library import load_vendor_tiers
+    from cbc.modules.pricing.api.reference_library import load_vendor_tiers
 
     try:
         return load_vendor_tiers()

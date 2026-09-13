@@ -65,7 +65,7 @@ def test_a_negative_cost_reports_unpriced_instead_of_raising() -> None:
     A single stored -45 used to raise out of the loop and 400 the quote and
     proposal screens, leaving no UI to correct it from.
     """
-    from cbc.services import pricing
+    from cbc.modules.pricing.api import pricing
 
     priced = pricing.price_line(cost=-45.0, margin=0.27, qty=1, division="08 71 00")
 
@@ -75,7 +75,7 @@ def test_a_negative_cost_reports_unpriced_instead_of_raising() -> None:
 
 
 def test_an_ordinary_line_still_prices() -> None:
-    from cbc.services import pricing
+    from cbc.modules.pricing.api import pricing
 
     priced = pricing.price_line(cost=74.33, margin=0.27, qty=3, division="08 71 00")
     assert priced["priced"] is True

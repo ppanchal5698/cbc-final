@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 
 from cbc.modules.catalog.domain.products import derive_sell
 from cbc.modules.catalog.infrastructure.collections import price_books, products
-from cbc.services import pricing  # ponytail: margin divisors belong to the pricing module (step 3.8)
+from cbc.modules.pricing.api import pricing
 from cbc.shared.mongo import oid, serialise
 
 router = APIRouter(prefix="/api/catalog", tags=["catalog"])

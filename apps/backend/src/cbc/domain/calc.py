@@ -7,7 +7,7 @@ Formulas (confirmed, Requirements Matrix 5.0):
     Sub-total = SUM(Ext) per group
     Grand tot = SUM(sub-totals)
 
-Live margin bands and tax rates are loaded by `cbc.services.reference_calc` and
+Live margin bands and tax rates are loaded by `cbc.modules.pricing.api.reference_calc` and
 passed in. Defaults below are the fallback when nothing has been seeded yet.
 """
 from __future__ import annotations

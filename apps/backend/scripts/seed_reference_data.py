@@ -25,7 +25,7 @@ async def main() -> int:
     args = parser.parse_args()
 
     from cbc.db import ensure_indexes
-    from cbc.services.reference_store import FAMILIES, ensure_reference_seed
+    from cbc.modules.pricing.api.reference_store import FAMILIES, ensure_reference_seed
 
     await ensure_indexes()
     seeded = await ensure_reference_seed(force=args.force)

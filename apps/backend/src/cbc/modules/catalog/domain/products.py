@@ -7,7 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from cbc.schemas.common import ProductType
-from cbc.services import pricing  # ponytail: margin divisors belong to the pricing module (step 3.8)
+from cbc.modules.pricing.api import pricing
 from cbc.shared.mongo import oid
 
 

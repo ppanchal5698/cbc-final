@@ -23,7 +23,7 @@ from typing import Any
 
 from cbc.core import calc
 from cbc.shared.paths import repo_root
-from cbc.services import pricing
+from cbc.modules.pricing.api import pricing
 
 ROOT = repo_root()
 

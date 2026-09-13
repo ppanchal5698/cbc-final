@@ -86,7 +86,7 @@ def test_frame_depth_follows_from_the_wall_it_sits_in():
     frame_depth. A frame ordered to the wrong throat does not fit, and that is
     discovered on site.
     """
-    from cbc.services.reference_library import depth_for_wall_type
+    from cbc.modules.pricing.api.reference_library import depth_for_wall_type
 
     # What a schedule actually writes, not the table's own labels.
     assert depth_for_wall_type("CMU")["depth"] == "5-3/4"
@@ -98,7 +98,7 @@ def test_frame_depth_follows_from_the_wall_it_sits_in():
 
 def test_a_more_specific_wall_wins_over_a_general_one():
     """A 6-inch stud wall is 8-1/4, not the 5-7/8 that bare "stud" would give."""
-    from cbc.services.reference_library import depth_for_wall_type
+    from cbc.modules.pricing.api.reference_library import depth_for_wall_type
 
     assert depth_for_wall_type('6" METAL STUD W/ 5/8" GYP')["depth"] == "8-1/4"
 
@@ -106,6 +106,6 @@ def test_a_more_specific_wall_wins_over_a_general_one():
 @pytest.mark.parametrize("wall", [None, "", "   ", "unknown wall", "see structural"])
 def test_an_unclear_wall_gets_no_depth_at_all(wall):
     """The table's own instruction: do NOT guess a depth, flag it for review."""
-    from cbc.services.reference_library import depth_for_wall_type
+    from cbc.modules.pricing.api.reference_library import depth_for_wall_type
 
     assert depth_for_wall_type(wall) is None
