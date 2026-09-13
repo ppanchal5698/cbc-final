@@ -413,7 +413,7 @@ def _sheet_with_text(project: str):
     """A one-page drawing in the project's uploads, and its real row boxes."""
     import fitz
 
-    from cbc.core.pdfrows import rows_from_words
+    from cbc.shared.pdfrows import rows_from_words
 
     raw = ROOT / "projects" / project / "uploads" / "raw"
     raw.mkdir(parents=True, exist_ok=True)

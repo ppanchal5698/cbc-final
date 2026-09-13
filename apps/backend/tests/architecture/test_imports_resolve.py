@@ -41,7 +41,6 @@ SCAN_ROOTS = (_BACKEND / "src" / "cbc", _REPO / "mcp-servers")
 NAMESPACE_PACKAGES = frozenset(
     {
         "cbc.shared",
-        "cbc.core",
         "cbc.modules.catalog.api.pageindex",
         "cbc.shared.persistence",
         # A module's public surface is a package of submodules too, and the
@@ -104,5 +103,5 @@ def test_namespace_package_imports_all_resolve() -> None:
 
 def test_the_three_known_regressions_resolve() -> None:
     """Named explicitly so re-archiving any of these three is unmistakable."""
-    for dotted in ("cbc.modules.ops.api.alerts", "cbc.modules.quoting.features.MatchAndPrice", "cbc.core.pdftext"):
+    for dotted in ("cbc.modules.ops.api.alerts", "cbc.modules.quoting.features.MatchAndPrice", "cbc.shared.pdftext"):
         assert _resolves(dotted), f"{dotted} is gone again - see this module's docstring"

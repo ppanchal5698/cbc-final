@@ -242,7 +242,7 @@ def run_claude_docker(
 
     Skipped-at-runtime: pytest and Windows-without-socket use CLAUDE_SANDBOX=process.
     """
-    from cbc.core.claude_cli import HeartbeatWatchdog, RunResult
+    from cbc.modules.ops.api.claude_cli import HeartbeatWatchdog, RunResult
 
     if cwd is None:
         return RunResult(

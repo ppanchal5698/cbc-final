@@ -20,7 +20,7 @@ import os
 from typing import Any
 
 from cbc.shared import envfile
-from cbc.core import secrets
+from cbc.modules.ops.infrastructure import secrets
 
 SUBSCRIPTION = "subscription"
 ANTHROPIC_API = "anthropic_api"

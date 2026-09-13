@@ -16,7 +16,7 @@ import re
 
 import pytest
 
-from cbc.core import toolsets
+from cbc.modules.ops.api import toolsets
 from tests.shared import PKG, ROOT
 
 WORKFLOWS = ROOT / "workflows"
@@ -41,7 +41,7 @@ def _mapped_agents() -> dict[str, str]:
 @pytest.mark.parametrize("name", sorted(SPAWNING_SCRIPTS))
 def test_a_headless_run_is_scoped_like_a_worker_run(name: str) -> None:
     body = SPAWNING_SCRIPTS[name]
-    assert "cbc.core.toolsets" in body, f"{name} builds its own scope"
+    assert "cbc.modules.ops.api.toolsets" in body, f"{name} builds its own scope"
     spawn = re.search(r'"\$\{CLAUDE_BIN\}"[^\n]*', body)
     assert spawn, f"{name} no longer spawns the CLI"
     assert "SCOPE" in spawn.group(0) or "scope" in spawn.group(0), (
@@ -86,7 +86,7 @@ def test_a_solo_provider_is_not_told_to_delegate(name: str) -> None:
 def test_the_scope_guard_cannot_fail_open(name: str) -> None:
     """Scoping the run is only a guard if failing to scope it stops the run.
 
-    `mapfile -t scope < <(python -m cbc.core.toolsets ...)` reports mapfile's own
+    `mapfile -t scope < <(python -m cbc.modules.ops.api.toolsets ...)` reports mapfile's own
     status, never the command's, and `set -euo pipefail` does not cover process
     substitution. A failed toolsets call therefore left `scope` empty and the CLI
     was spawned with no --strict-mcp-config and no --disallowed-tools, under

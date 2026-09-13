@@ -17,7 +17,8 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from cbc.core import claude_cli as runner, streaming
+from cbc.modules.ops.api import claude_cli as runner
+from cbc.modules.ops.infrastructure import streaming
 from cbc.modules.ops.api import jobs as ops_jobs, provider, runmetrics, worker as ops_worker
 from cbc.modules.ops.api.worker import finish
 from cbc.shared import storage

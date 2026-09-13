@@ -49,7 +49,7 @@ run_phase() {
 
   cd "${ROOT}"
 
-  # The tool surface comes from cbc/core/toolsets.py, which is what the Ops-Hub
+  # The tool surface comes from cbc/modules/ops/api/toolsets.py, which is what the Ops-Hub
   # worker scopes each job with. This script used to pass no --mcp-config at
   # all, so a headless take-off got every server in .mcp.json plus WebSearch and
   # WebFetch - a wider surface than the same phase gets through the web app, and
@@ -64,7 +64,7 @@ run_phase() {
   # a wider surface than the same phase gets through the Ops-Hub, which is the
   # opposite of what the lines below exist to do.
   local scope_text
-  if ! scope_text="$(PYTHONPATH="${ROOT}:${ROOT}/apps/backend/src" python -m cbc.core.toolsets "${job_type}")"; then
+  if ! scope_text="$(PYTHONPATH="${ROOT}:${ROOT}/apps/backend/src" python -m cbc.modules.ops.api.toolsets "${job_type}")"; then
     echo "Could not read the tool scope for ${job_type}" >&2
     return 1
   fi

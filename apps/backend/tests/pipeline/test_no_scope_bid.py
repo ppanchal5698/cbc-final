@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from cbc.core import pdfpages
+from cbc.shared import pdfpages
 from cbc.validation import artifacts, review
 
 

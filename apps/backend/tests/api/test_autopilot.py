@@ -48,7 +48,7 @@ def test_a_full_run_gets_a_bigger_budget_than_one_phase() -> None:
 
 def test_a_full_run_gets_every_mcp_server() -> None:
     """It reads drawings, prices lines and writes artifacts in one pass."""
-    from cbc.core import toolsets
+    from cbc.modules.ops.api import toolsets
 
     servers = set(json.loads(toolsets.config_for("run_full_pipeline"))["mcpServers"])
     assert servers == set(toolsets.SERVERS)

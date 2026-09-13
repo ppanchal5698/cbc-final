@@ -53,7 +53,7 @@ PROMPT="$(PYTHONPATH="${ROOT}:${ROOT}/apps/backend/src" python -m cbc.worker_kit
 # the same pipeline started from the Ops-Hub.
 # See the note in _phase.sh: `mapfile < <(cmd)` cannot fail, so this guard used
 # to fall open to an unrestricted run rather than closed.
-SCOPE_TEXT="$(PYTHONPATH="${ROOT}:${ROOT}/apps/backend/src" python -m cbc.core.toolsets run_full_pipeline)" || {
+SCOPE_TEXT="$(PYTHONPATH="${ROOT}:${ROOT}/apps/backend/src" python -m cbc.modules.ops.api.toolsets run_full_pipeline)" || {
   echo "Could not read the tool scope for run_full_pipeline" >&2
   exit 1
 }

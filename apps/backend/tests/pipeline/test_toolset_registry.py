@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 
-from cbc.core import toolsets
+from cbc.modules.ops.api import toolsets
 from tests.shared import ROOT
 
 
@@ -54,7 +54,7 @@ def test_pricing_can_read_the_page_it_is_sent_to():
     """
     import json
 
-    from cbc.core import toolsets
+    from cbc.modules.ops.api import toolsets
 
     servers = json.loads(toolsets.config_for("match_and_price"))["mcpServers"]
     assert "catalog" in servers, "pricing needs the page index"
@@ -65,7 +65,7 @@ def test_a_take_off_still_cannot_see_the_pricing_tools():
     """Adding pdf-tools to pricing must not widen extraction the other way."""
     import json
 
-    from cbc.core import toolsets
+    from cbc.modules.ops.api import toolsets
 
     servers = json.loads(toolsets.config_for("extract_bid_set"))["mcpServers"]
     assert set(servers) == {"pdf-tools", "artifact-storage", "reference"}
@@ -83,7 +83,7 @@ def test_ingest_can_read_the_sheet_it_is_given():
     """
     import json
 
-    from cbc.core import toolsets
+    from cbc.modules.ops.api import toolsets
 
     servers = json.loads(toolsets.config_for("ingest_pricebook"))["mcpServers"]
     assert "pdf-tools" in servers, "ingest must be able to open the sheet"

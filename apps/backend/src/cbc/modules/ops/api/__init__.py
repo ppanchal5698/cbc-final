@@ -11,6 +11,8 @@
 - `alerts.notify` - tell operators a job was dead-lettered or blocked.
 - `worker` - what a job's handler calls while it holds a claimed job; `register` for the
   handlers, `bind` for what follows a job's end, `run_locally` for in-process work.
+- `claude_cli` - the one place `claude --print` is spawned (the sandbox entry uses it too).
+- `toolsets` - which MCP servers each job type gets; workflows/*.sh run it by module path.
 - `claude_pass.run` - a headless Claude Code pass over a claimed job, through to how it ends.
 - `project_lookup` - a port ops needs and the composition root supplies.
 """

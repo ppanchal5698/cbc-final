@@ -146,7 +146,7 @@ def flags_for(job_type: str) -> list[str]:
     ]
 
 
-if __name__ == "__main__":  # `python -m cbc.core.toolsets <job_type>`
+if __name__ == "__main__":  # `python -m cbc.modules.ops.api.toolsets <job_type>`
     # One flag per line, for the shell entry points in workflows/. They used to
     # spawn the CLI with no scoping at all, so a headless take-off carried every
     # server in .mcp.json plus WebSearch and WebFetch - the exact surface this
@@ -155,7 +155,7 @@ if __name__ == "__main__":  # `python -m cbc.core.toolsets <job_type>`
     import sys
 
     if len(sys.argv) != 2:
-        sys.exit("usage: python -m cbc.core.toolsets <job_type>")
+        sys.exit("usage: python -m cbc.modules.ops.api.toolsets <job_type>")
     if sys.argv[1] not in PROFILES:
         sys.exit(
             f"unknown job type {sys.argv[1]!r}; expected one of "

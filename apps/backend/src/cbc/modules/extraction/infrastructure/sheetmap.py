@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from cbc.core import pdfpages
+from cbc.shared import pdfpages
 from cbc.shared.paths import repo_root
 from cbc.shared.storage import atomic_write_json
 

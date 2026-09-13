@@ -17,7 +17,7 @@ from tests.shared import ROOT, opshub_client  # noqa: E402
 TEST_DB = "cbc_opshub_test_provider"
 
 from cbc.modules.ops.api import provider  # noqa: E402
-from cbc.core import secrets  # noqa: E402
+from cbc.modules.ops.infrastructure import secrets  # noqa: E402
 from cbc.shared.persistence import names
 
 

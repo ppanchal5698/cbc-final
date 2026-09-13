@@ -20,7 +20,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from cbc.core import secrets
+from cbc.modules.ops.infrastructure import secrets
 from cbc.modules.ops.api import audit
 from cbc.modules.ops.features.ClaudeOAuth.terminal import (
     URL_PATTERN,
@@ -320,7 +320,7 @@ async def _first_working_token(candidates: list[str]) -> str | None:
     token exactly once, so storing a broken one silently is unrecoverable - the
     estimator sees a configured credential that fails on every job.
     """
-    from cbc.core import claude_cli as runner
+    from cbc.modules.ops.api import claude_cli as runner
 
     for candidate in candidates:
         env, _ = provider.build_env({"mode": provider.SUBSCRIPTION, "oauthToken": candidate})

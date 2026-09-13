@@ -19,7 +19,7 @@ import fitz  # PyMuPDF
 from _runtime import serve
 from tools import TOOLS
 
-from cbc.core import pdfpages, pdfrows, pdftext
+from cbc.shared import pdfpages, pdfrows, pdftext
 
 MAX_HITS = 200
 

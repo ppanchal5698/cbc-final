@@ -40,7 +40,7 @@ class ArtifactValidationError(ValueError):
 import fitz
 
 from cbc.shared.paths import repo_root
-from cbc.core.pdfrows import rows_from_words
+from cbc.shared.pdfrows import rows_from_words
 
 ROOT = repo_root()
 

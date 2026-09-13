@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 import threading
 
-from cbc.core import secrets
+from cbc.modules.ops.infrastructure import secrets
 from cbc.shared.paths import repo_root
 
 REPO_ROOT = repo_root()
@@ -191,7 +191,7 @@ def _execute_claude(
     if system_prompt:
         scope += ["--system-prompt", system_prompt]
     if job_type:
-        from cbc.core import toolsets
+        from cbc.modules.ops.api import toolsets
 
         scope += toolsets.flags_for(job_type)
     if max_turns:
@@ -221,7 +221,7 @@ def _execute_claude(
     # form of it that shows progress. (The interactive TUI would be richer still,
     # but it stops on the login-method screen and cannot be driven unattended.)
     if recording is not None:
-        from cbc.core import streaming
+        from cbc.modules.ops.infrastructure import streaming
 
         streamed = [
             binary,

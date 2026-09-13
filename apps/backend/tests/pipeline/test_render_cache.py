@@ -6,7 +6,7 @@ from pathlib import Path
 import fitz
 import pytest
 
-from cbc.core import pdfpages
+from cbc.shared import pdfpages
 
 
 def _tiny_pdf(path: Path) -> Path:

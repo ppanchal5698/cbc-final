@@ -147,7 +147,7 @@ def test_exclusive_active_job_index_is_one_per_project() -> None:
 
 
 def test_a_missing_cli_is_not_retried(monkeypatch) -> None:
-    from cbc.core import claude_cli as runner
+    from cbc.modules.ops.api import claude_cli as runner
 
     monkeypatch.setattr(runner, "resolve_binary", lambda: None)
     result = runner.run_claude("hello")
@@ -158,7 +158,7 @@ def test_a_missing_cli_is_not_retried(monkeypatch) -> None:
 
 def test_an_authentication_failure_is_not_retried() -> None:
     """The CLI exits 0 on an auth failure, so only the message identifies it."""
-    from cbc.core import claude_cli as runner
+    from cbc.modules.ops.api import claude_cli as runner
 
     result = runner._interpret("Invalid API key", "", 0, timeout=90, redact_values=None)
 
@@ -167,7 +167,7 @@ def test_an_authentication_failure_is_not_retried() -> None:
 
 
 def test_an_ordinary_failure_is_still_retried() -> None:
-    from cbc.core import claude_cli as runner
+    from cbc.modules.ops.api import claude_cli as runner
 
     result = runner._interpret("", "transient network blip", 1, timeout=90, redact_values=None)
 
@@ -176,7 +176,7 @@ def test_an_ordinary_failure_is_still_retried() -> None:
 
 
 def test_a_bedrock_foundation_id_rejection_is_not_retried() -> None:
-    from cbc.core import claude_cli as runner
+    from cbc.modules.ops.api import claude_cli as runner
 
     result = runner._interpret(
         "",
@@ -194,7 +194,7 @@ def test_a_bedrock_foundation_id_rejection_is_not_retried() -> None:
 
 
 def test_a_bedrock_auth_refusal_is_not_retried() -> None:
-    from cbc.core import claude_cli as runner
+    from cbc.modules.ops.api import claude_cli as runner
 
     result = runner._interpret(
         "",
@@ -642,7 +642,7 @@ def test_sync_results_checks_the_fencing_token() -> None:
 def test_heartbeat_watchdog_fires_while_blocked() -> None:
     import time
 
-    from cbc.core.claude_cli import HeartbeatWatchdog
+    from cbc.modules.ops.api.claude_cli import HeartbeatWatchdog
 
     hits: list[int] = []
 

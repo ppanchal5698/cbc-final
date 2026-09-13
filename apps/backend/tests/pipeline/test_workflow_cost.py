@@ -18,7 +18,7 @@ import pytest
 from tests.shared import FIXTURES, ROOT# noqa: E402
 
 from _runtime import dump_payload, load_server  # noqa: E402
-from cbc.core import toolsets  # noqa: E402
+from cbc.modules.ops.api import toolsets  # noqa: E402
 
 pdf = load_server("pdf-tools")
 MIS_ENCODED = FIXTURES / "pdfs" / "Bid Set .pdf"

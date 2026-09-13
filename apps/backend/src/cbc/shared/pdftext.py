@@ -17,7 +17,7 @@ from typing import Any
 
 import fitz
 
-from cbc.core import pdfpages, pdfrows
+from cbc.shared import pdfpages, pdfrows
 from cbc.shared.paths import repo_root
 
 ROOT = repo_root()

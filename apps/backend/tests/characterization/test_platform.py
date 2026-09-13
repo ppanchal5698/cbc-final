@@ -210,7 +210,7 @@ def test_claude_settings(client, snapshots) -> None:
 
 
 def test_claude_connection_test(client, snapshots, monkeypatch) -> None:
-    monkeypatch.setattr("cbc.core.claude_cli.preflight", lambda *args, **kwargs: None)
+    monkeypatch.setattr("cbc.modules.ops.api.claude_cli.preflight", lambda *args, **kwargs: None)
     snapshots.pin("POST /api/settings/claude/test", client.post("/api/settings/claude/test"))
 
 

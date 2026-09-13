@@ -19,7 +19,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from cbc.core import secrets
+from cbc.modules.ops.infrastructure import secrets
 from cbc.modules.ops.api import audit
 from cbc.modules.ops.domain.claude_settings import ClaudeSettings, is_masked
 from cbc.modules.ops.infrastructure.claude_config import DOC_ID, load_config

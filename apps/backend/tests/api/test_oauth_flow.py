@@ -26,7 +26,7 @@ import pytest
 # importing `api.routers.settings` - the pre-cutover service layout, and the
 # path hack `test_no_sys_path_insert` exists to discourage.
 from cbc.modules.ops.features.ClaudeOAuth import terminal as settings_router
-from cbc.core import secrets
+from cbc.modules.ops.infrastructure import secrets
 
 ESC = chr(27)
 

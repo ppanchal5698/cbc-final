@@ -44,7 +44,7 @@ The servers are registered in **`.mcp.json` at the repo root**, not in
 `.claude/settings.json` - a `mcpServers` block there is ignored, and a run that
 relies on it silently gets no tools.
 
-Which servers a given job actually receives is narrower still: `cbc/core/toolsets.py`
+Which servers a given job actually receives is narrower still: `cbc/modules/ops/api/toolsets.py`
 scopes each job type to the servers its phase uses and passes `--strict-mcp-config`,
 so the list is exhaustive rather than additive. To add a server to a different
 Claude Code project:

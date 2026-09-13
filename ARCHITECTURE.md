@@ -40,7 +40,8 @@ apps/backend/src/cbc/
   shared/                  config, auth, mongo client + primitives, events, logging,
                            tracing, otel, envfile, pass files, the project file tree (storage,
                            S3, malware scan), manifests, persistence (collection names, the
-                           audit envelope, the tenant-scoped repository) - no module imports allowed
+                           audit envelope, the tenant-scoped repository), PDF reading, the LLM
+                           client - no module imports allowed
 ```
 
 `apps/backend/src/cbc` also still holds the pre-module kernel the modules lean on
@@ -149,13 +150,13 @@ startup creates the user behind it (`ensure_readonly_user`).
 `cbc.services`, `cbc.db` and `cbc.schemas` are gone - into the modules, `shared/` and the
 API's composition root - `cbc.pageindex` is catalog's now, `cbc.persistence` is split between `shared/`,
 `app/migrations` and the two modules whose rules it held, the business rules in
-`domain/` went to the modules they belong to, and `test_layering` fails
+`domain/` went to the modules they belong to, `core/` to `shared/` and ops, and `test_layering` fails
 if any of them comes back. What the
 modules still lean on:
 
 - `cbc.worker_kit` - a Claude pass's prompt templates and its sandbox. `workflows/*.sh`,
   CI and the sandbox image run them by module path, so they stay where they are.
-- `cbc.core`, `cbc.validation` -
+- `cbc.validation` -
   kernel packages, unchanged by the rewrite.
 
 ## Known inconsistencies (recorded, not resolved)

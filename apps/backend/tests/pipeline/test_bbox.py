@@ -119,7 +119,7 @@ def test_bboxes_are_in_the_frame_the_page_is_drawn_in(tmp_path):
     """
     import fitz
 
-    from cbc.core.pdfrows import rows_from_words
+    from cbc.shared.pdfrows import rows_from_words
 
     for rotation in (0, 90, 180, 270):
         path = _rotated_page(tmp_path, rotation)
@@ -163,7 +163,7 @@ def test_a_row_is_grouped_as_it_appears_on_screen(tmp_path):
     """
     import fitz
 
-    from cbc.core.pdfrows import rows_from_words
+    from cbc.shared.pdfrows import rows_from_words
 
     doc = fitz.open(_drawing_page(tmp_path))
     rows = [" | ".join(r["cells"]) for r in rows_from_words(doc[0])]
@@ -204,7 +204,7 @@ def test_a_bbox_is_measured_from_the_row_the_opening_came_from(tmp_path):
     """
     import fitz
 
-    from cbc.core.pdfrows import attach_measured_bboxes
+    from cbc.shared.pdfrows import attach_measured_bboxes
 
     doc = fitz.open(_schedule_sheet(tmp_path))
     page = doc[0]
@@ -236,7 +236,7 @@ def test_a_row_holding_several_doors_is_refused(tmp_path):
     """
     import fitz
 
-    from cbc.core.pdfrows import attach_measured_bboxes
+    from cbc.shared.pdfrows import attach_measured_bboxes
 
     doc = fitz.open(_schedule_sheet(tmp_path))
     openings = [

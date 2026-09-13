@@ -17,7 +17,7 @@ import os
 import signal
 from datetime import datetime, timedelta, timezone
 
-from cbc.core import claude_cli as runner
+from cbc.modules.ops.api import claude_cli as runner
 from cbc.modules.ops.api import audit, provider, worker as ops_worker
 from cbc.modules.ops.api.worker import HEARTBEAT_SECONDS, MAX_ATTEMPTS, WORKER_ID
 from cbc.modules.ops.infrastructure.collections import jobs as jobs_collection
@@ -295,7 +295,7 @@ async def process(job: dict) -> None:
 
 async def loop(once: bool = False) -> int:
     # The catalog server reads the page index from MongoDB with a credential that
-    # cannot write, handed to it per job by cbc.core.toolsets. Say so if there is
+    # cannot write, handed to it per job by cbc.modules.ops.api.toolsets. Say so if there is
     # none, because a pricing pass with no catalog flags every line MANUAL and
     # looks like a model failure rather than a missing credential.
     from cbc.shared.mongo import readonly_uri

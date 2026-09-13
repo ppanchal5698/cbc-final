@@ -5,7 +5,7 @@ from pathlib import Path
 
 import fitz
 
-from cbc.core import pdfrows, pdftext
+from cbc.shared import pdfrows, pdftext
 
 from _runtime import load_server
 

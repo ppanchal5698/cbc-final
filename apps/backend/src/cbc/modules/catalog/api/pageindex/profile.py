@@ -20,7 +20,7 @@ from typing import Any
 
 import fitz
 
-from cbc.core.llm import LLMClient
+from cbc.shared.llm import LLMClient
 from cbc.modules.catalog.api.pageindex.describe import describe_page, page_lines
 from cbc.modules.catalog.api.pageindex.models import CatalogOverview, PageEntry, PageProfile
 

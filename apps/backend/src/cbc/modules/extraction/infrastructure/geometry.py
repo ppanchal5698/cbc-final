@@ -49,7 +49,7 @@ def measure_bboxes(project: dict[str, Any]) -> tuple[int, int]:
 
     import fitz
 
-    from cbc.core.pdfrows import attach_measured_bboxes, detect_shift
+    from cbc.shared.pdfrows import attach_measured_bboxes, detect_shift
 
     by_page: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for opening in openings:

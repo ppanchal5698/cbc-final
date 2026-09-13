@@ -83,7 +83,7 @@ def test_no_prompt_names_a_server_that_does_not_exist() -> None:
     The ingest prompt still sent a run to it, so the one job whose entire purpose
     is reading a vendor sheet was told to use a server that would never connect.
     """
-    from cbc.core import toolsets
+    from cbc.modules.ops.api import toolsets
 
     ingest = prompts.build(
         {"type": "ingest_pricebook", "payload": {"filename": "hager.pdf"}}, None

@@ -11,7 +11,7 @@ import os
 import sys
 from pathlib import Path
 
-from cbc.core.claude_cli import run_claude
+from cbc.modules.ops.api.claude_cli import run_claude
 from cbc.worker_kit.sandbox import ensure_workspace_trusted
 
 

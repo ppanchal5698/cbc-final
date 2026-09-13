@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from cbc.core import secrets
+from cbc.modules.ops.infrastructure import secrets
 from cbc.modules.ops.domain.claude_settings import ClaudeSettings, is_masked
 from cbc.modules.ops.infrastructure.claude_config import load_config
 from cbc.modules.ops.api import provider
@@ -32,7 +32,7 @@ async def test_claude_settings(body: ClaudeSettings | None = None) -> dict[str, 
     Tests what was typed rather than what was saved, so a wrong key is caught
     before it becomes the configuration every job uses.
     """
-    from cbc.core import claude_cli as runner
+    from cbc.modules.ops.api import claude_cli as runner
 
     if body is not None:
         _validate_provider_urls(body)

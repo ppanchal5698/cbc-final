@@ -13,7 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from cbc.core import pdfpages
+from cbc.shared import pdfpages
 
 RENDER_CACHE = pdfpages.RENDER_CACHE  # one cache, shared with the MCP server
 MAX_DPI = 300

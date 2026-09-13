@@ -349,7 +349,7 @@ def document_for(
     job_type = job.get("type") or "unknown"
     exposed: list[str] = []
     try:
-        from cbc.core import toolsets
+        from cbc.modules.ops.api import toolsets
 
         exposed = list(toolsets.PROFILES.get(job_type, ()))
     except Exception:

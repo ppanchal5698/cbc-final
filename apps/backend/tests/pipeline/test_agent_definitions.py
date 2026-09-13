@@ -13,7 +13,7 @@ import re
 
 import pytest
 
-from cbc.core import toolsets
+from cbc.modules.ops.api import toolsets
 from tests.shared import ROOT
 
 AGENT_DIR = ROOT / ".claude" / "agents"

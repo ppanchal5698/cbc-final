@@ -692,7 +692,7 @@ def test_a_pass_over_a_bid_runs_syncs_and_finishes(database, monkeypatch, tmp_pa
     pass runs in its sandbox, the slice's sync writes, and the job ends done."""
     from bson import ObjectId
 
-    from cbc.core.claude_cli import RunResult
+    from cbc.modules.ops.api.claude_cli import RunResult
     from cbc.modules.ops.api import claude_pass, worker
     from cbc.modules.projects.api import pipeline
     from cbc.worker_kit import sandbox
