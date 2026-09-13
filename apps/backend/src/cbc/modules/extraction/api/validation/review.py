@@ -24,11 +24,9 @@ from typing import Any
 from cbc.modules.pricing.api import calc
 from cbc.shared.paths import repo_root
 from cbc.modules.pricing.api import pricing
+from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
 
 ROOT = repo_root()
-
-# accuracy-trust.md: below this a match is flagged, never auto-accepted.
-CONFIDENCE_FLOOR = 0.75
 
 # Which cost sources describe a human still owing the quote something, and what
 # the estimator is told about each.

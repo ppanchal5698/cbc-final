@@ -22,6 +22,8 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from _runtime import load_server
 
+from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
+
 calc = load_server("calc-engine")
 TEMPLATE_DIR = ROOT / "templates"
 
@@ -37,7 +39,7 @@ def _confidence_level(confidence: float | None, flags: list[str]) -> str:
         return "yellow"
     if confidence is None:
         return "yellow"
-    if confidence < 0.75:
+    if confidence < CONFIDENCE_FLOOR:
         return "red"
     if confidence >= 0.9:
         return "green"

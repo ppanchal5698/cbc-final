@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
 from cbc.shared.paths import repo_root
 from cbc.shared import manifests
 
@@ -21,7 +22,6 @@ MATCHCACHE_REL = "extracted/_matchcache.json"
 HARDWARE_SETS_REL = "extracted/hardware_sets.json"
 DOOR_SCHEDULE_REL = "extracted/door_schedule.json"
 JOB_TYPES = frozenset({"match_and_price", "run_full_pipeline"})
-CONFIDENCE_FLOOR = 0.75
 # Bump when product-matcher or match-hardware-sets changes how a match is decided.
 MATCHER_PROMPT_VERSION = "1"
 
@@ -188,7 +188,7 @@ def prompt_block(entries: list[dict[str, Any]] | None) -> str:
     if not entries:
         return ""
     lines = [
-        "**Reuse these cached matches** (confidence ≥ 0.75, dependencies unchanged).",
+        f"**Reuse these cached matches** (confidence ≥ {CONFIDENCE_FLOOR}, dependencies unchanged).",
         "Copy them into `extracted/hardware_sets.json` as-is. Rematch only items",
         "that are not listed here. Do not re-decide a cached match.",
         "",

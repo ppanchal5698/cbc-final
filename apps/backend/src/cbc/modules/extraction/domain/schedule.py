@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
+
 
 def _normalize_schedule_payload(payload: dict[str, Any] | list[Any]) -> dict[str, Any]:
     """Accept legacy shapes and field aliases before import."""
@@ -59,6 +61,6 @@ def _status_for(item: dict[str, Any]) -> str:
     if item.get("duplicate_of") or item.get("is_duplicate"):
         return "duplicate"
     confidence = item.get("confidence")
-    if item.get("flags") or (confidence is not None and confidence < 0.75):
+    if item.get("flags") or (confidence is not None and confidence < CONFIDENCE_FLOOR):
         return "needs_look"
     return "clear"

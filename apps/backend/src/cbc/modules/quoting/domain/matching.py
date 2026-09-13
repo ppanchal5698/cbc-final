@@ -24,9 +24,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-# `.claude/rules/accuracy-trust.md`. Below this a match is flagged, never
-# auto-accepted.
-CONFIDENCE_FLOOR = 0.75
+from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
 
 # How many candidates to surface. The reference rule describes an estimator
 # asking "here are 3 close matches - is it one of these?", and that is the
