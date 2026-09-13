@@ -1,0 +1,105 @@
+"""The counts the board and the stage bar render beside each bid.
+
+Openings, quotes and documents belong to modules not built yet, so this still
+reads their collections directly; each becomes a port on that module's api as
+it lands. Jobs already come through ops.
+"""
+from __future__ import annotations
+
+from typing import Any
+
+from cbc.db import db  # ponytail: openings, quotes and documents read directly until their modules own them (steps 3.6-3.9)
+from cbc.modules.ops.api import jobs as ops_jobs
+from cbc.modules.projects.infrastructure.collections import calls as calls_collection
+from cbc.shared.mongo import serialise
+
+
+async def _count_by_project(collection, ids: list[Any]) -> dict[Any, int]:
+    rows = await collection.aggregate(
+        [{"$match": {"projectId": {"$in": ids}}},
+         {"$group": {"_id": "$projectId", "n": {"$sum": 1}}}]
+    ).to_list(length=len(ids) + 1)
+    return {row["_id"]: row["n"] for row in rows}
+
+
+async def decorate_many(projects: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Attach the counts the board and stage bar render, for a whole page of bids.
+
+    Five aggregations for the entire list, not six queries per bid. The board is
+    the landing page and its cost used to grow linearly with the number of open
+    bids - at the default limit that was three hundred sequential round trips.
+    """
+    if not projects:
+        return []
+    ids = [project["_id"] for project in projects]
+
+    # Statuses and confirmations in one pass: `status` carries provenance
+    # (`by_hand`) in the same field as review state, so a confirmed hand-added
+    # line is not in the `clear` bucket. Confirmation is what "cleared" means to
+    # an estimator, so count the thing that records it.
+    status_rows = await db.line_items.aggregate(
+        [
+            {"$match": {"projectId": {"$in": ids}}},
+            {
+                "$group": {
+                    "_id": {"projectId": "$projectId", "status": "$status"},
+                    "n": {"$sum": 1},
+                }
+            },
+        ]
+    ).to_list(length=None)
+
+    confirmed_rows = await db.line_items.aggregate(
+        [
+            {
+                "$match": {
+                    "projectId": {"$in": ids},
+                    "confirmedAt": {"$exists": True, "$ne": None},
+                }
+            },
+            {"$group": {"_id": "$projectId", "n": {"$sum": 1}}},
+        ]
+    ).to_list(length=None)
+
+    counts: dict[Any, dict[str, int]] = {}
+    confirmed = {row["_id"]: row["n"] for row in confirmed_rows}
+    for row in status_rows:
+        project_id, status = row["_id"]["projectId"], row["_id"]["status"]
+        counts.setdefault(project_id, {})[status] = row["n"]
+
+    quotes = {
+        quote["projectId"]: quote
+        for quote in await db.quotes.find({"projectId": {"$in": ids}}).to_list(len(ids) + 1)
+    }
+    active = await ops_jobs.active_by_project(ids)
+
+    documents = await _count_by_project(db.documents, ids)
+    calls = await _count_by_project(calls_collection(), ids)
+
+    decorated = []
+    for project in projects:
+        project_id = project["_id"]
+        by_status = counts.get(project_id, {})
+        decorated.append(
+            {
+                **serialise(project),
+                "counts": {
+                    "total": sum(by_status.values()),
+                    "clear": confirmed.get(project_id, 0),
+                    "needsLook": by_status.get("needs_look", 0),
+                    "duplicate": by_status.get("duplicate", 0),
+                    "byHand": by_status.get("by_hand", 0),
+                },
+                "documentCount": documents.get(project_id, 0),
+                "version": project.get("version", 1),
+                "callCount": calls.get(project_id, 0),
+                "quoteTotal": quotes.get(project_id, {}).get("grandTotal"),
+                "activeJob": serialise(active[project_id]) if project_id in active else None,
+            }
+        )
+    return decorated
+
+
+async def decorate(project: dict[str, Any]) -> dict[str, Any]:
+    """One bid, through the same code path as the board - no second implementation."""
+    return (await decorate_many([project]))[0]

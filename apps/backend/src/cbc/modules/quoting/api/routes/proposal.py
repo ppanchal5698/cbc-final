@@ -17,7 +17,7 @@ from cbc.db import db
 from cbc.shared.mongo import serialise
 from cbc.shared.auth import Actor
 from cbc.schemas import HandOff, ProposalSettings
-from cbc.http.projects_access import load
+from cbc.modules.projects.api.lookup import load
 from cbc.persistence import proposals as proposal_rules
 from cbc.domain import quote_layout
 from cbc.modules.ops.api import audit

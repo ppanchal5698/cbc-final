@@ -22,7 +22,6 @@ from cbc.schemas.common import (
 from cbc.schemas.documents import Document
 from cbc.schemas.jobs import Job
 from cbc.schemas.line_items import BulkAction, LineItem, LineItemCreate, LineItemUpdate
-from cbc.schemas.projects import Project, ProjectCreate, ProjectUpdate
 from cbc.schemas.reference import (
     CustomOtherMatrixReplace,
     FinishesUpdate,
@@ -47,15 +46,13 @@ from cbc.schemas.quote import (
     QuoteSettings,
     QuoteTotals,
 )
-from cbc.schemas.users import Call, CallCreate, UserPublic
+from cbc.schemas.users import UserPublic
 from cbc.schemas.versions import AlternateCreate, AlternateAssign, EstimateVersion, VersionCreate
 
 __all__ = [
     "AlternateCreate",
     "AlternateAssign",
     "BulkAction",
-    "Call",
-    "CallCreate",
     "CallKind",
     "CostSource",
     "Document",
@@ -83,9 +80,6 @@ __all__ = [
     "ProductCreate",
     "ProductType",
     "ProductUpdate",
-    "Project",
-    "ProjectCreate",
-    "ProjectUpdate",
     "ProposalSettings",
     "QuoteLine",
     "QuoteLineCreate",

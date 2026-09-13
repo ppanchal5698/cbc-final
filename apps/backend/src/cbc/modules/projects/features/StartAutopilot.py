@@ -1,13 +1,14 @@
-"""Autopilot orchestration — chains domain jobs instead of run_full_pipeline."""
+"""POST /api/projects/{code}/orchestrate/autopilot - start the extract -> price -> propose chain.
+"""
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from cbc.shared.mongo import serialise
-from cbc.shared.auth import Actor
-from cbc.http.projects_access import load
-from cbc.services import orchestrator
 from cbc.modules.ops.api.jobs import PipelineJobActive
+from cbc.modules.projects.api.lookup import load
+from cbc.services import orchestrator  # ponytail: the autopilot saga moves into projects next (step 3.4b)
+from cbc.shared.auth import Actor
+from cbc.shared.mongo import serialise
 
 router = APIRouter(prefix="/api/projects/{code}/orchestrate", tags=["orchestrate"])
 

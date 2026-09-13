@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from cbc.db import db
+from cbc.modules.projects.infrastructure.collections import bid_requests
 
 
 async def find_prior(
@@ -33,7 +33,7 @@ async def find_prior(
     if exclude_id is not None:
         query["_id"] = {"$ne": exclude_id}
 
-    candidates = await db.projects.find(query).sort("updatedAt", -1).to_list(50)
+    candidates = await bid_requests().find(query).sort("updatedAt", -1).to_list(50)
     scored: list[tuple[int, dict[str, Any]]] = []
     for row in candidates:
         score = 0
@@ -51,7 +51,7 @@ async def find_prior(
 
 async def seed_from_prior(project: dict[str, Any], prior: dict[str, Any]) -> dict[str, Any]:
     """Mark the new bid as templated from `prior` and copy mode metadata."""
-    await db.projects.update_one(
+    await bid_requests().update_one(
         {"_id": project["_id"]},
         {
             "$set": {

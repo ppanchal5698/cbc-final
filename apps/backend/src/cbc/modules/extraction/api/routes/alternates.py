@@ -11,7 +11,7 @@ from cbc.db import db
 from cbc.shared.mongo import oid
 from cbc.shared.auth import Actor
 from cbc.schemas import AlternateCreate
-from cbc.http.projects_access import load
+from cbc.modules.projects.api.lookup import load
 from cbc.modules.ops.api import audit
 from cbc.services import pricing
 

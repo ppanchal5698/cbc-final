@@ -1,26 +1,16 @@
+"""What an estimator may send to open or change a bid.
+"""
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from cbc.schemas.common import Stage
 
+
 EstimateMode = Literal["one_off", "templated"]
-ChainState = Literal[
-    "idle",
-    "extracting",
-    "extraction_done",
-    "extraction_needs_review",
-    "pricing",
-    "pricing_failed",
-    "quoting",
-    "quoting_failed",
-    "complete",
-    "awaiting_manual_retry",
-    "dead",
-]
 
 
 class ProjectCreate(BaseModel):
@@ -63,18 +53,3 @@ class ProjectUpdate(BaseModel):
     projectNumber: str | None = None
     bidAlternates: list[str] | None = None
     stage: Stage | None = None
-
-
-class Project(ProjectCreate):
-    id: str
-    code: str
-    slug: str
-    stage: Stage = "intake"
-    progress: int = 0
-    # Which phase an autopilot run is in, for the board while it works.
-    phase: str | None = None
-    chainState: ChainState | None = None
-    # Provenance for create-form fields filled from the bid PDF.
-    intakeFieldSources: dict[str, dict] | None = None
-    createdAt: datetime
-    updatedAt: datetime | None = None

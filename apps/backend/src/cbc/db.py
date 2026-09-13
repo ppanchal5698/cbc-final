@@ -69,17 +69,8 @@ class Collections:
         return database()[names.JOBS]
 
     @property
-    def calls(self):
-        return database()[names.CALLS]
-
-    @property
     def versions(self):
         return database()[names.ESTIMATE_VERSIONS]
-
-    @property
-    def counters(self):
-        """Monotonic sequences. `_id` is the counter name, `seq` is the value."""
-        return database()[names.COUNTERS]
 
     @property
     def settings(self):
@@ -164,9 +155,6 @@ async def ensure_indexes() -> None:
 
     await migrations.run(database())
 
-    await db.projects.create_index([("code", ASCENDING)], unique=True)
-    await db.projects.create_index([("slug", ASCENDING)], unique=True)
-    await db.projects.create_index([("stage", ASCENDING), ("bidDue", ASCENDING)])
     await db.documents.create_index([("projectId", ASCENDING)])
     await replace_index(
         db.documents,
@@ -224,7 +212,6 @@ async def ensure_indexes() -> None:
         [("projectId", ASCENDING), ("createdAt", DESCENDING)]
     )
     await db.failed_extractions.create_index([("jobId", ASCENDING)])
-    await db.calls.create_index([("projectId", ASCENDING), ("createdAt", DESCENDING)])
     await replace_index(
         db.versions,
         "project_version",

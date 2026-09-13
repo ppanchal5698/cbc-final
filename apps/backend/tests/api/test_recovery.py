@@ -367,7 +367,7 @@ def test_an_ingest_without_a_date_keeps_the_one_purchasing_entered(database) -> 
 
 def test_concurrent_bids_get_distinct_codes(database) -> None:
     """Both used to compute max+1 from a scan; the second got a duplicate-key 500."""
-    from cbc.modules.platform.api.routes.projects import next_code
+    from cbc.modules.projects.features.CreateProject import next_code
 
     async def ten_at_once():
         return await asyncio.gather(*(next_code() for _ in range(10)))
@@ -378,7 +378,7 @@ def test_concurrent_bids_get_distinct_codes(database) -> None:
 
 def test_the_code_counter_continues_an_existing_series(database) -> None:
     """A database issued codes before the counter existed; do not restart on them."""
-    from cbc.modules.platform.api.routes.projects import next_code
+    from cbc.modules.projects.features.CreateProject import next_code
     from cbc.services import storage
 
     prefix = storage.code_prefix()

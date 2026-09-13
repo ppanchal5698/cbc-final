@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from cbc.db import db
 from cbc.shared.mongo import oid, serialise
 from cbc.shared.auth import Actor
-from cbc.http.projects_access import load
+from cbc.modules.projects.api.lookup import load
 from cbc.persistence import repos
 from cbc.schemas.operational import RFQ_TRANSITIONS
 

@@ -18,7 +18,7 @@ from cbc.db import db
 from cbc.shared.mongo import oid, run_transaction, serialise
 from cbc.shared.auth import Actor
 from cbc.modules.ops.api.jobs import enqueue_pipeline, reserve
-from cbc.http.projects_access import load
+from cbc.modules.projects.api.lookup import load
 from cbc.modules.intake.api.routes.versions import snapshot
 from cbc.modules.ops.api import audit
 from cbc.modules.ops.api import jobs as job_service

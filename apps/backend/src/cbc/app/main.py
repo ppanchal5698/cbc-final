@@ -31,14 +31,13 @@ from cbc.modules.ops.api.provider import MANAGED
 envfile.apply_to_environ(skip=MANAGED)
 
 from cbc.shared.config import settings  # noqa: E402  - must follow apply_to_environ
-from cbc.db import db, ensure_indexes, ensure_readonly_user  # noqa: E402
-from cbc.http import projects_access  # noqa: E402
-from cbc.modules import ops  # noqa: E402
+from cbc.db import ensure_indexes, ensure_readonly_user  # noqa: E402
+from cbc.modules import ops, projects  # noqa: E402
 from cbc.modules.ops.api import identity, jobs as ops_jobs, project_lookup  # noqa: E402
+from cbc.modules.projects.api import lookup as projects_lookup  # noqa: E402
 from cbc.modules.catalog.api.router import router as catalog_router  # noqa: E402
 from cbc.modules.extraction.api.router import router as extraction_router  # noqa: E402
 from cbc.modules.intake.api.router import router as intake_router  # noqa: E402
-from cbc.modules.platform.api.router import router as platform_router  # noqa: E402
 from cbc.modules.pricing.api.router import router as pricing_router  # noqa: E402
 from cbc.modules.quoting.api.router import router as quoting_router  # noqa: E402
 from cbc.pageindex import store as pageindex_store  # noqa: E402
@@ -51,7 +50,6 @@ TITLE = "CBC Estimating Copilot API"
 VERSION = "0.10.0-monolith"
 
 ROUTERS = (
-    platform_router,
     intake_router,
     extraction_router,
     pricing_router,
@@ -115,17 +113,7 @@ async def migrate_and_index() -> None:
     """
     await ensure_indexes()
     await ops.ensure_indexes()
-
-
-async def _project_id(code_or_id: str):
-    """Bids belong to the projects module; until that is built, the shared lookup answers."""
-    return (await projects_access.load(code_or_id))["_id"]
-
-
-async def _project_summaries(project_ids: list[Any]) -> dict[Any, dict[str, Any]]:
-    """Bid names for the dead-letter list; the projects module answers this in 3.4."""
-    cursor = db.projects.find({"_id": {"$in": project_ids}}, {"code": 1, "name": 1, "slug": 1})
-    return {project["_id"]: project async for project in cursor}
+    await projects.ensure_indexes()
 
 
 def create_app(*, background: bool = True):
@@ -145,7 +133,7 @@ def create_app(*, background: bool = True):
     # Dependencies that point the other way: shared and ops each need an answer
     # they may not import. The owners are plugged in here, and only here.
     set_role_lookup(identity.role_of)
-    project_lookup.bind(_project_id, _project_summaries)
+    project_lookup.bind(projects_lookup.project_id, projects_lookup.summaries)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -194,6 +182,13 @@ def create_app(*, background: bool = True):
     async def pipeline_job_active_handler(request: Request, exc: ops_jobs.PipelineJobActive) -> JSONResponse:
         return JSONResponse(status_code=409, content={"detail": ops_jobs.conflict_detail(exc.active)})
 
+    # A bid lookup that misses raises a typed error; this is its 404, with the body
+    # the lookup used to raise itself.
+    @app.exception_handler(projects_lookup.ProjectNotFound)
+    async def project_not_found_handler(request: Request, exc: projects_lookup.ProjectNotFound) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+    projects.register(app)
     for router in ROUTERS:
         app.include_router(router)
     ops.register(app)

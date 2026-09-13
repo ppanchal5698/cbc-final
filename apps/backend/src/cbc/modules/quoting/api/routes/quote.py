@@ -15,7 +15,7 @@ from cbc.db import db
 from cbc.shared.mongo import oid, serialise
 from cbc.shared.auth import Actor
 from cbc.schemas import QuoteLineCreate, QuoteLineUpdate, QuoteSettings
-from cbc.http.projects_access import load
+from cbc.modules.projects.api.lookup import load
 from cbc.modules.ops.api.jobs import enqueue_pipeline
 from cbc.modules.ops.api import audit
 from cbc.modules.ops.api import freshness as freshness_settings
