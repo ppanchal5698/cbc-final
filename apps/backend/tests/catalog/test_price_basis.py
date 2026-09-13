@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-from cbc.worker_kit.handlers.ingest import _prices_for
+from cbc.modules.catalog.features.IngestPricebook import _prices_for
 from cbc.pageindex import basis
 
 

@@ -7,20 +7,17 @@ itself and the primitives (`oid`, `serialise`, transactions) are in
 """
 from __future__ import annotations
 
-import asyncio
-import logging
 import os
 
 from urllib.parse import quote_plus, urlsplit
 
-from pymongo import ASCENDING, DESCENDING, TEXT
-from pymongo.errors import DuplicateKeyError, OperationFailure, PyMongoError
+from pymongo import ASCENDING, DESCENDING
+from pymongo.errors import OperationFailure, PyMongoError
 
 from cbc.shared.config import settings
-from cbc.shared.mongo import INDEX_BUILD_ABORTED, client, create_index_resilient, database, replace_index
+from cbc.shared.mongo import client, database, replace_index
 from cbc.persistence import names
 
-log = logging.getLogger("cbc.api.db")
 
 class Collections:
     """Named handles, resolved lazily so tests can point at another database.
@@ -55,14 +52,6 @@ class Collections:
     @property
     def proposals(self):
         return database()[names.PROPOSALS]
-
-    @property
-    def products(self):
-        return database()[names.CATALOG_ITEMS]
-
-    @property
-    def price_books(self):
-        return database()[names.PRICE_BOOKS]
 
     @property
     def jobs(self):
@@ -116,33 +105,6 @@ class Collections:
 db = Collections()
 
 
-async def _ensure_part_lookup_index() -> None:
-    """Ensure non-unique `part_lookup`; migrate away from auto-named `part_1`.
-
-    Older startups created `[("part", ASCENDING)]` without a name, so Mongo
-    called it `part_1` (same as the legacy unique index). Creating `part_lookup`
-    on the same key then fails with IndexOptionsConflict. Drop any leftover
-    `part_1` — unique or not — then create the named lookup index.
-    """
-    try:
-        info = await db.products.index_information()
-    except OperationFailure:
-        info = {}
-    if "part_lookup" in info:
-        return
-    if "part_1" in info:
-        try:
-            await db.products.drop_index("part_1")
-            log.info("dropped products.part_1 (migrating to part_lookup)")
-        except OperationFailure as exc:
-            if exc.code != INDEX_BUILD_ABORTED:
-                log.debug("products.part_1 drop skipped: %s", exc)
-            await asyncio.sleep(0.3)
-    await create_index_resilient(
-        db.products, [("part", ASCENDING)], name="part_lookup"
-    )
-
-
 async def ensure_indexes() -> None:
     """Migrate, then build indexes. Both idempotent, both run at every startup.
 
@@ -180,34 +142,6 @@ async def ensure_indexes() -> None:
     await db.quote_lines.create_index([("projectId", ASCENDING), ("division", ASCENDING)])
     await db.quotes.create_index([("projectId", ASCENDING)], unique=True)
     await db.proposals.create_index([("projectId", ASCENDING)])
-    # Hager's 1234 and Rockwood's 1234 are different parts. A unique index on
-    # `part` alone made the price-book ingest upsert one over the other, so the
-    # second vendor's sheet silently replaced the first vendor's costs.
-    #
-    # The legacy unique index was auto-named `part_1`. An unnamed non-unique
-    # `[("part", ASCENDING)]` gets the same name — concurrent drop/create races
-    # abort index builds, and a leftover non-unique `part_1` blocks creating
-    # `part_lookup`. Migrate explicitly via `_ensure_part_lookup_index`.
-    await _ensure_part_lookup_index()
-    await create_index_resilient(db.products, [("division", ASCENDING)])
-    try:
-        await replace_index(
-            db.products,
-            "product_identity",
-            [("manufacturer", ASCENDING), ("part", ASCENDING)],
-            unique=True,
-        )
-    except DuplicateKeyError:
-        log.error(
-            "products already holds two rows with the same manufacturer and part, so "
-            "the unique index could not be built. Run scripts/dedupe_products.py, "
-            "then restart. Ingest is keyed on (manufacturer, part) either way."
-        )
-    await db.products.create_index(
-        [("part", TEXT), ("description", TEXT), ("manufacturer", TEXT)],
-        name="product_search",
-    )
-    await db.price_books.create_index([("vendor", ASCENDING), ("program", ASCENDING)])
     await db.failed_extractions.create_index(
         [("projectId", ASCENDING), ("createdAt", DESCENDING)]
     )

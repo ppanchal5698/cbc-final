@@ -305,7 +305,7 @@ def test_the_same_part_from_two_manufacturers_coexists(database) -> None:
     """Keyed on `part` alone, the ingest upserted one vendor's row over another's."""
     from bson import ObjectId
 
-    from cbc.worker_kit.handlers.ingest import ingest_pricebook
+    from cbc.modules.catalog.api.jobs import ingest_pricebook
 
     cache = settings.repo_root / ".cache"
     cache.mkdir(parents=True, exist_ok=True)
@@ -339,7 +339,7 @@ def test_an_ingest_without_a_date_keeps_the_one_purchasing_entered(database) -> 
     """Writing null over it made a lapsed sheet report `stale: false`."""
     from bson import ObjectId
 
-    from cbc.worker_kit.handlers.ingest import ingest_pricebook
+    from cbc.modules.catalog.api.jobs import ingest_pricebook
 
     book_id = ObjectId()
     database["priceBooks"].insert_one({"_id": book_id, "effective": "2020-01-01"})

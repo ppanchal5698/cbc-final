@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from cbc.db import db
+from cbc.modules.catalog.infrastructure.collections import products
 from cbc.shared.mongo import serialise
 from cbc.pageindex import basis, query as page_query, store as page_store
 
@@ -67,7 +67,7 @@ async def search_manual(
             {"description": {"$regex": needle, "$options": "i"}},
             {"manufacturer": {"$regex": needle, "$options": "i"}},
         ]
-    rows = await db.products.find(mongo).sort("part", 1).to_list(limit)
+    rows = await products().find(mongo).sort("part", 1).to_list(limit)
     # A hand-added part keeps cost and list in separate columns the estimator filled
     # in, so there is nothing to disambiguate: its listPrice is a list price.
     return [

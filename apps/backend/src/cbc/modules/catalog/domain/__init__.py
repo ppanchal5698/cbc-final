@@ -1,3 +1,1 @@
-"""Module-local domain rules."""
-from __future__ import annotations
-
+"""What the catalog means by a part and a price book, independent of storage and HTTP."""

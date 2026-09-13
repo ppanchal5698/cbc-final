@@ -1,4 +1,4 @@
-"""Catalog indexing jobs.
+"""The index_catalog job: describe one price book's pages into the page index.
 
 These run on the existing queue rather than a new one, which means they inherit
 everything that was built for it: atomic claim, heartbeats, a reaper for a worker
@@ -15,19 +15,14 @@ because an unchanged file is not re-read at all.
 """
 from __future__ import annotations
 
-import asyncio
-import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from cbc.shared.config import settings
-from cbc.db import db
-from cbc.shared.mongo import oid
+from cbc.modules.catalog.infrastructure.collections import price_books
 from cbc.pageindex import build as pageindex_build
-from cbc.pageindex import store as pageindex_store
-
-log = logging.getLogger("cbc.worker.catalog")
+from cbc.shared.config import settings
+from cbc.shared.mongo import oid
 
 
 class IndexingError(RuntimeError):
@@ -52,6 +47,7 @@ def _vendor_for(book: dict[str, Any] | None, filename: str) -> str:
 
 def _resolve(filename: str) -> Path:
     """A path inside the price-book directory, from an untrusted job payload."""
+    # ponytail: legacy kernel; the file tree moves to shared/ in Phase 4
     from cbc.services import storage
 
     safe = storage.safe_name(str(filename))
@@ -74,7 +70,7 @@ async def index_catalog(job: dict[str, Any]) -> str:
 
     book = None
     if payload.get("priceBookId"):
-        book = await db.price_books.find_one({"_id": oid(payload["priceBookId"])})
+        book = await price_books().find_one({"_id": oid(payload["priceBookId"])})
 
     vendor = _vendor_for(book, path.name)
     # `build_one` puts the page reading on a thread itself - a 744-page PDF would
@@ -90,13 +86,13 @@ async def index_catalog(job: dict[str, Any]) -> str:
 
     if document is None:
         if book:
-            await db.price_books.update_one(
+            await price_books().update_one(
                 {"_id": book["_id"]}, {"$set": {"indexStatus": "ready", "updatedAt": _now()}}
             )
         return "unchanged since the last index - its pages are already described"
 
     if book:
-        await db.price_books.update_one(
+        await price_books().update_one(
             {"_id": book["_id"]},
             {
                 "$set": {
@@ -114,35 +110,3 @@ async def index_catalog(job: dict[str, Any]) -> str:
         f"{document.page_count} page(s) described from {document.file_name}"
         + (f"; {weak} could not be read confidently" if weak else "")
     )
-
-
-async def delete_catalog(job: dict[str, Any]) -> str:
-    """Remove a catalog's index when its file is deleted.
-
-    Nothing outlives the PDF it describes: a page description for a sheet that is
-    gone would route a pricing pass at a file nobody can open.
-    """
-    payload = job.get("payload") or {}
-    catalog_id = payload.get("catalogId")
-    filename = payload.get("filename")
-    if not catalog_id and not filename:
-        raise ValueError("delete_catalog job needs payload.catalogId or payload.filename")
-
-    removed = 0
-    if catalog_id:
-        removed += int(await pageindex_store.delete(str(catalog_id)))
-    if not removed and filename:
-        removed += await pageindex_store.delete_by_file(str(filename))
-
-    if payload.get("priceBookId"):
-        await db.price_books.update_one(
-            {"_id": oid(payload["priceBookId"])},
-            {"$set": {"catalogId": None, "indexStatus": "removed", "updatedAt": _now()}},
-        )
-
-    # Verified rather than assumed - the point of doing this on the queue.
-    still_there = bool(catalog_id and await pageindex_store.get(str(catalog_id)))
-    if still_there:
-        raise RuntimeError(f"{catalog_id} is still in the page index after deletion")
-
-    return f"{removed} catalog index/indexes removed" if removed else "nothing was indexed for it"

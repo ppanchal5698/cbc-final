@@ -78,7 +78,7 @@ def test_ordinary_filename_survives_intact(tmp_path) -> None:
 def test_pricebook_ingest_refuses_a_path_outside_the_cache() -> None:
     import asyncio
 
-    from cbc.worker_kit.handlers.ingest import ingest_pricebook
+    from cbc.modules.catalog.api.jobs import ingest_pricebook
 
     job = {
         "type": "ingest_pricebook",

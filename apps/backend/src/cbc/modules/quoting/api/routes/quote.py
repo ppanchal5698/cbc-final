@@ -15,6 +15,7 @@ from cbc.db import db
 from cbc.shared.mongo import oid, serialise
 from cbc.shared.auth import Actor
 from cbc.schemas import QuoteLineCreate, QuoteLineUpdate, QuoteSettings
+from cbc.modules.catalog.api import products as catalog_products
 from cbc.modules.projects.api.lookup import load
 from cbc.modules.ops.api.jobs import enqueue_pipeline
 from cbc.modules.ops.api import audit
@@ -106,7 +107,7 @@ async def add_line(code: str, body: QuoteLineCreate, actor: Actor) -> dict:
     payload = body.model_dump(exclude_none=True)
 
     if body.productId:
-        product = await db.products.find_one({"_id": oid(body.productId)})
+        product = await catalog_products.get(body.productId)
         if product:
             payload.setdefault("part", product.get("part"))
             payload.setdefault("description", product.get("description", ""))

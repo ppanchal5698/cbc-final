@@ -48,8 +48,7 @@ from cbc.shared import logs
 from cbc.validation import ArtifactValidationError, validate_job_artifacts
 from cbc.validation import review as review_flags
 from cbc.worker_kit import prompts
-from cbc.worker_kit.handlers.catalog import delete_catalog, index_catalog
-from cbc.worker_kit.handlers.ingest import ingest_pricebook
+from cbc.modules.catalog.api.jobs import delete_catalog, index_catalog, ingest_pricebook
 
 log = logs.configure("cbc.worker")
 
@@ -558,7 +557,7 @@ async def process_locally(job: dict) -> None:
         # A bad payload, a missing file, or a layout the extractor cannot read all
         # read exactly the same way on the third attempt. Retrying them spends the
         # attempt budget to reach the same conclusion more slowly.
-        from cbc.worker_kit.handlers.catalog import IndexingError
+        from cbc.modules.catalog.api.jobs import IndexingError
 
         permanent = isinstance(exc, (ValueError, FileNotFoundError, IndexingError))
         await finish(job, False, str(exc), "", permanent=permanent)

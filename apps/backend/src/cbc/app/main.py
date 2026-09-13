@@ -32,10 +32,9 @@ envfile.apply_to_environ(skip=MANAGED)
 
 from cbc.shared.config import settings  # noqa: E402  - must follow apply_to_environ
 from cbc.db import ensure_indexes, ensure_readonly_user  # noqa: E402
-from cbc.modules import ops, projects  # noqa: E402
+from cbc.modules import catalog, ops, projects  # noqa: E402
 from cbc.modules.ops.api import identity, jobs as ops_jobs, project_lookup  # noqa: E402
 from cbc.modules.projects.api import lookup as projects_lookup  # noqa: E402
-from cbc.modules.catalog.api.router import router as catalog_router  # noqa: E402
 from cbc.modules.extraction.api.router import router as extraction_router  # noqa: E402
 from cbc.modules.intake.api.router import router as intake_router  # noqa: E402
 from cbc.modules.pricing.api.router import router as pricing_router  # noqa: E402
@@ -54,7 +53,6 @@ ROUTERS = (
     extraction_router,
     pricing_router,
     quoting_router,
-    catalog_router,
 )
 
 
@@ -65,7 +63,7 @@ async def _catalog_index() -> dict[str, str]:
     mounted its routers but not its health field, so `catalogIndex` quietly left
     the payload until it was restored.
     """
-    from cbc.services import catalog_search
+    from cbc.modules.catalog.api import search as catalog_search
 
     return {"catalogIndex": "ready" if await catalog_search.index_available() else "missing"}
 
@@ -114,6 +112,7 @@ async def migrate_and_index() -> None:
     await ensure_indexes()
     await ops.ensure_indexes()
     await projects.ensure_indexes()
+    await catalog.ensure_indexes()
 
 
 def create_app(*, background: bool = True):
@@ -191,6 +190,7 @@ def create_app(*, background: bool = True):
     projects.register(app)
     for router in ROUTERS:
         app.include_router(router)
+    catalog.register(app)
     ops.register(app)
 
     @app.get("/api/health")

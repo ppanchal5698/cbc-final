@@ -1,3 +1,1 @@
-"""Module infrastructure."""
-from __future__ import annotations
-
+"""Where the catalog keeps its data."""

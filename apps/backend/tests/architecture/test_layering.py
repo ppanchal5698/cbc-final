@@ -1,7 +1,9 @@
 """Architecture layering rules for the modular monolith.
 
 Forbidden:
-- modules.X importing modules.Y.api (cross-module HTTP surface)
+- modules.X importing anything of modules.Y except modules.Y.api - a module's
+  public surface is the only way in (this rule used to be written the other way
+  round, forbidding exactly the imports it should require)
 - shared.* importing modules.* (shared kernel must not depend upward)
 """
 from __future__ import annotations
@@ -10,7 +12,9 @@ import ast
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "cbc"
-MODULES = ("platform", "intake", "extraction", "pricing", "quoting", "catalog")
+MODULES = tuple(
+    sorted(p.name for p in (SRC / "modules").iterdir() if (p / "__init__.py").is_file())
+)
 
 
 def _iter_py_files(root: Path):
@@ -32,7 +36,7 @@ def _imported_modules(path: Path) -> list[str]:
     return names
 
 
-def test_no_cross_module_api_imports() -> None:
+def test_modules_reach_each_other_only_through_api() -> None:
     violations: list[str] = []
     for mod in MODULES:
         mod_root = SRC / "modules" / mod
@@ -41,10 +45,12 @@ def test_no_cross_module_api_imports() -> None:
                 for other in MODULES:
                     if other == mod:
                         continue
-                    forbidden = f"cbc.modules.{other}.api"
-                    if imported == forbidden or imported.startswith(forbidden + "."):
+                    other_root, allowed = f"cbc.modules.{other}", f"cbc.modules.{other}.api"
+                    inside = imported == other_root or imported.startswith(other_root + ".")
+                    public = imported == allowed or imported.startswith(allowed + ".")
+                    if inside and not public:
                         violations.append(f"{path.relative_to(SRC)} imports {imported}")
-    assert not violations, "cross-module api imports:\n" + "\n".join(violations)
+    assert not violations, "imports past another module's api:\n" + "\n".join(violations)
 
 
 def test_shared_does_not_import_modules() -> None:

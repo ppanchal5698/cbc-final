@@ -1,17 +1,17 @@
-"""Job-type handlers invoked after a Claude pass completes."""
+"""The ingest_pricebook job's second half: load the parts a Claude pass read off a sheet.
+"""
 from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from pathlib import Path
-
-from pymongo import UpdateOne
 
 from bson import ObjectId
+from pymongo import UpdateOne
 
+from cbc.modules.catalog.infrastructure.collections import price_books, products
 from cbc.pageindex import basis
-from cbc.db import db
 from cbc.shared.paths import repo_root
+
 
 REPO_ROOT = repo_root()
 
@@ -62,7 +62,7 @@ async def ingest_pricebook(job: dict) -> str:
 
     data = json.loads(output_path.read_text(encoding="utf-8"))
     book_id = ObjectId(payload["priceBookId"])
-    book = await db.price_books.find_one({"_id": book_id}) or {}
+    book = await price_books().find_one({"_id": book_id}) or {}
     sheet_basis = basis.price_basis(
         payload.get("filename") or book.get("filename"), book.get("vendor")
     )
@@ -105,7 +105,7 @@ async def ingest_pricebook(job: dict) -> str:
         written += 1
 
     for start in range(0, len(bulk), 500):
-        await db.products.bulk_write(bulk[start : start + 500], ordered=False)
+        await products().bulk_write(bulk[start : start + 500], ordered=False)
 
     # An effective date is only written when the ingest actually read one. Setting
     # it unconditionally wrote null over a date purchasing had entered by hand,
@@ -114,6 +114,6 @@ async def ingest_pricebook(job: dict) -> str:
     changes: dict = {"partCount": written, "lastIngestedAt": _now(), "priceBasis": sheet_basis}
     if data.get("effective_date"):
         changes["effective"] = data["effective_date"]
-    await db.price_books.update_one({"_id": book_id}, {"$set": changes})
+    await price_books().update_one({"_id": book_id}, {"$set": changes})
     output_path.unlink(missing_ok=True)
     return f"{written} parts written to the catalog ({sheet_basis} prices)"

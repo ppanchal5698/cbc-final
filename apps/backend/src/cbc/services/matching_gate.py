@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from cbc.db import db
+from cbc.modules.catalog.api import products as catalog_products
 from cbc.domain import matching
 
 
@@ -31,7 +32,7 @@ async def apply_to_project(project: dict[str, Any], *, limit: int = 5000) -> dic
         part = line.get("part") or line.get("partNumber")
         candidates: list[dict[str, Any]] = []
         if part:
-            async for product in db.products.find({"part": part}).limit(20):
+            for product in await catalog_products.by_part(part, limit=20):
                 candidates.append(
                     {
                         "id": str(product.get("_id")),

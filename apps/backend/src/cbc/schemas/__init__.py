@@ -1,14 +1,4 @@
 """Pydantic schemas grouped by domain."""
-from cbc.schemas.catalog import (
-    PriceBook,
-    PriceBookBase,
-    PriceBookCreate,
-    PriceBookUpdate,
-    Product,
-    ProductBase,
-    ProductCreate,
-    ProductUpdate,
-)
 from cbc.schemas.common import (
     CallKind,
     CostSource,
@@ -71,15 +61,7 @@ __all__ = [
     "LineItemUpdate",
     "LineStatus",
     "MarginFrameworkUpdate",
-    "PriceBook",
-    "PriceBookBase",
-    "PriceBookCreate",
-    "PriceBookUpdate",
-    "Product",
-    "ProductBase",
-    "ProductCreate",
     "ProductType",
-    "ProductUpdate",
     "ProposalSettings",
     "QuoteLine",
     "QuoteLineCreate",

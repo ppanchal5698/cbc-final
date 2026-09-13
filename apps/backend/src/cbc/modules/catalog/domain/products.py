@@ -1,11 +1,14 @@
+"""A catalog part: what an estimator may send, and the sell price it implies.
+"""
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from cbc.schemas.common import ProductType
+from cbc.services import pricing  # ponytail: margin divisors belong to the pricing module (step 3.8)
+from cbc.shared.mongo import oid
 
 
 PriceBasis = Literal["list", "net", "unknown"]
@@ -49,47 +52,20 @@ class ProductUpdate(BaseModel):
     productType: ProductType | None = None
 
 
-class Product(ProductBase):
-    id: str
-    # `listPrice` is filled only for LIST rows, so a caller that ignores the basis
-    # cannot read a net as though it were a list.
-    priceBasisNote: str | None = None
-    netPrice: float | None = None
-    updatedAt: datetime | None = None
-    updatedBy: str | None = None
+def derive_sell(product: dict[str, Any]) -> float | None:
+    """Sell follows the division's margin divisor unless a price is set explicitly."""
+    if product.get("sellAt") is not None:
+        return product["sellAt"]
+    if product.get("cost") is None:
+        return None
+    priced = pricing.price_line(
+        cost=product["cost"], margin=None, qty=1, division=product.get("division")
+    )
+    return priced["sell"]
 
 
-class PriceBookBase(BaseModel):
-    vendor: str = Field(min_length=1)
-    program: str | None = None
-    multiplier: float | None = None
-    categories: dict[str, float] | None = None
-    effective: str | None = None
-    protectedThrough: str | None = None
-    lastReviewed: str | None = None
-    steward: str | None = None
-    kind: str | None = "price_book"
-    note: str | None = None
-
-
-class PriceBookCreate(PriceBookBase):
-    pass
-
-
-class PriceBookUpdate(BaseModel):
-    program: str | None = None
-    multiplier: float | None = None
-    categories: dict[str, float] | None = None
-    effective: str | None = None
-    protectedThrough: str | None = None
-    lastReviewed: str | None = None
-    steward: str | None = None
-    note: str | None = None
-
-
-class PriceBook(PriceBookBase):
-    id: str
-    filename: str | None = None
-    path: str | None = None
-    partCount: int = 0
-    updatedAt: datetime | None = None
+def coerce_book_id(changes: dict[str, Any]) -> dict[str, Any]:
+    """Store priceBookId as an ObjectId - the price-book routes query it as one."""
+    if changes.get("priceBookId"):
+        changes["priceBookId"] = oid(changes["priceBookId"])
+    return changes
