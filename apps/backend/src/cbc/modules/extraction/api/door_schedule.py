@@ -22,7 +22,7 @@ from cbc.modules.extraction.domain.schedule import (
 )
 from cbc.modules.pricing.api import reference_library
 from cbc.modules.projects.api.scope_metadata import import_scope_metadata
-from cbc.services import storage  # ponytail: legacy kernel; where a project's tree lives, until storage moves to shared
+from cbc.shared import storage
 from cbc.shared.pass_files import distinct_keys, read_json, write_json
 
 

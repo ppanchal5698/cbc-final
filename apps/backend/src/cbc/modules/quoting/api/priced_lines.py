@@ -14,7 +14,7 @@ from typing import Any
 from pymongo import InsertOne, UpdateOne
 
 from cbc.modules.quoting.infrastructure.collections import estimate_lines, quotes
-from cbc.services import storage  # ponytail: legacy kernel; the file tree moves to shared/ in Phase 4
+from cbc.shared import storage
 from cbc.shared.pass_files import distinct_keys, read_json, write_json
 
 

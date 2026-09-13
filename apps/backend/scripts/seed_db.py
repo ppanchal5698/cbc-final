@@ -215,7 +215,7 @@ def seed_products(db) -> int:
 
 def seed_demo_project(db) -> str | None:
     """Create the Dutch Bros bid from the fixture already in the repo."""
-    from cbc.services import storage
+    from cbc.shared import storage
 
     fixture = ROOT / "tests" / "fixtures" / "pdfs" / "1_Architectural.pdf"
     if not fixture.exists():

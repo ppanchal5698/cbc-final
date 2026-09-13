@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from cbc.modules.extraction.domain.schedule import _normalize_schedule_payload, door_number
-from cbc.services import storage  # ponytail: legacy kernel; where a project's tree lives, until storage moves to shared
+from cbc.shared import storage
 from cbc.shared.pass_files import read_json, write_json
 
 log = logging.getLogger("cbc.services.sync")

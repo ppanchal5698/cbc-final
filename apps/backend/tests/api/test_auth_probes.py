@@ -101,7 +101,7 @@ def test_an_oversized_upload_is_cut_off_mid_stream(tmp_path) -> None:
 
     from starlette.datastructures import UploadFile as StarletteUpload
 
-    from cbc.services import storage
+    from cbc.shared import storage
 
     limit = 1024
     body = io.BytesIO(b"%PDF-1.7" + b"x" * (limit * 4))
@@ -121,7 +121,7 @@ def test_a_non_pdf_is_refused_by_its_magic_bytes(tmp_path) -> None:
 
     from starlette.datastructures import UploadFile as StarletteUpload
 
-    from cbc.services import storage
+    from cbc.shared import storage
 
     upload = StarletteUpload(filename="not.pdf", file=io.BytesIO(b"MZ\x90\x00hello"))
     with pytest.raises(ValueError):

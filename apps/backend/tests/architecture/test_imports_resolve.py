@@ -40,7 +40,7 @@ SCAN_ROOTS = (_BACKEND / "src" / "cbc", _REPO / "mcp-servers")
 # __all__ if one of these ever grows real exports.
 NAMESPACE_PACKAGES = frozenset(
     {
-        "cbc.services",
+        "cbc.shared",
         "cbc.domain",
         "cbc.core",
         "cbc.pageindex",
@@ -106,5 +106,5 @@ def test_namespace_package_imports_all_resolve() -> None:
 
 def test_the_three_known_regressions_resolve() -> None:
     """Named explicitly so re-archiving any of these three is unmistakable."""
-    for dotted in ("cbc.modules.ops.api.alerts", "cbc.services.matching_gate", "cbc.core.pdftext"):
+    for dotted in ("cbc.modules.ops.api.alerts", "cbc.modules.quoting.features.MatchAndPrice", "cbc.core.pdftext"):
         assert _resolves(dotted), f"{dotted} is gone again - see this module's docstring"

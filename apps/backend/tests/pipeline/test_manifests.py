@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 
-from cbc.services import manifests
+from cbc.shared import manifests
 
 from _runtime import load_server
 

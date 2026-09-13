@@ -7,7 +7,8 @@ import asyncio
 from fastapi import APIRouter
 
 from cbc.modules.intake.infrastructure.document_access import find_on_bid
-from cbc.services import pdf, storage  # ponytail: legacy kernel; PDF reading and the file tree move to shared/ in Phase 4
+from cbc.modules.intake.infrastructure import pdf
+from cbc.shared import storage
 
 router = APIRouter(prefix="/api/projects/{code}/documents", tags=["documents"])
 

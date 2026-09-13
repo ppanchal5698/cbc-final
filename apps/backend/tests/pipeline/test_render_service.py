@@ -16,7 +16,7 @@ import inspect
 
 import pytest
 
-from cbc.services import render
+from cbc.modules.quoting.infrastructure import render
 
 
 def test_the_render_helper_calls_both_scripts() -> None:
@@ -39,7 +39,7 @@ def test_the_worker_renders_both_artifacts_itself(job_slice: str) -> None:
 
 
 @pytest.mark.xfail(strict=True, reason=(
-    "services/render.py resolves REPO_ROOT/scripts/validate_and_render_quote.py. "
+    "quoting/infrastructure/render.py resolves REPO_ROOT/scripts/validate_and_render_quote.py. "
     "The scripts live at apps/backend/scripts and reach /app/scripts only through "
     "the Dockerfile COPY, so rendering works in the image and fails in a checkout."
 ))
@@ -52,7 +52,7 @@ def test_a_render_failure_is_reported_rather_than_raised() -> None:
 
 
 @pytest.mark.xfail(strict=True, reason=(
-    "services/render.py resolves REPO_ROOT/scripts/validate_and_render_quote.py. "
+    "quoting/infrastructure/render.py resolves REPO_ROOT/scripts/validate_and_render_quote.py. "
     "The scripts live at apps/backend/scripts and reach /app/scripts only through "
     "the Dockerfile COPY, so rendering works in the image and fails in a checkout."
 ))

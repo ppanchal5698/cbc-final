@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from cbc.shared.paths import repo_root
-from cbc.services import manifests
+from cbc.shared import manifests
 
 ROOT = repo_root()
 PROJECTS = ROOT / "projects"

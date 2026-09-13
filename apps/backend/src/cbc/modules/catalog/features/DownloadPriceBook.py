@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from cbc.modules.catalog.infrastructure.collections import price_books
-from cbc.services import storage  # ponytail: legacy kernel; the file tree moves to shared/ in Phase 4
+from cbc.shared import storage
 from cbc.shared.mongo import oid
 
 router = APIRouter(prefix="/api/price-books", tags=["price-books"])

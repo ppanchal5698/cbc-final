@@ -9,7 +9,7 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from cbc.modules.projects.infrastructure.collections import bid_requests
-from cbc.services import storage  # ponytail: legacy kernel; where a project's tree lives, until storage moves to shared
+from cbc.shared import storage
 from cbc.shared.pass_files import read_json
 
 

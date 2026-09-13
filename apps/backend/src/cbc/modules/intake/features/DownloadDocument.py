@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from cbc.modules.intake.infrastructure.document_access import find_on_bid
-from cbc.services import storage  # ponytail: legacy kernel; the file tree moves to shared/ in Phase 4
+from cbc.shared import storage
 
 router = APIRouter(prefix="/api/projects/{code}/documents", tags=["documents"])
 

@@ -10,7 +10,7 @@ from cbc.modules.ops.api import audit, jobs as ops_jobs
 from cbc.modules.projects.api import bids
 from cbc.modules.projects.api.lookup import load
 from cbc.modules.projects.infrastructure.collections import bid_requests, calls
-from cbc.services import storage  # ponytail: legacy kernel; the bid's file tree moves to shared/ in Phase 4
+from cbc.shared import storage
 from cbc.shared import events
 from cbc.shared.auth import AdminActor
 

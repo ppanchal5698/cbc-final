@@ -16,7 +16,7 @@ from cbc.schemas.claude_output import (
     ScopeMetadata,
     ScopeSummary,
 )
-from cbc.services import storage
+from cbc.shared import storage
 from cbc.validation.artifacts import ArtifactValidationError
 from cbc.validation.review import CONFIDENCE_FLOOR, REQUIRED_OPENING_FIELDS
 

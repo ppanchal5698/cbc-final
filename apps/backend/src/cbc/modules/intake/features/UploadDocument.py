@@ -17,7 +17,8 @@ from cbc.modules.intake.infrastructure.snapshot import snapshot
 from cbc.modules.ops.api import audit, jobs as job_service
 from cbc.modules.ops.api.jobs import enqueue_pipeline, reserve
 from cbc.modules.projects.api.lookup import load
-from cbc.services import pdf, storage  # ponytail: legacy kernel; PDF reading and the file tree move to shared/ in Phase 4
+from cbc.modules.intake.infrastructure import pdf
+from cbc.shared import storage
 from cbc.shared.auth import Actor
 from cbc.shared.config import settings
 from cbc.shared.mongo import run_transaction, serialise

@@ -44,8 +44,7 @@ def _now() -> datetime:
 
 def write_email_draft(project: dict[str, Any], recipient: str | None, actor: str) -> str:
     """Write the drafted body to the project's review folder as an artifact."""
-    # ponytail: legacy kernel; the file tree moves to shared/ in Phase 4
-    from cbc.services import storage
+    from cbc.shared import storage
 
     target = storage.project_dir(project["slug"]) / "review" / "quotation_email_draft.md"
     target.parent.mkdir(parents=True, exist_ok=True)

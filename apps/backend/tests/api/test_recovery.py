@@ -122,7 +122,7 @@ def test_import_extraction_aborts_when_the_lease_was_stolen(database, monkeypatc
 
     from cbc.shared.config import settings
     from cbc.modules.extraction.api import door_schedule
-    from cbc.services import storage
+    from cbc.shared import storage
 
     previous = settings.storage_root
     settings.storage_root = tmp_path
@@ -379,10 +379,9 @@ def test_concurrent_bids_get_distinct_codes(database) -> None:
 
 def test_the_code_counter_continues_an_existing_series(database) -> None:
     """A database issued codes before the counter existed; do not restart on them."""
-    from cbc.modules.projects.features.CreateProject import next_code
-    from cbc.services import storage
+    from cbc.modules.projects.features.CreateProject import code_prefix, next_code
 
-    prefix = storage.code_prefix()
+    prefix = code_prefix()
     database[names.BID_REQUESTS].insert_one({"code": f"{prefix}0007", "slug": "old"})
 
     assert run(next_code()) == f"{prefix}0008"

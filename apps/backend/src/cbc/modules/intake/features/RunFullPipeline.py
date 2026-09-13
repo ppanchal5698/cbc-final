@@ -14,7 +14,7 @@ from cbc.modules.intake.api import documents
 from cbc.modules.ops.api import jobs as ops_jobs
 from cbc.modules.projects.api import bids, pipeline, saga
 from cbc.modules.quoting.api import priced_lines, proposal_artifacts, quote
-from cbc.services import manifests  # ponytail: legacy kernel; phase manifests move when services/ is sliced
+from cbc.shared import manifests
 
 
 async def run(job: dict[str, Any]) -> None:

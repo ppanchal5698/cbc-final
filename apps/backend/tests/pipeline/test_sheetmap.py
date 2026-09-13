@@ -6,7 +6,7 @@ from pathlib import Path
 import fitz
 
 from cbc.worker_kit import prompts
-from cbc.services import sheetmap
+from cbc.modules.extraction.infrastructure import sheetmap
 
 
 def _tiny_pdf(path: Path, text: str = "DOOR SCHEDULE") -> Path:

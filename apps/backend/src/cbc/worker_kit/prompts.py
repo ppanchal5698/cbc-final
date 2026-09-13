@@ -665,7 +665,7 @@ def build(
         skip = skip_completed_phases(job.get("phaseState"))
     match_reuse = ""
     if job["type"] in ("match_and_price", "run_full_pipeline") and not payload.get("force"):
-        from cbc.services import matchcache
+        from cbc.modules.catalog.api import matchcache
 
         match_reuse = matchcache.prompt_block(
             matchcache.reusable(project["slug"], force=False)

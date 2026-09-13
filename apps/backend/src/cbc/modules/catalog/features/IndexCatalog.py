@@ -47,8 +47,7 @@ def _vendor_for(book: dict[str, Any] | None, filename: str) -> str:
 
 def _resolve(filename: str) -> Path:
     """A path inside the price-book directory, from an untrusted job payload."""
-    # ponytail: legacy kernel; the file tree moves to shared/ in Phase 4
-    from cbc.services import storage
+    from cbc.shared import storage
 
     safe = storage.safe_name(str(filename))
     path = (settings.pricebook_dir / safe).resolve()

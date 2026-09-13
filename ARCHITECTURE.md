@@ -37,7 +37,8 @@ apps/backend/src/cbc/
     domain/                request models and pure rules the module's slices share
     infrastructure/        collections.py (its collections + indexes), shared adapters
   shared/                  config, auth, mongo client + primitives, events, logging,
-                           tracing, otel, envfile, pass files - no module imports allowed
+                           tracing, otel, envfile, pass files, the project file tree (storage,
+                           S3, malware scan), manifests - no module imports allowed
 ```
 
 `apps/backend/src/cbc` also still holds the pre-module kernel the modules lean on
@@ -58,7 +59,7 @@ ops         ─ (nothing)
 pricing     → ops
 projects    → ops
 catalog     → ops, pricing
-extraction  → ops, projects, pricing
+extraction  → ops, projects, pricing, catalog
 quoting     → ops, projects, catalog, extraction, pricing
 intake      → ops, projects, extraction, quoting
 ```
@@ -117,7 +118,7 @@ A job type runs as a slice in the module that owns what it writes.
 2. Register it in the module's `register_jobs()`. Pass `after_finish=` only when the job
    has more to do when it ends than `projects.api.pipeline.after_pass`.
 3. A Claude pass needs a template in `cbc.worker_kit.prompts`, and every job type a
-   domain in `cbc.services.domains`; `tests/pipeline/test_toolset_registry.py` fails
+   domain in `DOMAIN_JOB_TYPES` (ops' `WorkerLoop`); `tests/pipeline/test_toolset_registry.py` fails
    on a job type nothing runs.
 
 ## Adding a module
@@ -148,8 +149,6 @@ The modules still import parts of the pre-module kernel; each such import is mar
   read-only Mongo user.
 - `cbc.worker_kit` - a Claude pass's prompt templates and its sandbox. `workflows/*.sh`,
   CI and the sandbox image run them by module path, so they stay where they are.
-- `cbc.services` - storage, PDF reading, malware scan, matchcache,
-  manifests, pretakeoff, render, sheetmap, the matching gate.
 - `cbc.schemas` - the shared vocabulary (`common`), job and user shapes, the
   operational-collection specification.
 - `cbc.core`, `cbc.domain`, `cbc.pageindex`, `cbc.persistence`, `cbc.validation` -

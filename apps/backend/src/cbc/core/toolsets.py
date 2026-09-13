@@ -112,7 +112,7 @@ def config_for(job_type: str) -> str:
         # sys.executable, not bare "python". On an image whose interpreter is
         # python3, or with a venv that is not first on the subprocess PATH, every
         # server failed to start - and a run with no tools does not error, it
-        # writes every line MANUAL and reports success. services/render.py has
+        # writes every line MANUAL and reports success. quoting's render.py has
         # always done it this way.
         entry: dict[str, Any] = {
             "command": sys.executable,

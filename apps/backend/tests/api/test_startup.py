@@ -59,7 +59,7 @@ def test_api_app_imports_with_its_routes() -> None:
     ],
 )
 def test_upload_filename_stays_in_its_directory(tmp_path, hostile: str) -> None:
-    from cbc.services import storage
+    from cbc.shared import storage
 
     target = storage.unique_filename(tmp_path, hostile)
     assert target.parent == tmp_path, f"{hostile!r} escaped to {target}"
@@ -67,7 +67,7 @@ def test_upload_filename_stays_in_its_directory(tmp_path, hostile: str) -> None:
 
 
 def test_ordinary_filename_survives_intact(tmp_path) -> None:
-    from cbc.services import storage
+    from cbc.shared import storage
 
     assert storage.unique_filename(tmp_path, "Bid Set 25-073.pdf").name == "Bid Set 25-073.pdf"
 

@@ -20,7 +20,7 @@ from typing import Any
 from cbc.core import claude_cli as runner, streaming
 from cbc.modules.ops.api import jobs as ops_jobs, provider, runmetrics, worker as ops_worker
 from cbc.modules.ops.api.worker import finish
-from cbc.services import storage  # ponytail: legacy kernel; where a project's tree lives, until storage moves to shared
+from cbc.shared import storage
 from cbc.shared.paths import repo_root
 from cbc.validation import ArtifactValidationError
 from cbc.worker_kit import prompts

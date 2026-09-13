@@ -37,7 +37,7 @@ def test_priced_line_rejects_boolean_cost() -> None:
 
 def test_low_completeness_is_needs_review(tmp_path, monkeypatch) -> None:
     from cbc.shared.config import settings
-    from cbc.services import storage
+    from cbc.shared import storage
 
     previous = settings.storage_root
     settings.storage_root = tmp_path

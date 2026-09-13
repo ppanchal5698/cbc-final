@@ -61,6 +61,23 @@ def stale_after_for(job_type: str) -> int:
     return DEFAULT_STALE_AFTER
 
 
+# Which job types a worker started with WORKER_DOMAIN=<domain> claims.
+DOMAIN_JOB_TYPES: dict[str, frozenset[str]] = {
+    "intake": frozenset({"ingest_addendum"}),
+    "extraction": frozenset({"extract_bid_set", "rerun_extraction"}),
+    "pricing": frozenset({"match_and_price"}),
+    "quoting": frozenset({"build_proposal"}),
+    "catalog": frozenset({"index_catalog", "delete_catalog", "ingest_pricebook"}),
+}
+
+
+def claimable_types(domain: str) -> frozenset[str]:
+    try:
+        return DOMAIN_JOB_TYPES[domain]
+    except KeyError as exc:
+        raise ValueError(f"unknown domain: {domain}") from exc
+
+
 # Domain filter: set WORKER_DOMAIN (intake|extraction|pricing|quoting|catalog).
 # Empty / unset = claim nothing (fail closed) unless WORKER_CLAIM_ALL=1 for legacy.
 def _claimable() -> frozenset[str] | None:
@@ -73,8 +90,6 @@ def _claimable() -> frozenset[str] | None:
             "(intake, extraction, pricing, quoting, catalog), "
             "or set WORKER_CLAIM_ALL=1"
         )
-    # ponytail: legacy kernel import; job-type routing moves with the saga (step 3.4)
-    from cbc.services.domains import claimable_types
     return claimable_types(domain)
 
 

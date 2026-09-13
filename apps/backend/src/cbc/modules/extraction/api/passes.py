@@ -19,8 +19,9 @@ from cbc.modules.extraction.api import openings
 from cbc.modules.extraction.infrastructure import geometry
 from cbc.modules.ops.api import jobs as ops_jobs, worker as ops_worker
 from cbc.modules.projects.api import bids, lookup, scope_metadata
-# ponytail: legacy kernel; the sheet map, take-off seeds, manifests and match cache move when services/ is sliced
-from cbc.services import manifests, matchcache, pretakeoff, sheetmap
+from cbc.modules.catalog.api import matchcache
+from cbc.modules.extraction.infrastructure import pretakeoff, sheetmap
+from cbc.shared import manifests
 from cbc.validation import ArtifactValidationError, validate_job_artifacts
 from cbc.validation.contracts import raise_if_invalid
 

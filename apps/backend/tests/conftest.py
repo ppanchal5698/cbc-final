@@ -114,7 +114,7 @@ def app(monkeypatch):
     # No settings refresh here. This fixture used to rebuild `cbc.shared.config.settings`
     # and assign the new object onto config, http.deps and http.service_app -
     # directly, never restored. Every module that had already done
-    # `from cbc.shared.config import settings` (services.storage, storage_backends,
+    # `from cbc.shared.config import settings` (shared.storage, shared.storage_backends,
     # worker_kit.sandbox) kept the old object, so any later test that set
     # `settings.storage_root` patched the new one while the code under test read
     # the old: five tests in pipeline/ and api/test_service_jwt passed alone and

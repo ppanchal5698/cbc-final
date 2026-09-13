@@ -14,7 +14,7 @@ from cbc.modules.projects.domain.bid import ProjectCreate
 from cbc.modules.projects.infrastructure import reuse
 from cbc.modules.projects.infrastructure.board import decorate
 from cbc.modules.projects.infrastructure.collections import bid_requests, counters
-from cbc.services import storage  # ponytail: legacy kernel; the bid's file tree moves to shared/ in Phase 4
+from cbc.shared import storage
 from cbc.shared.auth import Actor
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 async def next_code() -> str:
     """Allocate the next CBC-YYNNNN atomically."""
-    prefix = storage.code_prefix()
+    prefix = code_prefix()
     counter = await counters().find_one_and_update(
         {"_id": prefix},
         {"$inc": {"seq": 1}},
@@ -33,7 +33,7 @@ async def next_code() -> str:
         # First allocation under this prefix. The database may already carry codes
         # issued before the counter existed, so continue that series instead of
         # restarting on top of it. Costs one scan per prefix, once.
-        highest = storage.highest_code_sequence(await bid_requests().distinct("code"), prefix)
+        highest = highest_code_sequence(await bid_requests().distinct("code"), prefix)
         if highest >= 1:
             counter = await counters().find_one_and_update(
                 {"_id": prefix},
@@ -108,3 +108,22 @@ async def create_project(body: ProjectCreate, actor: Actor) -> dict[str, Any]:
             doc = await bid_requests().find_one({"_id": result.inserted_id}) or doc
 
     return await decorate(doc)
+
+
+def code_prefix() -> str:
+    return f"CBC-{datetime.now(timezone.utc).strftime('%y')}"
+
+
+def highest_code_sequence(existing_codes: list[str], prefix: str) -> int:
+    """The largest NNNN already issued under this prefix, or 0.
+
+    Only used to seed the counter in `api.routers.projects`; allocation itself is
+    atomic there. Deciding the next code from a scan of every project raced two
+    concurrent creates into the same number and a duplicate-key 500.
+    """
+    used = [
+        int(code[len(prefix) :])
+        for code in existing_codes
+        if code.startswith(prefix) and code[len(prefix) :].isdigit()
+    ]
+    return max(used) if used else 0

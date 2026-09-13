@@ -14,7 +14,7 @@ from typing import Any
 from cbc.modules.ops.api import alerts, claude_pass, jobs as ops_jobs, worker as ops_worker
 from cbc.modules.projects.api import autopilot, bids, lookup, saga
 from cbc.modules.projects.infrastructure.collections import bid_requests
-from cbc.services import storage  # ponytail: legacy kernel; scaffolding a project's tree, until storage moves to shared
+from cbc.shared import storage
 from cbc.shared import logs
 
 log = logging.getLogger("cbc.worker")  # handlers are configured by the worker process

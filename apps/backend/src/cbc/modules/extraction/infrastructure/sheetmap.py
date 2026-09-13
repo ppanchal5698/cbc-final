@@ -19,7 +19,7 @@ from typing import Any
 
 from cbc.core import pdfpages
 from cbc.shared.paths import repo_root
-from cbc.services.storage import atomic_write_json
+from cbc.shared.storage import atomic_write_json
 
 ROOT = repo_root()
 PROJECTS = ROOT / "projects"

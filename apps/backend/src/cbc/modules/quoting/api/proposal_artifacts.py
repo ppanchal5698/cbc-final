@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from cbc.modules.quoting.infrastructure.collections import proposals
-from cbc.services import storage  # ponytail: legacy kernel; the file tree moves to shared/ in Phase 4
-from cbc.services import render  # ponytail: legacy kernel; the render scripts' runner, until services/ is sliced
+from cbc.shared import storage
+from cbc.modules.quoting.infrastructure import render
 from cbc.validation import review as review_flags
 
 log = logging.getLogger("cbc.services.sync")

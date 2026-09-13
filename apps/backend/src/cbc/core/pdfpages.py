@@ -21,7 +21,7 @@ from cbc.shared.paths import repo_root
 ROOT = repo_root()
 
 # Rendered pages are derived data: cheap to recreate, and not something to leave
-# beside the drawings they came from. Shared with api/services/pdf.py so there is
+# beside the drawings they came from. Shared with intake's infrastructure/pdf.py so there is
 # one cache rather than two.
 RENDER_CACHE = ROOT / ".cache" / "pdf-pages"
 PRICEBOOKS = ROOT / "pricebooks"

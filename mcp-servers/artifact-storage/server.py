@@ -98,11 +98,11 @@ def save_artifact(
     unchanged = previous is not None and hashlib.sha256(previous.encode("utf-8")).hexdigest() == digest
 
     # Atomic replace so mid-run Ops-Hub sync never reads a truncated JSON write.
-    from cbc.services.storage import atomic_write_text
+    from cbc.shared.storage import atomic_write_text
 
     atomic_write_text(target, content)
 
-    from cbc.services import manifests
+    from cbc.shared import manifests
 
     manifests.write_sidecar(project, path, digest)
 

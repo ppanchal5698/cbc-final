@@ -10,7 +10,7 @@ from typing import Iterable
 
 from cbc.shared.config import settings
 from cbc.shared.paths import repo_root
-from cbc.services import storage
+from cbc.shared import storage
 
 log = logging.getLogger("cbc.sandbox")
 
@@ -80,7 +80,7 @@ def ensure_workspace_trusted(workspace: Path, *, home: Path | None = None) -> bo
 
 def prepare(job_id: str, slug: str) -> Path:
     """Clone the bid into an isolated workspace. Returns cwd for Claude."""
-    from cbc.services.storage_backends import hydrate_project
+    from cbc.shared.storage_backends import hydrate_project
 
     hydrate_project(slug)
     workspace = workspace_dir(job_id)
@@ -159,7 +159,7 @@ def promote(job_id: str, slug: str) -> list[str]:
         )
     if promoted:
         try:
-            from cbc.services.storage_backends import push_paths
+            from cbc.shared.storage_backends import push_paths
 
             push_paths([dest / rel for rel in promoted])
         except Exception:

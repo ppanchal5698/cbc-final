@@ -12,6 +12,6 @@ in the room. `tests/api/test_layering.py` enforces the direction: everything may
 import `cbc.domain`, and `cbc.domain` imports nothing above it.
 
 Live values that a person can edit - margin bands, tax rates, freshness windows -
-are looked up by `cbc.services` and *passed in*. The rule never fetches its own
+are looked up by the modules and *passed in*. The rule never fetches its own
 inputs.
 """

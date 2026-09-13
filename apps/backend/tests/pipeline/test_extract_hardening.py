@@ -10,7 +10,7 @@ from tests.shared import ROOT
 
 
 def test_atomic_write_json_round_trip(tmp_path) -> None:
-    from cbc.services.storage import atomic_write_json
+    from cbc.shared.storage import atomic_write_json
 
     target = tmp_path / "extracted" / "scope_metadata.json"
     atomic_write_json(target, {"brand": "Dutch Bros", "state": "LA"})
@@ -104,7 +104,7 @@ def test_check_extraction_fails_when_frp_flag_without_file(tmp_path, monkeypatch
 def test_total_page_count(tmp_path, monkeypatch) -> None:
     import fitz
 
-    from cbc.services import sheetmap
+    from cbc.modules.extraction.infrastructure import sheetmap
 
     monkeypatch.setattr(sheetmap, "PROJECTS", tmp_path / "projects")
     slug = "pages"
@@ -124,7 +124,7 @@ def test_exceeds_page_cap_is_cumulative_including_straggler_sets(tmp_path, monke
     """Straggler merge re-sums all uploads/raw — not just the late delta."""
     import fitz
 
-    from cbc.services import sheetmap
+    from cbc.modules.extraction.infrastructure import sheetmap
 
     monkeypatch.setattr(sheetmap, "PROJECTS", tmp_path / "projects")
     slug = "cap_merge"

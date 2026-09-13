@@ -10,7 +10,7 @@ from typing import Any
 from cbc.modules.extraction.api import passes
 from cbc.modules.intake.api import versions as intake_versions
 from cbc.modules.projects.api import pipeline
-from cbc.services import storage  # ponytail: legacy kernel; where a project's tree lives, until storage moves to shared
+from cbc.shared import storage
 from cbc.shared.pass_files import read_json
 
 

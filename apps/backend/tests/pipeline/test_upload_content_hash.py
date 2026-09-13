@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cbc.services import storage
+from cbc.shared import storage
 
 
 def test_content_sha256_stable(tmp_path: Path) -> None:

@@ -62,7 +62,7 @@ def purge_project(slug: str) -> None:
     if root.exists():
         shutil.rmtree(root)
     try:
-        from cbc.services.storage_backends import purge_remote_project
+        from cbc.shared.storage_backends import purge_remote_project
 
         purge_remote_project(slug)
     except Exception:
@@ -147,7 +147,7 @@ async def receive_upload(file, target: Path, limit: int, magic: bytes | None = N
         target.unlink(missing_ok=True)
         raise ValueError("the uploaded file is empty")
 
-    from cbc.services import malware
+    from cbc.shared import malware
 
     try:
         malware.scan_file(target)
@@ -160,7 +160,7 @@ async def receive_upload(file, target: Path, limit: int, magic: bytes | None = N
 
     # Durable copy for optional object storage (no-op when STORAGE_BACKEND=local).
     try:
-        from cbc.services.storage_backends import after_local_write
+        from cbc.shared.storage_backends import after_local_write
 
         after_local_write(target)
     except Exception:
@@ -193,7 +193,7 @@ def absolute(stored: str) -> Path:
     path = Path(stored)
     resolved = path if path.is_absolute() else (settings.repo_root / path).resolve()
     try:
-        from cbc.services.storage_backends import ensure_local
+        from cbc.shared.storage_backends import ensure_local
 
         return ensure_local(resolved)
     except Exception:
@@ -222,22 +222,3 @@ def atomic_write_text(path: Path, content: str, *, encoding: str = "utf-8") -> N
 def atomic_write_json(path: Path, payload: Any) -> None:
     """Atomically write a JSON document with trailing newline."""
     atomic_write_text(path, json.dumps(payload, indent=2, default=str) + "\n")
-
-
-def code_prefix() -> str:
-    return f"CBC-{datetime.now(timezone.utc).strftime('%y')}"
-
-
-def highest_code_sequence(existing_codes: list[str], prefix: str) -> int:
-    """The largest NNNN already issued under this prefix, or 0.
-
-    Only used to seed the counter in `api.routers.projects`; allocation itself is
-    atomic there. Deciding the next code from a scan of every project raced two
-    concurrent creates into the same number and a duplicate-key 500.
-    """
-    used = [
-        int(code[len(prefix) :])
-        for code in existing_codes
-        if code.startswith(prefix) and code[len(prefix) :].isdigit()
-    ]
-    return max(used) if used else 0

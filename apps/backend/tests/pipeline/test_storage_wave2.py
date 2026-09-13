@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from cbc.services import malware, storage_backends
+from cbc.shared import malware, storage_backends
 
 
 def test_malware_scan_off_is_a_noop(tmp_path, monkeypatch) -> None:

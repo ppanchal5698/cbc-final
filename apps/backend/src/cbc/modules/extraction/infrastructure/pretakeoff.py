@@ -25,8 +25,9 @@ import json
 from typing import Any
 
 from cbc.shared.paths import repo_root
-from cbc.services import sheetmap, storage
-from cbc.services.storage import atomic_write_json
+from cbc.modules.extraction.infrastructure import sheetmap
+from cbc.shared import storage
+from cbc.shared.storage import atomic_write_json
 
 # How many door_schedule-role pages to try before giving up. The sheet map ranks
 # them, and the first that yields openings is the schedule; the rest are usually a

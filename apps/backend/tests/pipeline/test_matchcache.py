@@ -4,7 +4,8 @@ from __future__ import annotations
 import json
 
 from cbc.worker_kit import prompts
-from cbc.services import manifests, matchcache
+from cbc.modules.catalog.api import matchcache
+from cbc.shared import manifests
 
 
 def _isolate(tmp_path, monkeypatch) -> None:
