@@ -18,7 +18,7 @@ TEST_DB = "cbc_opshub_test_provider"
 
 from cbc.modules.ops.api import provider  # noqa: E402
 from cbc.core import secrets  # noqa: E402
-from cbc.persistence import names
+from cbc.shared.persistence import names
 
 
 @pytest.fixture(scope="module")

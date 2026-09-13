@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from cbc.persistence import proposals
+from cbc.modules.quoting.domain import proposals
 
 
 def test_approval_needs_a_named_person() -> None:

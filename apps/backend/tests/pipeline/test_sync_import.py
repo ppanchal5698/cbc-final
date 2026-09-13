@@ -20,7 +20,7 @@ from pymongo import MongoClient
 
 from cbc.shared.config import settings
 from tests.shared import FIXTURES, ROOT, mongo_client
-from cbc.persistence import names
+from cbc.shared.persistence import names
 
 TEST_DB = "cbc_test_sync_import"
 SLUG = "sync_import_fixture"

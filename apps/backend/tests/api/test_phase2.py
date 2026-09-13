@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from cbc.shared.config import settings
-from cbc.persistence import names
+from cbc.shared.persistence import names
 from tests.shared import FIXTURE_PDF, ROOT, opshub_client  # noqa: E402
 
 TEST_DB = "cbc_opshub_test_phase2"

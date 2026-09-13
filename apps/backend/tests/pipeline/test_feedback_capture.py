@@ -12,7 +12,7 @@ import asyncio
 
 import pytest
 
-from cbc.persistence import names
+from cbc.shared.persistence import names
 from cbc.modules.extraction.api import feedback
 from tests.shared import mongo_client
 

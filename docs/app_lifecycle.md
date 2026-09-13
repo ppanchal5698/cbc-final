@@ -152,7 +152,7 @@ sequenceDiagram
 ## 7. Data Layer
 * **Storage Engines**: MongoDB + shared disk (`/app/data/projects`, `/app/data/pricebooks`).
 * **Collections / indexes**: each module's `infrastructure/collections.py` (`ensure_indexes` on boot, after the migrations).
-* **Migrations**: `cbc.persistence.migrations` - forward-only, run first at startup.
+* **Migrations**: `cbc.app.migrations` - forward-only, run first at startup.
 
 ## 8. Auth & Security Flow
 1. NextAuth on `apps/web`.

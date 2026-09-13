@@ -11,7 +11,7 @@ from cbc.modules.extraction.domain.openings import LineItemCreate
 from cbc.modules.extraction.infrastructure.collections import openings
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api.lookup import load
-from cbc.persistence import repos
+from cbc.shared.persistence import repos
 from cbc.shared.auth import Actor
 from cbc.shared.mongo import serialise
 

@@ -16,7 +16,7 @@ import types
 
 import pytest
 
-from cbc.persistence import migrations
+from cbc.app import migrations
 from tests.shared import mongo_client
 
 TEST_DB = "cbc_opshub_test_migrations"
@@ -209,7 +209,7 @@ def test_there_is_no_way_to_migrate_backwards() -> None:
 
 def test_m001_renames_the_operational_collections(database) -> None:
     """Data survives, under the name the specification uses."""
-    from cbc.persistence.names import RENAMED_IN_M001
+    from cbc.shared.persistence.names import RENAMED_IN_M001
 
     for old in RENAMED_IN_M001:
         database[old].insert_one({"marker": old})
@@ -254,7 +254,7 @@ def test_m001_refuses_to_rename_over_an_existing_collection(database) -> None:
 
 def test_m002_creates_the_organization_from_the_workbook(database) -> None:
     """Matrix 2.0 gives CBC's identity; it is not invented here."""
-    from cbc.persistence.names import ORGANIZATIONS
+    from cbc.shared.persistence.names import ORGANIZATIONS
 
     _run()
 
@@ -266,8 +266,8 @@ def test_m002_creates_the_organization_from_the_workbook(database) -> None:
 
 
 def test_m002_stamps_documents_that_predate_the_envelope(database) -> None:
-    from cbc.persistence import envelope
-    from cbc.persistence.names import BID_REQUESTS, OPENINGS, ORGANIZATIONS
+    from cbc.shared.persistence import envelope
+    from cbc.shared.persistence.names import BID_REQUESTS, OPENINGS, ORGANIZATIONS
 
     database["projects"].insert_one({"code": "CBC-260002", "slug": "test"})
     database["lineItems"].insert_one({"mark": "01", "size": "3070"})
@@ -283,14 +283,14 @@ def test_m002_stamps_documents_that_predate_the_envelope(database) -> None:
 
 def test_m002_indexes_the_tenant_filter(database) -> None:
     """§4.1's argument only holds if the filter is index-covered."""
-    from cbc.persistence.names import BID_REQUESTS
+    from cbc.shared.persistence.names import BID_REQUESTS
 
     _run()
     assert "org" in database[BID_REQUESTS].index_information()
 
 
 def test_m002_does_not_restamp_or_duplicate_on_a_second_run(database) -> None:
-    from cbc.persistence.names import BID_REQUESTS, ORGANIZATIONS
+    from cbc.shared.persistence.names import BID_REQUESTS, ORGANIZATIONS
 
     database["projects"].insert_one({"code": "CBC-260002", "slug": "test"})
     _run()
@@ -309,7 +309,7 @@ def test_m002_does_not_restamp_or_duplicate_on_a_second_run(database) -> None:
 
 def test_m002_leaves_installation_wide_collections_alone(database) -> None:
     """settings and counters are keyed by name, one row per concern - not tenant data."""
-    from cbc.persistence.names import COUNTERS, SETTINGS
+    from cbc.shared.persistence.names import COUNTERS, SETTINGS
 
     database[SETTINGS].insert_one({"_id": "claude", "mode": "ollama"})
     database[COUNTERS].insert_one({"_id": "projectCode", "seq": 7})
@@ -325,7 +325,7 @@ def test_m002_leaves_installation_wide_collections_alone(database) -> None:
 
 def test_m003_creates_the_four_missing_collections(database) -> None:
     """FR-12, FR-16, Phase 5 and FR-13 each had nowhere to store anything."""
-    from cbc.persistence.migrations import m003_operational_collections as m003
+    from cbc.app.migrations import m003_operational_collections as m003
 
     _run()
 
@@ -335,7 +335,7 @@ def test_m003_creates_the_four_missing_collections(database) -> None:
 
 
 def test_m003_indexes_the_questions_each_collection_answers(database) -> None:
-    from cbc.persistence.names import FEEDBACK_EVENTS, RFIS, VENDOR_RFQS
+    from cbc.shared.persistence.names import FEEDBACK_EVENTS, RFIS, VENDOR_RFQS
 
     _run()
 
@@ -350,7 +350,7 @@ def test_m003_indexes_the_questions_each_collection_answers(database) -> None:
 
 def test_m003_leads_every_index_with_the_tenant(database) -> None:
     """§4.1: no collection has an index that omits orgId."""
-    from cbc.persistence.migrations import m003_operational_collections as m003
+    from cbc.app.migrations import m003_operational_collections as m003
 
     _run()
     for collection in m003.CREATED:

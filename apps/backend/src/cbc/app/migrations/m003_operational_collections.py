@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 
-from cbc.persistence import names
+from cbc.shared.persistence import names
 
 VERSION = 3
 DESCRIPTION = "create takeoffs, vendorRfqs, rfis and feedbackEvents with their indexes"

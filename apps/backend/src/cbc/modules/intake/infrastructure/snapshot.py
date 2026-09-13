@@ -12,7 +12,7 @@ from cbc.modules.quoting.api import lines as quoting_lines
 from cbc.modules.intake.infrastructure.collections import versions
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api import bids
-from cbc.persistence import versioning
+from cbc.modules.intake.domain import versioning
 from cbc.shared.mongo import serialise
 
 

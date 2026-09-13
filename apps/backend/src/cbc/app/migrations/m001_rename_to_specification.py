@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 
-from cbc.persistence.names import RENAMED_IN_M001
+from cbc.shared.persistence.names import RENAMED_IN_M001
 
 VERSION = 1
 DESCRIPTION = "rename projects/lineItems/quoteLines/products/auditLog to the specification names"

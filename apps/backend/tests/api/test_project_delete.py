@@ -10,7 +10,7 @@ from pymongo import MongoClient
 from cbc.shared import mongo as db_module
 from cbc.shared.config import settings
 from tests.shared import FIXTURE_PDF, TEST_ACTOR, opshub_client, mongo_client
-from cbc.persistence import names
+from cbc.shared.persistence import names
 
 TEST_DB = "cbc_opshub_test_project_delete"
 

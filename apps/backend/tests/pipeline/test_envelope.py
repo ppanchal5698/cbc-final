@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from cbc.persistence import envelope, names
+from cbc.shared.persistence import envelope, names
 
 
 def test_a_new_document_carries_the_whole_envelope() -> None:

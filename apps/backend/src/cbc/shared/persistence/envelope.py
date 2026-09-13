@@ -23,7 +23,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from cbc.persistence import names
+from cbc.shared.persistence import names
 
 # §4.4. Documents are written at this version; a reader handles this and the one
 # below it while a backfill runs, rather than stopping the world to migrate.

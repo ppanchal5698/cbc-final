@@ -97,7 +97,7 @@ async def migrate_and_index() -> None:
     lands on the wrong collection; built after, it costs nothing, because
     renameCollection carries indexes across.
     """
-    from cbc.persistence import migrations
+    from cbc.app import migrations
 
     await migrations.run(database())
     await ops.ensure_indexes()

@@ -62,7 +62,7 @@ async def create_project(body: ProjectCreate, actor: Actor) -> dict[str, Any]:
     # Matrix 3.0: default one-off when the create form omits mode.
     mode = body.mode or "one_off"
     alternates = [a.strip() for a in (body.bidAlternates or []) if a and str(a).strip()]
-    from cbc.persistence import repos
+    from cbc.shared.persistence import repos
 
     org_id = await repos.org_id_for(None)
     doc = {

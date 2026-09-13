@@ -11,7 +11,7 @@ import logging
 from pymongo import ASCENDING, TEXT
 from pymongo.errors import DuplicateKeyError, OperationFailure
 
-from cbc.persistence import names
+from cbc.shared.persistence import names
 from cbc.shared.mongo import INDEX_BUILD_ABORTED, create_index_resilient, database, replace_index
 
 log = logging.getLogger("cbc.api.db")  # the name these index messages have always logged under

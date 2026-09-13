@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from bson import ObjectId
-from cbc.persistence import names
+from cbc.shared.persistence import names
 
 
 def run(coro):
@@ -26,7 +26,7 @@ def database(monkeypatch):
 
     from pymongo import MongoClient
 
-    from cbc.persistence import migrations
+    from cbc.app import migrations
     from cbc.shared import mongo as shared_mongo
     from cbc.shared.config import settings
     from tests.shared import mongo_client

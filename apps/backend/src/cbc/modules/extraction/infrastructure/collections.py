@@ -9,7 +9,7 @@ from typing import Any
 
 from pymongo import ASCENDING, DESCENDING
 
-from cbc.persistence import names
+from cbc.shared.persistence import names
 from cbc.shared.mongo import database, replace_index
 
 

@@ -149,7 +149,7 @@ def finish_pipeline_jobs(db_name: str, code: str) -> None:
     Phase-boundary routes refuse (409) while another pipeline job is active, and
     no worker claims jobs in a test database, so a recipe clears them itself.
     """
-    from cbc.persistence import names
+    from cbc.shared.persistence import names
     from tests.shared import mongo_client
 
     raw = mongo_client()

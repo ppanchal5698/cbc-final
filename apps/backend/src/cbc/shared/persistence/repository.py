@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from cbc.persistence import envelope
+from cbc.shared.persistence import envelope
 
 
 class Repository:

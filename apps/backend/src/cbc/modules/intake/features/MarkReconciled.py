@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException
 from cbc.modules.intake.infrastructure.collections import versions
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api.lookup import load
-from cbc.persistence import versioning
+from cbc.modules.intake.domain import versioning
 from cbc.shared.auth import Actor
 
 router = APIRouter(prefix="/api/projects/{code}", tags=["versions"])

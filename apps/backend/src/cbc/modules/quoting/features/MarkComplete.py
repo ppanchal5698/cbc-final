@@ -13,7 +13,7 @@ from cbc.modules.quoting.api import quote as quote_service
 from cbc.modules.quoting.domain.quotes import HandOff
 from cbc.modules.quoting.infrastructure.collections import proposals
 from cbc.modules.quoting.infrastructure.proposal_view import DEFAULT_EXCLUSIONS, VALIDITY_DAYS, write_email_draft
-from cbc.persistence import proposals as proposal_rules
+from cbc.modules.quoting.domain import proposals as proposal_rules
 from cbc.shared.auth import Actor
 
 router = APIRouter(prefix="/api/projects/{code}/proposal", tags=["proposal"])

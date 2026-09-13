@@ -17,7 +17,7 @@ from bson import ObjectId
 from pymongo import MongoClient
 
 from cbc.shared.config import settings
-from cbc.persistence import names
+from cbc.shared.persistence import names
 from tests.shared import FIXTURE_PDF, ROOT, opshub_client  # noqa: E402
 from tests.shared import mongo_client
 

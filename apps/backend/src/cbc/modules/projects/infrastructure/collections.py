@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from pymongo import ASCENDING, DESCENDING
 
-from cbc.persistence import names
+from cbc.shared.persistence import names
 from cbc.shared.mongo import database
 
 

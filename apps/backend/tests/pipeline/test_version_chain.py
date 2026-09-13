@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from cbc.persistence import versioning
+from cbc.modules.intake.domain import versioning
 
 
 def test_the_first_version_starts_a_chain() -> None:

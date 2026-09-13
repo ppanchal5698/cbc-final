@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 import pytest
 from bson import ObjectId
 
-from cbc.persistence import names
+from cbc.shared.persistence import names
 from tests.shared import mongo_client, opshub_client
 
 TEST_DB = "cbc_opshub_char_extraction"

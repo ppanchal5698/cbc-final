@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from cbc.modules.projects.api.lookup import load
 from cbc.modules.quoting.infrastructure.collections import rfis
-from cbc.persistence import repos
+from cbc.shared.persistence import repos
 from cbc.shared.auth import Actor
 from cbc.shared.mongo import serialise
 

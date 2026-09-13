@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Apply pending database migrations, or say what would run.
 
-The runner itself (`cbc.persistence.migrations`) is handed a database and never
+The runner itself (`cbc.app.migrations`) is handed a database and never
 looks for one - it sits below `cbc.shared.mongo` in the dependency order. This script is
 the operator entry point that knows how to make a client.
 
@@ -18,7 +18,7 @@ import asyncio
 import logging
 
 from cbc.shared.mongo import database
-from cbc.persistence import migrations
+from cbc.app import migrations
 
 
 async def _status() -> int:

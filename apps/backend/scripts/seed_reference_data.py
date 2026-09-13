@@ -24,7 +24,7 @@ async def main() -> int:
     )
     args = parser.parse_args()
 
-    from cbc.persistence import migrations
+    from cbc.app import migrations
     from cbc.shared.mongo import database
     from cbc.modules.pricing.api.reference_store import FAMILIES, ensure_reference_seed
 

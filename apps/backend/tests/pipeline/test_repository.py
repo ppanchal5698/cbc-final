@@ -10,8 +10,8 @@ import asyncio
 
 import pytest
 
-from cbc.persistence import envelope, names
-from cbc.persistence.repository import Repository
+from cbc.shared.persistence import envelope, names
+from cbc.shared.persistence.repository import Repository
 from tests.shared import mongo_client
 
 TEST_DB = "cbc_opshub_test_repository"

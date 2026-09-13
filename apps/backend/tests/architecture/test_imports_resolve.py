@@ -45,7 +45,7 @@ NAMESPACE_PACKAGES = frozenset(
         "cbc.core",
         "cbc.modules.catalog.api.pageindex",
         "cbc.http",
-        "cbc.persistence",
+        "cbc.shared.persistence",
         # A module's public surface is a package of submodules too, and the
         # worker reaches it through the same deferred imports that hid this defect.
         "cbc.modules.ops.api",

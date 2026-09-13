@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 
-from cbc.persistence import envelope, names
+from cbc.shared.persistence import envelope, names
 
 VERSION = 2
 DESCRIPTION = "create the CBC organization and backfill orgId/schemaVersion onto every document"

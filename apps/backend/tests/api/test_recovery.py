@@ -20,7 +20,7 @@ from cbc.app.main import migrate_and_index
 from cbc.shared import mongo as shared_mongo
 from cbc.shared.config import settings
 from tests.shared import mongo_client
-from cbc.persistence import names
+from cbc.shared.persistence import names
 
 TEST_DB = "cbc_opshub_test_recovery"
 

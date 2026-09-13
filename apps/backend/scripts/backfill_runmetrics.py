@@ -24,7 +24,8 @@ from bson import ObjectId  # noqa: E402
 from bson.errors import InvalidId  # noqa: E402
 
 from cbc.modules.ops.api import runmetrics  # noqa: E402
-from cbc.persistence import migrations, names  # noqa: E402
+from cbc.app import migrations  # noqa: E402
+from cbc.shared.persistence import names  # noqa: E402
 from cbc.shared.mongo import database  # noqa: E402
 
 

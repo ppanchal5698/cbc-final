@@ -29,6 +29,7 @@ worker process ──► cbc.worker (ops' loop + modules' jobs)     ──┘
 apps/backend/src/cbc/
   app/main.py              API composition root: middleware, error mapping, health,
                            lifespan (migrate, then each module's indexes), registration
+  app/migrations/          forward-only migrations - the one cross-collection code
   worker/main.py           worker composition root: registers every module's jobs into ops' loop
   modules/<module>/
     __init__.py            register(app), ensure_indexes(), register_jobs() - all the roots call
@@ -38,7 +39,8 @@ apps/backend/src/cbc/
     infrastructure/        collections.py (its collections + indexes), shared adapters
   shared/                  config, auth, mongo client + primitives, events, logging,
                            tracing, otel, envfile, pass files, the project file tree (storage,
-                           S3, malware scan), manifests - no module imports allowed
+                           S3, malware scan), manifests, persistence (collection names, the
+                           audit envelope, the tenant-scoped repository) - no module imports allowed
 ```
 
 `apps/backend/src/cbc` also still holds the pre-module kernel the modules lean on
@@ -126,7 +128,7 @@ A job type runs as a slice in the module that owns what it writes.
 
 1. `modules/<name>/{__init__,api/__init__,features/__init__,domain/__init__,infrastructure/__init__}.py`.
 2. `infrastructure/collections.py`: one accessor per owned collection (names from
-   `cbc.persistence.names`) and `ensure_indexes()`.
+   `cbc.shared.persistence.names`) and `ensure_indexes()`.
 3. `__init__.py`: `register(app)` and `ensure_indexes()`; `register_jobs()` too if it runs
    jobs, and add it to `wire()` in `worker/main.py`.
 4. In `app/main.py`: import it, call `register` in `create_app`, and add its
@@ -136,7 +138,7 @@ A job type runs as a slice in the module that owns what it writes.
 ## Data
 
 One Motor client (`shared/mongo.py`), one database, per-module collections and
-indexes. Migrations (`cbc/persistence/migrations`) are forward-only, run once at
+indexes. Migrations (`cbc/app/migrations`) are forward-only, run once at
 startup before any module's indexes, and are the one deliberate cross-collection
 exception - they rename and backfill across modules. The catalog MCP server gets a
 connection that cannot write: `shared/mongo.py` derives it (`readonly_uri`), and
@@ -145,13 +147,14 @@ startup creates the user behind it (`ensure_readonly_user`).
 ## Still legacy - and where it goes
 
 `cbc.services`, `cbc.db` and `cbc.schemas` are gone - into the modules, `shared/` and the
-API's composition root - `cbc.pageindex` is catalog's now, and `test_layering` fails if
-any of them comes back. What the
+API's composition root - `cbc.pageindex` is catalog's now, `cbc.persistence` is split between `shared/`,
+`app/migrations` and the two modules whose rules it held, and `test_layering` fails
+if any of them comes back. What the
 modules still lean on:
 
 - `cbc.worker_kit` - a Claude pass's prompt templates and its sandbox. `workflows/*.sh`,
   CI and the sandbox image run them by module path, so they stay where they are.
-- `cbc.core`, `cbc.domain`, `cbc.persistence`, `cbc.validation` -
+- `cbc.core`, `cbc.domain`, `cbc.validation` -
   kernel packages, unchanged by the rewrite.
 
 ## Known inconsistencies (recorded, not resolved)

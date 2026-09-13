@@ -8,8 +8,8 @@ from __future__ import annotations
 from typing import Any
 
 from cbc.shared.mongo import database
-from cbc.persistence import envelope, names
-from cbc.persistence.repository import Repository
+from cbc.shared.persistence import envelope, names
+from cbc.shared.persistence.repository import Repository
 
 # Stable CBC org slug from migration m002; used when a legacy project lacks orgId.
 CBC_ORG_SLUG = "cbc"

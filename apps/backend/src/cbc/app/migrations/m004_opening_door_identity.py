@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from cbc.persistence import names
+from cbc.shared.persistence import names
 
 VERSION = 4
 DESCRIPTION = "backfill openings.doorNumber from mark and unique (orgId, bidRequestId, doorNumber)"
