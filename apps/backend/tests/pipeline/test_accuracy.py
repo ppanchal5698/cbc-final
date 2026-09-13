@@ -176,21 +176,21 @@ def test_every_job_type_is_either_gated_or_explicitly_unchecked() -> None:
     from typing import get_args
 
     from cbc.modules.ops.domain.jobs import JobType
-    from cbc.validation.artifacts import ARTIFACT_CHECKS, UNCHECKED_JOB_TYPES
+    from cbc.modules.extraction.api.validation.artifacts import ARTIFACT_CHECKS, UNCHECKED_JOB_TYPES
 
     uncovered = set(get_args(JobType)) - set(ARTIFACT_CHECKS) - UNCHECKED_JOB_TYPES
     assert not uncovered, f"job types with no decision about validation: {uncovered}"
 
 
 def test_an_unknown_job_type_fails_loudly() -> None:
-    from cbc.validation.artifacts import validate_job_artifacts
+    from cbc.modules.extraction.api.validation.artifacts import validate_job_artifacts
 
     with pytest.raises(ValueError, match="no entry in ARTIFACT_CHECKS"):
         validate_job_artifacts("something_new", "whatever")
 
 
 def test_the_full_pipeline_runs_all_three_check_sets() -> None:
-    from cbc.validation.artifacts import ARTIFACT_CHECKS
+    from cbc.modules.extraction.api.validation.artifacts import ARTIFACT_CHECKS
 
     assert len(ARTIFACT_CHECKS["run_full_pipeline"]) == 3, (
         "one session produces extraction, pricing and proposal artifacts, so all "
@@ -203,7 +203,7 @@ def test_the_full_pipeline_runs_all_three_check_sets() -> None:
 
 def _priced(tmp_path, lines) -> str:
     """Write a minimal project and return its slug, for check_pricing."""
-    import cbc.validation.artifacts as vp
+    import cbc.modules.extraction.api.validation.artifacts as vp
 
     slug = "gate_fixture"
     root = tmp_path / "projects" / slug
@@ -227,7 +227,7 @@ BLANK_MANUAL = {
 def test_a_line_with_no_identity_is_refused(tmp_path, monkeypatch) -> None:
     """A real run wrote 25 of these: nothing wrong in them, and useless - the
     estimator was handed blanks and no way to know what to price."""
-    import cbc.validation.artifacts as vp
+    import cbc.modules.extraction.api.validation.artifacts as vp
 
     monkeypatch.setattr(vp, "ROOT", tmp_path)
     slug = _priced(tmp_path, [BLANK_MANUAL])
@@ -237,7 +237,7 @@ def test_a_line_with_no_identity_is_refused(tmp_path, monkeypatch) -> None:
 
 
 def test_a_manual_line_that_names_the_item_passes(tmp_path, monkeypatch) -> None:
-    import cbc.validation.artifacts as vp
+    import cbc.modules.extraction.api.validation.artifacts as vp
 
     monkeypatch.setattr(vp, "ROOT", tmp_path)
     named = {**BLANK_MANUAL, "description": 'IVES 700 83", 630',
@@ -252,7 +252,7 @@ def test_a_manual_line_that_names_the_item_passes(tmp_path, monkeypatch) -> None
 
 def test_a_manual_line_with_no_reason_is_refused(tmp_path, monkeypatch) -> None:
     """NFR-2: a manual line is an instruction to a human, so it says why."""
-    import cbc.validation.artifacts as vp
+    import cbc.modules.extraction.api.validation.artifacts as vp
 
     monkeypatch.setattr(vp, "ROOT", tmp_path)
     slug = _priced(tmp_path, [{**BLANK_MANUAL, "description": "IVES 700"}])

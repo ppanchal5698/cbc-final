@@ -23,7 +23,7 @@ from cbc.modules.ops.api import jobs as ops_jobs, provider, runmetrics, worker a
 from cbc.modules.ops.api.worker import finish
 from cbc.shared import storage
 from cbc.shared.paths import repo_root
-from cbc.validation import ArtifactValidationError
+from cbc.modules.ops.api.artifact_gate import ArtifactValidationError
 from cbc.worker_kit import prompts
 
 log = logging.getLogger("cbc.worker")  # handlers are configured by the worker process

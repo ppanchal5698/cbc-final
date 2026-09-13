@@ -15,7 +15,7 @@ import json
 
 import pytest
 
-from cbc.validation import review
+from cbc.modules.extraction.api.validation import review
 
 
 @pytest.fixture

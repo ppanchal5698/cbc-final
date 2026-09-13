@@ -82,7 +82,7 @@ def test_artifact_schema_rejects_bad_scope_summary() -> None:
 
 
 def test_check_extraction_fails_when_frp_flag_without_file(tmp_path, monkeypatch) -> None:
-    from cbc.validation import artifacts
+    from cbc.modules.extraction.api.validation import artifacts
 
     monkeypatch.setattr(artifacts, "ROOT", tmp_path)
     slug = "frp_gate"

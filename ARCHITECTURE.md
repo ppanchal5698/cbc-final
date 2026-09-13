@@ -145,19 +145,18 @@ exception - they rename and backfill across modules. The catalog MCP server gets
 connection that cannot write: `shared/mongo.py` derives it (`readonly_uri`), and
 startup creates the user behind it (`ensure_readonly_user`).
 
-## Still legacy - and where it goes
+## What is not a module
 
-`cbc.services`, `cbc.db` and `cbc.schemas` are gone - into the modules, `shared/` and the
-API's composition root - `cbc.pageindex` is catalog's now, `cbc.persistence` is split between `shared/`,
-`app/migrations` and the two modules whose rules it held, the business rules in
-`domain/` went to the modules they belong to, `core/` to `shared/` and ops, and `test_layering` fails
-if any of them comes back. What the
-modules still lean on:
+Everything under `cbc/` is a module, `shared/`, or a composition root (`app/`,
+`worker/`) - except `cbc.worker_kit`, a Claude pass's prompt templates and its
+sandbox. It sits above the modules on purpose: building a pass's prompt reads
+catalog's match cache while ops' Claude pass calls it, so no module could hold it
+without a cycle. `workflows/*.sh`, CI and the sandbox image also run it by module
+path.
 
-- `cbc.worker_kit` - a Claude pass's prompt templates and its sandbox. `workflows/*.sh`,
-  CI and the sandbox image run them by module path, so they stay where they are.
-- `cbc.validation` -
-  kernel packages, unchanged by the rewrite.
+The pre-module kernel is gone: `cbc.db`, `services`, `schemas`, `pageindex`,
+`persistence`, `domain`, `core` and `validation` went into the modules, `shared/`
+and `app/`, and `test_layering` fails if any of them comes back.
 
 ## Known inconsistencies (recorded, not resolved)
 

@@ -8,7 +8,7 @@ from typing import Any
 from cbc.modules.quoting.infrastructure.collections import proposals
 from cbc.shared import storage
 from cbc.modules.quoting.infrastructure import render
-from cbc.validation import review as review_flags
+from cbc.modules.extraction.api.validation import review as review_flags
 
 log = logging.getLogger("cbc.services.sync")
 

@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from cbc.shared import pdfpages
-from cbc.validation import artifacts, review
+from cbc.modules.extraction.api.validation import artifacts, review
 
 
 def _project(root: Path, slug: str, schedule: object) -> None:

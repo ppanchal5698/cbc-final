@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from cbc.validation.artifacts import (
+from cbc.modules.extraction.api.validation.artifacts import (
     check_extraction,
     check_pricing,
     check_proposal,
@@ -130,7 +130,7 @@ def test_pricing_requires_fields_on_each_line(validate_project):
 
 
 def test_validate_job_artifacts_raises(validate_project):
-    from cbc.validation.artifacts import ArtifactValidationError
+    from cbc.modules.extraction.api.validation.artifacts import ArtifactValidationError
 
     _write(validate_project, "extracted/door_schedule.json", {"openings": []})
     with pytest.raises(ArtifactValidationError, match="artifact validation failed"):
@@ -493,7 +493,7 @@ def test_a_warning_only_run_passes_the_gate(validate_project, monkeypatch):
     missing `handing` is enough, SOFT_FIELDS warn by design - died with
     NameError instead of passing, so a valid extraction failed its own gate.
     """
-    from cbc.validation import artifacts
+    from cbc.modules.extraction.api.validation import artifacts
 
     monkeypatch.setitem(
         artifacts.ARTIFACT_CHECKS,
@@ -504,8 +504,8 @@ def test_a_warning_only_run_passes_the_gate(validate_project, monkeypatch):
 
 
 def test_pipeline_fails_fast_at_extraction_and_skips_pricing(validate_project, monkeypatch):
-    from cbc.validation import artifacts
-    from cbc.validation.artifacts import ArtifactValidationError
+    from cbc.modules.extraction.api.validation import artifacts
+    from cbc.modules.extraction.api.validation.artifacts import ArtifactValidationError
 
     called = {"n": 0}
 
@@ -531,7 +531,7 @@ def test_pipeline_fails_fast_at_extraction_and_skips_pricing(validate_project, m
 
 
 def test_pipeline_fails_at_pricing_after_good_extraction(validate_project):
-    from cbc.validation.artifacts import ArtifactValidationError
+    from cbc.modules.extraction.api.validation.artifacts import ArtifactValidationError
 
     _write(validate_project, "extracted/door_schedule.json", {"openings": [_good_opening()]})
     _write(validate_project, "extracted/scope_metadata.json", {})

@@ -17,8 +17,8 @@ from cbc.modules.extraction.api.claude_output import (
     ScopeSummary,
 )
 from cbc.shared import storage
-from cbc.validation.artifacts import ArtifactValidationError
-from cbc.validation.review import CONFIDENCE_FLOOR, REQUIRED_OPENING_FIELDS
+from cbc.modules.extraction.api.validation.artifacts import ArtifactValidationError
+from cbc.modules.extraction.api.validation.review import CONFIDENCE_FLOOR, REQUIRED_OPENING_FIELDS
 
 ROOT = repo_root()
 

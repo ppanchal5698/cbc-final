@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-from cbc.validation import check_pricing  # noqa: E402
+from cbc.modules.extraction.api.validation import check_pricing  # noqa: E402
 
 RENDER_SCRIPT = (
     ROOT / ".claude" / "skills" / "generate-quotation" / "scripts" / "render_quote.py"

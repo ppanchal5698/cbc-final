@@ -443,8 +443,8 @@ def test_an_absent_schedule_imports_nothing_and_does_not_raise(project) -> None:
 
 
 def test_malformed_price_is_rejected_before_import(project) -> None:
-    from cbc.validation.artifacts import ArtifactValidationError
-    from cbc.validation.contracts import raise_if_invalid
+    from cbc.modules.extraction.api.validation.artifacts import ArtifactValidationError
+    from cbc.modules.extraction.api.validation.contracts import raise_if_invalid
 
     record, database, directory = project
     _write(
@@ -471,7 +471,7 @@ def test_malformed_price_is_rejected_before_import(project) -> None:
 
 
 def test_numeric_price_string_is_coerced(project) -> None:
-    from cbc.validation.contracts import raise_if_invalid
+    from cbc.modules.extraction.api.validation.contracts import raise_if_invalid
 
     _record, _database, directory = project
     _write(

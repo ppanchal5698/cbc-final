@@ -22,8 +22,8 @@ from cbc.modules.projects.api import bids, lookup, scope_metadata
 from cbc.modules.catalog.api import matchcache
 from cbc.modules.extraction.infrastructure import pretakeoff, sheetmap
 from cbc.shared import manifests
-from cbc.validation import ArtifactValidationError, validate_job_artifacts
-from cbc.validation.contracts import raise_if_invalid
+from cbc.modules.extraction.api.validation import ArtifactValidationError, validate_job_artifacts
+from cbc.modules.extraction.api.validation.contracts import raise_if_invalid
 
 log = logging.getLogger("cbc.worker")  # handlers are configured by the worker process
 

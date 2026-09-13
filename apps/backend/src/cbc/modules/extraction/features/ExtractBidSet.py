@@ -13,7 +13,7 @@ from typing import Any
 from cbc.modules.extraction.api import documents, door_schedule, openings, passes
 from cbc.modules.ops.api import jobs as ops_jobs
 from cbc.modules.projects.api import bids, pipeline, saga
-from cbc.validation.contracts import extraction_review_verdict
+from cbc.modules.extraction.api.validation.contracts import extraction_review_verdict
 
 JOB_TYPES = ("extract_bid_set", "rerun_extraction")
 

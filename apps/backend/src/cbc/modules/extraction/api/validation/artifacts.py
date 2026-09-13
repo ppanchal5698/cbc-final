@@ -21,25 +21,10 @@ from pathlib import Path
 from typing import Any
 
 
-class ArtifactValidationError(ValueError):
-    """A job's artifacts failed the worker gate. Do not retry the whole run."""
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        phase: str | None = None,
-        phase_state: dict[str, Any] | None = None,
-        quarantine: list[dict[str, Any]] | None = None,
-    ):
-        super().__init__(message)
-        self.phase = phase
-        self.phase_state = phase_state or {}
-        self.quarantine = quarantine or []
-
 import fitz
 
 from cbc.shared.paths import repo_root
+from cbc.modules.ops.api.artifact_gate import ArtifactValidationError
 from cbc.shared.pdfrows import rows_from_words
 
 ROOT = repo_root()

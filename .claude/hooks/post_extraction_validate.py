@@ -73,7 +73,7 @@ def check(payload: dict) -> int:
         return BLOCK if problems else 0
 
     try:
-        from cbc.validation import check_extraction, check_pricing
+        from cbc.modules.extraction.api.validation import check_extraction, check_pricing
     except ImportError:
         return 0
 

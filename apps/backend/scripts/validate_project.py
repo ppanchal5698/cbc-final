@@ -31,7 +31,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # servers present, hooks executable, reference data current - which is a
 # property of the working copy and not of any project.
 from cbc.modules.ops.api.freshness import load_sync  # noqa: E402
-from cbc.validation.artifacts import (  # noqa: E402
+from cbc.modules.extraction.api.validation.artifacts import (  # noqa: E402
     ARTIFACT_CHECKS,
     BBOX_COVERAGE,
     HARD_FIELDS,

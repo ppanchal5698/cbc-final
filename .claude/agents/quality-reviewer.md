@@ -18,7 +18,7 @@ Follow @.claude/skills/validate-extraction/SKILL.md for the mechanical checklist
 
 ## What is already flagged before you start
 
-`cbc.validation.review` derives the mechanical findings from the artifacts and
+`cbc.modules.extraction.api.validation.review` derives the mechanical findings from the artifacts and
 writes them to `review/review_flags.json` - missing rating, handing or size,
 confidence under 0.75, a missing bbox, unpriced MANUAL / RFQ / distributor lines,
 below-band and unexplained margin overrides, out-of-scope items, and unresolved
