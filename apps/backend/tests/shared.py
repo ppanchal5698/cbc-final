@@ -44,9 +44,20 @@ for _skill_scripts in (
     if _skill_scripts.is_dir() and str(_skill_scripts) not in sys.path:
         sys.path.append(str(_skill_scripts))
 
+# Where the cutover moved things. The archived tests spelled these as
+# `ROOT / "packages" / "cbc"`, `ROOT / "tests" / "fixtures"` and `ROOT / "docs"`,
+# because tests/ and packages/ both sat at the repo root. Naming them once here
+# means the next move edits this file and nothing else.
+PKG = ROOT / "apps" / "backend" / "src" / "cbc"
+FIXTURES = ROOT / "apps" / "backend" / "tests" / "fixtures"
+# docs/ carries the architecture set; data/docs/ carries the requirements and
+# rollout records that the traceability test reads.
+DOCS = ROOT / "docs"
+DATA_DOCS = ROOT / "data" / "docs"
+
 # The Dutch Bros bid set: the fixture the extraction tests read. Not committed
 # (.dockerignore excludes tests/fixtures/pdfs/), so anything needing it skips.
-FIXTURE_PDF = ROOT / "apps" / "backend" / "tests" / "fixtures" / "pdfs" / "1_Architectural.pdf"
+FIXTURE_PDF = FIXTURES / "pdfs" / "1_Architectural.pdf"
 SCHEDULE_PAGE = 14  # sheet A2.2
 
 TEST_ACTOR = "test@example.com"

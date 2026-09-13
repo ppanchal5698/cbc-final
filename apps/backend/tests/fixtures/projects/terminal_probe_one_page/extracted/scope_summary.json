@@ -1,0 +1,43 @@
+{
+  "project_name": "terminal_probe_one_page",
+  "divisions_in_scope": [],
+  "sections": [],
+  "door_schedule_found": false,
+  "door_schedule_pages": [],
+  "hardware_groups_found": false,
+  "hardware_group_pages": [],
+  "fire_ratings_present": false,
+  "fire_rating_note": "No specification pages, door schedule, or frame schedule are present in this single-sheet bid set. There is nothing to read a rating from. Matrix 7.3 stays open regardless - flag, do not assume unrated.",
+  "frp_in_scope": "unconfirmed",
+  "frp_note": "FRP appears only as one of two finish options for 'WALL TYPE 3' in the generic substrate-schedule legend on sheet A1.1 (5/8\" plywood OR fiberglass reinforced plastic (FRP) panels, 'finish per schedule'). No interior finish schedule or room-by-room wall-type assignment is present on this sheet, so no specific room can be confirmed as receiving FRP.",
+  "bid_alternates": [],
+  "out_of_scope_items": [
+    {
+      "item": "Two hatched areas on the floor plan labeled 'HATCHED AREA NOT IN SCOPE'",
+      "reason": "Explicitly marked not in scope on the drawing itself; no further description or legend for what occupies those areas is present on this sheet",
+      "source_page": 1
+    }
+  ],
+  "unparsed_sections": [],
+  "unresolved_references": [
+    {
+      "reference": "\"'D' SHAPED DOOR HANDLES, SEE NATIONAL ACCOUNTS\"",
+      "note": "Points to an external hardware standard/document not included in this bid set. Cannot resolve a part number or series from this sheet alone.",
+      "source_page": 1
+    },
+    {
+      "reference": "Repeated door/opening tag '07' at multiple locations on the floor plan",
+      "note": "Tag symbols for openings appear on the plan, but no door schedule table is present anywhere in this bid set to resolve size, handing, finish, fire rating or hardware set for tag '07'.",
+      "source_page": 1
+    }
+  ],
+  "confidence": 0.2,
+  "flags": [
+    "no_specification_document_present",
+    "no_division_08_section_found",
+    "no_division_10_section_found",
+    "no_hardware_groups_block_found",
+    "bid_set_appears_incomplete_single_sheet_only"
+  ],
+  "note": "This bid set contains a single architectural sheet (A1.1, FLOOR PLAN) - a floor plan plus a generic wall-type/substrate legend and one detail callout. It carries no Division 08 or Division 10 spec section text, no door schedule, and no hardware-groups block. Scope cannot be confirmed from this sheet; the full spec book and a schedules sheet (A2.x-style) should be requested from the initiator before proceeding to Phase 3/4."
+}

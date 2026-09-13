@@ -1,0 +1,29 @@
+{
+  "project": "terminal_probe_one_page",
+  "source_file": "uploads/raw/_one_page_probe.pdf",
+  "extracted_at": "2026-08-27T12:35:57Z",
+  "frp_mentioned": true,
+  "frp_confirmed_in_scope": "unconfirmed",
+  "source_pages": [1],
+  "rooms": [],
+  "note": "FRP appears exactly once, as one of two finish options listed under 'WALL TYPE 3' in the generic substrate-schedule legend on sheet A1.1: '5/8\" EXTERIOR GRADE PLYWOOD SHEETS / FIBERGLASS REINFORCED PLASTIC (FRP) PANELS FINISH PER SCHEDULE'. This is a wall-assembly legend, not a room-specific FRP call-out. No interior finish schedule, no room-by-room wall-type tag list, and no dimensioned restroom/kitchen plan detail are present in this single-sheet bid set, so it cannot be confirmed which rooms (if any) actually use wall type 3, and no perimeter, wall height, or corner count could be captured.",
+  "geometry": {
+    "perimeter_lf": null,
+    "wall_height": null,
+    "inside_corners": null,
+    "outside_corners": null,
+    "openings_deducted": null
+  },
+  "quantities": null,
+  "status": "PENDING_CONSTANTS",
+  "blocked_on": [
+    "Open Item 5 - FRP geometry-to-quantity conversion constants not yet provided by CBC (panel size, waste %, trim stick length, adhesive coverage, opening handling)",
+    "No finish schedule or room-by-room wall-type sheet present in this bid set to confirm whether any room actually receives wall type 3 (FRP)"
+  ],
+  "flags": [
+    "frp_scope_unconfirmed",
+    "no_finish_schedule_found",
+    "bid_set_appears_incomplete_single_sheet_only"
+  ],
+  "confidence": 0.15
+}

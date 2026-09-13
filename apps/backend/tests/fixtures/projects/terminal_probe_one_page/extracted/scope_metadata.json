@@ -1,0 +1,30 @@
+{
+  "project_name": "terminal_probe_one_page",
+  "brand": "Dunkin Donuts",
+  "project_title": "Dunkin Donuts Remodel",
+  "project_number": "24163",
+  "address": "2083 Crowell Road",
+  "city": "Covington",
+  "state": "GA",
+  "architect": "JPC Design & Construction, LLC",
+  "architect_address": "PO Box 710, Jackson, GA 30233",
+  "gc": null,
+  "initiator": null,
+  "bid_due_date": null,
+  "issue_date": "2025-07-21",
+  "issue_status": null,
+  "bid_alternates": [],
+  "source_files": ["uploads/raw/_one_page_probe.pdf"],
+  "mode": "one_off",
+  "flags": [
+    "gc_unknown",
+    "initiator_unknown",
+    "bid_due_date_unknown",
+    "bid_alternates_unknown",
+    "reuse_check_not_performed",
+    "bid_set_appears_incomplete_single_sheet_only"
+  ],
+  "notes": "Only one PDF (a single architectural sheet, A1.1 'FLOOR PLAN') was found in uploads/raw/. It is a title-block-bearing sheet for a Dunkin Donuts remodel, but a full bid set for this process normally also includes a specification book, a door/hardware schedule sheet, and a finish schedule - none of which are present. Tax status (Ohio/Kentucky vs untaxed) is not affected since the project state is GA, but every other intake field that isn't on the title block is null and flagged rather than guessed, per NFR-2.",
+  "source_page": 1,
+  "extracted_at": "2026-08-27T12:35:57Z"
+}

@@ -19,6 +19,9 @@ os.environ.setdefault("WORKER_DOMAIN", "catalog")
 # Must be set before anything imports cbc.config, which reads os.environ once at
 # import. setdefault, so an in-container run (Dockerfile sets it) is untouched.
 os.environ.setdefault("REFERENCE_DIR", "data/reference-library")
+# Same for PRICEBOOK_DIR: pageindex/basis.py falls back to repo_root()/"pricebooks",
+# which exists only as the image's /app/pricebooks symlink.
+os.environ.setdefault("PRICEBOOK_DIR", "data/pricebooks")
 
 from tests.shared import FIXTURE_PDF, ROOT, direct_uri  # noqa: E402
 
@@ -92,18 +95,16 @@ def app(monkeypatch):
     monkeypatch.setattr("cbc.http.service_app.ensure_readonly_user", _ok)
     monkeypatch.setattr("cbc.http.service_app.pageindex_store.ensure_indexes", _ok)
 
-    # Refresh cached settings after forcing env above.
-    from cbc import config
-
-    config.get_settings.cache_clear()
-    config.settings = config.get_settings()
-    config.settings.mongodb_uri = direct_uri(config.settings.mongodb_uri)
-    import cbc.http.deps as deps
-    import cbc.http.service_app as service_app
-
-    deps.settings = config.settings
-    service_app.settings = config.settings
-
+    # No settings refresh here. This fixture used to rebuild `cbc.config.settings`
+    # and assign the new object onto config, http.deps and http.service_app -
+    # directly, never restored. Every module that had already done
+    # `from cbc.config import settings` (services.storage, storage_backends,
+    # worker_kit.sandbox) kept the old object, so any later test that set
+    # `settings.storage_root` patched the new one while the code under test read
+    # the old: five tests in pipeline/ and api/test_service_jwt passed alone and
+    # failed after any test that used `client`. The env is forced at the top of
+    # this file before anything imports cbc.config, so the original object was
+    # already correct and there was nothing to refresh.
     from cbc.api.app import create_app
 
     return create_app(background=False)

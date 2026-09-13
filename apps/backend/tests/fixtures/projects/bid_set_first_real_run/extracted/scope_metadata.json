@@ -1,0 +1,53 @@
+{
+  "project_name": "dunkin_donuts_covington_ga",
+  "brand": "Dunkin' Donuts",
+  "project_number": "24163",
+  "address": "2083 Crowell Road",
+  "city": "Covington",
+  "state": "GA",
+  "zip": "30014",
+  "architect": "Robertson Loia Roof PC (Samia Coker, Architect of Record)",
+  "structural_engineer": "Al McPeters, Robertson Loia Roof PC",
+  "mep_engineers": {
+    "electrical": "Scott Walker, Robertson Loia Roof PC",
+    "mechanical": "Nimir Desai, Robertson Loia Roof PC",
+    "plumbing": null
+  },
+  "gc": null,
+  "initiator": null,
+  "bid_due_date": null,
+  "issue_date": "2025-07-21",
+  "issue_status": null,
+  "bid_alternates": [],
+  "source_files": ["uploads/raw/Bid Set .pdf"],
+  "mode": "one_off",
+  "flags": [
+    "issue_status_unknown",
+    "bid_due_date_unknown",
+    "initiator_unknown",
+    "gc_unknown",
+    "no_cbc_relevant_bid_alternates_found"
+  ],
+  "source_page": 6,
+  "source_pages": {
+    "project_name_brand_address_city_state_zip_project_number_date": 6,
+    "architect_and_engineers": 1,
+    "titleblock_company_field_JPC_Design_Construction_LLC": 1,
+    "revisions_table_empty": 1,
+    "life_safety_and_occupancy_data": 3,
+    "wall_type_schedule_frp_callout": 6,
+    "equipment_alternates_out_of_scope": 16
+  },
+  "notes": [
+    "Scope of work per cover sheet (page 1): renovation of an existing Dunkin' Donuts building that shares a structure with an existing convenience store; scope is limited to the Dunkin' side, exterior and interior finishes.",
+    "CORRECTION (superseding the first intake pass): the PDF's embedded font remaps every character to (codepoint + 29), with NO wraparound/modulo and no floor at ASCII 32 - digits and punctuation land in the C0 control-character range (e.g. '1' encodes as 0x14) and were silently dropped by the first pass's decode routine, which only reversed the shift for bytes already in 32-126. The correct decoder is simply chr(ord(ch)+29) applied to every character. Re-decoding recovered a fully populated title block on the cover sheet and A1.1: PROJECT NUMBER 24163, DATE 07/21/2025, ADDRESS 2083 CROWELL ROAD, COVINGTON, GA 30014. The earlier 'no numeric data anywhere in the document' conclusion was wrong - it was a decode bug, not an unfilled title block. Downstream phases must use the corrected decoder for door sizes, fire ratings and hardware-set numbers, which are also numeric-heavy.",
+    "'JPC Design & Construction LLC' (PO Box 710, Jackson, GA 30233) appears in the title-block 'FOR:' field on every sheet - i.e. the project is being produced for this company - but is never explicitly labeled 'General Contractor' anywhere in the set. Recorded as gc: null pending estimator confirmation rather than guessed; JPC Design & Construction LLC is the strong candidate.",
+    "No 'ISSUED FOR PERMIT/BID/CONSTRUCTION' stamp found; the REVISIONS table (DATE / DESCRIPTION) on the cover sheet has no rows filled in, so issue_status stays null/flagged even though the drawing date (07/21/2025) is now known.",
+    "FRP (fiberglass reinforced plastic) panels are explicitly called out as substrate option 3 on the Wall Types / Substrate Schedule, sheet A1.1 (source_page 6): 'FIBERGLASS REINFORCED PLASTIC (FRP) PANELS FINISH PER SCHEDULE'. FRP is in scope for this bid - route to frp-specialist.",
+    "The cover-sheet Index of Drawings (source_page 1) lists no standalone 'DOOR SCHEDULE' sheet - sheets are G1.0-G1.2, AD1.1-AD1.2, A1.1-A5.1, EQ1.1-EQ1.2, M1.1-M6.1, P1.1-P6.1, E1.1-E7.1. This is a small existing-building remodel, not new construction; door/opening data likely lives inline on A1.1 (floor plan), A2.1 (elevations) or A5.1 (section/Dunkin details) rather than on a dedicated schedule sheet. Take-off must search all of these, not just look for a schedule block.",
+    "'ALTERNATE' callouts do appear in the drawings (equipment schedule, EQ1.2, source_page 16, kitchen-equipment options e.g. Traulsen vs. Delfield, Bunn-O-Matic). None are Division 08/10 bid alternates relevant to CBC's scope, so bid_alternates is empty rather than populated from FF&E options.",
+    "No accompanying email or RFP text was provided with this intake - only the combined bid-set PDF. The internal sales-queue initiator (Kellan/Matt/Rebecca/Tina) could not be determined and must be confirmed before Phase 6 delivery, since the finished quote must return to that specific person, never a group email.",
+    "State is confirmed as GA from the title block and project-data sheet (page 3/6). GA is outside Ohio/Kentucky, so no sales tax applies per the confirmed business rule (2.4) - this is a resolved value, not a tax-unresolved flag.",
+    "project_number '24163' recovered from the intake pipeline's own metadata request is CBC's internal reference; project_number here is the architect's own job number from the title block. Both are recorded in this record's project_number (architect's 24163) - CBC's internal bid reference CBC-260144 is tracked by the Ops-Hub project slug, not duplicated into this field, to avoid conflating the two numbering systems."
+  ]
+}
