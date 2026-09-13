@@ -5,6 +5,9 @@
 - `feedback` - record an estimator's correction (FR-13), from any screen.
 - `door_schedule` - the door schedule on disk, both ways: a pass's openings loaded in,
   the estimator's confirmed ones written back down.
+- `claude_output`, `artifact_schema`, `artifact_contracts` - the contract for what a pass
+  writes: the models, the JSON Schemas generated from them (`artifacts/`), and the
+  validator the Claude hook and the artifact-storage MCP server run on every write.
 - `passes` - what every pass over a bid does on disk: seed the tree, check the output,
   follow the progress.
 - `documents` - a port: the bid's documents an extract marks, plugged in by intake.

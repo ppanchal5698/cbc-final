@@ -15,7 +15,7 @@ a red test rather than a dead run.
 
 Regenerate:
 
-    python -m cbc.schemas.artifact_contracts
+    python -m cbc.modules.extraction.api.artifact_contracts
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from cbc.schemas.claude_output import Opening, PricedLine, ScopeMetadata, ScopeSummary
+from cbc.modules.extraction.api.claude_output import Opening, PricedLine, ScopeMetadata, ScopeSummary
 
 SCHEMA_DIR = Path(__file__).resolve().parent / "artifacts"
 

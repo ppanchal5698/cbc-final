@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from cbc.schemas.common import LineStatus
+LineStatus = Literal["clear", "needs_look", "duplicate", "by_hand"]
 
 # How many openings one list returns - the cap quoting puts on a bid's quote lines.
 MAX_OPENINGS_LISTED = 10_000

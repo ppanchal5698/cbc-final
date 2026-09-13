@@ -6,8 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from cbc.schemas.common import ProductType
 from cbc.modules.pricing.api import pricing
+from cbc.modules.pricing.api.pricing import ProductType
 from cbc.shared.mongo import oid
 
 

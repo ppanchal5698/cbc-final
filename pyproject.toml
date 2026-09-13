@@ -24,4 +24,4 @@ where = ["apps/backend/src"]
 include = ["cbc*"]
 
 [tool.setuptools.package-data]
-cbc = ["schemas/artifacts/*.json"]
+cbc = ["modules/extraction/api/artifacts/*.json"]

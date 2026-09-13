@@ -41,7 +41,7 @@ def _schema_problems(project: str, rel_path: str) -> list[str]:
     if not path.is_file():
         return [f"{project}: {rel_path} missing after write"]
     try:
-        from cbc.schemas.artifact_schema import validate_artifact_text
+        from cbc.modules.extraction.api.artifact_schema import validate_artifact_text
     except ImportError:
         # Fallback without packages on path: JSON object check only.
         try:

@@ -62,7 +62,7 @@ def test_post_extraction_blocks_invalid_scope_summary(tmp_path, monkeypatch) -> 
 
 
 def test_artifact_schema_rejects_bad_scope_summary() -> None:
-    from cbc.schemas.artifact_schema import validate_artifact_path
+    from cbc.modules.extraction.api.artifact_schema import validate_artifact_path
 
     assert validate_artifact_path("extracted/scope_summary.json", {"divisions": []})
     assert not validate_artifact_path(

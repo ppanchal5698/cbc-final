@@ -8,7 +8,7 @@ from __future__ import annotations
 from pymongo import ASCENDING, DESCENDING
 
 from cbc.persistence import names
-from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
+from cbc.modules.ops.domain.jobs import EXCLUSIVE_JOB_TYPES
 from cbc.shared.mongo import database, replace_index
 
 # How long a failed sign-in stays counted. The TTL index below and

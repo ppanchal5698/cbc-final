@@ -124,7 +124,7 @@ def test_pricebook_ingest_is_not_an_exclusive_job() -> None:
     Including it made the second price-book upload of the day silently return the
     first one's job instead of being queued.
     """
-    from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
+    from cbc.modules.ops.domain.jobs import EXCLUSIVE_JOB_TYPES
     from cbc.modules.ops.api.jobs import EXCLUSIVE
 
     assert "ingest_pricebook" not in EXCLUSIVE_JOB_TYPES

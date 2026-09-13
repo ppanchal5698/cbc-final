@@ -109,7 +109,7 @@ def test_every_job_type_is_either_a_prompt_or_a_local_handler(wired_worker):
     import typing
 
     from cbc.worker_kit import prompts
-    from cbc.schemas.common import JobType
+    from cbc.modules.ops.domain.jobs import JobType
 
     declared = set(typing.get_args(JobType))
     served = set(wired_worker._handlers)

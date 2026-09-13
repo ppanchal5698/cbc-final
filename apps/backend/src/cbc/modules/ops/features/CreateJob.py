@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from cbc.modules.ops.api import identity, jobs, project_lookup
-from cbc.schemas.common import ESTIMATOR_JOB_TYPES, JobType
+from cbc.modules.ops.domain.jobs import ESTIMATOR_JOB_TYPES, JobType
 from cbc.shared.auth import ADMIN_ROLES, Actor
 from cbc.shared.mongo import serialise
 

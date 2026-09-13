@@ -8,6 +8,7 @@ bid, and an estimator months later can see why a line reads the way it does.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -15,11 +16,12 @@ from pydantic import BaseModel, Field
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api.lookup import load
 from cbc.modules.projects.infrastructure.collections import calls
-from cbc.schemas.common import CallKind
 from cbc.shared.auth import Actor
 from cbc.shared.mongo import serialise
 
 router = APIRouter(prefix="/api/projects/{code}/calls", tags=["calls"])
+
+CallKind = Literal["call", "note", "rfi"]
 
 
 class CallCreate(BaseModel):

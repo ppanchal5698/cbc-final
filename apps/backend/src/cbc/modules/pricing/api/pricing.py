@@ -9,9 +9,15 @@ computes and a price this API computes cannot drift.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from cbc.core import calc
+
+
+# The product types margins are banded by. A catalog part carries one, and so does a quote line.
+ProductType = Literal[
+    "commodity", "restroom_partitions", "specialty", "custom_built", "accessories"
+]
 
 # Division prefix -> margin band. The estimator can override per line; this is
 # only the default the band framework applies (.claude/memory/margin_sheet.md).

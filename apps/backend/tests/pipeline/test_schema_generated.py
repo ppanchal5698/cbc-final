@@ -8,11 +8,11 @@ exactly as you would expect: `parse_schedule.py` started emitting
 `confirmed_by`, and neither copy was told. A bid run then died on `Extra inputs
 are not permitted` against a file the system had produced itself.
 
-`cbc.schemas.artifact_contracts` renders the schemas from the models. These tests
+`cbc.modules.extraction.api.artifact_contracts` renders the schemas from the models. These tests
 fail if the committed files no longer match, so the only way to change a shape is
 to change the model and regenerate:
 
-    python -m cbc.schemas.artifact_contracts
+    python -m cbc.modules.extraction.api.artifact_contracts
 """
 from __future__ import annotations
 
@@ -20,9 +20,9 @@ import json
 
 import pytest
 
-from cbc.schemas import artifact_contracts as contracts
-from cbc.schemas.artifact_schema import validate_artifact_path
-from cbc.schemas.claude_output import Opening, PricedLine
+from cbc.modules.extraction.api import artifact_contracts as contracts
+from cbc.modules.extraction.api.artifact_schema import validate_artifact_path
+from cbc.modules.extraction.api.claude_output import Opening, PricedLine
 
 
 @pytest.mark.parametrize("filename", sorted(contracts.SCHEMAS))
@@ -30,7 +30,7 @@ def test_the_committed_schema_matches_the_model(filename: str) -> None:
     on_disk = (contracts.SCHEMA_DIR / filename).read_text(encoding="utf-8")
     assert on_disk == contracts.render(filename), (
         f"{filename} is out of date with the pydantic contract. "
-        "Regenerate with: python -m cbc.schemas.artifact_contracts"
+        "Regenerate with: python -m cbc.modules.extraction.api.artifact_contracts"
     )
 
 
@@ -55,7 +55,7 @@ def test_the_schema_accepts_what_the_model_accepts() -> None:
     model said `list[str] | None`.
     """
     payload = {"frp_in_scope": True, "flags": None, "divisions": None}
-    from cbc.schemas.claude_output import ScopeSummary
+    from cbc.modules.extraction.api.claude_output import ScopeSummary
 
     ScopeSummary.model_validate(payload)  # the model takes it
     assert validate_artifact_path("extracted/scope_summary.json", payload) == []

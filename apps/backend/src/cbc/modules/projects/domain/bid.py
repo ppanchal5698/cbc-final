@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from cbc.schemas.common import Stage
+Stage = Literal["intake", "extraction", "quote", "proposal"]
 
 
 EstimateMode = Literal["one_off", "templated"]

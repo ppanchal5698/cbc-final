@@ -117,7 +117,8 @@ A job type runs as a slice in the module that owns what it writes.
    calls `ops.api.claude_pass.run`; in-process work goes through `ops.api.worker.run_locally`.
 2. Register it in the module's `register_jobs()`. Pass `after_finish=` only when the job
    has more to do when it ends than `projects.api.pipeline.after_pass`.
-3. A Claude pass needs a template in `cbc.worker_kit.prompts`, and every job type a
+3. Declare the type in `JobType` (ops' `domain/jobs.py`). A Claude pass needs a template
+   in `cbc.worker_kit.prompts`, and every job type a
    domain in `DOMAIN_JOB_TYPES` (ops' `WorkerLoop`); `tests/pipeline/test_toolset_registry.py` fails
    on a job type nothing runs.
 
@@ -143,14 +144,12 @@ startup creates the user behind it (`ensure_readonly_user`).
 
 ## Still legacy - and where it goes
 
-`cbc.services` and `cbc.db` are gone - into the modules, `shared/` and the API's
-composition root - and `test_layering` fails if either comes back. What the
+`cbc.services`, `cbc.db` and `cbc.schemas` are gone - into the modules, `shared/` and the
+API's composition root - and `test_layering` fails if any of them comes back. What the
 modules still lean on:
 
 - `cbc.worker_kit` - a Claude pass's prompt templates and its sandbox. `workflows/*.sh`,
   CI and the sandbox image run them by module path, so they stay where they are.
-- `cbc.schemas` - the shared vocabulary (`common`), job and user shapes, the
-  operational-collection specification.
 - `cbc.core`, `cbc.domain`, `cbc.pageindex`, `cbc.persistence`, `cbc.validation` -
   kernel packages, unchanged by the rewrite.
 

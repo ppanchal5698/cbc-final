@@ -2,11 +2,22 @@
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from cbc.schemas.common import CostSource, ProductType
+from cbc.modules.pricing.api.pricing import ProductType
+
+
+CostSource = Literal[
+    "P21_LAST_PO",
+    "LIST_X_MULTIPLIER",
+    "SPECIAL_NET",
+    "VENDOR_RFQ",
+    "DISTRIBUTOR_MANUAL",
+    "MANUAL",
+    "BOOK_PRICE",
+]
 
 
 class QuoteLineBase(BaseModel):

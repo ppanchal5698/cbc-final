@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from cbc.modules.projects.api.lookup import load
 from cbc.modules.quoting.infrastructure.collections import estimate_lines, vendor_rfqs
-from cbc.schemas.operational import RFQ_TRANSITIONS  # ponytail: the collection-spec module dissolves in Phase 4
+from cbc.modules.quoting.domain.rfqs_and_rfis import RFQ_TRANSITIONS
 from cbc.shared.auth import Actor
 from cbc.shared.mongo import oid, serialise
 

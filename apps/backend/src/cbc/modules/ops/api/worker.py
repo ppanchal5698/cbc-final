@@ -21,7 +21,7 @@ from typing import Any
 
 from cbc.modules.ops.api import audit, provider
 from cbc.modules.ops.infrastructure.collections import jobs as jobs_collection, settings_collection
-from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
+from cbc.modules.ops.domain.jobs import EXCLUSIVE_JOB_TYPES
 from cbc.shared import logs
 
 log = logging.getLogger("cbc.worker")  # handlers are configured by the worker process

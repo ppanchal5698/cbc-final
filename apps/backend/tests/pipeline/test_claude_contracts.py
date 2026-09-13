@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from cbc.schemas.claude_output import DoorSchedule, PricedLine
+from cbc.modules.extraction.api.claude_output import DoorSchedule, PricedLine
 from cbc.validation.contracts import COMPLETENESS_FLOOR, extraction_review_verdict, parse_file
 
 

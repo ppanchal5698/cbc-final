@@ -8,7 +8,7 @@ from typing import Any, Literal
 from pydantic import ValidationError
 
 from cbc.shared.paths import repo_root
-from cbc.schemas.claude_output import (
+from cbc.modules.extraction.api.claude_output import (
     DoorSchedule,
     FrpTakeoff,
     HardwareSets,

@@ -16,7 +16,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from cbc.schemas import operational as op
+from cbc.modules.extraction.domain import feedback_and_takeoffs as extraction_op
+from cbc.modules.quoting.domain import rfqs_and_rfis as op
 
 
 def now() -> datetime:
@@ -95,7 +96,7 @@ def test_an_rfi_must_be_sent_before_it_can_be_answered() -> None:
 
 def test_a_correction_records_what_the_copilot_claimed() -> None:
     """The field that makes confidence calibratable rather than asserted."""
-    event = op.FeedbackEvent(
+    event = extraction_op.FeedbackEvent(
         bidRequestId="b1", eventType="matchCorrected", field="partNumber",
         proposedValue={"part": "1191"}, correctedValue={"part": "1279"},
         matchConfidenceAtTime=0.82, occurredAt=now(),
@@ -109,11 +110,11 @@ def test_every_review_action_has_an_event_type() -> None:
     for kind in ("matchRejected", "matchCorrected", "lineAdded", "lineDeleted",
                  "extractionCorrected", "costOverridden", "marginOverridden",
                  "substitutionMade"):
-        assert kind in op.FeedbackType.__args__
+        assert kind in extraction_op.FeedbackType.__args__
 
 
 def test_an_extraction_correction_points_at_an_opening_not_a_line() -> None:
-    event = op.FeedbackEvent(
+    event = extraction_op.FeedbackEvent(
         bidRequestId="b1", openingId="o1", eventType="extractionCorrected",
         field="fireRating", occurredAt=now(),
     )
@@ -126,7 +127,7 @@ def test_an_extraction_correction_points_at_an_opening_not_a_line() -> None:
 
 def test_a_takeoff_holds_geometry_and_admits_the_conversion_is_owed() -> None:
     """Open Item 5: CBC has not provided the conversion constants."""
-    takeoff = op.Takeoff(
+    takeoff = extraction_op.Takeoff(
         bidRequestId="b1", perimeterLf=184.5, insideCorners=6, outsideCorners=2,
         wallHeightFt=8.0,
     )
@@ -138,7 +139,7 @@ def test_a_takeoff_holds_geometry_and_admits_the_conversion_is_owed() -> None:
 def test_a_converted_takeoff_says_which_constants_it_used() -> None:
     """When the constants arrive, the take-off records the ones it applied - so a
     later change to them does not silently restate an old quantity."""
-    takeoff = op.Takeoff(
+    takeoff = extraction_op.Takeoff(
         bidRequestId="b1", perimeterLf=184.5, status="converted",
         constantsUsed={"panelWidthFt": 4.0, "wastePct": 0.10},
         quantities={"panels": 51},

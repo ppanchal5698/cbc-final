@@ -1,12 +1,13 @@
-"""Shared literal types and evidence model."""
+"""The job vocabulary: every job type there is, and which of them one bid runs one at a time.
+
+`POST /api/jobs` validates against `JobType`. The queue, the worker's
+one-session-per-bid check and the partial index on `jobs` all read
+`EXCLUSIVE_JOB_TYPES`, so they cannot disagree about which jobs exclude each other.
+"""
 from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
-
-LineStatus = Literal["clear", "needs_look", "duplicate", "by_hand"]
-Stage = Literal["intake", "extraction", "quote", "proposal"]
 JobType = Literal[
     "extract_bid_set",
     "rerun_extraction",
@@ -24,7 +25,6 @@ JobType = Literal[
     # and chain match_and_price → build_proposal across domain workers.
     "run_full_pipeline",
 ]
-JobStatus = Literal["queued", "running", "done", "failed", "cancelled", "dead"]
 
 # One in-flight job of these types per project. A second "re-run extraction" click
 # while the first is still running is a double-click, not a second job.
@@ -32,7 +32,7 @@ JobStatus = Literal["queued", "running", "done", "failed", "cancelled", "dead"]
 # `ingest_pricebook` is deliberately absent: it carries no project, so every one of
 # them would share the key (null, "ingest_pricebook") and the second upload of the
 # day would be silently handed back the first one's job. The database index in
-# api/db.py filters on this same set for that reason.
+# infrastructure/collections.py filters on this same set for that reason.
 EXCLUSIVE_JOB_TYPES = (
     "extract_bid_set",
     "rerun_extraction",
@@ -52,30 +52,3 @@ RETIRED_JOB_TYPES = frozenset({"run_full_pipeline"})
 
 # Estimators enqueue pipeline work; catalog and price-book maintenance is admin-only.
 ESTIMATOR_JOB_TYPES = frozenset(EXCLUSIVE_JOB_TYPES) - RETIRED_JOB_TYPES
-ADMIN_JOB_TYPES = frozenset({"delete_catalog", "ingest_pricebook", "index_catalog"})
-CostSource = Literal[
-    "P21_LAST_PO",
-    "LIST_X_MULTIPLIER",
-    "SPECIAL_NET",
-    "VENDOR_RFQ",
-    "DISTRIBUTOR_MANUAL",
-    "MANUAL",
-    "BOOK_PRICE",
-]
-ProductType = Literal[
-    "commodity", "restroom_partitions", "specialty", "custom_built", "accessories"
-]
-CallKind = Literal["call", "note", "rfi"]
-
-
-class Evidence(BaseModel):
-    """Why a line reads the way it does, and where it came from."""
-
-    note: str | None = None
-    sheet: str | None = None
-    row: int | None = None
-    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
-    sourceFile: str | None = None
-    sourcePage: int | None = None
-    bbox: list[float] | None = None
-    pageSize: dict[str, float] | None = None

@@ -81,7 +81,7 @@ def save_artifact(
 
     # Schema gate for extract checkpoints (Claude Code has no Messages json_schema).
     try:
-        from cbc.schemas.artifact_schema import PATH_SCHEMAS, validate_artifact_text
+        from cbc.modules.extraction.api.artifact_schema import PATH_SCHEMAS, validate_artifact_text
 
         if path.replace("\\", "/") in PATH_SCHEMAS:
             problems = validate_artifact_text(path.replace("\\", "/"), content)

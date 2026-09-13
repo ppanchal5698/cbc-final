@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from cbc.schemas.common import ESTIMATOR_JOB_TYPES
+from cbc.modules.ops.domain.jobs import ESTIMATOR_JOB_TYPES
 from tests.shared import TEST_ACTOR, opshub_client, mongo_client
 
 TEST_DB = "cbc_opshub_test_job_authz"
