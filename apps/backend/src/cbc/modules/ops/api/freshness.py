@@ -34,10 +34,9 @@ class Bands:
     updated_at: Any = None
     updated_by: str | None = None
 
-    # The P21 cost window (Matrix 6.2) and the price-sheet window (Matrix 6.3)
-    # are separate rules that were the same number, so one setting has always
-    # driven both. Shipped defaults now differ; the stored setting still moves
-    # them together until the API grows a second field.
+    # catalog_stale_* is the price-sheet review window (Matrix 6.3); fresh_* and
+    # discard_after_* are a P21 cost's bands (6.2). data-stewardship.md: moving one
+    # must not move the other, so neither is bounded by the other.
     fresh_months: int = core.FRESH_MONTHS
     fresh_days: int = core.FRESH_DAYS
 
@@ -63,18 +62,22 @@ def from_document(doc: dict[str, Any] | None) -> Bands:
     try:
         catalog_months = int(doc["catalogStaleMonths"])
         discard_months = int(doc["discardAfterMonths"])
+        # A row saved before the fresh band was its own setting carries none.
+        fresh_months = int(doc.get("freshMonths", core.FRESH_MONTHS))
     except (KeyError, TypeError, ValueError):
         return DEFAULTS
-    if not (1 <= catalog_months < discard_months <= core.MAX_MONTHS):
+    if not (1 <= catalog_months <= core.MAX_MONTHS and 1 <= fresh_months < discard_months <= core.MAX_MONTHS):
         return DEFAULTS
     return Bands(
         catalog_stale_months=catalog_months,
         discard_after_months=discard_months,
         catalog_stale_days=core.days_from_months(catalog_months),
         discard_after_days=core.days_from_months(discard_months),
-        rule=core.rule_text(catalog_months, discard_months),
+        rule=core.rule_text(fresh_months, discard_months),
         updated_at=doc.get("updatedAt"),
         updated_by=doc.get("updatedBy"),
+        fresh_months=fresh_months,
+        fresh_days=core.days_from_months(fresh_months),
     )
 
 
@@ -128,11 +131,14 @@ def as_payload(bands: Bands) -> dict[str, Any]:
         "discardAfterMonths": bands.discard_after_months,
         "catalogStaleDays": bands.catalog_stale_days,
         "discardAfterDays": bands.discard_after_days,
+        "freshMonths": bands.fresh_months,
+        "freshDays": bands.fresh_days,
         "rule": bands.rule,
         "note": (
             "Price books and vendor catalogs are stale after the review window. "
-            "P21 last-PO costs are fresh for the same window, unreliable until "
-            "the discard band, and discarded after that. Nothing is guessed."
+            "P21 last-PO costs have their own bands: fresh, unreliable until the "
+            "discard band, and discarded after that. Moving one window does not "
+            "move the other. Nothing is guessed."
         ),
         "updatedAt": bands.updated_at,
         "updatedBy": bands.updated_by,

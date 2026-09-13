@@ -199,7 +199,8 @@ def test_freshness_settings(client, snapshots) -> None:
     snapshots.pin("GET /api/settings/freshness", client.get("/api/settings/freshness"))
     op = "PUT /api/settings/freshness"
     snapshots.pin(op, client.put("/api/settings/freshness", json={"catalogStaleMonths": 24, "discardAfterMonths": 36}))
-    snapshots.pin(op, client.put("/api/settings/freshness", json={"catalogStaleMonths": 48, "discardAfterMonths": 36}), variant="stale beyond discard")
+    snapshots.pin(op, client.put("/api/settings/freshness", json={"catalogStaleMonths": 48, "discardAfterMonths": 36}), variant="review window beyond discard")
+    snapshots.pin(op, client.put("/api/settings/freshness", json={"catalogStaleMonths": 24, "discardAfterMonths": 12, "freshMonths": 12}), variant="discard before fresh")
 
 
 def test_claude_settings(client, snapshots) -> None:

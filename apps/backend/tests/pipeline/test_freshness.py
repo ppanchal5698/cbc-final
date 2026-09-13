@@ -97,7 +97,8 @@ def test_period_phrase_speaks_months_then_years() -> None:
 def test_from_document_falls_back_when_the_row_is_broken() -> None:
     assert from_document(None) == DEFAULTS
     assert from_document({"catalogStaleMonths": "nope"}) == DEFAULTS
-    assert from_document({"catalogStaleMonths": 24, "discardAfterMonths": 12}) == DEFAULTS
+    assert from_document({"catalogStaleMonths": 24, "discardAfterMonths": 6}) == DEFAULTS, "discarded while fresh"
+    assert from_document({"catalogStaleMonths": 24, "discardAfterMonths": 36, "freshMonths": 36}) == DEFAULTS
 
 
 def test_from_document_accepts_admin_months() -> None:
@@ -105,3 +106,20 @@ def test_from_document_accepts_admin_months() -> None:
     assert bands.catalog_stale_days == core.days_from_months(6)
     assert bands.discard_after_days == core.days_from_months(12)
     assert "6 months" in bands.rule
+
+
+def test_the_two_windows_move_independently() -> None:
+    """data-stewardship.md: the ~24-month sheet window and the P21 bands are separate rules.
+
+    The stored row carried no fresh band, a review window at or past the discard
+    band was refused, and the rule text read the review window as the fresh band -
+    so a saved 24/36 told the P21 tool a cost stays fresh for 2 years while
+    `classify` applied 6 months.
+    """
+    wide_sheets = from_document({"catalogStaleMonths": 48, "discardAfterMonths": 36})
+    assert (wide_sheets.catalog_stale_months, wide_sheets.fresh_months) == (48, core.FRESH_MONTHS)
+    assert wide_sheets.rule == core.rule_text(core.FRESH_MONTHS, 36)
+
+    costs = from_document({"catalogStaleMonths": 24, "discardAfterMonths": 48, "freshMonths": 8})
+    assert (costs.catalog_stale_days, costs.fresh_days) == (core.CATALOG_STALE_DAYS, core.days_from_months(8))
+    assert costs.rule.startswith("under ~8 months fresh")

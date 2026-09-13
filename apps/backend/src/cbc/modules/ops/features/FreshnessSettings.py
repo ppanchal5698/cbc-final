@@ -4,8 +4,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field, model_validator
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 from cbc.modules.ops.api import freshness_rules as freshness_core
 from cbc.modules.ops.api import audit
@@ -23,18 +23,17 @@ def _now() -> datetime:
 
 
 class FreshnessSettings(BaseModel):
-    """How long a price book or last-PO cost stays inside the review window."""
+    """A price sheet's review window (Matrix 6.3), and a P21 cost's fresh and discard bands (6.2).
+
+    `.claude/rules/data-stewardship.md`: moving one must not move the other. The
+    review window used to have to end before the discard band, tying a price-sheet
+    rule to a purchase-order one; now only the two cost bands are ordered. The
+    Settings screen sends no `freshMonths`, and the stored band then stands.
+    """
 
     catalogStaleMonths: int = Field(ge=1, le=freshness_core.MAX_MONTHS)
     discardAfterMonths: int = Field(ge=1, le=freshness_core.MAX_MONTHS)
-
-    @model_validator(mode="after")
-    def discard_after_the_review_window(self) -> FreshnessSettings:
-        if self.catalogStaleMonths >= self.discardAfterMonths:
-            raise ValueError(
-                "discardAfterMonths must be greater than catalogStaleMonths"
-            )
-        return self
+    freshMonths: int | None = Field(default=None, ge=1, le=freshness_core.MAX_MONTHS)
 
 
 @router.get("/freshness")
@@ -45,11 +44,17 @@ async def get_freshness_settings() -> dict[str, Any]:
 
 @router.put("/freshness")
 async def save_freshness_settings(body: FreshnessSettings, actor: Actor) -> dict[str, Any]:
+    freshness_settings.clear_cache()
+    fresh_months = body.freshMonths or (await freshness_settings.load()).fresh_months
+    if fresh_months >= body.discardAfterMonths:
+        raise HTTPException(422, "discardAfterMonths must be greater than freshMonths")
     document = {
         "catalogStaleMonths": body.catalogStaleMonths,
         "discardAfterMonths": body.discardAfterMonths,
+        "freshMonths": fresh_months,
         "catalogStaleDays": freshness_core.days_from_months(body.catalogStaleMonths),
         "discardAfterDays": freshness_core.days_from_months(body.discardAfterMonths),
+        "freshDays": freshness_core.days_from_months(fresh_months),
         "updatedAt": _now(),
         "updatedBy": actor,
     }
@@ -66,6 +71,7 @@ async def save_freshness_settings(body: FreshnessSettings, actor: Actor) -> dict
         after={
             "catalogStaleMonths": body.catalogStaleMonths,
             "discardAfterMonths": body.discardAfterMonths,
+            "freshMonths": fresh_months,
         },
     )
     return await get_freshness_settings()

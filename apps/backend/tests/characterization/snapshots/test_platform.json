@@ -474,6 +474,8 @@
    "catalogStaleMonths": "number",
    "discardAfterDays": "number",
    "discardAfterMonths": "number",
+   "freshDays": "number",
+   "freshMonths": "number",
    "note": "str",
    "rule": "str",
    "updatedAt": "null",
@@ -1011,6 +1013,8 @@
    "catalogStaleMonths": "number",
    "discardAfterDays": "number",
    "discardAfterMonths": "number",
+   "freshDays": "number",
+   "freshMonths": "number",
    "note": "str",
    "rule": "str",
    "updatedAt": "datetime",
@@ -1018,26 +1022,26 @@
   },
   "status": 200
  },
- "PUT /api/settings/freshness #stale beyond discard": {
+ "PUT /api/settings/freshness #discard before fresh": {
   "body": {
-   "detail": [
-    {
-     "ctx": {
-      "error": {}
-     },
-     "input": {
-      "catalogStaleMonths": "number",
-      "discardAfterMonths": "number"
-     },
-     "loc": [
-      "str"
-     ],
-     "msg": "str",
-     "type": "str"
-    }
-   ]
+   "detail": "str"
   },
   "status": 422
+ },
+ "PUT /api/settings/freshness #review window beyond discard": {
+  "body": {
+   "catalogStaleDays": "number",
+   "catalogStaleMonths": "number",
+   "discardAfterDays": "number",
+   "discardAfterMonths": "number",
+   "freshDays": "number",
+   "freshMonths": "number",
+   "note": "str",
+   "rule": "str",
+   "updatedAt": "datetime",
+   "updatedBy": "str"
+  },
+  "status": 200
  },
  "PUT /api/settings/pipeline": {
   "body": {
