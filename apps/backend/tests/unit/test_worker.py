@@ -20,15 +20,16 @@ def test_worker_main_callable() -> None:
 
 
 def test_worker_kit_local_handlers() -> None:
-    # Re-import after env is set (module computes CLAIMABLE_TYPES at import).
+    # Re-import after env is set (the loop computes CLAIMABLE_TYPES at import).
     import importlib
 
     import cbc.worker_kit.runtime as runtime
+    from cbc.modules.ops.features import WorkerLoop
 
-    importlib.reload(runtime)
+    importlib.reload(WorkerLoop)
     assert "index_catalog" in runtime.LOCAL_HANDLERS
     assert "delete_catalog" in runtime.LOCAL_HANDLERS
-    assert callable(runtime.main)
+    assert callable(WorkerLoop.main)
 
 
 def test_smoke_version_includes_monolith() -> None:

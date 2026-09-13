@@ -87,7 +87,7 @@ def test_a_stale_running_job_is_reaped_and_requeued(database) -> None:
         }
     )
 
-    from cbc.worker_kit.runtime import reap_abandoned
+    from cbc.modules.ops.features.WorkerLoop import reap_abandoned
 
     assert run(reap_abandoned()) == 1
 
@@ -101,7 +101,7 @@ def test_an_extract_job_is_not_reaped_after_three_minutes(database) -> None:
     """Extract stale window is 10 minutes; a 90s global cutoff used to steal live runs."""
     from bson import ObjectId
 
-    from cbc.worker_kit.runtime import reap_abandoned
+    from cbc.modules.ops.features.WorkerLoop import reap_abandoned
 
     database["jobs"].insert_one(
         {
@@ -176,7 +176,7 @@ def test_a_job_with_a_fresh_heartbeat_is_left_alone(database) -> None:
         }
     )
 
-    from cbc.worker_kit.runtime import reap_abandoned
+    from cbc.modules.ops.features.WorkerLoop import reap_abandoned
 
     assert run(reap_abandoned()) == 0
     assert database["jobs"].find_one({})["status"] == "running"
@@ -220,7 +220,7 @@ def test_enqueue_exclusive_refuses_a_second_pipeline_type(database) -> None:
 def test_a_reaped_job_that_is_out_of_attempts_fails(database) -> None:
     from bson import ObjectId
 
-    from cbc.worker_kit.runtime import MAX_ATTEMPTS, reap_abandoned
+    from cbc.modules.ops.features.WorkerLoop import MAX_ATTEMPTS, reap_abandoned
 
     database["jobs"].insert_one(
         {
@@ -239,7 +239,7 @@ def test_a_reaped_job_that_is_out_of_attempts_fails(database) -> None:
 
 def test_a_requeued_job_waits_for_its_backoff(database) -> None:
     """Without a delay a job that fails in two seconds burns three attempts in six."""
-    from cbc.worker_kit.runtime import claim
+    from cbc.modules.ops.features.WorkerLoop import claim
 
     database["jobs"].insert_one(
         {
@@ -551,7 +551,7 @@ def test_artifact_validation_failure_is_not_retried(database) -> None:
     """A missing bbox used to re-queue the whole job up to MAX_ATTEMPTS (T-03)."""
     from bson import ObjectId
 
-    from cbc.worker_kit import runtime as worker
+    from cbc.modules.ops.api import worker
 
     job_id = ObjectId()
     job = {
@@ -611,3 +611,68 @@ def test_a_dead_job_can_be_retried(database) -> None:
     assert updated["note"] == "requeued from dead-letter"
 
 
+# ── what follows a finished job is bound, not imported ───────────────────────
+
+
+def test_finish_hands_the_outcome_to_the_bound_hook(database, monkeypatch) -> None:
+    """ops records how a job ended; what follows belongs to whoever ran it.
+
+    A retry is not an ending: the hook hears about dead and done, never queued.
+    """
+    from bson import ObjectId
+
+    from cbc.modules.ops.api import worker
+
+    heard: list[tuple[str, str | None]] = []
+
+    async def after_finish(job, status, error, entry):
+        heard.append((status, error))
+
+    monkeypatch.setattr(worker, "_after_finish", after_finish)
+
+    def claimed(attempts: int) -> dict:
+        job = {
+            "_id": ObjectId(),
+            "type": "match_and_price",
+            "projectId": ObjectId(),
+            "status": "running",
+            "attempts": attempts,
+            "workerId": "w",
+            "claimGeneration": 1,
+        }
+        database["jobs"].insert_one(job)
+        return job
+
+    async def three() -> None:
+        await worker.finish(claimed(1), False, "flaky", "")
+        await worker.finish(claimed(worker.MAX_ATTEMPTS), False, "broken", "")
+        await worker.finish(claimed(1), True, None, "", "priced")
+
+    run(three())
+    assert heard == [("dead", "broken"), ("done", None)]
+
+
+def test_a_reap_that_exhausts_attempts_reaches_the_dead_letter_hook(database, monkeypatch) -> None:
+    from bson import ObjectId
+
+    from cbc.modules.ops.api import worker
+    from cbc.modules.ops.features.WorkerLoop import reap_abandoned
+
+    dead: list[str] = []
+
+    async def on_dead(job, detail):
+        dead.append(detail)
+
+    monkeypatch.setattr(worker, "_on_dead", on_dead)
+    database["jobs"].insert_one(
+        {
+            "type": "match_and_price",
+            "projectId": ObjectId(),
+            "status": "running",
+            "attempts": worker.MAX_ATTEMPTS,
+            "createdAt": _now(),
+            "heartbeatAt": None,
+        }
+    )
+    run(reap_abandoned())
+    assert dead == ["worker stopped while this job was running"]

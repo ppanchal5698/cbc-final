@@ -53,7 +53,7 @@ def test_over_budget_day_cap(monkeypatch) -> None:
 
 
 def test_claim_skips_when_over_budget(monkeypatch) -> None:
-    from cbc.worker_kit import runtime
+    from cbc.modules.ops.features import WorkerLoop as runtime
 
     monkeypatch.setenv("WORKER_MAX_COST_USD_PER_DAY", "1")
     candidate = {
@@ -73,7 +73,7 @@ def test_claim_skips_when_over_budget(monkeypatch) -> None:
     class _DB:
         jobs = _Jobs()
 
-    monkeypatch.setattr(runtime, "db", _DB())
+    monkeypatch.setattr(runtime, "jobs_collection", lambda: _DB.jobs)
     monkeypatch.setattr(runtime, "CLAIMABLE_TYPES", {"extract_bid_set"})
     monkeypatch.setattr(
         "cbc.modules.ops.api.cost_budget.over_budget",

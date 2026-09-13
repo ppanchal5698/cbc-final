@@ -1,8 +1,7 @@
 """ops: running the platform.
 
 Sign-in and users, the audit trail, spend, integration status and system
-settings, the job queue and its routes - and, in the next step, the worker that
-drains it. It owns `users`, `authAttempts`, `auditLogs`, `runMetrics`,
+settings, the job queue and its routes, and the worker loop that drains it. It owns `users`, `authAttempts`, `auditLogs`, `runMetrics`,
 `settings`, `oauthSessions` and `jobs`.
 
 Other modules import only `cbc.modules.ops.api`. This file stays light: slices are
@@ -72,6 +71,13 @@ def register(app) -> None:
         StreamTerminal,
     ):
         app.include_router(feature.router)
+
+
+def run_worker() -> int:
+    """The worker process: claim and run jobs until stopped. `python -m cbc.worker` calls this."""
+    from cbc.modules.ops.features.WorkerLoop import main
+
+    return main()
 
 
 def background_jobs():

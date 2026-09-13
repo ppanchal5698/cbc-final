@@ -559,7 +559,7 @@ def test_a_failed_heartbeat_does_not_kill_the_heartbeat(monkeypatch) -> None:
     """
     import asyncio
 
-    from cbc.worker_kit import runtime as worker
+    from cbc.modules.ops.api import worker
 
     calls: list[int] = []
 
@@ -573,11 +573,11 @@ def test_a_failed_heartbeat_does_not_kill_the_heartbeat(monkeypatch) -> None:
     class _Db:
         jobs = _Jobs()
 
-    monkeypatch.setattr(worker, "db", _Db())
+    monkeypatch.setattr(worker, "jobs_collection", lambda: _Db.jobs)
     monkeypatch.setattr(worker, "HEARTBEAT_SECONDS", 0)
 
     async def drive() -> None:
-        task = asyncio.create_task(worker._beat("job-1", "worker-1", 3))
+        task = asyncio.create_task(worker.beat("job-1", "worker-1", 3))
         while len(calls) < 3:
             await asyncio.sleep(0)
         task.cancel()
@@ -603,20 +603,20 @@ def test_the_shutdown_requeue_is_guarded_like_finish() -> None:
     """
     import inspect
 
+    from cbc.modules.ops.api import worker as ops_worker
     from cbc.worker_kit import runtime as worker
 
-    # `process` is now just the OTLP span wrapper; the body it calls holds the
-    # requeue. Read both so the guard cannot be moved out from under this check.
+    # The runner decides that a shutdown interrupted a failed pass; ops does the
+    # requeue, under the claim. Read both, so neither guard can quietly go.
     source = inspect.getsource(worker.process) + inspect.getsource(worker._process_body)
-    note = '"worker shut down mid-run; requeued"'
-    assert note in source, "the shutdown requeue is gone"
-
-    guard = source.rindex("if _stop.is_set()", 0, source.index(note))
-    block = source[guard : source.index(note)]
-
+    call = source.index("requeue_for_shutdown(job)")
+    block = source[source.rindex("if ops_worker.stopping()", 0, call) : call]
     assert "not result.ok" in block, "a successful run is still discarded on shutdown"
-    assert "_owns_job(job, current)" in block, "the requeue does not check ownership"
-    assert '"claimGeneration": job.get("claimGeneration")' in block, (
+
+    requeue = inspect.getsource(ops_worker.requeue_for_shutdown)
+    assert '"worker shut down mid-run; requeued"' in requeue, "the shutdown requeue is gone"
+    assert "owns_job(job, current)" in requeue, "the requeue does not check ownership"
+    assert '"claimGeneration": job.get("claimGeneration")' in requeue, (
         "the requeue write is not filtered by this worker's claim"
     )
 

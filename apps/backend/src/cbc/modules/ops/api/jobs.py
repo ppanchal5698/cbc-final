@@ -611,3 +611,30 @@ async def cancel_active_for_project(project_id: Any, actor: str, *, note: str) -
 async def delete_for_project(project_id: Any) -> None:
     """Remove a bid's job history."""
     await jobs_collection().delete_many({"projectId": project_id})
+
+
+# ── what a running job reads and records on itself ────────────────────────────
+
+
+async def get(job_id: Any, projection: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    return await jobs_collection().find_one({"_id": job_id}, projection)
+
+
+async def set_fields(job_id: Any, fields: dict[str, Any]) -> None:
+    await jobs_collection().update_one({"_id": job_id}, {"$set": fields})
+
+
+async def unset_fields(job_id: Any, *names: str) -> None:
+    await jobs_collection().update_one({"_id": job_id}, {"$unset": {name: "" for name in names}})
+
+
+async def previous_phase_state(project_id: Any, job_id: Any) -> dict[str, Any] | None:
+    """The latest other job on this bid that recorded phase progress (B-15)."""
+    return await jobs_collection().find_one(
+        {
+            "projectId": project_id,
+            "_id": {"$ne": job_id},
+            "phaseState": {"$exists": True, "$ne": {}},
+        },
+        sort=[("finishedAt", -1), ("createdAt", -1)],
+    )

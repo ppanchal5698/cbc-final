@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import re
 
-from cbc.worker_kit.runtime import concurrency_for
+from cbc.modules.ops.features.WorkerLoop import concurrency_for
 from tests.shared import ROOT
 
 
@@ -24,7 +24,8 @@ def test_compose_worker_has_no_fixed_container_name() -> None:
 
 
 def test_loop_starts_second_job_before_first_finishes(monkeypatch) -> None:
-    from cbc.worker_kit import runtime as worker
+    from cbc.modules.ops.api import worker as ops_worker
+    from cbc.modules.ops.features import WorkerLoop as worker
 
     started: list[str] = []
 
@@ -42,7 +43,7 @@ def test_loop_starts_second_job_before_first_finishes(monkeypatch) -> None:
             started.append(str(job["_id"]))
             if len(started) >= 2:
                 both.set()
-                worker._stop.set()
+                ops_worker._stop.set()
             await both.wait()
 
         async def fake_reap():
@@ -52,11 +53,11 @@ def test_loop_starts_second_job_before_first_finishes(monkeypatch) -> None:
         monkeypatch.setattr(worker, "process", fake_process)
         monkeypatch.setattr(worker, "reap_abandoned", fake_reap)
         monkeypatch.setattr(worker, "concurrency_for", lambda: 2)
-        worker._stop = asyncio.Event()
+        ops_worker._stop = asyncio.Event()
         try:
             await asyncio.wait_for(worker.loop(once=False), timeout=3)
         finally:
-            worker._stop = asyncio.Event()
+            ops_worker._stop = asyncio.Event()
 
     asyncio.run(drive())
     assert set(started) == {"a", "b"}

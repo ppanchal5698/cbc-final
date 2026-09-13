@@ -1,25 +1,19 @@
-#!/usr/bin/env python3
-"""CBC Ops-Hub job worker.
+"""The job runner: a claimed job in, what Claude wrote on disk synced out.
 
-Claims queued jobs, runs a headless Claude Code pass, then syncs what Claude
-wrote on disk into MongoDB for the UI to serve.
-
-    python worker/main.py              # run the loop
-    python worker/main.py --once       # process at most one job, then exit
-    python worker/main.py --preflight  # check the Claude CLI is usable
+ops runs the queue - claiming, leases, reaping, recording how a job ended. This
+is what the worker's composition root (cbc/worker/main.py) binds into it: a
+headless Claude Code pass or a local handler, then a sync of what Claude wrote
+into MongoDB for the UI to serve. It dissolves into the modules that own each
+job type as they are built.
 """
 from __future__ import annotations
 
-import argparse
 import asyncio
 import json
 import logging
 import os
-import signal
-import socket
-import sys
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -44,8 +38,8 @@ from cbc.modules.ops.api import provider
 envfile.apply_to_environ(skip=provider.MANAGED)
 
 from cbc.db import db
-from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
-from cbc.modules.ops.api import audit
+from cbc.modules.ops.api import jobs as ops_jobs, worker as ops_worker
+from cbc.modules.ops.api.worker import finish
 from cbc.services import quote as quote_service, render, storage, sync
 from cbc.services import manifests, matchcache, pretakeoff, sheetmap
 from cbc.modules.ops.api import runmetrics
@@ -59,9 +53,7 @@ from cbc.worker_kit.handlers.ingest import ingest_pricebook
 
 log = logs.configure("cbc.worker")
 
-POLL_SECONDS = int(os.environ.get("WORKER_POLL_SECONDS", "5"))
 JOB_TIMEOUT = int(os.environ.get("WORKER_JOB_TIMEOUT_SECONDS", "3600"))
-MAX_ATTEMPTS = int(os.environ.get("WORKER_MAX_ATTEMPTS", "3"))
 # A bound on how far a pass can wander. A run that needs more than this has
 # lost the thread, and stopping it is cheaper than letting it finish.
 MAX_TURNS = int(os.environ.get("WORKER_MAX_TURNS", "60"))
@@ -80,15 +72,6 @@ def limits_for(job_type: str) -> tuple[int, int]:
     if job_type == "run_full_pipeline":
         return PIPELINE_TIMEOUT, PIPELINE_MAX_TURNS
     return JOB_TIMEOUT, MAX_TURNS
-
-
-def concurrency_for(raw: str | None = None) -> int:
-    """How many jobs this process may run at once. Default 1; junk and 0 become 1."""
-    value = os.environ.get("WORKER_CONCURRENCY", "1") if raw is None else raw
-    try:
-        return max(1, int(value))
-    except (TypeError, ValueError):
-        return 1
 
 
 # Which phase a project has reached, read from what is on disk. An autopilot run is
@@ -112,289 +95,9 @@ def phase_reached(project_dir: Path) -> tuple[str, int, str] | None:
             return stage, progress, label
     return None
 
-# A running job says so every HEARTBEAT_SECONDS. Nothing else distinguishes "this
-# is a 40-minute extraction" from "the worker that claimed this was killed an hour
-# ago", and without that distinction a dead job holds the exclusive-job index
-# against its project forever.
-#
-# claimGeneration is the fencing token (lease) for a claim. finish() and
-# sync_results() only commit when workerId + claimGeneration still match.
-HEARTBEAT_SECONDS = int(os.environ.get("WORKER_HEARTBEAT_SECONDS", "30"))
-DEFAULT_STALE_AFTER = HEARTBEAT_SECONDS * 6
-STALE_AFTER = DEFAULT_STALE_AFTER  # compat alias for the non-extract window
-EXTRACT_JOB_TYPES = frozenset({"extract_bid_set", "rerun_extraction", "run_full_pipeline"})
-
-
-def stale_after_for(job_type: str) -> int:
-    """Seconds without a heartbeat before this job type is considered abandoned."""
-    if job_type in EXTRACT_JOB_TYPES:
-        raw = os.environ.get("WORKER_EXTRACT_STALE_AFTER_SECONDS", "").strip()
-        if raw:
-            try:
-                return max(1, int(raw))
-            except ValueError:
-                pass
-        return max(600, DEFAULT_STALE_AFTER)
-    raw = os.environ.get("WORKER_STALE_AFTER_SECONDS", "").strip()
-    if raw:
-        try:
-            return max(1, int(raw))
-        except ValueError:
-            pass
-    return DEFAULT_STALE_AFTER
-
-# Retry delay: RETRY_BASE * 2**attempts. Without it a job that fails in two
-# seconds burns its whole attempt budget in six.
-RETRY_BASE_SECONDS = int(os.environ.get("WORKER_RETRY_BASE_SECONDS", "30"))
-
-# Identifies this process when claiming jobs. A stale reaper can hand the same
-# job to another worker; finish() only writes when workerId and claimGeneration
-# still match, so a slow worker cannot overwrite a faster one's terminal state.
-WORKER_ID = f"{socket.gethostname()}-{os.getpid()}"
-
-# Domain filter: set WORKER_DOMAIN (intake|extraction|pricing|quoting|catalog).
-# Empty / unset = claim nothing (fail closed) unless WORKER_CLAIM_ALL=1 for legacy.
-def _claimable() -> frozenset[str] | None:
-    if os.environ.get("WORKER_CLAIM_ALL", "").strip() in {"1", "true", "yes"}:
-        return None
-    domain = os.environ.get("WORKER_DOMAIN", "").strip()
-    if not domain:
-        raise RuntimeError(
-            "WORKER_DOMAIN must be set to a domain name "
-            "(intake, extraction, pricing, quoting, catalog), "
-            "or set WORKER_CLAIM_ALL=1"
-        )
-    from cbc.services.domains import claimable_types
-    return claimable_types(domain)
-
-CLAIMABLE_TYPES = _claimable()
-
-_stop = asyncio.Event()
-
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-async def claim() -> dict | None:
-    """Atomically take the oldest due job this domain may run.
-
-    When WORKER_MAX_COST_USD_* caps are set, peek candidates oldest-first and
-    skip (leave queued) any whose project/day spend is already at cap so a
-    blocked bid does not starve the rest of the queue.
-    """
-    now = _now()
-    base_query: dict = {
-        "status": "queued",
-        "$or": [{"nextAttemptAt": None}, {"nextAttemptAt": {"$lte": now}}],
-    }
-    if CLAIMABLE_TYPES is not None:
-        base_query["type"] = {"$in": sorted(CLAIMABLE_TYPES)}
-
-    from cbc.modules.ops.api import cost_budget
-
-    if not cost_budget.caps_enabled():
-        return await db.jobs.find_one_and_update(
-            base_query,
-            {
-                "$set": {
-                    "status": "running",
-                    "startedAt": now,
-                    "heartbeatAt": now,
-                    "workerId": WORKER_ID,
-                },
-                "$inc": {"attempts": 1, "claimGeneration": 1},
-            },
-            sort=[("createdAt", 1)],
-            return_document=True,
-        )
-
-    skipped: list = []
-    alerted = False
-    while True:
-        query = dict(base_query)
-        if skipped:
-            query["_id"] = {"$nin": skipped}
-        candidate = await db.jobs.find_one(query, sort=[("createdAt", 1)])
-        if candidate is None:
-            return None
-        reason = await cost_budget.over_budget(
-            project_id=candidate.get("projectId"),
-            claimable_types=CLAIMABLE_TYPES,
-        )
-        if reason:
-            log.warning(
-                "cost budget blocked claim of job %s (%s): %s",
-                candidate.get("_id"),
-                candidate.get("type"),
-                reason,
-            )
-            if not alerted:
-                alerted = True
-                try:
-                    from cbc.modules.ops.api import alerts
-
-                    alerts.notify(
-                        f"Worker cost budget blocked claim: {reason}",
-                        extra={
-                            "jobId": str(candidate.get("_id")),
-                            "jobType": candidate.get("type"),
-                            "projectId": str(candidate["projectId"])
-                            if candidate.get("projectId")
-                            else None,
-                        },
-                    )
-                except Exception:
-                    log.exception("cost-budget alert failed")
-            skipped.append(candidate["_id"])
-            # Day cap blocks every job — no point scanning further.
-            if cost_budget.day_cap_usd() is not None and "daily spend" in reason:
-                return None
-            continue
-
-        claimed = await db.jobs.find_one_and_update(
-            {**base_query, "_id": candidate["_id"]},
-            {
-                "$set": {
-                    "status": "running",
-                    "startedAt": now,
-                    "heartbeatAt": now,
-                    "workerId": WORKER_ID,
-                },
-                "$inc": {"attempts": 1, "claimGeneration": 1},
-            },
-            return_document=True,
-        )
-        if claimed is not None:
-            return claimed
-        # Lost the race; try the next candidate.
-        skipped.append(candidate["_id"])
-
-
-
-async def reap_abandoned() -> int:
-    """Recover jobs whose worker died while holding them.
-
-    A `running` job with a stale heartbeat is not running: the process that
-    claimed it is gone. Left alone it stays `running` forever, and because the
-    exclusive-active-job index counts it as in flight, every later job of that
-    type for that bid is silently handed back this corpse instead of being
-    queued - the bid can never be re-extracted through the UI again.
-
-    claimGeneration is the fencing token: reaping increments it so a late
-    sync_results() from the dead worker cannot commit.
-    """
-    now = _now()
-    min_window = min(
-        stale_after_for(kind)
-        for kind in (
-            "extract_bid_set",
-            "match_and_price",
-            "build_proposal",
-            "ingest_addendum",
-            "index_catalog",
-            "ingest_pricebook",
-        )
-    )
-    cutoff = now - timedelta(seconds=min_window)
-    abandoned = await db.jobs.find(
-        {
-            "status": "running",
-            "$or": [{"heartbeatAt": {"$lte": cutoff}}, {"heartbeatAt": None}],
-        }
-    ).to_list(100)
-
-    reaped = 0
-    while abandoned:
-        for job in abandoned:
-            if not _heartbeat_stale(job, now):
-                continue
-            attempts = job.get("attempts", 1)
-            retry = attempts < MAX_ATTEMPTS
-            terminal = "queued" if retry else "dead"
-            result = await db.jobs.update_one(
-                {
-                    "_id": job["_id"],
-                    "status": "running",
-                    "claimGeneration": job.get("claimGeneration"),
-                },
-                {
-                    "$set": {
-                        "status": terminal,
-                        "error": "worker stopped while this job was running",
-                        "nextAttemptAt": now if retry else None,
-                        "heartbeatAt": None,
-                        "workerId": None,
-                        "finishedAt": None if retry else now,
-                    },
-                    "$inc": {"claimGeneration": 1},
-                },
-            )
-            if not result.matched_count:
-                continue
-            reaped += 1
-            await audit.record(
-                f"job.reaped.{job['type']}",
-                actor="worker",
-                target={"jobId": job["_id"], "projectId": job.get("projectId")},
-                note="requeued" if retry else "attempts exhausted",
-            )
-            log.warning(
-                "reaped abandoned %s (attempt %s) - %s",
-                job["type"], attempts, "requeued" if retry else "dead-lettered",
-            )
-            if not retry:
-                await _dead_letter(job, "worker stopped while this job was running")
-        if len(abandoned) < 100:
-            break
-        abandoned = await db.jobs.find(
-            {
-                "status": "running",
-                "$or": [{"heartbeatAt": {"$lte": cutoff}}, {"heartbeatAt": None}],
-            }
-        ).to_list(100)
-    return reaped
-
-
-def _heartbeat_stale(job: dict, now: datetime) -> bool:
-    beat = job.get("heartbeatAt")
-    if beat is None:
-        return True
-    if getattr(beat, "tzinfo", None) is None:
-        beat = beat.replace(tzinfo=timezone.utc)
-    return beat <= now - timedelta(seconds=stale_after_for(job.get("type") or ""))
-
-
-async def _beat(job_id, worker_id: str, claim_gen: int) -> None:
-    """Say the job is still alive until this task is cancelled.
-
-    One unhandled exception here killed the task for the rest of the run, with
-    the exception never retrieved. Ninety seconds later reap_abandoned saw a
-    stale heartbeat and requeued a job that was still running, and another
-    worker claimed it - two Claude passes over the same project directory,
-    because of one transient Mongo blip during a forty-minute pipeline.
-    """
-    while True:
-        await asyncio.sleep(HEARTBEAT_SECONDS)
-        try:
-            await db.jobs.update_one(
-                {"_id": job_id, "workerId": worker_id, "claimGeneration": claim_gen},
-                {"$set": {"heartbeatAt": _now()}},
-            )
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:  # noqa: BLE001 - a missed beat is not fatal
-            log.warning("heartbeat for job %s failed, will retry: %s", job_id, exc)
-
-
-def _owns_job(job: dict, current: dict | None) -> bool:
-    """True when this worker's claim is still the active one."""
-    if not current:
-        return False
-    return (
-        current.get("workerId") == job.get("workerId")
-        and current.get("claimGeneration") == job.get("claimGeneration")
-    )
 
 
 async def _lease_held(job: dict) -> bool:
@@ -404,7 +107,7 @@ async def _lease_held(job: dict) -> bool:
     return await holds_lease(job)
 
 
-async def _dead_letter(job: dict, detail: str) -> None:
+async def dead_letter(job: dict, detail: str) -> None:
     """Mark the bid's saga as blocked and ping operators."""
     from cbc.modules.ops.api import alerts
     from cbc.services import chain
@@ -446,132 +149,15 @@ async def _quarantine(job: dict, project: dict | None, rows: list[dict]) -> None
         await db.failed_extractions.insert_many(docs)
 
 
-async def _job_cancelled(job_id) -> bool:
-    doc = await db.jobs.find_one({"_id": job_id}, {"status": 1})
-    return bool(doc and doc.get("status") == "cancelled")
+async def after_finish(job: dict, status: str, error: str | None, entry) -> None:
+    """What follows a finished job beyond the queue.
 
-
-async def finish(
-    job: dict,
-    ok: bool,
-    error: str | None,
-    output: str,
-    note: str = "",
-    permanent: bool = False,
-    error_code: str | None = None,
-) -> None:
-    current = await db.jobs.find_one(
-        {"_id": job["_id"]},
-        {"status": 1, "workerId": 1, "claimGeneration": 1},
-    )
-    if current and current.get("status") == "cancelled":
-        await db.jobs.update_one(
-            {"_id": job["_id"]},
-            {
-                "$set": {
-                    "log": (output or "")[-8000:],
-                    "note": note or error or "cancelled by estimator",
-                    "finishedAt": _now(),
-                }
-            },
-        )
-        await audit.record(
-            f"job.cancelled.{job['type']}",
-            actor="claude",
-            target={"jobId": job["_id"], "projectId": job.get("projectId")},
-            note=error or note,
-        )
-        log.info("job %s cancelled - left as cancelled", job["type"])
-        return
-
-    if error == "cancelled by estimator":
-        await db.jobs.update_one(
-            {"_id": job["_id"]},
-            {
-                "$set": {
-                    "status": "cancelled",
-                    "error": error,
-                    "log": (output or "")[-8000:],
-                    "note": note or None,
-                    "finishedAt": _now(),
-                }
-            },
-        )
-        await audit.record(
-            f"job.cancelled.{job['type']}",
-            actor="claude",
-            target={"jobId": job["_id"], "projectId": job.get("projectId")},
-        )
-        log.info("job %s cancelled during run", job["type"])
-        return
-
-    if not _owns_job(job, current):
-        log.warning(
-            "job %s completion ignored - claim was reaped or taken by another worker",
-            job["type"],
-        )
-        return
-
-    attempts = job.get("attempts", 1)
-    retryable = not ok and not permanent and attempts < MAX_ATTEMPTS
-    if ok:
-        status = "done"
-    elif retryable:
-        status = "queued"
-    else:
-        status = "dead"
-
-    await db.jobs.update_one(
-        {
-            "_id": job["_id"],
-            "workerId": job.get("workerId"),
-            "claimGeneration": job.get("claimGeneration"),
-        },
-        {
-                "$set": {
-                    "status": status,
-                    "error": error,
-                    "errorCode": error_code,
-                    "log": (output or "")[-8000:],
-                "note": note or None,
-                "heartbeatAt": None,
-                "nextAttemptAt": (
-                    _now() + timedelta(seconds=RETRY_BASE_SECONDS * 2 ** max(attempts - 1, 0))
-                    if retryable
-                    else None
-                ),
-                "finishedAt": None if retryable else _now(),
-            }
-        },
-    )
-    await audit.record(
-        f"job.{status}.{job['type']}",
-        actor="claude",
-        target={"jobId": job["_id"], "projectId": job.get("projectId")},
-        note=error or note or None,
-    )
-
-    # Bound rather than formatted in: under LOG_FORMAT=json these are their own
-    # keys, so "every failure of this job type on this project" is a query rather
-    # than a regex over sentences.
-    entry = logs.bind(
-        log,
-        job_id=str(job["_id"]),
-        job_type=job["type"],
-        project_id=str(job["projectId"]) if job.get("projectId") else None,
-        attempt=attempts,
-        trace_id=job.get("traceId") or (job.get("payload") or {}).get("traceId"),
-    )
-    if retryable:
-        entry.warning(
-            "job %s failed, retrying in %ss (attempt %s): %s",
-            job["type"],
-            RETRY_BASE_SECONDS * 2 ** max(attempts - 1, 0),
-            attempts,
-            error,
-        )
-    elif not ok:
-        entry.error("job %s FAILED%s: %s", job["type"], " permanently" if permanent else "", error)
+    ops' finish() records how the job ended, then calls this with the outcome:
+    the bid's documents and late uploads after an extract, the dead letter, and
+    autopilot's next step. A retry is not an ending and never reaches here. The
+    worker's composition root binds it.
+    """
+    if status == "dead":
         if job["type"] in ("extract_bid_set", "rerun_extraction") and job.get("projectId"):
             await _mark_docs_for_pass(
                 job["projectId"],
@@ -582,9 +168,8 @@ async def finish(
                 await _queue_straggler_reextract(job)
             except Exception:
                 entry.exception("straggler re-extract after failure failed")
-        await _dead_letter(job, error or "job failed")
-    else:
-        entry.info("job %s done - %s", job["type"], note or "no changes reported")
+        await dead_letter(job, error or "job failed")
+    elif status == "done":
         straggler = None
         try:
             straggler = await _queue_straggler_reextract(job)
@@ -653,7 +238,7 @@ async def _queue_straggler_reextract(job: dict[str, Any]) -> dict[str, Any] | No
     if project_id is None:
         return None
 
-    fresh = await db.jobs.find_one({"_id": job["_id"]}) or job
+    fresh = await ops_jobs.get(job["_id"]) or job
     started = fresh.get("startedAt") or fresh.get("createdAt")
     received_query: dict[str, Any] = {"projectId": project_id, "state": "received"}
     if started is not None:
@@ -758,25 +343,18 @@ async def _persist_phase_state(job: dict, slug: str, phase_state: dict) -> None:
     if not phase_state:
         return
     await asyncio.to_thread(manifests.stamp_phase, slug, phase_state)
-    await db.jobs.update_one({"_id": job["_id"]}, {"$set": {"phaseState": phase_state}})
+    await ops_jobs.set_fields(job["_id"], {"phaseState": phase_state})
     job["phaseState"] = phase_state
 
 
 async def _inherit_phase_state(job: dict, project: dict) -> dict:
     """Copy still-valid phases from the previous job on this bid (B-15)."""
-    prev = await db.jobs.find_one(
-        {
-            "projectId": project["_id"],
-            "_id": {"$ne": job["_id"]},
-            "phaseState": {"$exists": True, "$ne": {}},
-        },
-        sort=[("finishedAt", -1), ("createdAt", -1)],
-    )
+    prev = await ops_jobs.previous_phase_state(project["_id"], job["_id"])
     if not prev:
         return {}
     kept = manifests.reusable_phases(project["slug"], prev.get("phaseState") or {})
     if kept:
-        await db.jobs.update_one({"_id": job["_id"]}, {"$set": {"phaseState": kept}})
+        await ops_jobs.set_fields(job["_id"], {"phaseState": kept})
     return kept
 
 
@@ -790,7 +368,7 @@ async def sync_results(job: dict, project: dict | None) -> str:
         return ""
 
     if not await _lease_held(job):
-        if await _job_cancelled(job["_id"]):
+        if await ops_worker.job_cancelled(job["_id"]):
             raise RuntimeError("cancelled by estimator")
         log.warning(
             "job %s sync skipped - claim was reaped or taken by another worker",
@@ -812,7 +390,7 @@ async def sync_results(job: dict, project: dict | None) -> str:
         await asyncio.to_thread(matchcache.ingest, slug)
 
     if not await _lease_held(job):
-        if await _job_cancelled(job["_id"]):
+        if await ops_worker.job_cancelled(job["_id"]):
             raise RuntimeError("cancelled by estimator")
         log.warning(
             "job %s sync skipped after validation - lease stolen",
@@ -951,8 +529,8 @@ async def _record_runmetrics(
 ) -> None:
     """Parse the Claude recording after every post-CLI finish(). Never raises."""
     try:
-        current = await db.jobs.find_one(
-            {"_id": job["_id"]},
+        current = await ops_jobs.get(
+            job["_id"],
             {"status": 1, "errorCode": 1, "startedAt": 1, "finishedAt": 1, "provider": 1},
         )
         merged = {**job, **(current or {})}
@@ -972,7 +550,7 @@ async def _record_runmetrics(
 async def process_locally(job: dict) -> None:
     """Run a job in this process rather than through a Claude Code pass."""
     handler = LOCAL_HANDLERS[job["type"]]
-    heartbeat = asyncio.create_task(_beat(job["_id"], job.get("workerId", WORKER_ID), job.get("claimGeneration", 0)))
+    heartbeat = asyncio.create_task(ops_worker.beat(job["_id"], job.get("workerId", ops_worker.WORKER_ID), job.get("claimGeneration", 0)))
     try:
         note = await handler(job)
     except Exception as exc:
@@ -1037,19 +615,8 @@ async def _process_body(job: dict) -> None:
 
     # One Claude session per bid: if another pipeline job is still running on this
     # project, defer until it finishes (handles reaper/claim races).
-    if (
-        project is not None
-        and job["type"] in EXCLUSIVE_JOB_TYPES
-        and job.get("status") == "running"
-    ):
-        other = await db.jobs.find_one(
-            {
-                "projectId": project["_id"],
-                "type": {"$in": list(EXCLUSIVE_JOB_TYPES)},
-                "status": "running",
-                "_id": {"$ne": job["_id"]},
-            }
-        )
+    if project is not None:
+        other = await ops_worker.defer_if_bid_busy(job)
         if other:
             job_log.info(
                 "job %s (%s) blocked by concurrent pipeline job %s (%s)",
@@ -1057,28 +624,6 @@ async def _process_body(job: dict) -> None:
                 job["type"],
                 other["_id"],
                 other["type"],
-            )
-            await db.jobs.update_one(
-                {
-                    "_id": job["_id"],
-                    "status": "running",
-                    "workerId": job.get("workerId"),
-                    "claimGeneration": job.get("claimGeneration"),
-                },
-                {
-                    "$set": {
-                        "status": "queued",
-                        "startedAt": None,
-                        "heartbeatAt": None,
-                        "workerId": None,
-                        "nextAttemptAt": _now() + timedelta(seconds=15),
-                        "note": (
-                            f"waiting for {other['type']} job {other['_id']} "
-                            "to finish (one session per bid)"
-                        ),
-                    },
-                    "$inc": {"attempts": -1},
-                },
             )
             return
 
@@ -1096,7 +641,7 @@ async def _process_body(job: dict) -> None:
         and job["type"] in sheetmap.SHEETMAP_JOB_TYPES | {"match_and_price", "build_proposal"}
         and payload.get("force")
     ):
-        await db.jobs.update_one({"_id": job["_id"]}, {"$unset": {"phaseState": ""}})
+        await ops_jobs.unset_fields(job["_id"], "phaseState")
         job.pop("phaseState", None)
 
     if (
@@ -1186,7 +731,7 @@ async def _process_body(job: dict) -> None:
 
     # Read the provider on every job, so changing it on the settings screen takes
     # effect on the next job rather than on the next worker restart.
-    config = await db.settings.find_one({"_id": "claude"}) or provider.default_config()
+    config = await ops_worker.claude_config()
     env, _ = provider.build_env(config)
     described = provider.describe(config)
 
@@ -1228,9 +773,8 @@ async def _process_body(job: dict) -> None:
     )
     if attempt > 1:
         await asyncio.to_thread(streaming.write_retry_banner, recording, attempt)
-    await db.jobs.update_one(
-        {"_id": job["_id"]},
-        {"$set": {"recording": str(recording.relative_to(REPO_ROOT)).replace("\\", "/")}},
+    await ops_jobs.set_fields(
+        job["_id"], {"recording": str(recording.relative_to(REPO_ROOT)).replace("\\", "/")}
     )
 
     timeout, max_turns = limits_for(job["type"])
@@ -1241,11 +785,10 @@ async def _process_body(job: dict) -> None:
             # A shutdown stops the subprocess the same way a cancel does. Without
             # this the container's grace period expires mid-run and the job is
             # SIGKILLed into a permanent `running`.
-            if _stop.is_set():
+            if ops_worker.stopping():
                 cancel_event.set()
                 return
-            doc = await db.jobs.find_one({"_id": job["_id"]}, {"status": 1})
-            if doc and doc.get("status") == "cancelled":
+            if await ops_worker.job_cancelled(job["_id"]):
                 cancel_event.set()
                 return
             await asyncio.sleep(1)
@@ -1335,20 +878,13 @@ async def _process_body(job: dict) -> None:
             await asyncio.sleep(10)
 
     loop = asyncio.get_running_loop()
-    worker_id = job.get("workerId", WORKER_ID)
+    worker_id = job.get("workerId", ops_worker.WORKER_ID)
     claim_gen = job.get("claimGeneration", 0)
 
     def ping() -> None:
         async def _write() -> None:
             try:
-                await db.jobs.update_one(
-                    {
-                        "_id": job["_id"],
-                        "workerId": worker_id,
-                        "claimGeneration": claim_gen,
-                    },
-                    {"$set": {"heartbeatAt": _now()}},
-                )
+                await ops_worker.heartbeat_once(job["_id"], worker_id, claim_gen)
             except Exception as exc:  # noqa: BLE001
                 log.warning("wrapper heartbeat for job %s failed: %s", job["_id"], exc)
 
@@ -1369,7 +905,7 @@ async def _process_body(job: dict) -> None:
             cancel_check=cancel_event.is_set,
             settings=provider.claude_settings_overlay(config),
             on_heartbeat=ping,
-            heartbeat_seconds=HEARTBEAT_SECONDS,
+            heartbeat_seconds=ops_worker.HEARTBEAT_SECONDS,
             cwd=sandbox_ws,
         )
         if sandbox_mod.mode() == "docker":
@@ -1378,7 +914,7 @@ async def _process_body(job: dict) -> None:
 
     watcher = asyncio.create_task(watch_cancel())
     heartbeat = asyncio.create_task(
-        _beat(job["_id"], worker_id, claim_gen)
+        ops_worker.beat(job["_id"], worker_id, claim_gen)
     )
     progress_watcher = asyncio.create_task(watch_progress_bound())
     result = None
@@ -1405,7 +941,7 @@ async def _process_body(job: dict) -> None:
     if result is None:
         raise RuntimeError("Claude wrapper returned no result")
 
-    if _stop.is_set() and not result.ok:
+    if ops_worker.stopping() and not result.ok:
         # Two guards finish() has always had and this did not.
         #
         # Ownership: an unfiltered write here requeued a job this worker no
@@ -1416,34 +952,13 @@ async def _process_body(job: dict) -> None:
         # And `result.ok`: a SIGTERM arriving after a successful run but before
         # finish() threw the completed pass away and decremented attempts, so a
         # three-hour extraction ran again from the start on restart.
-        current = await db.jobs.find_one(
-            {"_id": job["_id"]}, {"status": 1, "workerId": 1, "claimGeneration": 1}
-        )
-        if _owns_job(job, current) and current.get("status") != "cancelled":
-            await db.jobs.update_one(
-                {
-                    "_id": job["_id"],
-                    "workerId": job.get("workerId"),
-                    "claimGeneration": job.get("claimGeneration"),
-                },
-                {
-                    "$set": {
-                        "status": "queued",
-                        "startedAt": None,
-                        "heartbeatAt": None,
-                        "nextAttemptAt": None,
-                        "workerId": None,
-                        "note": "worker shut down mid-run; requeued",
-                    },
-                    "$inc": {"attempts": -1},
-                },
-            )
+        if await ops_worker.requeue_for_shutdown(job):
             log.info("job %s requeued for shutdown", job["type"])
             return
 
     # Recorded so "which provider produced this line?" is answerable months later,
     # the same question NFR-3 asks of every price.
-    await db.jobs.update_one({"_id": job["_id"]}, {"$set": {"provider": described}})
+    await ops_jobs.set_fields(job["_id"], {"provider": described})
 
     # And carried onto the bid itself when the provider is one Claude Code warns
     # about. A draft that looks finished but was produced on a model that could
@@ -1525,121 +1040,3 @@ async def _process_body(job: dict) -> None:
     await _record_runmetrics(job, recording, prompt, project, described)
 
 
-async def loop(once: bool = False) -> int:
-    # The catalog server reads the page index from MongoDB with a credential that
-    # cannot write, handed to it per job by cbc.core.toolsets. Say so if there is
-    # none, because a pricing pass with no catalog flags every line MANUAL and
-    # looks like a model failure rather than a missing credential.
-    from cbc.db import readonly_uri
-    from cbc.shared import otel
-
-    otel.configure(os.environ.get("OTEL_SERVICE_NAME") or "cbc.worker")
-
-    derived = readonly_uri()
-    if derived and not os.environ.get("MONGODB_READONLY_URI"):
-        # toolsets.config_for reads the env; derive the local-dev URI once here
-        # so core stays free of cbc.db.
-        os.environ["MONGODB_READONLY_URI"] = derived
-
-    if not derived:
-        log.warning(
-            "no read-only MongoDB credential; the catalog server will not be able "
-            "to read the page index and pricing will fall back to manual entry"
-        )
-
-    log.info(
-        "worker up - polling every %ss (phase jobs %ss/%s turns, full pipeline %ss/%s turns, concurrency %s)",
-        POLL_SECONDS, JOB_TIMEOUT, MAX_TURNS, PIPELINE_TIMEOUT, PIPELINE_MAX_TURNS,
-        1 if once else concurrency_for(),
-    )
-    await reap_abandoned()
-
-    slots = 1 if once else concurrency_for()
-    in_flight: set[asyncio.Task] = set()
-
-    async def run_claimed(job: dict) -> None:
-        try:
-            await process(job)
-        except Exception as exc:
-            # Without this, one unexpected exception ends the worker with the
-            # job still marked `running` - which the reaper would eventually
-            # recover, but only after the container came back. Record it now.
-            log.exception("job %s raised", job["type"])
-            try:
-                await finish(job, False, f"worker error: {exc}", "")
-            except Exception:
-                log.exception("could not record the failure for job %s", job["_id"])
-
-    while not _stop.is_set():
-        while len(in_flight) < slots and not _stop.is_set():
-            job = await claim()
-            if not job:
-                break
-            in_flight.add(asyncio.create_task(run_claimed(job)))
-            if once:
-                break
-        if in_flight:
-            _done, in_flight = await asyncio.wait(
-                in_flight, return_when=asyncio.FIRST_COMPLETED
-            )
-            if once:
-                return 0
-            continue
-        if once:
-            log.info("no queued jobs")
-            return 0
-        await reap_abandoned()
-        try:
-            await asyncio.wait_for(_stop.wait(), timeout=POLL_SECONDS)
-        except asyncio.TimeoutError:
-            pass
-    if in_flight:
-        await asyncio.wait(in_flight)
-    log.info("worker stopped")
-    return 0
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--once", action="store_true", help="process at most one job")
-    parser.add_argument("--preflight", action="store_true", help="check the Claude CLI")
-    args = parser.parse_args()
-
-    if args.preflight:
-        # Against the configured provider, not the shell that happens to be
-        # running this. Checking the inherited environment reports a failure on a
-        # correctly configured system, which is worse than not checking at all.
-        async def check() -> tuple[str | None, dict]:
-            config = await db.settings.find_one({"_id": "claude"}) or provider.default_config()
-            env, _ = provider.build_env(config)
-            problem = await asyncio.to_thread(
-                runner.preflight,
-                env,
-                provider.secret_values(config),
-                provider.claude_settings_overlay(config),
-            )
-            return problem, provider.describe(config)
-
-        problem, described = asyncio.run(check())
-        if problem:
-            print(f"PREFLIGHT FAILED ({described['mode']}): {problem}")
-            return 1
-        print(
-            f"PREFLIGHT OK - {described['mode']} / {described['model']}; "
-            "Claude Code is reachable and authenticated."
-        )
-        for warning in described.get("warnings", []):
-            print(f"PREFLIGHT WARN - {warning}")
-        return 0
-
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
-            signal.signal(sig, lambda *_: _stop.set())
-        except (ValueError, OSError):  # not available on every platform/thread
-            pass
-
-    return asyncio.run(loop(args.once))
-
-
-if __name__ == "__main__":
-    sys.exit(main())
