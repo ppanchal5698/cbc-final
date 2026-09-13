@@ -20,7 +20,8 @@ from cbc.schemas import HandOff, ProposalSettings
 from cbc.http.projects_access import load
 from cbc.persistence import proposals as proposal_rules
 from cbc.domain import quote_layout
-from cbc.services import audit, quote as quote_service
+from cbc.modules.ops.api import audit
+from cbc.services import quote as quote_service
 
 router = APIRouter(prefix="/api/projects/{code}/proposal", tags=["proposal"])
 

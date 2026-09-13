@@ -47,7 +47,7 @@ from cbc.schemas.quote import (
     QuoteSettings,
     QuoteTotals,
 )
-from cbc.schemas.users import Call, CallCreate, Credentials, UserCreate, UserPublic, UserUpdate
+from cbc.schemas.users import Call, CallCreate, UserPublic
 from cbc.schemas.versions import AlternateCreate, AlternateAssign, EstimateVersion, VersionCreate
 
 __all__ = [
@@ -58,7 +58,6 @@ __all__ = [
     "CallCreate",
     "CallKind",
     "CostSource",
-    "Credentials",
     "Document",
     "EstimateVersion",
     "Evidence",
@@ -104,7 +103,5 @@ __all__ = [
     "VendorCategoriesUpdate",
     "TaxRatesUpdate",
     "UserPublic",
-    "UserCreate",
-    "UserUpdate",
     "VersionCreate",
 ]

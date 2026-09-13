@@ -32,6 +32,9 @@ envfile.apply_to_environ(skip=MANAGED)
 
 from cbc.shared.config import settings  # noqa: E402  - must follow apply_to_environ
 from cbc.db import ensure_indexes, ensure_readonly_user  # noqa: E402
+from cbc.http import projects_access  # noqa: E402
+from cbc.modules import ops  # noqa: E402
+from cbc.modules.ops.api import identity, project_lookup  # noqa: E402
 from cbc.modules.catalog.api.router import router as catalog_router  # noqa: E402
 from cbc.modules.extraction.api.router import router as extraction_router  # noqa: E402
 from cbc.modules.intake.api.router import router as intake_router  # noqa: E402
@@ -40,7 +43,7 @@ from cbc.modules.platform.api.routes import settings as settings_router  # noqa:
 from cbc.modules.pricing.api.router import router as pricing_router  # noqa: E402
 from cbc.modules.quoting.api.router import router as quoting_router  # noqa: E402
 from cbc.pageindex import store as pageindex_store  # noqa: E402
-from cbc.shared.auth import InternalAuthMiddleware  # noqa: E402
+from cbc.shared.auth import InternalAuthMiddleware, set_role_lookup  # noqa: E402
 from cbc.shared.mongo import database  # noqa: E402
 from cbc.shared.tracing import TraceMiddleware  # noqa: E402
 
@@ -106,6 +109,21 @@ def _forever(job: Callable[[], Awaitable[Any]], every: float, log: logging.Logge
     return loop
 
 
+async def migrate_and_index() -> None:
+    """Migrations first, then every index: the legacy set in db.py, then each module's.
+
+    Order matters. An index built on a collection before migration 1 renames it
+    lands on the wrong collection.
+    """
+    await ensure_indexes()
+    await ops.ensure_indexes()
+
+
+async def _project_id(code_or_id: str):
+    """Bids belong to the projects module; until that is built, the shared lookup answers."""
+    return (await projects_access.load(code_or_id))["_id"]
+
+
 def create_app(*, background: bool = True):
     """Build the API.
 
@@ -120,12 +138,17 @@ def create_app(*, background: bool = True):
     log = logs.configure(f"cbc.{NAME}.api")
     jobs = [(settings_router.sweep_oauth_sessions, OAUTH_SWEEP_SECONDS)] if background else []
 
+    # Dependencies that point the other way: shared and ops each need an answer
+    # they may not import. The owners are plugged in here, and only here.
+    set_role_lookup(identity.role_of)
+    project_lookup.bind(_project_id)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         from cbc.shared import otel
 
         otel.configure(f"cbc.{NAME}.api")
-        await ensure_indexes()
+        await migrate_and_index()
         await pageindex_store.ensure_indexes()
         if not await ensure_readonly_user():
             log.warning("no read-only MongoDB user for catalog page index")
@@ -163,6 +186,7 @@ def create_app(*, background: bool = True):
 
     for router in ROUTERS:
         app.include_router(router)
+    ops.register(app)
 
     @app.get("/api/health")
     async def health() -> dict[str, Any]:

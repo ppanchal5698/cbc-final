@@ -1,11 +1,24 @@
-"""Operator spend rollup from runMetrics (not queue depth)."""
+"""GET /api/ops/spend - LLM spend over a window, from runMetrics. Admin only.
+
+Spend, not queue depth: what runs cost, by job type and by bid, against the caps.
+"""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from cbc.db import db
-from cbc.services import cost_budget
+from fastapi import APIRouter, Depends, Query
+
+from cbc.modules.ops.infrastructure.collections import run_metrics
+from cbc.services import cost_budget  # ponytail: moves into ops with the worker claim loop (step 3.3d)
+from cbc.shared.auth import require_admin
+
+router = APIRouter(prefix="/api/ops", tags=["ops"], dependencies=[Depends(require_admin)])
+
+
+@router.get("/spend")
+async def spend_summary(hours: int = Query(24, ge=1, le=168)) -> dict:
+    return await summary(hours=hours)
 
 
 def _cache_hit_ratio(tokens: dict[str, Any] | None) -> float | None:
@@ -27,7 +40,7 @@ async def summary(*, hours: int = 24, recent_limit: int = 50) -> dict[str, Any]:
         "totalCostUsd": {"$type": "number"},
     }
 
-    total_rows = await db.run_metrics.aggregate(
+    total_rows = await run_metrics().aggregate(
         [
             {"$match": match},
             {
@@ -43,7 +56,7 @@ async def summary(*, hours: int = 24, recent_limit: int = 50) -> dict[str, Any]:
     runs = int(total_rows[0]["runs"]) if total_rows else 0
 
     by_type: list[dict[str, Any]] = []
-    async for row in db.run_metrics.aggregate(
+    async for row in run_metrics().aggregate(
         [
             {"$match": match},
             {
@@ -66,7 +79,7 @@ async def summary(*, hours: int = 24, recent_limit: int = 50) -> dict[str, Any]:
 
     by_project: list[dict[str, Any]] = []
     project_cap = cost_budget.project_cap_usd()
-    async for row in db.run_metrics.aggregate(
+    async for row in run_metrics().aggregate(
         [
             {"$match": match},
             {
@@ -98,7 +111,7 @@ async def summary(*, hours: int = 24, recent_limit: int = 50) -> dict[str, Any]:
         )
 
     recent_docs = (
-        await db.run_metrics.find(match)
+        await run_metrics().find(match)
         .sort([("startedAt", -1)])
         .limit(recent_limit)
         .to_list(recent_limit)

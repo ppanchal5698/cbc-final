@@ -17,7 +17,8 @@ from cbc.shared.auth import Actor
 from cbc.schemas import QuoteLineCreate, QuoteLineUpdate, QuoteSettings
 from cbc.http.projects_access import load
 from cbc.http.pipeline_jobs import enqueue_pipeline
-from cbc.services import audit, feedback, freshness as freshness_settings, jobs, quote as quote_service, sync
+from cbc.modules.ops.api import audit
+from cbc.services import feedback, freshness as freshness_settings, jobs, quote as quote_service, sync
 
 router = APIRouter(prefix="/api/projects/{code}/quote", tags=["quote"])
 

@@ -12,7 +12,8 @@ from cbc.shared.mongo import oid
 from cbc.shared.auth import Actor
 from cbc.schemas import AlternateCreate
 from cbc.http.projects_access import load
-from cbc.services import audit, pricing
+from cbc.modules.ops.api import audit
+from cbc.services import pricing
 
 router = APIRouter(prefix="/api/projects/{code}", tags=["alternates"])
 

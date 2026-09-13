@@ -12,7 +12,8 @@ from cbc.schemas import JobCreate
 from cbc.schemas.common import ESTIMATOR_JOB_TYPES, EXCLUSIVE_JOB_TYPES
 from cbc.http.projects_access import load
 from cbc.http.pipeline_jobs import enqueue_pipeline
-from cbc.services import audit, jobs as job_service
+from cbc.modules.ops.api import audit, identity
+from cbc.services import jobs as job_service
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -108,8 +109,7 @@ async def create_job(body: JobCreate, actor: Actor) -> dict:
 
 
 async def _require_admin(actor: str, job_type: str) -> None:
-    user = await db.users.find_one({"email": actor.lower()}, {"role": 1})
-    if not user or user.get("role") not in ADMIN_ROLES:
+    if await identity.role_of(actor) not in ADMIN_ROLES:
         raise HTTPException(
             403,
             f"{actor} is not permitted to enqueue {job_type!r}. "

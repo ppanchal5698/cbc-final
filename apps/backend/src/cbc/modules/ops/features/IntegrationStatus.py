@@ -1,4 +1,4 @@
-"""Integration status visible to every signed-in user."""
+"""GET /api/integrations - integration status, visible to every signed-in user."""
 from __future__ import annotations
 
 import os

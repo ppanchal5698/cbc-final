@@ -14,7 +14,8 @@ from cbc.db import db
 from cbc.shared.mongo import oid, serialise
 from cbc.shared.auth import AdminActor, Actor
 from cbc.schemas import ProjectCreate, ProjectUpdate
-from cbc.services import audit, storage, reuse
+from cbc.modules.ops.api import audit
+from cbc.services import storage, reuse
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 

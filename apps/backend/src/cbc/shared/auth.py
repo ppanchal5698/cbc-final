@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import secrets as pysecrets
+from collections.abc import Awaitable, Callable
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request
@@ -29,12 +30,22 @@ Actor = Annotated[str, Depends(get_actor)]
 ADMIN_ROLES = frozenset({"admin"})
 
 
+# The role is ops' data, and shared may not import a module. The composition
+# root registers ops' lookup here when it builds the app.
+_role_lookup: Callable[[str], Awaitable[str | None]] | None = None
+
+
+def set_role_lookup(lookup: Callable[[str], Awaitable[str | None]]) -> None:
+    global _role_lookup
+    _role_lookup = lookup
+
+
 async def require_admin(request: Request) -> str:
-    from cbc.db import db
+    if _role_lookup is None:
+        raise RuntimeError("no role lookup registered; the composition root sets it in create_app")
 
     actor = get_actor(request)
-    user = await db.users.find_one({"email": actor.lower()}, {"role": 1})
-    if not user or user.get("role") not in ADMIN_ROLES:
+    if await _role_lookup(actor.lower()) not in ADMIN_ROLES:
         raise HTTPException(
             403,
             f"{actor} is not permitted here. This needs one of: "

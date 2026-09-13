@@ -1,13 +1,14 @@
-"""Read-only audit log for administrators (NFR-3)."""
+"""GET /api/audit - the read-only audit log, newest first (NFR-3). Admin only."""
 from __future__ import annotations
 
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 
-from cbc.db import db
-from cbc.shared.mongo import serialise
+from cbc.modules.ops.api import project_lookup
+from cbc.modules.ops.infrastructure.collections import audit_logs
 from cbc.shared.auth import Actor, require_admin
+from cbc.shared.mongo import serialise
 
 router = APIRouter(prefix="/api/audit", tags=["audit"], dependencies=[Depends(require_admin)])
 
@@ -24,12 +25,9 @@ async def list_audit(
     if action:
         query["action"] = action
     if project:
-        from cbc.http.projects_access import load
+        query["target.projectId"] = await project_lookup.project_id(project)
 
-        loaded = await load(project)
-        query["target.projectId"] = loaded["_id"]
-
-    cursor = db.audit_log.find(query).sort("at", -1).skip(skip).limit(limit)
+    cursor = audit_logs().find(query).sort("at", -1).skip(skip).limit(limit)
     entries = await cursor.to_list(limit)
-    total = await db.audit_log.count_documents(query)
+    total = await audit_logs().count_documents(query)
     return {"entries": serialise(entries), "total": total, "skip": skip, "limit": limit}

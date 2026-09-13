@@ -18,7 +18,7 @@ from pymongo.errors import DuplicateKeyError
 
 from cbc.db import db
 from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
-from cbc.services import audit
+from cbc.modules.ops.api import audit
 
 EXCLUSIVE = set(EXCLUSIVE_JOB_TYPES)
 

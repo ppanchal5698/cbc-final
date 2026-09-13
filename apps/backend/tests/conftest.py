@@ -107,7 +107,7 @@ def app(monkeypatch):
     async def _ok(*_a, **_k):
         return True
 
-    monkeypatch.setattr("cbc.app.main.ensure_indexes", _ok)
+    monkeypatch.setattr("cbc.app.main.migrate_and_index", _ok)
     monkeypatch.setattr("cbc.app.main.ensure_readonly_user", _ok)
     monkeypatch.setattr("cbc.app.main.pageindex_store.ensure_indexes", _ok)
 

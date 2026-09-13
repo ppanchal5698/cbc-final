@@ -23,12 +23,6 @@ from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
 
 log = logging.getLogger("cbc.api.db")
 
-# How long a failed sign-in stays counted. It lives here rather than beside the
-# endpoint because the TTL index below has to agree with it, and `cbc` cannot
-# import the application that serves the route.
-AUTH_ATTEMPT_TTL = 300
-
-
 class Collections:
     """Named handles, resolved lazily so tests can point at another database.
 
@@ -38,10 +32,6 @@ class Collections:
     the stored collections, not of 160 call sites; those move behind repositories
     in their own step.
     """
-
-    @property
-    def users(self):
-        return database()[names.USERS]
 
     @property
     def projects(self):
@@ -80,10 +70,6 @@ class Collections:
         return database()[names.JOBS]
 
     @property
-    def audit_log(self):
-        return database()[names.AUDIT_LOGS]
-
-    @property
     def calls(self):
         return database()[names.CALLS]
 
@@ -100,11 +86,6 @@ class Collections:
     def settings(self):
         """Installation settings - one document per concern, `_id` is the name."""
         return database()[names.SETTINGS]
-
-    @property
-    def auth_attempts(self):
-        """One document per sign-in attempt, expired by a TTL index."""
-        return database()[names.AUTH_ATTEMPTS]
 
     @property
     def oauth_sessions(self):
@@ -252,7 +233,6 @@ async def ensure_indexes() -> None:
 
     await migrations.run(database())
 
-    await db.users.create_index([("email", ASCENDING)], unique=True)
     await db.projects.create_index([("code", ASCENDING)], unique=True)
     await db.projects.create_index([("slug", ASCENDING)], unique=True)
     await db.projects.create_index([("stage", ASCENDING), ("bidDue", ASCENDING)])
@@ -339,8 +319,6 @@ async def ensure_indexes() -> None:
         [("projectId", ASCENDING), ("createdAt", DESCENDING)]
     )
     await db.failed_extractions.create_index([("jobId", ASCENDING)])
-    await db.audit_log.create_index([("at", DESCENDING)])
-    await db.audit_log.create_index([("target.projectId", ASCENDING)])
     await db.calls.create_index([("projectId", ASCENDING), ("createdAt", DESCENDING)])
     await _replace_index(
         db.versions,
@@ -351,21 +329,8 @@ async def ensure_indexes() -> None:
     # Alternates are queried per group on both the extraction and quote screens.
     await db.line_items.create_index([("projectId", ASCENDING), ("alternateGroup", ASCENDING)])
     await db.quote_lines.create_index([("projectId", ASCENDING), ("alternateGroup", ASCENDING)])
-    # Sign-in attempts, counted across replicas rather than in one process. The
-    # TTL is only garbage collection - `verify` filters on `at` itself, so the
-    # window does not depend on when the background sweep last ran.
-    await db.auth_attempts.create_index(
-        [("at", ASCENDING)], name="attempt_ttl", expireAfterSeconds=AUTH_ATTEMPT_TTL
-    )
-    await db.auth_attempts.create_index([("email", ASCENDING), ("at", DESCENDING)])
     await db.oauth_sessions.create_index(
         [("expiresAt", ASCENDING)], name="oauth_session_ttl", expireAfterSeconds=0
-    )
-    await db.run_metrics.create_index([("jobType", ASCENDING), ("startedAt", DESCENDING)])
-    await db.run_metrics.create_index([("projectId", ASCENDING), ("startedAt", DESCENDING)])
-    await db.run_metrics.create_index([("contextHashes.prompt", ASCENDING)])
-    await db.run_metrics.create_index(
-        [("outcome.errorCode", ASCENDING), ("startedAt", DESCENDING)]
     )
     await db.reference_data.create_index([("family", ASCENDING)], unique=True)
     await db.reference_data.create_index([("updatedAt", DESCENDING)])

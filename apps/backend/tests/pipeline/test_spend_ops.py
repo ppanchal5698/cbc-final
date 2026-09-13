@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
-from cbc.services import spend_ops
+from cbc.modules.ops.features import SpendSummary as spend_ops
 
 
 class _Agg:
@@ -82,7 +82,7 @@ def test_summary_rolls_up(monkeypatch) -> None:
     class _DB:
         run_metrics = _RM()
 
-    monkeypatch.setattr(spend_ops, "db", _DB())
+    monkeypatch.setattr(spend_ops, "run_metrics", lambda: _DB.run_metrics)
     monkeypatch.setattr(spend_ops.cost_budget, "day_cap_usd", lambda: 10.0)
     monkeypatch.setattr(spend_ops.cost_budget, "project_cap_usd", lambda: 5.0)
 

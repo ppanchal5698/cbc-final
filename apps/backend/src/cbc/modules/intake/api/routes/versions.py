@@ -14,7 +14,7 @@ from cbc.schemas import VersionCreate
 from cbc.http.projects_access import load
 from cbc.http.pipeline_jobs import enqueue_pipeline, reserve
 from cbc.persistence import versioning
-from cbc.services import audit
+from cbc.modules.ops.api import audit
 
 router = APIRouter(prefix="/api/projects/{code}", tags=["versions"])
 

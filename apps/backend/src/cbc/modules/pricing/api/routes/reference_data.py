@@ -26,7 +26,7 @@ from cbc.schemas import (
     TaxRatesUpdate,
     VendorCategoriesUpdate,
 )
-from cbc.services import audit
+from cbc.modules.ops.api import audit
 from cbc.services import reference_library as reflib
 from cbc.services import reference_store
 

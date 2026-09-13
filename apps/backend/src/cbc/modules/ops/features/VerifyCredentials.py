@@ -1,7 +1,7 @@
-"""Credential verification for NextAuth.
+"""POST /api/auth/verify - are these credentials good, and who is it?
 
-NextAuth owns the session; this endpoint only answers "are these credentials
-good, and who is it?". Passwords are bcrypt-hashed and never leave the database.
+NextAuth owns the session; this endpoint only answers the question. Passwords are
+bcrypt-hashed and never leave the database.
 """
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, EmailStr
 
-from cbc.db import AUTH_ATTEMPT_TTL, db
-from cbc.shared.mongo import serialise
-from cbc.schemas import Credentials
+from cbc.modules.ops.domain.passwords import verify_password
+from cbc.modules.ops.infrastructure.collections import AUTH_ATTEMPT_TTL, auth_attempts, users
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -36,25 +36,19 @@ WINDOW_SECONDS = AUTH_ATTEMPT_TTL
 _DUMMY_HASH = bcrypt.hashpw(b"never-matches", bcrypt.gensalt()).decode("utf-8")
 
 
+class Credentials(BaseModel):
+    email: EmailStr
+    password: str
+
+
 async def _too_many(email: str) -> bool:
     """Record this attempt and say whether the window is now over budget."""
     now = datetime.now(timezone.utc)
-    await db.auth_attempts.insert_one({"email": email, "at": now})
-    recent = await db.auth_attempts.count_documents(
+    await auth_attempts().insert_one({"email": email, "at": now})
+    recent = await auth_attempts().count_documents(
         {"email": email, "at": {"$gte": now - timedelta(seconds=WINDOW_SECONDS)}}
     )
     return recent > MAX_ATTEMPTS
-
-
-def hash_password(plain: str) -> str:
-    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
-
-def verify_password(plain: str, hashed: str) -> bool:
-    try:
-        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
-    except (ValueError, TypeError):
-        return False
 
 
 @router.post("/verify")
@@ -63,7 +57,7 @@ async def verify(body: Credentials) -> dict:
     if await _too_many(email):
         raise HTTPException(429, "too many sign-in attempts; wait a few minutes")
 
-    user = await db.users.find_one({"email": email})
+    user = await users().find_one({"email": email})
     # Same response either way, and the same amount of work either way - do not
     # reveal whether an address is registered, by wording or by timing.
     hashed = user.get("passwordHash", "") if user else _DUMMY_HASH
@@ -73,9 +67,9 @@ async def verify(body: Credentials) -> dict:
 
     # A correct password clears the budget, so a person who mistypes four times
     # and then gets it right is not locked out by their own success.
-    await db.auth_attempts.delete_many({"email": email})
+    await auth_attempts().delete_many({"email": email})
 
-    await db.users.update_one(
+    await users().update_one(
         {"_id": user["_id"]}, {"$set": {"lastSeenAt": datetime.now(timezone.utc)}}
     )
     return {
@@ -85,11 +79,3 @@ async def verify(body: Credentials) -> dict:
         "initials": user.get("initials", user["email"][:2].upper()),
         "role": user.get("role", "estimator"),
     }
-
-
-@router.get("/me/{email}")
-async def me(email: str) -> dict:
-    user = await db.users.find_one({"email": email.lower()}, {"passwordHash": 0})
-    if not user:
-        raise HTTPException(404, "user not found")
-    return serialise(user)

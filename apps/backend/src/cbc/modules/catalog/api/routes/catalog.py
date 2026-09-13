@@ -16,7 +16,8 @@ from cbc.db import db
 from cbc.shared.mongo import oid, serialise
 from cbc.shared.auth import Actor, AdminActor
 from cbc.schemas import ProductCreate, ProductUpdate
-from cbc.services import audit, catalog_search, pricing
+from cbc.modules.ops.api import audit
+from cbc.services import catalog_search, pricing
 
 router = APIRouter(prefix="/api/catalog", tags=["catalog"])
 

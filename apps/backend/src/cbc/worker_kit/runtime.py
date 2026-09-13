@@ -45,7 +45,8 @@ envfile.apply_to_environ(skip=provider.MANAGED)
 
 from cbc.db import db
 from cbc.schemas.common import EXCLUSIVE_JOB_TYPES
-from cbc.services import audit, quote as quote_service, render, storage, sync
+from cbc.modules.ops.api import audit
+from cbc.services import quote as quote_service, render, storage, sync
 from cbc.services import manifests, matchcache, pretakeoff, runmetrics, sheetmap
 from cbc.core import claude_cli as runner, streaming
 from cbc.shared import logs

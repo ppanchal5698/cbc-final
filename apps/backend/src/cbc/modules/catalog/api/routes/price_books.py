@@ -18,7 +18,8 @@ from cbc.db import db
 from cbc.shared.mongo import oid, serialise
 from cbc.shared.auth import Actor, AdminActor
 from cbc.schemas import PriceBookCreate, PriceBookUpdate
-from cbc.services import audit, freshness as freshness_settings, jobs, storage
+from cbc.modules.ops.api import audit
+from cbc.services import freshness as freshness_settings, jobs, storage
 from cbc.pageindex import basis, store as catalog_store
 from cbc.services.reference_library import sync_vendor_categories
 

@@ -20,7 +20,8 @@ from cbc.shared.auth import Actor
 from cbc.http.pipeline_jobs import enqueue_pipeline, reserve
 from cbc.http.projects_access import load
 from cbc.modules.intake.api.routes.versions import snapshot
-from cbc.services import audit, jobs as job_service, pdf, storage
+from cbc.modules.ops.api import audit
+from cbc.services import jobs as job_service, pdf, storage
 
 router = APIRouter(prefix="/api/projects/{code}/documents", tags=["documents"])
 

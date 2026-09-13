@@ -11,8 +11,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from cbc.modules.ops.infrastructure.collections import audit_logs
 from cbc.shared.config import settings
-from cbc.db import db
 
 log = logging.getLogger("cbc.api.audit")
 
@@ -26,7 +26,7 @@ async def record(
     note: str | None = None,
 ) -> None:
     try:
-        await db.audit_log.insert_one(
+        await audit_logs().insert_one(
             {
                 "at": datetime.now(timezone.utc),
                 "actor": actor,
