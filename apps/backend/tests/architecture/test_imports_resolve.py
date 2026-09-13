@@ -54,6 +54,7 @@ NAMESPACE_PACKAGES = frozenset(
         "cbc.modules.intake.api",
         "cbc.modules.extraction.api",
         "cbc.modules.pricing.api",
+        "cbc.modules.quoting.api",
     }
 )
 

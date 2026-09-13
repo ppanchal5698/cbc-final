@@ -14,7 +14,7 @@ These tests fail against the code as it was.
 """
 from __future__ import annotations
 
-from cbc.services import quote
+from cbc.modules.quoting.api import quote
 
 
 def line(**overrides):

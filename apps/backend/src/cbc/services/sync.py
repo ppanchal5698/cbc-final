@@ -25,10 +25,12 @@ from cbc.services.sync_phases.geometry import (  # noqa: F401
 )
 from cbc.services.sync_phases.pricing import (  # noqa: F401
     export_line_items,
+)
+from cbc.modules.quoting.api.priced_lines import (  # noqa: F401
     export_quote_lines,
     import_quote_lines,
 )
-from cbc.services.sync_phases.proposal import (  # noqa: F401
+from cbc.modules.quoting.api.proposal_artifacts import (  # noqa: F401
     import_proposal_artifacts,
 )
 

@@ -88,7 +88,7 @@ def test_an_ordinary_line_still_prices() -> None:
 def test_quote_line_schema_rejects_a_negative_cost() -> None:
     from pydantic import ValidationError
 
-    from cbc.schemas.quote import QuoteLineUpdate
+    from cbc.modules.quoting.domain.quotes import QuoteLineUpdate
 
     with pytest.raises(ValidationError):
         QuoteLineUpdate(cost=-45)

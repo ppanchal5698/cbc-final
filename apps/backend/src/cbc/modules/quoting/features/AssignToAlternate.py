@@ -7,10 +7,10 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from cbc.db import db  # ponytail: quote lines and quotes read directly until quoting owns them (step 3.9)
-from cbc.modules.extraction.infrastructure.collections import openings
+from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api.lookup import load
+from cbc.modules.quoting.infrastructure.collections import estimate_lines
 from cbc.shared.auth import Actor
 from cbc.shared.mongo import oid
 
@@ -93,19 +93,21 @@ async def assign_to_alternate(
     )
 
     project = await load(code)
-    collection = openings() if scope == "line-items" else db.quote_lines
     object_ids = [oid(i) for i in line_ids]
 
     now = _now()
-    result = await collection.update_many(
-        {
-            "_id": {"$in": object_ids},
-            "projectId": project["_id"],
-            "alternateGroup": {"$ne": alternate},
-        },
-        {"$set": {"alternateGroup": alternate, "updatedAt": now}},
-    )
-    moved = result.modified_count
+    if scope == "line-items":
+        moved = await extraction_openings.assign_group(project["_id"], object_ids, alternate, at=now)
+    else:
+        result = await estimate_lines().update_many(
+            {
+                "_id": {"$in": object_ids},
+                "projectId": project["_id"],
+                "alternateGroup": {"$ne": alternate},
+            },
+            {"$set": {"alternateGroup": alternate, "updatedAt": now}},
+        )
+        moved = result.modified_count
 
     await audit.record(
         "alternate.assign",

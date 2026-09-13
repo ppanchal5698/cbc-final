@@ -1,7 +1,7 @@
 """§4.8 snapshot freeze - a quoted line must not move when reference data edits."""
 from __future__ import annotations
 
-from cbc.services import quote as quote_service
+from cbc.modules.quoting.api import quote as quote_service
 
 
 def test_repriced_line_keeps_frozen_cost_and_margin() -> None:

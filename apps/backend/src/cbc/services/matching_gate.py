@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from cbc.db import db
 from cbc.modules.catalog.api import products as catalog_products
 from cbc.modules.extraction.api import openings as extraction_openings
+from cbc.modules.quoting.api import lines as quoting_lines
 from cbc.domain import matching
 
 
@@ -23,7 +23,7 @@ async def apply_to_project(project: dict[str, Any], *, limit: int = 5000) -> dic
     project_id = project["_id"]
     openings = await extraction_openings.list_for_project(project_id, limit=limit)
     lines: dict[Any, dict[str, Any]] = {}
-    async for line in db.quote_lines.find({"projectId": project_id}):
+    for line in await quoting_lines.list_for_project(project_id):
         lines[line.get("mark") or line.get("doorNumber")] = line
 
     flagged = 0

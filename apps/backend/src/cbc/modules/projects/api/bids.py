@@ -22,3 +22,12 @@ async def add_alternate(project_id: Any, name: str) -> None:
         {"_id": project_id},
         {"$addToSet": {"alternates": name}, "$set": {"updatedAt": datetime.now(timezone.utc)}},
     )
+
+
+async def record_hand_off(project_id: Any, recipient: str | None) -> None:
+    """The estimator signed the proposal off and routed it to `recipient`."""
+    now = datetime.now(timezone.utc)
+    await bid_requests().update_one(
+        {"_id": project_id},
+        {"$set": {"handedOffTo": recipient, "handedOffAt": now, "updatedAt": now}},
+    )

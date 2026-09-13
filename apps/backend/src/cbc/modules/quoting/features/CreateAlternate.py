@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from cbc.modules.extraction.domain.alternates import PENDING_NOTE, AlternateCreate
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api import bids
 from cbc.modules.projects.api.lookup import load
+from cbc.modules.quoting.domain.alternates import PENDING_NOTE, AlternateCreate
 from cbc.shared.auth import Actor
 
 router = APIRouter(prefix="/api/projects/{code}", tags=["alternates"])

@@ -1,3 +1,1 @@
-"""Module-local domain rules."""
-from __future__ import annotations
-
+"""What quoting means by a quote and a proposal, independent of storage and HTTP."""

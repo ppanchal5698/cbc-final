@@ -6,7 +6,6 @@ import asyncio
 
 from fastapi import APIRouter, HTTPException, Response
 
-from cbc.db import db  # ponytail: other modules' rows deleted directly until each owns its collection (step 3.9)
 from cbc.modules.ops.api import audit, jobs as ops_jobs
 from cbc.modules.projects.api import bids
 from cbc.modules.projects.api.lookup import load
@@ -30,15 +29,8 @@ async def delete_project(code: str, actor: AdminActor) -> Response:
     slug = project.get("slug") or ""
 
     await ops_jobs.cancel_active_for_project(project_id, actor, note="project deleted")
-    # ponytail: each module deletes its own rows on a ProjectDeleted event once
-    # it owns them; until then the cascade names their collections.
-    for collection in (
-        db.quote_lines,
-        db.quotes,
-        db.proposals,
-        calls(),
-    ):
-        await collection.delete_many({"projectId": project_id})
+    await calls().delete_many({"projectId": project_id})
+    # Every module that keeps rows for a bid deletes its own when it hears this.
     await events.publish(bids.PROJECT_DELETED, project_id=project_id)
     await ops_jobs.delete_for_project(project_id)
     await bid_requests().delete_one({"_id": project_id})

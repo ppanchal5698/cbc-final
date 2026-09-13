@@ -3,7 +3,7 @@
 Collection accessors, index builds and the catalog's read-only user. The client
 itself and the primitives (`oid`, `serialise`, transactions) are in
 `cbc.shared.mongo`. Accessors are plain attributes so callers read as prose:
-`db.quote_lines.find({...})`.
+`db.projects.find({...})`.
 """
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ import os
 
 from urllib.parse import quote_plus, urlsplit
 
-from pymongo import ASCENDING
 from pymongo.errors import OperationFailure, PyMongoError
 
 from cbc.shared.config import settings
@@ -24,7 +23,7 @@ class Collections:
 
     The names come from `cbc.persistence.names`, which is where the
     specification's vocabulary lives. Property names stay as the code has always
-    spelled them - `db.projects`, `db.quote_lines` - so this change is a rename of
+    spelled them - `db.projects`, `db.jobs` - so this change is a rename of
     the stored collections, not of 160 call sites; those move behind repositories
     in their own step.
     """
@@ -32,18 +31,6 @@ class Collections:
     @property
     def projects(self):
         return database()[names.BID_REQUESTS]
-
-    @property
-    def quote_lines(self):
-        return database()[names.ESTIMATE_LINES]
-
-    @property
-    def quotes(self):
-        return database()[names.QUOTES]
-
-    @property
-    def proposals(self):
-        return database()[names.PROPOSALS]
 
     @property
     def jobs(self):
@@ -58,16 +45,6 @@ class Collections:
     def run_metrics(self):
         """Per-Claude-run cost and provenance, parsed from `.runs/*.log`."""
         return database()[names.RUN_METRICS]
-
-    @property
-    def vendor_rfqs(self):
-        """FR-16 - the third cost path (§3.28)."""
-        return database()[names.VENDOR_RFQS]
-
-    @property
-    def rfis(self):
-        """Phase 5 questions raised before finalizing (§3.29)."""
-        return database()[names.RFIS]
 
 
 db = Collections()
@@ -84,11 +61,6 @@ async def ensure_indexes() -> None:
     from cbc.persistence import migrations
 
     await migrations.run(database())
-
-    await db.quote_lines.create_index([("projectId", ASCENDING), ("division", ASCENDING)])
-    await db.quotes.create_index([("projectId", ASCENDING)], unique=True)
-    await db.proposals.create_index([("projectId", ASCENDING)])
-    await db.quote_lines.create_index([("projectId", ASCENDING), ("alternateGroup", ASCENDING)])
 
 
 # ── read-only access for the catalog MCP server ─────────────────────────────

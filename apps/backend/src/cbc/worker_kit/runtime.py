@@ -40,7 +40,8 @@ envfile.apply_to_environ(skip=provider.MANAGED)
 from cbc.db import db
 from cbc.modules.ops.api import jobs as ops_jobs, worker as ops_worker
 from cbc.modules.ops.api.worker import finish
-from cbc.services import quote as quote_service, render, storage, sync
+from cbc.modules.quoting.api import quote as quote_service
+from cbc.services import render, storage, sync
 from cbc.services import manifests, matchcache, pretakeoff, sheetmap
 from cbc.modules.ops.api import runmetrics
 from cbc.core import claude_cli as runner, streaming

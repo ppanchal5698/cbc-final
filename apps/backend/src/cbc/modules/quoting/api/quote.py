@@ -20,7 +20,7 @@ from typing import Any
 
 from pymongo import UpdateOne
 
-from cbc.db import db
+from cbc.modules.quoting.infrastructure.collections import estimate_lines, quotes
 from cbc.modules.pricing.api import pricing
 
 log = logging.getLogger("cbc.services.quote")
@@ -47,7 +47,7 @@ def invalidate_totals_cache(project_id) -> None:
 
 
 async def lines_for(project_id) -> list[dict[str, Any]]:
-    lines = await db.quote_lines.find({"projectId": project_id}).sort("division", 1).to_list(
+    lines = await estimate_lines().find({"projectId": project_id}).sort("division", 1).to_list(
         MAX_QUOTE_LINES + 1
     )
     if len(lines) > MAX_QUOTE_LINES:
@@ -229,7 +229,7 @@ async def totals_for(
         if cached and time.monotonic() - cached[0] < _TOTALS_CACHE_TTL:
             return cached[1], cached[2]
 
-    quote = await db.quotes.find_one({"projectId": project["_id"]}) or {}
+    quote = await quotes().find_one({"projectId": project["_id"]}) or {}
     lines = await lines_for(project["_id"])
     result = reprice(lines, tax_state(project, quote), quote.get("freight"))
     totals = result["totals"]
@@ -246,7 +246,7 @@ async def persist(project: dict[str, Any]) -> dict:
     """
     invalidate_totals_cache(project["_id"])
     project_id = project["_id"]
-    quote = await db.quotes.find_one({"projectId": project_id}) or {}
+    quote = await quotes().find_one({"projectId": project_id}) or {}
     state = tax_state(project, quote)
 
     lines = await lines_for(project_id)
@@ -272,10 +272,10 @@ async def persist(project: dict[str, Any]) -> dict:
             )
             for line in result["changed"]
         ]
-        await db.quote_lines.bulk_write(operations, ordered=False)
+        await estimate_lines().bulk_write(operations, ordered=False)
 
     totals = result["totals"]
-    await db.quotes.update_one(
+    await quotes().update_one(
         {"projectId": project_id},
         {
             "$set": {
@@ -288,3 +288,16 @@ async def persist(project: dict[str, Any]) -> dict:
         upsert=True,
     )
     return totals
+
+
+async def quote_document(project_id: Any) -> dict[str, Any]:
+    """The stored quote - settings and last persisted totals - or an empty one."""
+    return await quotes().find_one({"projectId": project_id}) or {}
+
+
+async def by_project(ids: list[Any]) -> dict[Any, dict[str, Any]]:
+    """The stored quote for each of these bids, keyed by bid id, for the board."""
+    return {
+        quote["projectId"]: quote
+        for quote in await quotes().find({"projectId": {"$in": ids}}).to_list(len(ids) + 1)
+    }

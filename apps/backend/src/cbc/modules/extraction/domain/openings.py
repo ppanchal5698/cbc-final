@@ -8,6 +8,9 @@ from pydantic import BaseModel, Field
 
 from cbc.schemas.common import LineStatus
 
+# How many openings one list returns - the cap quoting puts on a bid's quote lines.
+MAX_OPENINGS_LISTED = 10_000
+
 
 class LineItemBase(BaseModel):
     mark: str | None = None

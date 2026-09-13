@@ -4,9 +4,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from cbc.db import db
-from cbc.services import storage
-from cbc.services.sync_phases._common import _now
+from cbc.modules.quoting.infrastructure.collections import proposals
+from cbc.services import storage  # ponytail: legacy kernel; the file tree moves to shared/ in Phase 4
+from cbc.services.sync_phases._common import _now  # ponytail: legacy kernel; moves with the proposal job's slice (Phase 4)
 
 log = logging.getLogger("cbc.services.sync")
 
@@ -32,7 +32,7 @@ async def import_proposal_artifacts(project: dict[str, Any]) -> dict[str, bool]:
         if target.exists():
             paths[field] = storage.relative(target)
 
-    await db.proposals.update_one(
+    await proposals().update_one(
         {"projectId": project["_id"]},
         {
             "$set": {

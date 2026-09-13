@@ -7,8 +7,8 @@ from typing import Any
 
 from pymongo.errors import DuplicateKeyError
 
-from cbc.db import db  # ponytail: quote lines read directly until quoting owns them (step 3.9)
 from cbc.modules.extraction.api import openings as extraction_openings
+from cbc.modules.quoting.api import lines as quoting_lines
 from cbc.modules.intake.infrastructure.collections import versions
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api import bids
@@ -43,7 +43,7 @@ async def snapshot(project: dict[str, Any], reason: str, actor: str) -> dict[str
         await extraction_openings.list_for_project(project_id, limit=SNAPSHOT_LIMIT + 1), "line items"
     )
     quote_lines = _within_limit(
-        await db.quote_lines.find({"projectId": project_id}).to_list(SNAPSHOT_LIMIT + 1), "quote lines"
+        await quoting_lines.list_for_project(project_id, limit=SNAPSHOT_LIMIT + 1), "quote lines"
     )
 
     previous = await versions().find_one(
@@ -95,10 +95,7 @@ async def snapshot(project: dict[str, Any], reason: str, actor: str) -> dict[str
     # Live lines belong to this version (spec: estimateLines.estimateVersionId).
     # Embedded snapshot stays as the immutable freeze for diffs until S3 fully
     # migrates readers off the blob.
-    await db.quote_lines.update_many(
-        {"projectId": project_id},
-        {"$set": {"estimateVersionId": document["_id"]}},
-    )
+    await quoting_lines.set_version(project_id, document["_id"])
     await extraction_openings.set_version(project_id, document["_id"])
 
     if previous is not None:

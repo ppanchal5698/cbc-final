@@ -1,14 +1,12 @@
 """The counts the board and the stage bar render beside each bid.
 
-Quotes belong to a module not built yet, so this still reads them directly.
-Openings and documents come from extraction and intake through bound sources,
-jobs through ops.
+Openings, documents and quotes come from extraction, intake and quoting through
+bound sources, jobs through ops.
 """
 from __future__ import annotations
 
 from typing import Any
 
-from cbc.db import db  # ponytail: quotes read directly until quoting owns them (step 3.9)
 from cbc.modules.ops.api import jobs as ops_jobs
 from cbc.modules.projects.api import board_sources
 from cbc.modules.projects.infrastructure.collections import calls as calls_collection
@@ -40,10 +38,7 @@ async def decorate_many(projects: list[dict[str, Any]]) -> list[dict[str, Any]]:
     # an estimator, so count the thing that records it.
     counts, confirmed = await board_sources.opening_counts(ids)
 
-    quotes = {
-        quote["projectId"]: quote
-        for quote in await db.quotes.find({"projectId": {"$in": ids}}).to_list(len(ids) + 1)
-    }
+    quotes = await board_sources.quotes(ids)
     active = await ops_jobs.active_by_project(ids)
 
     documents = await board_sources.document_counts(ids)

@@ -6,9 +6,9 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from cbc.modules.extraction.domain.openings import MAX_OPENINGS_LISTED
 from cbc.modules.extraction.infrastructure.collections import openings
 from cbc.modules.projects.api.lookup import load
-from cbc.services.quote import MAX_QUOTE_LINES  # ponytail: quoting's cap, until quoting owns it (step 3.9)
 from cbc.shared.mongo import serialise
 
 router = APIRouter(prefix="/api/projects/{code}/line-items", tags=["line-items"])
@@ -35,7 +35,7 @@ async def list_line_items(
     query: dict[str, Any] = {"projectId": project["_id"], **FILTERS[filter]}
     if alternate is not None:
         query["alternateGroup"] = alternate or None
-    items = await openings().find(query).sort([("mark", 1), ("createdAt", 1)]).to_list(MAX_QUOTE_LINES)
+    items = await openings().find(query).sort([("mark", 1), ("createdAt", 1)]).to_list(MAX_OPENINGS_LISTED)
 
     counts_raw = await openings().aggregate(
         [{"$match": {"projectId": project["_id"]}}, {"$group": {"_id": "$status", "n": {"$sum": 1}}}]

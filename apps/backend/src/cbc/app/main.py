@@ -32,10 +32,9 @@ envfile.apply_to_environ(skip=MANAGED)
 
 from cbc.shared.config import settings  # noqa: E402  - must follow apply_to_environ
 from cbc.db import ensure_indexes, ensure_readonly_user  # noqa: E402
-from cbc.modules import catalog, extraction, intake, ops, pricing, projects  # noqa: E402
+from cbc.modules import catalog, extraction, intake, ops, pricing, projects, quoting  # noqa: E402
 from cbc.modules.ops.api import identity, jobs as ops_jobs, project_lookup  # noqa: E402
 from cbc.modules.projects.api import lookup as projects_lookup  # noqa: E402
-from cbc.modules.quoting.api.router import router as quoting_router  # noqa: E402
 from cbc.pageindex import store as pageindex_store  # noqa: E402
 from cbc.shared.auth import InternalAuthMiddleware, set_role_lookup  # noqa: E402
 from cbc.shared.mongo import database  # noqa: E402
@@ -44,11 +43,6 @@ from cbc.shared.tracing import TraceMiddleware  # noqa: E402
 NAME = "platform"  # the compose service name, the log/trace name, and health's `service`
 TITLE = "CBC Estimating Copilot API"
 VERSION = "0.10.0-monolith"
-
-ROUTERS = (
-    quoting_router,
-)
-
 
 async def _catalog_index() -> dict[str, str]:
     """Whether a part can actually be found, not just whether Mongo answers ping.
@@ -109,6 +103,7 @@ async def migrate_and_index() -> None:
     await catalog.ensure_indexes()
     await intake.ensure_indexes()
     await extraction.ensure_indexes()
+    await quoting.ensure_indexes()
     await pricing.ensure_indexes()
 
 
@@ -188,8 +183,7 @@ def create_app(*, background: bool = True):
     intake.register(app)
     extraction.register(app)
     pricing.register(app)
-    for router in ROUTERS:
-        app.include_router(router)
+    quoting.register(app)
     catalog.register(app)
     ops.register(app)
 

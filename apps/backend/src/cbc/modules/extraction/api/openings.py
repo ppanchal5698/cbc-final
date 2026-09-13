@@ -84,3 +84,21 @@ async def counts_by_project(ids: list[Any]) -> tuple[dict[Any, dict[str, int]], 
         project_id, status = row["_id"]["projectId"], row["_id"]["status"]
         counts.setdefault(project_id, {})[status] = row["n"]
     return counts, confirmed
+
+
+async def distinct_groups(project_id: Any) -> list[Any]:
+    """Every alternate group an opening on this bid is assigned to."""
+    return await openings().distinct("alternateGroup", {"projectId": project_id})
+
+
+async def count_in_group(project_id: Any, group: str | None) -> int:
+    return await openings().count_documents({"projectId": project_id, "alternateGroup": group})
+
+
+async def assign_group(project_id: Any, ids: list[Any], group: str | None, *, at: Any) -> int:
+    """Move these openings into a group; returns how many actually moved."""
+    result = await openings().update_many(
+        {"_id": {"$in": ids}, "projectId": project_id, "alternateGroup": {"$ne": group}},
+        {"$set": {"alternateGroup": group, "updatedAt": at}},
+    )
+    return result.modified_count

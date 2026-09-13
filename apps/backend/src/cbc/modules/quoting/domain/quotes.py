@@ -1,3 +1,5 @@
+"""What an estimator may send to change a quote or a proposal, and to hand it off.
+"""
 from __future__ import annotations
 
 from typing import Any
@@ -44,44 +46,10 @@ class QuoteLineUpdate(BaseModel):
     costSourceDetail: str | None = None
 
 
-class QuoteLine(QuoteLineBase):
-    id: str
-    projectId: str
-    alternateGroup: str | None = None
-    lineItemId: str | None = None
-    sell: float | None = None
-    extended: float | None = None
-    costSource: CostSource | None = None
-    costSourceDetail: str | None = None
-    multiplier: float | None = None
-    multiplierTier: str | None = None
-    multiplierEffectiveDate: str | None = None
-    priceBookVersion: str | None = None
-    sourcePage: int | None = None
-    addedByHand: bool = False
-    marginOverridden: bool = False
-    overrideReason: str | None = None
-    priceStatus: str | None = None
-    flags: list[str] = []
-
-
 class QuoteSettings(BaseModel):
     taxJurisdiction: str | None = Field(default=None, description="Two-letter state, e.g. OH")
     freight: float | None = None
     freightNote: str | None = None
-
-
-class QuoteTotals(BaseModel):
-    subtotal: float
-    margin: float | None = None
-    taxRate: float
-    tax: float
-    freight: float | None = None
-    freightNote: str | None = None
-    grandTotal: float
-    taxJurisdiction: str | None = None
-    taxNote: str | None = None
-    groups: list[dict[str, Any]] = []
 
 
 class ProposalSettings(BaseModel):

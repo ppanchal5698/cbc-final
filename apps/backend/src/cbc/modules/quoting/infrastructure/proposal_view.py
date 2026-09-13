@@ -1,39 +1,34 @@
-"""Proposal - the customer-facing document, and the point where the system stops.
+"""The proposal as the customer sees it: its sections and totals, its HTML, the email draft.
 
 The API renders and serves it. It does not email it. NFR-1 is not negotiable:
 the copilot drafts, sources and calculates - a human sends.
 """
 from __future__ import annotations
 
-import asyncio
 from datetime import date, datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import HTMLResponse, Response
-
-from cbc.shared.config import settings
-from cbc.db import db
-from cbc.shared.mongo import serialise
-from cbc.shared.auth import Actor
-from cbc.schemas import HandOff, ProposalSettings
-from cbc.modules.extraction.api import openings as extraction_openings
-from cbc.modules.projects.api.lookup import load
-from cbc.persistence import proposals as proposal_rules
 from cbc.domain import quote_layout
-from cbc.modules.ops.api import audit
-from cbc.services import quote as quote_service
+from cbc.modules.extraction.api import openings as extraction_openings
+from cbc.modules.quoting.api import quote as quote_service
+from cbc.modules.quoting.infrastructure.collections import estimate_lines, proposals
+from cbc.shared.config import settings
+from cbc.shared.mongo import serialise
 
-router = APIRouter(prefix="/api/projects/{code}/proposal", tags=["proposal"])
 
 VALIDITY_DAYS = 30
+
+
 NEWLINE = chr(10)
+
+
 SECTION_TITLES = {
     "door": "Doors / Frames / Hardware",
     "accessories": "Restroom Accessories",
     "frp": "FRP Wall Panels",
     "other": "Other",
 }
+
 
 DEFAULT_EXCLUSIONS = [
     "Installation, unloading and hoisting are excluded; material F.O.B. jobsite.",
@@ -47,8 +42,9 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _write_email_draft(project: dict[str, Any], recipient: str | None, actor: str) -> str:
+def write_email_draft(project: dict[str, Any], recipient: str | None, actor: str) -> str:
     """Write the drafted body to the project's review folder as an artifact."""
+    # ponytail: legacy kernel; the file tree moves to shared/ in Phase 4
     from cbc.services import storage
 
     target = storage.project_dir(project["slug"]) / "review" / "quotation_email_draft.md"
@@ -134,18 +130,13 @@ async def _build(project: dict[str, Any], markup: float = 0.0) -> dict[str, Any]
     }
 
 
-@router.get("")
-async def get_proposal(code: str) -> dict[str, Any]:
-    return await _proposal_payload(await load(code))
-
-
-async def _proposal_payload(project: dict[str, Any]) -> dict[str, Any]:
+async def proposal_payload(project: dict[str, Any]) -> dict[str, Any]:
     """The proposal as rendered. Takes the project so callers do not re-load it."""
-    stored = await db.proposals.find_one({"projectId": project["_id"]}) or {}
+    stored = await proposals().find_one({"projectId": project["_id"]}) or {}
     built = await _build(project, stored.get("markup", 0.0))
 
     flagged = await extraction_openings.count(project["_id"], status="needs_look")
-    unpriced = await db.quote_lines.count_documents(
+    unpriced = await estimate_lines().count_documents(
         {"projectId": project["_id"], "cost": None}
     )
 
@@ -187,42 +178,7 @@ async def _proposal_payload(project: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-@router.patch("")
-async def update_proposal(code: str, body: ProposalSettings, actor: Actor) -> dict:
-    project = await load(code)
-    changes = body.model_dump(exclude_unset=True)
-
-    await db.proposals.update_one(
-        {"projectId": project["_id"]},
-        {
-            "$set": {**changes, "updatedAt": _now()},
-            "$setOnInsert": {
-                "projectId": project["_id"],
-                "proposalNo": f"Q-{project['code'].split('-')[-1]}",
-                "date": date.today().isoformat(),
-                "createdAt": _now(),
-            },
-        },
-        upsert=True,
-    )
-    await audit.record("proposal.update", actor, {"projectId": project["_id"]}, after=changes)
-    return await _proposal_payload(project)
-
-
-@router.get("/render", response_class=HTMLResponse)
-async def render_proposal(code: str, autoprint: bool = False) -> HTMLResponse:
-    """Render the customer-facing HTML from the shared Jinja template.
-
-    autoprint opens the browser print dialog, which is the fallback path to a PDF
-    when no local renderer is installed.
-    """
-    project = await load(code)
-    data = await _proposal_payload(project)
-    html = await asyncio.to_thread(_render_proposal_html, project, data, autoprint)
-    return HTMLResponse(html)
-
-
-def _render_proposal_html(project: dict[str, Any], data: dict[str, Any], autoprint: bool) -> str:
+def render_html(project: dict[str, Any], data: dict[str, Any], autoprint: bool) -> str:
     from jinja2 import Environment, FileSystemLoader, select_autoescape
 
     env = Environment(
@@ -282,162 +238,3 @@ def _render_proposal_html(project: dict[str, Any], data: dict[str, Any], autopri
     if autoprint:
         html += "<script>window.addEventListener('load',()=>window.print())</script>"
     return html
-
-
-@router.get("/pdf")
-async def proposal_pdf(code: str) -> Response:
-    """Download the proposal as a PDF.
-
-    Rendered locally - no converter is fetched from the internet. If no renderer
-    is installed the caller is told plainly rather than handed a broken file.
-    """
-    project = await load(code)
-    html = (await render_proposal(code)).body.decode("utf-8")
-
-    try:
-        from weasyprint import HTML  # type: ignore
-    except Exception as exc:
-        # WeasyPrint imports on Windows but fails to load its GTK libraries with
-        # an OSError, so this cannot narrow to ImportError.
-        raise HTTPException(
-            501,
-            "No working local PDF renderer. Use the printable view and print to PDF "
-            "from the browser, or install the WeasyPrint native libraries (GTK "
-            f"runtime on Windows). Underlying error: {exc}",
-        ) from exc
-
-    # WeasyPrint is CPU-bound and takes seconds on a long proposal; inline it
-    # blocked every other request for the duration.
-    pdf_bytes = await asyncio.to_thread(
-        HTML(string=html, base_url=str(settings.repo_root)).write_pdf
-    )
-    return Response(
-        pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{project["code"]}-proposal.pdf"'},
-    )
-
-
-@router.post("/complete")
-async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) -> dict:
-    """Sign off and route the bid to the sales initiator - inside this app only.
-
-    NFR-1 is untouched: the estimator approves, the bid appears in the named
-    person's queue, and the drafted body is written to disk for them to send.
-    Nothing is transmitted from here, by any means.
-    """
-    project = await load(code)
-    recipient = (body.recipient if body else None) or project.get("initiator")
-
-    # This call *is* the estimator's approval, so it is where §3.30's required
-    # `approvedBy` gets its value - a named person, never a system actor. Before
-    # this the field did not exist and the only trace was a signoff entry the
-    # hand-off pushed for itself, which is not an approval by anyone.
-    totals, _lines = await quote_service.totals_for(project)
-    stored = await db.proposals.find_one({"projectId": project["_id"]})
-    approval = proposal_rules.approve(
-        approved_by=actor,
-        totals=totals,
-        terms={
-            "validityDays": VALIDITY_DAYS,
-            "poRequired": True,
-            "supplyOnly": True,
-            "exclusions": (stored or {}).get("exclusions") or DEFAULT_EXCLUSIONS,
-        },
-    )
-
-    # A proposal cannot come into existence via hand-off upsert (NFR-1 / §3.30).
-    # Approval is an insert (or a stamp onto an existing draft); hand-off then
-    # updates without upsert.
-    if stored is None:
-        await db.proposals.insert_one(
-            {
-                "projectId": project["_id"],
-                **approval,
-                "createdAt": _now(),
-            }
-        )
-    elif not stored.get("approvedBy"):
-        await db.proposals.update_one({"_id": stored["_id"]}, {"$set": approval})
-
-    await db.proposals.update_one(
-        {"projectId": project["_id"]},
-        {
-            "$set": {
-                "completedAt": _now(),
-                "completedBy": actor,
-                "handedOffTo": recipient,
-                "handOffNote": body.note if body else None,
-            },
-            "$push": {
-                "signoff": {"role": "estimator", "by": actor, "at": _now(), "state": "complete"}
-            },
-        },
-    )
-    await db.projects.update_one(
-        {"_id": project["_id"]},
-        {"$set": {"handedOffTo": recipient, "handedOffAt": _now(), "updatedAt": _now()}},
-    )
-
-    draft_path = _write_email_draft(project, recipient, actor)
-
-    await audit.record(
-        "proposal.hand_off",
-        actor,
-        {"projectId": project["_id"]},
-        after={"recipient": recipient},
-        note="in-app hand-off; nothing transmitted",
-    )
-    return {
-        "status": "complete",
-        "sent": False,
-        "handedOffTo": recipient,
-        "draftPath": draft_path,
-        # Both branches say it, because "nothing has been sent" is the thing the
-        # estimator needs to read back on every hand-off (NFR-1).
-        "message": (
-            f"Signed off and routed to {recipient}. Nothing has been sent."
-            if recipient
-            else "Signed off, but no sales initiator is recorded on this bid, "
-            "so there is nobody to route it to. Nothing has been sent."
-        ),
-    }
-
-
-@router.get("/email-draft")
-async def email_draft(code: str) -> dict:
-    """The prepared body, for the estimator to copy into their own mail client."""
-    project = await load(code)
-    data = await _proposal_payload(project)
-    stored = await db.proposals.find_one({"projectId": project["_id"]}) or {}
-
-    flags = []
-    if data["readiness"]["flaggedLineItems"]:
-        flags.append(f"{data['readiness']['flaggedLineItems']} extracted line(s) still flagged")
-    if data["readiness"]["unpricedQuoteLines"]:
-        flags.append(f"{data['readiness']['unpricedQuoteLines']} line(s) need a manual price")
-
-    body = NEWLINE.join(
-        [
-            f"Hi {(stored.get('handedOffTo') or project.get('initiator') or 'there').split()[0]},",
-            "",
-            f"Quotation {data['proposal']['proposalNo']} for {project.get('name')} is ready.",
-            "",
-            f"- Total: ${data['totals']['grandTotal']:,.2f}",
-            f"- Supply-only material. HP purchase order required. Valid {VALIDITY_DAYS} days.",
-            "- Freight: TBD, handled when the quote becomes a job.",
-            *(["", "Needs attention before it goes out:"] if flags else []),
-            *[f"- {flag}" for flag in flags],
-            "",
-            "Thanks,",
-            stored.get("completedBy") or "CBC Estimating",
-        ]
-    )
-
-    return {
-        "to": stored.get("handedOffTo") or project.get("initiator"),
-        "subject": f"CBC Quotation {data['proposal']['proposalNo']} - {project.get('name')}",
-        "body": body,
-        "sent": False,
-        "note": "Copy this into your own mail client. The system does not send (NFR-1).",
-    }
