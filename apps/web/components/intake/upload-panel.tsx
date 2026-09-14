@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import type { BidDocument, Job, UploadResult } from "@/lib/types";
 import { FetchError } from "@/components/ui/fetch-error";
 import { errorMessage, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
+import { waitingForSiblings } from "@/lib/run-pill";
 const KINDS = [
   { key: "plan", label: "Plan set" },
   { key: "spec", label: "Specification" },
@@ -121,21 +122,13 @@ export function UploadPanel({
           {!jobsError && (job?.status === "failed" || job?.status === "dead")
             ? " · last read failed — open the run for details"
             : ""}
-          {!jobsError &&
-          job &&
-          job.status === "queued" &&
-          job.nextAttemptAt &&
-          new Date(job.nextAttemptAt).getTime() > Date.now()
-            ? " · waiting for more files"
-            : ""}
+          {!jobsError && job && waitingForSiblings(job) ? " · waiting for more files" : ""}
           {!jobsError && job?.stragglerPending && job.status === "running"
             ? " · late PDF will re-run after this pass"
             : ""}
           {!jobsError &&
           job &&
-          (job.status === "running" ||
-            (job.status === "queued" &&
-              !(job.nextAttemptAt && new Date(job.nextAttemptAt).getTime() > Date.now())))
+          (job.status === "running" || (job.status === "queued" && !waitingForSiblings(job)))
             ? " · Claude is reading"
             : ""}
         </span>

@@ -11,7 +11,8 @@ const BLOCKED_CHAIN: ReadonlySet<ChainState> = new Set([
   "dead",
 ]);
 
-function waitingForSiblings(job: Job): boolean {
+/** A queued extract still inside its quiet window, waiting for sibling PDFs. */
+export function waitingForSiblings(job: Job): boolean {
   if (job.status !== "queued" || !job.nextAttemptAt) return false;
   return new Date(job.nextAttemptAt).getTime() > Date.now();
 }

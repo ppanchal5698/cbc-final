@@ -171,7 +171,7 @@ export function useJobRecording(
         offset.current = replay.bytes ?? byteLength(decoded);
       }
 
-      if (replay.status && ["done", "failed", "cancelled"].includes(replay.status)) {
+      if (replay.status && ["done", "failed", "cancelled", "dead"].includes(replay.status)) {
         endedRef.current = true;
         setState("ended");
         return;

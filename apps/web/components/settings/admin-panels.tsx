@@ -10,7 +10,6 @@ import { FetchError } from "@/components/ui/fetch-error";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { endpoints } from "@/lib/endpoints";
 import { isAdminRole } from "@/lib/job-error";
-import { swrKeys } from "@/lib/swr-keys";
 import { errorMessage, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
 import type { AuditEntry, FreshnessSettings, IntegrationsResponse, PipelineSettings, UserRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -225,7 +224,7 @@ export function UsersAdminPanel() {
 
 export function PipelineSettingsPanel() {
   const { data, error, isLoading, mutate } = useSWR<PipelineSettings>(
-    swrKeys.pipelineSettings(),
+    endpoints.pipelineSettings(),
     proxyFetcher,
   );
   const [busy, setBusy] = useState(false);
@@ -312,7 +311,7 @@ export function PipelineSettingsPanel() {
 
 export function FreshnessSettingsPanel() {
   const { data, error, isLoading, mutate } = useSWR<FreshnessSettings>(
-    swrKeys.freshnessSettings(),
+    endpoints.freshnessSettings(),
     proxyFetcher,
   );
   const [busy, setBusy] = useState(false);

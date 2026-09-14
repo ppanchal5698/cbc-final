@@ -161,7 +161,7 @@ sequenceDiagram
 Worker retry/backoff and `reap_abandoned` in ops' worker loop; the audit trail and run metrics through `cbc.modules.ops.api`.
 
 ## 10. Configuration & Environments
-Compose injects `MONGODB_URI`, `STORAGE_ROOT`, `PLATFORM_URL` / `API_BASE_URL`, `INTERNAL_*`, `APP_ENV`, `WORKER_CLAIM_ALL`. Settings via `cbc.shared.config`.
+Compose injects `MONGODB_URI`, `STORAGE_ROOT`, `PLATFORM_URL`, `INTERNAL_*`, `APP_ENV`, `WORKER_CLAIM_ALL`. Settings via `cbc.shared.config`.
 
 ## 11. External Integrations
 Optional LiteLLM; Claude Code in worker image; MCP under `mcp-servers/`.

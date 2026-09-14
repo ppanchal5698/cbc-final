@@ -9,7 +9,7 @@ JSON under `reference-library/` is **seed + fixtures only**. On API startup,
 `ensure_indexes()` → `ensure_reference_seed()` inserts any missing family from
 `REFERENCE_DIR` and never overwrites an existing document (operator edits win).
 
-- Admin CRUD: `/api/reference/*` on the pricing service (Admin Settings UI).
+- Admin CRUD: `/api/reference/*` on the platform API, pricing module (Admin Settings UI).
 - Agents: read-only **`reference`** MCP (`mcp-servers/reference/`). Do not `Read`
   seed files for live values; do not write reference data from agents.
 - Forced re-seed (ops): `python scripts/seed_reference_data.py --force`

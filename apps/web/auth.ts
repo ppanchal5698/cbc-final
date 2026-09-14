@@ -7,7 +7,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
-import { API_BASE } from "@/lib/api";
+import { PLATFORM_URL } from "@/lib/api";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
@@ -22,7 +22,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const response = await fetch(`${API_BASE}/api/auth/verify`, {
+        const response = await fetch(`${PLATFORM_URL}/api/auth/verify`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

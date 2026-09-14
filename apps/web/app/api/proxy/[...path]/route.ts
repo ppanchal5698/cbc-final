@@ -1,17 +1,16 @@
 /**
- * Pass-through to the owning domain FastAPI service.
+ * Pass-through to the platform API.
  *
  * The browser needs a same-origin path for PDFs and page renders (the viewer
- * fetches them directly), and this keeps each service address a server-side
- * detail. Path segments select platform / intake / extraction / pricing /
- * quoting / catalog via `resolveServiceBase`.
+ * fetches them directly), and this keeps the API address and the internal
+ * credentials a server-side detail.
  */
 import { NextRequest } from "next/server";
 
 import { auth } from "@/auth";
+import { PLATFORM_URL } from "@/lib/api";
 import { internalApiHeaders } from "@/lib/internal-api";
 import { buildProxyTarget, rejectUnsafeProxySegments } from "@/lib/proxy-path";
-import { resolveServiceAudience, resolveServiceBase } from "@/lib/service-routing";
 
 const UPSTREAM_REQUEST_HEADERS = [
   "accept",
@@ -37,12 +36,9 @@ async function proxy(request: NextRequest, path: string[]) {
     return Response.json({ detail: unsafe }, { status: 400 });
   }
 
-  const apiBase = resolveServiceBase(path);
-  const audience = resolveServiceAudience(path);
-
   let target: URL;
   try {
-    target = buildProxyTarget(apiBase, path);
+    target = buildProxyTarget(PLATFORM_URL, path);
   } catch {
     return Response.json({ detail: "invalid proxy path" }, { status: 400 });
   }
@@ -64,7 +60,7 @@ async function proxy(request: NextRequest, path: string[]) {
     }
   }
   for (const [key, value] of Object.entries(
-    await internalApiHeaders(session.user?.email, audience, traceId),
+    await internalApiHeaders(session.user?.email, traceId),
   )) {
     headers.set(key, value);
   }
@@ -100,7 +96,7 @@ async function proxy(request: NextRequest, path: string[]) {
       return new Response(null, { status: 499 });
     }
     return Response.json(
-      { detail: `Cannot reach the API at ${apiBase}.` },
+      { detail: `Cannot reach the API at ${PLATFORM_URL}.` },
       { status: 503 },
     );
   }

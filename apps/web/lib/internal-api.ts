@@ -1,5 +1,5 @@
 /**
- * Shared secret between the Next.js server and the FastAPI service.
+ * Shared secret between the Next.js server and the platform API.
  *
  * SERVER ONLY - the guard is not decoration. This module holds the fallback
  * internal token and the fallback AUTH_SECRET, and it was reaching the browser
@@ -7,14 +7,12 @@
  * helper.
  *
  * When INTERNAL_AUTH=jwt, short-lived HS256 tokens are signed with
- * INTERNAL_JWT_SECRET and audience `platform` (the modular monolith).
+ * INTERNAL_JWT_SECRET for audience `platform`, the one backend.
  * INTERNAL_AUTH=token (default for local pytest) keeps the static header.
  */
 import "server-only";
 
 import { SignJWT } from "jose";
-
-import type { ServiceAudience } from "@/lib/service-routing";
 
 const DEV_SECRET = "cbc-local-dev-key-change-me";
 const DEV_AUTH_SECRET = "cbc-opshub-local-dev-secret-change-in-production";
@@ -72,15 +70,12 @@ export function assertProductionSecrets(): void {
   productionSecretsChecked = true;
 }
 
-async function mintServiceJwt(
-  actor: string,
-  audience: ServiceAudience,
-): Promise<string> {
+async function mintServiceJwt(actor: string): Promise<string> {
   const key = new TextEncoder().encode(INTERNAL_JWT_SECRET);
   return new SignJWT({ actor })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(actor)
-    .setAudience(audience)
+    .setAudience("platform")
     .setIssuer("cbc-web")
     .setIssuedAt()
     .setExpirationTime(`${Math.max(15, JWT_TTL_SECONDS)}s`)
@@ -94,7 +89,6 @@ export function mintTraceId(): string {
 
 export async function internalApiHeaders(
   actor?: string | null,
-  audience: ServiceAudience = "platform",
   traceId?: string | null,
 ): Promise<HeadersInit> {
   assertProductionSecrets();
@@ -106,7 +100,7 @@ export async function internalApiHeaders(
     if (!actor) {
       throw new Error("JWT internal auth requires an actor (signed-in email)");
     }
-    headers.Authorization = `Bearer ${await mintServiceJwt(actor, audience)}`;
+    headers.Authorization = `Bearer ${await mintServiceJwt(actor)}`;
   } else {
     headers["X-Internal-Token"] = INTERNAL_API_TOKEN;
     if (actor) {
