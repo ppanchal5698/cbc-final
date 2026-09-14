@@ -67,6 +67,19 @@ async def run_pass(
                 other["type"],
             )
             return
+        # When PARSER_URL is set, Claude must not start (and prepare must not
+        # seed from the PDF) until MinerU has finished or failed every in-flight
+        # parse on this bid. When PARSER_URL is empty, this is a no-op and Claude
+        # extracts with pdf-tools as before.
+        waiting = await ops_worker.defer_if_parsing(job)
+        if waiting:
+            job_log.info(
+                "job %s (%s) waiting for MinerU parse job %s",
+                job["_id"],
+                job["type"],
+                waiting["_id"],
+            )
+            return
 
     payload = job.setdefault("payload", {})
     # Catalog `force` reindexes a sheet; pipeline `force` means rebuild phases.

@@ -19,10 +19,10 @@ This skill exists to make the losses visible.
 | `door_number` | yes | **hard error** - the opening cannot be grouped or quoted |
 | `size` / `width` + `height` | yes | **hard error** - nothing can be priced without it |
 | `source_page` | yes | **hard error** - the line would be unauditable (NFR-3) |
-| `handing` | yes | flag `handing_missing` - try the floor plan before flagging |
-| `finish` | yes | flag `finish_missing` - often lives in the hardware group |
-| `fire_rating` | yes | flag `fire_rating_missing`, severity **high** |
-| `hardware_set` | yes | flag `hardware_set_missing` |
+| `handing` | yes | flag `handing_missing` — **only after** schedule + floor-plan swing search **on the PDF** (Matrix 7.4), with pages cited in `evidence_note` |
+| `finish` | yes | flag `finish_missing` — check HW group / sheet note **on the PDF** first |
+| `fire_rating` | yes | flag `fire_rating_missing`, severity **high** — search type schedule + Div 08 **on the PDF** first |
+| `hardware_set` | yes* | flag `hardware_set_missing` **or** `hardware_matrix_unexpanded` when X-column schedule |
 | `frame_type` / `wall_type` | preferred | flag `frame_depth_underivable` |
 
 ## The fire-rating check
@@ -37,6 +37,17 @@ Whether a missing rating should hard-stop the line is still an open question
 
 ## Other checks
 
+- **PDF verify before present.** A `*_missing` flag without an `evidence_note`
+  (or review note) naming the page(s) searched is a **process error** — the
+  agent must open the specific PDF before presenting. See
+  `@.claude/rules/pdf-verify-before-present.md`.
+- **Minute details present.** If `raw_row` / cell text carries glass, materials,
+  frame type, or note codes and the allowlisted fields + `notes` omit them,
+  flag `details_dropped` (or fold them in before accepting the take-off).
+- **Closed-world openings.** Only allowlisted Opening fields. Extra keys
+  (`thickness`, invented prices, etc.) are **errors** — relocate schedule-only
+  columns into `notes` or drop them. `page_size` must be
+  `{"width": number, "height": number}`, never an array.
 - **No silent inference.** If two adjacent openings share a value that only one of
   them stated, that is a bug, not a convenience.
 - **Finish dual nomenclature (NR-3).** Prefer US codes from the schedule; import
@@ -48,12 +59,16 @@ Whether a missing rating should hard-stop the line is still an open question
   still Pending (Matrix 4.1) — capture the tag only.
 - **Source page on everything.** Every extracted record must name its page.
 - **Confidence present** on every match, in 0.0-1.0.
-- **Out-of-scope items recorded, not quoted** - the fixture's Kawneer 541T
-  storefront belongs in `out_of_scope_items`, not in a line item.
+- **Out-of-scope items recorded, not quoted** - Kawneer / aluminum storefront /
+  `out_of_scope_storefront` openings belong in `out_of_scope_items`, not priced
+  CBC HM/WD lines (Matrix 2.3).
 - **Unparsed regions reported.** If a region of the schedule could not be read,
   say so with its page number.
 - **Counts reconcile.** Openings extracted vs door numbers referenced on the floor
   plans - a mismatch usually means a whole schedule block was missed.
+- **Rotated sheets.** Parser / `parse_door_openings` must use display-space
+  clustering. Zero openings on a page that visually has a DOOR SCHEDULE is a
+  defect — re-run with the MCP tool, do not freehand.
 
 ## Reference
 
@@ -65,8 +80,11 @@ Whether a missing rating should hard-stop the line is still an open question
 python scripts/validate_project.py --check-extraction dutch_bros_macarthur_2026
 ```
 
-This also runs automatically as a PostToolUse hook whenever a file is written to
-`projects/{project}/extracted/`. The hook warns; it never blocks.
+This also runs as a PostToolUse hook on writes under
+`projects/{project}/extracted/`. Checkpoint files
+(`scope_metadata`, `scope_summary`, `door_schedule`) **block** (exit 2) when
+schema-invalid. Bare Write/Edit to those paths is refused in PreToolUse — use
+`save_artifact`.
 
 ## Output
 

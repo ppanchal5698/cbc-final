@@ -235,11 +235,95 @@ services:
       - default
       - llm
 
+  # GPU MinerU API (compose network only). Profile + container knobs:
+  #   --env-file infra/mineru/{low,medium,high}.env --profile gpu
+  mineru:
+    profiles: ["gpu"]
+    build:
+      context: ./mineru
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: ${MINERU_BASE_IMAGE:-python:3.12-slim-bookworm}
+        MINERU_EXTRAS: ${MINERU_EXTRAS:-pipeline}
+    image: cbc-final-mineru:latest
+    container_name: cbc-final-mineru
+    restart: unless-stopped
+    environment:
+      MINERU_DEVICE_MODE: cuda
+      MINERU_MODELS: ${MINERU_MODELS:-pipeline}
+      MINERU_API_MAX_CONCURRENT_REQUESTS: ${MINERU_API_MAX_CONCURRENT_REQUESTS:-1}
+      MINERU_PROCESSING_WINDOW_SIZE: ${MINERU_PROCESSING_WINDOW_SIZE:-8}
+      MINERU_VIRTUAL_VRAM_SIZE: ${MINERU_VIRTUAL_VRAM_SIZE:-}
+      MINERU_API_EXTRA_ARGS: ${MINERU_API_EXTRA_ARGS:-}
+      MINERU_TOOLS_CONFIG_JSON: /models/mineru.json
+      # Do not set MINERU_FORMULA_ENABLE / MINERU_TABLE_ENABLE — they override
+      # request bodies; app settings use PARSER_TABLES / PARSER_FORMULAS.
+    volumes:
+      - mineru_models:/models
+    shm_size: ${MINERU_SHM_SIZE:-4g}
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${MINERU_GPU_COUNT:-1}
+              capabilities: [gpu]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status==200 else 1)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
+  # Parsing-domain worker: claims parse_document only; waits for MinerU.
+  parser:
+    profiles: ["gpu"]
+    build:
+      context: ..
+      dockerfile: apps/backend/Dockerfile
+      target: worker
+    image: cbc-final-worker:latest
+    container_name: cbc-final-parser
+    restart: unless-stopped
+    environment:
+      <<: *worker-env
+      WORKER_DOMAIN: parsing
+      WORKER_CONCURRENCY: ${PARSER_WORKER_CONCURRENCY:-1}
+      SERVICE_AUDIENCE: platform
+      PARSER_URL: ${PARSER_URL:-http://mineru:8000}
+    volumes:
+      - ../data/projects:/app/data/projects
+      - ../data/pricebooks:/app/data/pricebooks
+      - ../.claude:/app/.claude:ro
+      - ../data/reference-library:/app/reference-library:ro
+      - ../.env:/app/.env
+      - cbc_cache:/app/.cache
+      - claude_home:/home/cbc/.claude
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      mineru:
+        condition: service_healthy
+      platform:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   mongo_data:
   claude_home:
   cbc_cache:
   clamav_data:
+  mineru_models:
 
 networks:
   default:

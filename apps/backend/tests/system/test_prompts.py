@@ -92,3 +92,19 @@ def test_no_prompt_names_a_server_that_does_not_exist() -> None:
     for name in ("catalog", "pdf-tools"):
         assert name in toolsets.SERVERS
 
+
+def test_extract_prompt_mandates_save_artifact_and_verify_on_disk() -> None:
+    text = _render("extract_bid_set", delegates=True)
+    assert "save_artifact" in text
+    assert "door_schedule.json" in text
+    assert "page_size" in text
+    assert "Verify on disk" in text or "get_artifact" in text
+    assert "parse_schedule" in text
+    assert "Closed-world" in text or "thickness" in text.lower()
+
+
+def test_delegation_rule_includes_brief_template_and_disk_verify() -> None:
+    assert "Subagent brief template" in prompts.DELEGATION_RULE
+    assert "Verify on disk" in prompts.DELEGATION_RULE
+    assert "save_artifact only" in prompts.DELEGATION_RULE.lower() or "save_artifact" in prompts.DELEGATION_RULE
+

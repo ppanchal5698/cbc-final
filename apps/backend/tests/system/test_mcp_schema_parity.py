@@ -11,6 +11,8 @@ SERVERS = (
     "calc-engine",
     "artifact-storage",
     "p21-connector",
+    "reference",
+    "bid-docs",
 )
 
 
@@ -24,9 +26,10 @@ def _cases():
     return cases
 
 
-def test_there_are_twenty_six_tools() -> None:
+def test_there_are_forty_five_tools() -> None:
     total = sum(len(load_server(name).HANDLERS) for name in SERVERS)
-    assert total == 26
+    # pdf-tools(7)+catalog(7)+calc(6)+artifact(4)+p21(3)+reference(14)+bid-docs(4)
+    assert total == 45
 
 
 def test_handler_parameters_appear_in_the_schema() -> None:

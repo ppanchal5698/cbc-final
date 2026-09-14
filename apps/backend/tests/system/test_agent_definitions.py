@@ -118,3 +118,38 @@ def test_no_agent_claims_a_server_the_deleted_alias_used_to_serve() -> None:
         body = path.read_text(encoding="utf-8")
         assert "`pricebook` MCP" not in body, path.stem
 
+
+def test_takeoff_engineer_is_review_first_and_save_artifact_only() -> None:
+    """Closed-world takeoff: no freehand invent, no Write bypass of schema."""
+    text = (AGENT_DIR / "takeoff-engineer.md").read_text(encoding="utf-8")
+    tools = _frontmatter_tools(text)
+    body = _body(text)
+    assert "Write" not in tools
+    assert "mcp__artifact-storage__save_artifact" in tools
+    assert "Fixed procedure" in body or "review-first" in body.lower() or "Read first" in body
+    assert "parse_schedule.py" in body
+    assert "page_size" in body
+    assert "thickness" in body.lower()
+    assert "save_artifact" in body
+    assert "Never use Write" in body or "never Write" in body.lower()
+    assert "PDF verify" in body or "pdf-verify-before-present" in body
+    assert "evidence_note" in body
+    assert "get_page_blocks" in body or "search_blocks" in body
+
+
+def test_quality_reviewer_can_open_the_pdf_when_unclear() -> None:
+    """Reviewer must verify unclear flags on the sheet, not only restate JSON."""
+    text = (AGENT_DIR / "quality-reviewer.md").read_text(encoding="utf-8")
+    tools = _frontmatter_tools(text)
+    body = _body(text)
+    assert any(t.startswith("mcp__pdf-tools__") for t in tools)
+    assert "PDF verify" in body or "pdf-verify-before-present" in body
+    assert "get_page_blocks" in body or "search_blocks" in body
+
+
+def test_extraction_agents_omit_write_for_checkpoints() -> None:
+    for stem in ("intake-coordinator", "spec-scope-analyst", "frp-specialist", "takeoff-engineer"):
+        tools = _frontmatter_tools((AGENT_DIR / f"{stem}.md").read_text(encoding="utf-8"))
+        assert "Write" not in tools, f"{stem} must not list Write (use save_artifact)"
+        assert "mcp__artifact-storage__save_artifact" in tools, stem
+

@@ -54,7 +54,10 @@ def measure_bboxes(project: dict[str, Any]) -> tuple[int, int]:
     by_page: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for opening in openings:
         page_number = opening.get("source_page")
-        if isinstance(page_number, int) and not opening.get("bbox"):
+        # Always remasure. Agent-written boxes have been arithmetic inventions
+        # (identical width, exact vertical steps); keeping any existing bbox
+        # would leave those wrong highlights on the review sheet.
+        if isinstance(page_number, int):
             by_page[page_number].append(opening)
     if not by_page:
         return 0, 0
@@ -74,6 +77,9 @@ def measure_bboxes(project: dict[str, Any]) -> tuple[int, int]:
             page_number, why, len(group), ", ".join(marks[:8]) + ("..." if len(marks) > 8 else ""),
         )
         for opening in group:
+            # Drop any agent-invented box rather than leave a wrong highlight.
+            opening["bbox"] = None
+            opening.pop("cell_boxes", None)
             flags = opening.setdefault("flags", [])
             if isinstance(flags, list) and "bbox_unavailable" not in flags:
                 flags.append("bbox_unavailable")
@@ -83,16 +89,22 @@ def measure_bboxes(project: dict[str, Any]) -> tuple[int, int]:
     touched = False
     for page_number, group in by_page.items():
         named = next((o.get("source_file") for o in group if o.get("source_file")), None)
-        candidates = [p for p in pdfs if named and Path(named).name == p.name]
-        if not candidates:
-            _give_up(group, page_number, f"source_file {named!r} matches none of the uploads")
-            touched = True
-            continue
+        if named:
+            candidates = [p for p in pdfs if Path(named).name == p.name]
+        elif len(pdfs) == 1:
+            candidates = list(pdfs)
+        else:
+            candidates = []
         if len(candidates) != 1:
-            _give_up(
-                group, page_number,
-                f"source_file {named!r} matches {len(candidates)} of {len(pdfs)} uploads",
-            )
+            if named:
+                why = (
+                    f"source_file {named!r} matches none of the uploads"
+                    if not candidates
+                    else f"source_file {named!r} matches {len(candidates)} of {len(pdfs)} uploads"
+                )
+            else:
+                why = f"no source_file and {len(pdfs)} PDF(s) in uploads/raw"
+            _give_up(group, page_number, why)
             touched = True
             continue
         try:
@@ -111,14 +123,21 @@ def measure_bboxes(project: dict[str, Any]) -> tuple[int, int]:
                 continue
             shift = detect_shift(document, str(candidates[0]))
             got, missed = attach_measured_bboxes(
-                group, document[page_number - 1], shift=shift
+                group,
+                document[page_number - 1],
+                shift=shift,
+                overwrite=True,
             )
             attached += got
             unmatched += missed
+            # Persist the file we measured against so a later export keeps it.
+            for opening in group:
+                if opening.get("bbox") and not opening.get("source_file"):
+                    opening["source_file"] = candidates[0].name
         finally:
             document.close()
 
-    if attached or touched:
+    if attached or unmatched or touched:
         # Written back in the shape it arrived in, so a run that wrote a bare
         # array or a `lines` wrapper still recognises its own file.
         if isinstance(payload, list):

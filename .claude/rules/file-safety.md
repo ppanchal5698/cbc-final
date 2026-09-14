@@ -23,10 +23,13 @@ read-only by design and asserts it at import — the same guarantee p21-connecto
 - git push is blocked by the same hook.
 
 ## Before overwriting
-Read the target first. The artifact-storage MCP server keeps SHA-256 versioned copies of
-everything it writes, so prefer save_artifact over a raw file write for anything an estimator
-might need to compare against a previous run.
+Read the target first. Checkpoint artifacts under `extracted/` and
+`priced/line_items.json` **must** be written with
+`mcp__artifact-storage__save_artifact` (schema validation + SHA-256 versions).
+Bare Write/Edit to those paths is blocked by PreToolUse. Prefer `save_artifact`
+for any other estimator-facing file that needs version history.
 
 ## Enforcement
 - Hook: .claude/hooks/pre_delete_guard.py (PreToolUse, exit 2 blocks)
+- Checkpoint Write block: same hook, rule `checkpoint-save-artifact`
 - Permission deny list in .claude/settings.json

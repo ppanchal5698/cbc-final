@@ -17,6 +17,16 @@ these?" That behaviour is the target, not a fully automatic answer.
    cost_source "MANUAL" with confidence 0.0 and a plain-language reason.
 6. When proposing a direct-equal substitution, always attach a **substitution note**
    naming what was specified and what is being offered instead.
+7. **PDF verify before present.** If a value is unclear, incomplete, or about to be
+   flagged missing, open the **specific** PDF page (`search_blocks` /
+   `get_page_blocks` / `extract_tables` / cropped `get_page_image`) and check it
+   **before** saving or presenting. Cite the page (and a short excerpt) in
+   `evidence_note` or the review flag note. See
+   @.claude/rules/pdf-verify-before-present.md. Skipping the sheet and writing
+   `*_missing` from the parser summary alone is a defect.
+8. **Minute details.** Every non-empty schedule cell maps to an allowlisted field
+   or into `notes` — glass, materials, frame-type digits, detail/note codes must
+   not be dropped just because the deterministic pass left them in `raw_row`.
 
 ## Confidence bands
 | Score | Meaning | Action |

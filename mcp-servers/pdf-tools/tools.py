@@ -146,4 +146,26 @@ TOOLS: list[dict[str, Any]] = [
             "required": ["file_path", "query"],
         },
     },
+    {
+        "name": "parse_door_openings",
+        "description": (
+            "Deterministic FR-2 door/opening extract for one schedule page. Handles "
+            "rotated CAD sheets and hardware-matrix schedules (X columns). Returns "
+            "openings with door_number, size, handing, finish, fire_rating, "
+            "hardware_set, materials, flags, bbox, and page_size. Prefer this over "
+            "freehand authoring. Handing/fire_rating stay null+flagged when the "
+            "sheet is silent — resolve handing from the floor plan next."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "file_path": {"type": "string"},
+                "page_number": {
+                    "type": "integer",
+                    "description": "1-indexed schedule page",
+                },
+            },
+            "required": ["file_path", "page_number"],
+        },
+    },
 ]

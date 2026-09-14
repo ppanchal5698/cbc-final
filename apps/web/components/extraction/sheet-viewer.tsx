@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
+import useSWR from "swr";
 import { FilePdf, Minus, Plus, X, ArrowsOut } from "@phosphor-icons/react/dist/ssr";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-import { documentUrl } from "@/lib/proxy-fetcher";
-import type { BidDocument, LineItem } from "@/lib/types";
+import { endpoints } from "@/lib/endpoints";
+import { documentUrl, ProxyError, proxyFetcher } from "@/lib/proxy-fetcher";
+import type { BidDocument, LineItem, PageBlocksResponse } from "@/lib/types";
 
 // The version query busts a cached worker from a previous pdfjs; a mismatched
 // worker makes the viewer refuse to open any file.
@@ -39,6 +41,10 @@ function zoomToFitHighlight(
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(zoomW, zoomH)));
 }
 
+function isTableBlock(type: string | undefined): boolean {
+  return (type ?? "").toLowerCase().includes("table");
+}
+
 /**
  * The real drawing, with a highlight box over the spot a value was read from.
  *
@@ -63,6 +69,8 @@ export function SheetViewer({
   const [pageCount, setPageCount] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [renderedWidth, setRenderedWidth] = useState(0);
+  const [showBlocks, setShowBlocks] = useState(false);
+  const [hoveredBlock, setHoveredBlock] = useState<number | null>(null);
   // Keyed by document: an unreadable PDF must not blank the viewer for the
   // others. Previously the failure branch replaced <Document> entirely, so the
   // onLoadSuccess that would have cleared it could never fire again.
@@ -128,6 +136,19 @@ export function SheetViewer({
     [code, activeDoc],
   );
 
+  const blocksKey =
+    showBlocks && activeDoc
+      ? endpoints.documentPageBlocks(code, activeDoc.id, pageNumber)
+      : null;
+  const {
+    data: pageBlocks,
+    error: blocksError,
+    isLoading: blocksLoading,
+  } = useSWR<PageBlocksResponse>(blocksKey, proxyFetcher, {
+    shouldRetryOnError: false,
+    revalidateOnFocus: false,
+  });
+
   /**
    * The rendered canvas is the source of truth for scale.
    *
@@ -164,6 +185,57 @@ export function SheetViewer({
       height: (y1 - y0) * scale + padding * 2,
     };
   }, [bbox, pageSize, evidence?.sourcePage, renderedWidth, pageNumber]);
+
+  const blockOverlay = useMemo(() => {
+    if (!showBlocks || !renderedWidth || !pageBlocks) return null;
+    const size = pageBlocks.pageSize;
+    if (!size?.width || !size.height) return null;
+    if (pageBlocks.verified === null || pageBlocks.verified === undefined) {
+      return {
+        kind: "unverified" as const,
+        reason: "This page has no text-layer verification — blocks are hidden.",
+      };
+    }
+    if (!pageBlocks.blocks?.length) {
+      return { kind: "unverified" as const, reason: "No parsed blocks on this page." };
+    }
+    const scale = renderedWidth / size.width;
+    const boxes = pageBlocks.blocks
+      .map((block, index) => {
+        const box = block.bbox;
+        if (!box || box.length < 4) return null;
+        const [x0, y0, x1, y1] = box;
+        return {
+          key: block.n ?? index,
+          index,
+          type: block.type,
+          text: (block.text ?? "").trim(),
+          table: isTableBlock(block.type),
+          left: x0 * scale,
+          top: y0 * scale,
+          width: Math.max((x1 - x0) * scale, 1),
+          height: Math.max((y1 - y0) * scale, 1),
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+    return { kind: "boxes" as const, boxes };
+  }, [showBlocks, renderedWidth, pageBlocks]);
+
+  const blocksBanner = useMemo(() => {
+    if (!showBlocks) return null;
+    if (blocksLoading) return "Loading parsed blocks…";
+    if (blocksError) {
+      if (blocksError instanceof ProxyError && blocksError.status === 404) {
+        return "No parsed blocks for this page — document may still be parsing or was read directly.";
+      }
+      return `Could not load blocks: ${blocksError.message}`;
+    }
+    if (blockOverlay?.kind === "unverified") return blockOverlay.reason;
+    if (blockOverlay?.kind === "boxes") {
+      return `${blockOverlay.boxes.length} parsed block${blockOverlay.boxes.length === 1 ? "" : "s"}`;
+    }
+    return null;
+  }, [showBlocks, blocksLoading, blocksError, blockOverlay]);
 
   if (!activeDoc || !fileUrl) {
     return (
@@ -217,6 +289,22 @@ export function SheetViewer({
 
         <span className="flex-1" />
 
+        <button
+          type="button"
+          aria-pressed={showBlocks}
+          onClick={() => {
+            setShowBlocks((on) => !on);
+            setHoveredBlock(null);
+          }}
+          className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-bold transition-all shadow-sm ${
+            showBlocks
+              ? "bg-brand-primary/10 border border-brand-primary/20 text-brand-primary"
+              : "border border-subtle bg-panel text-tx-secondary hover:bg-panel-muted hover:text-tx-primary"
+          }`}
+        >
+          Show parsed blocks
+        </button>
+
         <div className="flex items-center gap-1.5 px-2">
           <button
             onClick={() => setZoom((z) => Math.max(MIN_ZOOM, z - 0.2))}
@@ -252,6 +340,12 @@ export function SheetViewer({
         <div className="px-5 py-3 text-[12px] font-medium bg-status-warning-soft text-status-warning border-b border-status-warning/30">
           This line has no recorded position on the sheet — showing page{" "}
           <strong className="font-bold">{evidence.sourcePage ?? "?"}</strong> without a highlight.
+        </div>
+      )}
+
+      {blocksBanner && (
+        <div className="px-5 py-2.5 text-[12px] font-medium text-tx-secondary border-b border-subtle bg-panel-muted/40">
+          {blocksBanner}
         </div>
       )}
 
@@ -297,6 +391,44 @@ export function SheetViewer({
                 renderAnnotationLayer={false}
                 renderTextLayer={false}
               />
+              {blockOverlay?.kind === "boxes" &&
+                blockOverlay.boxes.map((box) => {
+                  const hovering = hoveredBlock === box.index;
+                  return (
+                    <div
+                      key={box.key}
+                      title={box.text || box.type || undefined}
+                      onMouseEnter={() => setHoveredBlock(box.index)}
+                      onMouseLeave={() => setHoveredBlock(null)}
+                      className="absolute"
+                      style={{
+                        left: box.left,
+                        top: box.top,
+                        width: box.width,
+                        height: box.height,
+                        border: box.table
+                          ? "1.5px dashed rgba(14, 116, 144, 0.85)"
+                          : "1px solid rgba(59, 130, 246, 0.55)",
+                        background: box.table
+                          ? "rgba(14, 116, 144, 0.12)"
+                          : hovering
+                            ? "rgba(59, 130, 246, 0.16)"
+                            : "rgba(59, 130, 246, 0.06)",
+                        zIndex: hovering ? 2 : 1,
+                      }}
+                    >
+                      {hovering && box.text && (
+                        <div
+                          className="pointer-events-none absolute left-0 top-full z-10 mt-1 max-w-[240px] rounded-md px-2 py-1.5 text-[11px] font-medium leading-snug shadow-md bg-panel border border-subtle text-tx-primary"
+                          style={{ maxHeight: 120, overflow: "hidden" }}
+                        >
+                          {box.text.slice(0, 280)}
+                          {box.text.length > 280 ? "…" : ""}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               {highlight && (
                 <div
                   ref={highlightRef}
@@ -309,6 +441,7 @@ export function SheetViewer({
                     background: "rgba(129,140,248,0.22)",
                     border: "3px solid var(--color-brand-primary)",
                     boxShadow: "0 0 0 9999px rgba(0,0,0,0.45)",
+                    zIndex: 3,
                   }}
                 />
               )}

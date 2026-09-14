@@ -397,6 +397,42 @@ def _under_projects(path: str) -> bool:
     return resolved == workspaces or workspaces in resolved.parents
 
 
+# Checkpoint artifacts must go through save_artifact (schema + versioning).
+# Bare Write/Edit bypasses MCP validation and caused invalid door_schedule.json
+# to land on disk (thickness / page_size array) while the agent reported success.
+_CHECKPOINT_ARTIFACTS = frozenset(
+    {
+        "extracted/scope_metadata.json",
+        "extracted/scope_summary.json",
+        "extracted/door_schedule.json",
+        "extracted/frp_takeoff.json",
+        "priced/line_items.json",
+    }
+)
+
+
+def _checkpoint_relpath(path: str) -> str | None:
+    """Return the checkpoint-relative path if this Write targets one."""
+    try:
+        from _artifact_path import project_path_from_tool, slashes
+    except ImportError:
+        normalized = path.replace("\\", "/")
+        for rel in _CHECKPOINT_ARTIFACTS:
+            if normalized.endswith("/" + rel) or normalized.endswith(rel):
+                return rel
+        return None
+    resolved = project_path_from_tool("Write", {"file_path": path})
+    if not resolved:
+        normalized = slashes(path)
+        for rel in _CHECKPOINT_ARTIFACTS:
+            if normalized.endswith("/" + rel) or normalized == rel:
+                return rel
+        return None
+    _project, rel = resolved
+    rel = rel.replace("\\", "/")
+    return rel if rel in _CHECKPOINT_ARTIFACTS else None
+
+
 def block(reason: str, *, rule: str | None = None, matched: str | None = None) -> int:
     detail = reason
     if rule or matched:
@@ -435,6 +471,17 @@ def check(payload: dict) -> int:
                 rule="protected-write-tool",
                 matched=target,
             )
+        # Bare Write/Edit of extraction checkpoints skips save_artifact schema
+        # validation. Force the MCP path instead.
+        if _WRITES_A_FILE.match(tool_name) and target:
+            checkpoint = _checkpoint_relpath(target)
+            if checkpoint:
+                return block(
+                    f"{checkpoint} must be written via mcp__artifact-storage__save_artifact "
+                    "(not Write/Edit) so schema validation and versioning run",
+                    rule="checkpoint-save-artifact",
+                    matched=target,
+                )
 
     if tool_name.startswith("mcp__p21-connector__"):
         lower = tool_name.lower()

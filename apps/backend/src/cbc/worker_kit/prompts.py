@@ -26,12 +26,29 @@ DELEGATION_RULE = """- **Delegate with the Agent tool, not by reading agent file
     subagent_type: one of intake-coordinator, spec-scope-analyst, takeoff-engineer,
       frp-specialist, product-matcher, pricing-engineer,
       quality-reviewer, delivery-agent, pricebook-ingestor
-    prompt: full task with paths, page numbers and output files
+    prompt: full task with paths, page numbers, output files, and the brief below
   Example:
-    Agent(description="Extract door schedule page 15", subagent_type="takeoff-engineer",
-          prompt="Read {project_dir}/uploads/raw/... page 15. Run parse_schedule.py
-          --page 15 --openings --json. Write {project_dir}/extracted/door_schedule.json
-          with bbox and page_size on every opening.")
+    Agent(description="Review door schedule pages 14-15", subagent_type="takeoff-engineer",
+          prompt="Project {project_dir}. Sheetmap door_schedule pages: 14,15.
+          Review-first: get_artifact extracted/door_schedule.json; if missing run
+          parse_schedule.py --page N --openings --json. page_size must be
+          {{width,height}} object. Thickness → notes, never a thickness key.
+          save_artifact only (never Write). Max 2 schema-repair retries.")
+- **Subagent brief template (include every time):** (1) project path + PDF path,
+  (2) role-sliced sheetmap page numbers, (3) prior JSON paths to read,
+  (4) review-first / run parse_schedule if door_schedule missing,
+  (5) closed-world: allowlisted fields only; page_size object not array,
+  (6) save_artifact only — on error repair, never Write,
+  (7) stop after 2 failed schema saves with nulls+flags left in place,
+  (8) **PDF verify before present:** before any `*_missing` flag or unclear
+  fill, open the specific PDF page (`search_blocks` / `get_page_blocks` /
+  `extract_tables` / cropped `get_page_image`) and cite page + excerpt in
+  `evidence_note`; copy minute schedule cells (glass, materials, note codes)
+  into allowlisted fields or `notes`.
+- **Verify on disk before the next phase.** After each subagent completes, call
+  `list_project_files` or `get_artifact` and confirm the phase output exists and
+  parses as JSON. Do not trust the agent's narrative success. If the file is
+  missing or invalid, stop the run — do not launch the next phase.
 - **Wait for each subagent to finish before starting the next phase.** Agent
   launches are async. When the tool returns, the subagent is still running - you
   get a completion notification when it is done. Do not launch the next phase,
@@ -80,13 +97,23 @@ validation on all three attempts:"""
 
 PREAMBLE = """Constraints that override anything else:
 
-- **Use the MCP tools. Do not reimplement them.** pdf-tools, catalog,
+- **Use the MCP tools. Do not reimplement them.** pdf-tools, bid-docs, catalog,
   calc-engine, artifact-storage and p21-connector are connected. Inline
   `import fitz` / `pypdf` in Bash is blocked; run `parse_schedule.py` instead.
-- **Find the page before you read it.** `search_pdf` is cheap and tells you which
-  sheet carries the schedule. `extract_tables` on a whole bid set costs more
-  context than the entire estimate. Search, then read the two or three pages that
-  matter, then stop.
+- **Prefer bid-docs over page images when the PDF is parsed.** Call
+  `list_documents` / `get_outline`, then `search_blocks` or `get_page_blocks`.
+  Crop with `pdf-tools.get_page_image(..., region=bbox)` when a value is
+  unclear **or** when you are about to flag a field missing — never open a
+  full-page image of a parsed page as the first read. Unparsed documents
+  still use pdf-tools as before.
+- **Find the page before you read it.** `search_pdf` / `search_blocks` is cheap
+  and tells you which sheet carries the schedule. `extract_tables` on a whole
+  bid set costs more context than the entire estimate. Search, then read the two
+  or three pages that matter, then stop.
+- **PDF verify before present.** Unclear, incomplete, or about-to-be-flagged
+  values are checked on the specific PDF page before saving or presenting.
+  Cite page + excerpt in `evidence_note` / review notes
+  (`.claude/rules/pdf-verify-before-present.md`).
 - **Read a tool's response before calling it again.** These tools report what they
   withheld - `pages_deferred`, `rows_truncated`, `encoding_repaired`. Those fields
   are the answer to "is there more?", so a second identical call is wasted.
@@ -96,8 +123,13 @@ PREAMBLE = """Constraints that override anything else:
   files depends on how this run works - see the rule below.)
 - **Do not shell out for what a tool returns.** `save_artifact` timestamps what it
   writes, so a `date` call is a round trip for a value you are already given.
-  Write `extracted/scope_metadata.json` and `scope_summary.json` through
-  `save_artifact` only (atomic) — never a partial Write that mid-run sync can tear.
+  Write checkpoint JSON through `save_artifact` only (atomic) — never Write/Edit
+  for `extracted/scope_metadata.json`, `scope_summary.json`, `door_schedule.json`,
+  `frp_takeoff.json`, or `priced/line_items.json`. On schema rejection, repair the
+  named fields (max 2 retries); do not bypass with Write.
+- **Closed-world openings.** Opening keys must match the allowlist. `page_size`
+  is `{{"width": number, "height": number}}` — never `[w, h]`. Schedule columns
+  like Thickness go in `notes`, never as a top-level `thickness` key.
 {delegation_rule}
 - **Do not write inline `python3 -c` parsers for schedule data.** Run
   `.claude/skills/extract-door-schedule/scripts/parse_schedule.py` instead.
@@ -144,12 +176,17 @@ gaps from the drawings first so the Ops-Hub job record stays accurate and audita
 
 **Hard gates (a phase that fails stops the run):**
 - Launch `intake-coordinator` first. Wait until `extracted/scope_metadata.json`
-  exists and is valid JSON before any later phase.
+  exists and is valid JSON before any later phase. Confirm with
+  `get_artifact` / `list_project_files` — do not trust narrative.
 - Do not launch `takeoff-engineer` until `extracted/scope_summary.json` exists and
   is valid. Do not invent a scope file to keep going.
 - Launch `frp-specialist` only when `frp_in_scope` is true in that summary — no
   exploratory FRP pass when the flag is false.
-- Write scope JSON via `save_artifact` (atomic). Never stream a partial Write.
+- Write all checkpoint JSON via `save_artifact` (atomic). Never Write/Edit
+  `door_schedule.json`, scopes, `frp_takeoff.json`, or `priced/line_items.json`.
+- After takeoff, confirm `extracted/door_schedule.json` exists on the artifact
+  path before FRP or later phases. If missing after the subagent "succeeds",
+  stop — re-prompt takeoff once with the brief template, then halt.
 
 **Ops-Hub values already set (keep these — fill only empties):**
 {ops_hub_block}
@@ -166,35 +203,56 @@ call Agent, pass only the pages for that role — not the full ranked dump:
   - frp-specialist: roles `frp`, `finish` (if none, search_pdf for FRP / WALL PANEL — intentional fallback)
   - spec-scope-analyst: top schedule + title pages only
 
-Hand **file path + page numbers + prior JSON paths** in each Agent prompt. Do not
-paste full PDF text or prior model transcripts into the next Agent call — each
-subagent reads structured files on disk.
+Hand **file path + page numbers + prior JSON paths** in each Agent prompt, plus
+the closed-world / save_artifact / review-first brief. Do not paste full PDF text
+or prior model transcripts into the next Agent call — each subagent reads
+structured files on disk.
 
 **Launch one subagent at a time** and wait for its completion notification before
 starting the next; do not duplicate its work while it runs.
 
-**The take-off is already done. Your job is to check it, not to redo it.**
-Before this session started the worker ran `parse_schedule.py` over the sheet the
-map scored highest for `door_schedule` and wrote
-`{project_dir}/extracted/door_schedule.json` - every opening carrying
-`source_page`, `bbox`, `page_size` and a `flags` list naming what it could not
-read. Read that file first.
+**The take-off is already done (or one parse_schedule call away). Check, don't redo.**
+Before this session started the worker usually ran `parse_schedule.py` over the
+highest-scoring `door_schedule` sheet and wrote
+`{project_dir}/extracted/door_schedule.json`. Read that file first via
+`get_artifact`. **If it is missing:** takeoff must run
+`parse_schedule.py --page <n> --openings --json` on sheetmap pages, then save —
+never freehand-author openings.
 
-For each opening, open its `source_page` with `mcp__pdf-tools__extract_tables` and:
+For each opening, prefer `mcp__bid-docs__search_blocks` / `get_page_blocks` when
+the document is parsed; otherwise open its `source_page` with
+`mcp__pdf-tools__extract_tables` and:
 
   - confirm `door_number`, `size`, `hardware_set` against the row;
+  - copy minute cells the parser left only in `raw_row` — glass, materials,
+    frame type, detail/note codes — into allowlisted fields or `notes`;
   - fill the fields the parser left null - `handing`, `finish`, `fire_rating`,
-    `wall_type` - **only when the sheet actually says so**. A null is a correct
-    answer when the schedule is silent; leave the `*_missing` flag in place;
+    `wall_type` - **only when the sheet actually says so**, after checking the
+    estimator search order (schedule → type/frame schedule / Div 08 / floor
+    plan). A null is correct only after that PDF check; leave `*_missing` with
+    an `evidence_note` naming pages searched;
   - correct a value that is wrong, and say so in `evidence_note`;
-  - add an opening the parser missed, with its own `source_page` and `bbox`.
+  - add an opening the parser missed, with its own `source_page`, `bbox`, and
+    `page_size` object `{{width, height}}`;
+  - put Thickness / other non-allowlist columns into `notes` — never invent keys.
+
+**PDF verify before present (mandatory).** If a value is unclear, incomplete, or
+about to be flagged missing, open the **specific** PDF page first
+(`search_blocks` / `get_page_blocks` / `extract_tables` / `extract_text`, crop
+with `get_page_image(region=bbox)` when ambiguous). Do not emit
+`handing_missing` / `fire_rating_missing` / `finish_missing` from the parser
+summary alone. Cite page + excerpt (or "searched pages … — not found") in
+`evidence_note`. See `.claude/rules/pdf-verify-before-present.md`.
+
+Do not open a full-page image of a parsed page when a block crop will do.
 
 Do not delete rows, do not renumber them, and do not drop `bbox`, `row_bbox`,
 `cell_boxes` or `page_size` - the estimator's sheet viewer draws the highlight
 from those, and a row without them cannot be checked by eye.
 
-If you can improve nothing, write the file back unchanged. That is a complete
-outcome, not a failure: the deterministic pass already produced a usable take-off.
+If you can improve nothing, save the file back unchanged via `save_artifact`. That
+is a complete outcome, not a failure: the deterministic pass already produced a
+usable take-off.
 
 Do **not** re-run `find_sheets` unless `_sheetmap.json` is missing.
 
@@ -210,11 +268,12 @@ extracted/door_schedule.json with an empty `openings` array and a
   {{"openings": [], "no_scope_reason": "no door schedule, door type or hardware
    set on any of the 28 sheets; Division 08 is existing-to-remain"}}
 
-Write that file. Do not skip the phase and leave it unwritten - an unwritten
-schedule and an empty one mean different things, and only one of them is a
-reportable answer. Beware the opposite error too: an accessibility or general-
-notes sheet mentions "door" and "hardware" many times without being a schedule,
-so a page scoring high on those words alone is not evidence that scope exists.
+Write that file via `save_artifact`. Do not skip the phase and leave it unwritten
+- an unwritten schedule and an empty one mean different things, and only one of
+them is a reportable answer. Beware the opposite error too: an accessibility or
+general-notes sheet mentions "door" and "hardware" many times without being a
+schedule, so a page scoring high on those words alone is not evidence that scope
+exists.
 
 Carry FR-2 attributes on every opening: handing, finish (dual nomenclature),
 fire_rating (null + flag when absent — Matrix 7.3 pending, do not invent),
@@ -441,7 +500,9 @@ block with `field_sources` evidence. Keep Ops-Hub values already set:
 A phase that fails stops the run — do not launch take-off without a valid
 `scope_summary.json`. Launch `frp-specialist` only when `frp_in_scope` is true.
 Hand each Agent role-sliced pages from `_sheetmap.json` (`roles` field), not the
-full ranked dump.
+full ranked dump. After every phase, verify the output file exists via
+`get_artifact` / `list_project_files` before launching the next. Checkpoint
+artifacts must use `save_artifact` only (never Write).
 
 **product-matcher** reads `extracted/door_schedule.json` and
 `extracted/scope_summary.json` — not the bid-set PDF. Hardware groups live in

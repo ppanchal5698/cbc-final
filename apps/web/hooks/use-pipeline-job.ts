@@ -12,6 +12,7 @@ const PIPELINE_TYPES = new Set([
   "build_proposal",
   "ingest_addendum",
   "run_full_pipeline",
+  "parse_document",
 ]);
 
 export function isPipelineJob(job: Job | null | undefined): boolean {

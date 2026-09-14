@@ -106,6 +106,14 @@ export interface BidDocument {
   contentSha?: string | null;
   state: string;
   uploadedAt: string;
+  /** MinerU parse progress when PARSER_URL is set; absent means read via pdf-tools. */
+  parse?: {
+    state?: string;
+    pages?: number;
+    pagesDone?: number;
+    settings?: Record<string, unknown>;
+    error?: string | null;
+  };
 }
 
 export interface Evidence {
@@ -392,6 +400,73 @@ export interface ClaudeSettings {
   updatedBy?: string | null;
   localDev: boolean;
   cliAvailable: boolean;
+}
+
+/** One runtime PARSER_* field from GET /api/settings/parsing. */
+export interface ParsingField {
+  value: string | number | boolean | null;
+  source: string;
+  /** Process env owns this field — the settings screen cannot change it. */
+  locked: boolean;
+}
+
+export interface ParsingPreset {
+  backend: string;
+  effort: string | null;
+  method: string;
+  lang: string;
+  tables: boolean;
+  formulas: boolean;
+  imageAnalysis: boolean;
+  windowPages: number;
+  windowTimeoutSeconds: number;
+  waitMaxSeconds: number;
+  hardware: string;
+}
+
+export interface ParsingSettings {
+  enabled: boolean;
+  fields: Record<string, ParsingField>;
+  presets: Record<string, ParsingPreset>;
+  backends: string[];
+  efforts: string[];
+  methods: string[];
+  profiles: string[];
+  /** MinerU GET /health body, or `{ error }` when unreachable / parsing off. */
+  mineru?: Record<string, unknown> & { error?: string };
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export interface ParsingTestResult {
+  ok: boolean;
+  seconds: number | null;
+  blocks: number | null;
+  version: string | null;
+  backend?: string;
+  error: string | null;
+}
+
+/** `GET /api/projects/{code}/documents/{id}/pages/{n}/blocks`. */
+export interface PageBlock {
+  n?: number;
+  type?: string;
+  text?: string;
+  bbox?: number[] | null;
+  html?: string;
+  lines?: { bbox?: number[] | null; text?: string }[];
+}
+
+export interface PageBlocksResponse {
+  documentId: string;
+  page: number;
+  pageSize?: { width: number; height: number } | null;
+  verified: number | null;
+  parser?: Record<string, unknown> | null;
+  blocks: PageBlock[];
+  start: number;
+  next: number | null;
+  total: number;
 }
 
 export interface ProviderTest {

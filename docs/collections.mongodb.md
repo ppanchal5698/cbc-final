@@ -60,6 +60,8 @@ The guiding constraint from the workbook governs the whole design: *the estimato
 
 **32 collections.** Eight entities from the Phase 1 map are deliberately embedded rather than given their own collection; each is justified in §2.3.
 
+**Infrastructure (implemented, not in the workbook):** [`documentPages`](#documentpages-implemented) — one Mongo document per MinerU-parsed PDF page (blocks + bbox). See also `jobs`, `settings`, `pageIndex`, and related runtime collections in [data_model.md](data_model.md).
+
 ---
 
 ## 2. Entity Relationship Summary
@@ -1717,6 +1719,24 @@ db.documents.createIndex({ orgId: 1, ocrStatus: 1 },
 **Notes:** Binaries live in external object storage per Q9; this collection holds metadata only. `pages[]` is embedded because it is bounded by page count and always read with its parent, and because it is the *citation target* for NFR-3 — `openings.sourceRef` points at `{ documentId, pageNumber }`, and having the page index in the same document means rendering "this line came from sheet A8.1" costs one read, not two.
 
 Per-page `ocrStatus` matters more than it might appear. Bid sets routinely contain graphic sheets that yield no text layer while the rest of the set extracts cleanly, and a document-level status alone would either mark the whole set failed or hide the gap. Per-page status makes the gap visible and reviewable, which is what NFR-2's *"never silently guessed"* requires.
+
+### `documentPages` (implemented)
+
+**Purpose:** MinerU parse output — one document per PDF page — so agents and the sheet viewer can query text blocks with bboxes without re-reading page images. Owned by intake (`cbc.modules.intake`); deleted with the parent document.
+
+| Field | Type | Notes |
+|---|---|---|
+| `projectId` | ObjectId | Bid / project |
+| `documentId` | ObjectId | → `documents` |
+| `contentSha` | string | Upload content hash; retries skip windows already stored |
+| `page` | int | 1-based |
+| `pageSize` | `{ width, height }` | Display frame (rotated page rect) |
+| `blocks` | array | `{ n, type, text, bbox, lines?: [{bbox,text}], html? }`; discarded blocks kept as `type: discarded` |
+| `verified` | float \| null | Share of text blocks ≥50% covered by pdf text-layer boxes; `null` if no text layer |
+| `parser` | object | `{ name, version, backend, effort }` used for this parse |
+| `parsedAt` | date | |
+
+**Indexes:** unique `(documentId, page)`; `(projectId, page)`; text on `blocks.text`.
 
 ---
 

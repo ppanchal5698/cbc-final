@@ -20,6 +20,9 @@ JobType = Literal[
     # of last resort.
     "index_catalog",
     "delete_catalog",
+    # GPU parse of one uploaded PDF via MinerU. Not exclusive: one job per
+    # document, so a second upload never gets a 409.
+    "parse_document",
     # Deprecated in cbc-copilot-final: kept so historical Mongo rows still
     # deserialise. New autopilot runs use orchestrate=true on extract_bid_set
     # and chain match_and_price → build_proposal across domain workers.

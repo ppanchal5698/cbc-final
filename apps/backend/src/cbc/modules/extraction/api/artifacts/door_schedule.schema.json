@@ -221,7 +221,20 @@
           "type": [
             "object",
             "null"
-          ]
+          ],
+          "required": [
+            "width",
+            "height"
+          ],
+          "properties": {
+            "width": {
+              "type": "number"
+            },
+            "height": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
         },
         "duplicate_reason": {
           "type": [

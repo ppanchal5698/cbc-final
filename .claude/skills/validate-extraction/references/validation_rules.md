@@ -26,6 +26,8 @@
 | cost_source recorded | error | One of P21_LAST_PO, LIST_X_MULTIPLIER, VENDOR_RFQ, DISTRIBUTOR_MANUAL, MANUAL |
 | margin within band | medium | Below-band flags only; approval routing is deferred |
 | out-of-scope item quoted | error | Record it, never price it |
+| opening extra property | error | Closed-world Opening allowlist; relocate Thickness etc. into `notes` |
+| page_size shape | error | Must be `{width, height}` numbers — not `[w, h]` |
 
 ## Anti-inference rule
 
@@ -37,6 +39,8 @@ The most dangerous failure mode is a plausible guess. Specifically forbidden:
 - Choosing the nearest stock item to avoid an empty cell
 - Extrapolating a price from a similar SKU
 - Defaulting sales tax to zero when the project state is unknown
+- Inventing top-level opening keys for schedule columns not in the allowlist
+  (e.g. `thickness`) instead of appending to `notes`
 
 Each of these produces a quote that looks finished and is wrong. A visible gap is
 strictly better.

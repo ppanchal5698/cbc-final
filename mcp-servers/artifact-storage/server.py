@@ -81,11 +81,14 @@ def save_artifact(
         )
 
     # Schema gate for extract checkpoints (Claude Code has no Messages json_schema).
+    # Normalize known LLM shape mistakes (page_size array, thickness→notes) first,
+    # then persist the cleaned payload so disk matches what validators accept.
     try:
-        from cbc.modules.extraction.api.artifact_schema import PATH_SCHEMAS, validate_artifact_text
+        from cbc.modules.extraction.api.artifact_schema import PATH_SCHEMAS, prepare_artifact_text
 
-        if path.replace("\\", "/") in PATH_SCHEMAS:
-            problems = validate_artifact_text(path.replace("\\", "/"), content)
+        posix_key = path.replace("\\", "/")
+        if posix_key in PATH_SCHEMAS:
+            content, problems = prepare_artifact_text(posix_key, content)
             if problems:
                 raise ValueError("; ".join(problems))
     except ImportError:

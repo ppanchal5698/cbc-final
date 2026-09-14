@@ -9,7 +9,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from cbc.modules.extraction.api.normalize_artifacts import (
+    normalize_door_schedule_payload,
+    normalize_opening_dict,
+    normalize_page_size,
+)
 
 
 def _coerce_number(value: Any) -> float | None:
@@ -88,6 +94,13 @@ class Opening(BaseModel):
     confirmed_by: str | None = None
     added_by_hand: bool | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _relocate_stray_schedule_columns(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return normalize_opening_dict(value)
+        return value
+
     @field_validator("qty", mode="before")
     @classmethod
     def _qty(cls, value: Any) -> float | None:
@@ -101,6 +114,22 @@ class Opening(BaseModel):
         if value is None or value == "":
             return None
         return _coerce_number(value)
+
+    @field_validator("page_size", mode="before")
+    @classmethod
+    def _page_size(cls, value: Any) -> dict[str, float] | None:
+        coerced = normalize_page_size(value)
+        if coerced is None:
+            return None
+        if not isinstance(coerced, dict):
+            raise ValueError("page_size must be {width, height} or [width, height]")
+        if "width" not in coerced or "height" not in coerced:
+            raise ValueError("page_size requires numeric width and height")
+        width = _coerce_number(coerced.get("width"))
+        height = _coerce_number(coerced.get("height"))
+        if width is None or height is None:
+            raise ValueError("page_size width and height must be numbers")
+        return {"width": width, "height": height}
 
 
 class DoorSchedule(BaseModel):
@@ -117,6 +146,7 @@ class DoorSchedule(BaseModel):
 
     @classmethod
     def parse_payload(cls, raw: Any) -> DoorSchedule:
+        raw = normalize_door_schedule_payload(raw)
         if isinstance(raw, list):
             return cls(openings=[Opening.model_validate(item) for item in raw])
         if not isinstance(raw, dict):

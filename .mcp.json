@@ -35,6 +35,12 @@
       "args": [
         "./mcp-servers/reference/server.py"
       ]
+    },
+    "bid-docs": {
+      "command": "python",
+      "args": [
+        "./mcp-servers/bid-docs/server.py"
+      ]
     }
   }
 }

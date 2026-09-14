@@ -89,10 +89,23 @@ def _property(name: str, annotation: Any) -> dict[str, Any]:
 
 def properties_of(model: type[BaseModel]) -> dict[str, Any]:
     """One JSON Schema `properties` block, in field-declaration order."""
-    return {
+    props = {
         name: _property(name, field.annotation)
         for name, field in model.model_fields.items()
     }
+    # page_size must be {width, height} — never a bare object or [w, h] array.
+    # Arrays are coerced before validate; the schema documents the closed shape.
+    if model is Opening and "page_size" in props:
+        props["page_size"] = {
+            "type": ["object", "null"],
+            "required": ["width", "height"],
+            "properties": {
+                "width": {"type": "number"},
+                "height": {"type": "number"},
+            },
+            "additionalProperties": False,
+        }
+    return props
 
 
 def _rows_envelope(model: type[BaseModel], *, defs_name: str, rows_key: str,

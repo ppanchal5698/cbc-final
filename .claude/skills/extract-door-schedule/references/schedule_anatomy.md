@@ -14,26 +14,38 @@ itself is on a details/schedules sheet. In the Dutch Bros fixture:
 
 Always search for the marker, then confirm the page actually holds tabular rows.
 
-## Columns seen in practice
+## Two schedule layouts estimators see
+
+**A. GROUP-style** (Dutch Bros A2.2): mark, size, type, materials, `GROUP n`.
+
+**B. Hardware-matrix** (Taco Bell Endeavor A1.1): mark, room, W×H×thick, type,
+door/frame material, then **X columns** for BUTTS / LOCKS / CLOSERS / KICK /
+THRESHOLD / STOP / MISC, plus detail refs and note numbers. There is often
+**no HANDING column and no FIRE RATING column**. That is not a parser miss —
+resolve handing from the floor plan; search type schedule/specs for rating.
+
+## Columns seen in practice (FR-2)
 
 Column order varies by architect. Identify columns from the header row.
 
 | Column | Example | Notes |
 |---|---|---|
-| Door number / mark | `01`, `101`, `A-1` | The grouping key for the whole quote |
+| Door number / mark | `1`, `01`, `101`, `A-1` | Grouping key; single-digit marks are valid |
+| Room name | `DINING`, `MEN` | Use in `description` as `{room} — Type {X}` |
 | Width | `3' - 6"` or `3670` | Two notations, see below |
 | Height | `7' - 0"` | |
+| Thickness | `1 3/4"` | **Notes only** — never a top-level `thickness` key |
 | Door type | `A`, `B`, `C`, `D` | Cross-references the DOOR TYPE SCHEDULE |
 | Frame type | `1`, `2` | Cross-references the DOOR FRAME TYPE SCHEDULE |
 | Glass | `TEMP.` | Tempered / insulated; drives lite-kit pricing |
-| Door material | `HM`, `WD`, `MFR` | Hollow metal, wood, by-manufacturer |
-| Frame material | `HMD`, `MFR` | |
-| Hardware group | `GROUP 1`, `HW-1` | Cross-references HARDWARE GROUPS |
-| Alternate | `ALT-1`, `Alternate 1` | Bid alternate designation (FR-2); null = base bid. Reconciliation rules still Pending (Matrix 4.1) |
-| Notes | `A,B,C,D,E,F` | Letter codes into a DOOR NOTES block |
-| Fire rating | `90 MIN`, `45` | **Often absent entirely** — Matrix 7.3 still Pending; flag, do not invent |
-| Handing | `LH`, `RHR` | Sometimes only on the plan |
-| Finish | `US26D`, `626` | Usually in the hardware group, not the door row; dual nomenclature (NR-3) |
+| Door material | `HM`, `WD`, `AL`, `MFR` | `AL` + storefront → **out of scope** (Matrix 2.3) |
+| Frame material | `HMD`, `HM`, `AL`, `MFR` | |
+| Hardware group | `GROUP 1`, `HW-1` | Or matrix X columns → expand into `hardware` |
+| Alternate | `ALT-1`, `Alternate 1` | FR-2; null = base bid (Matrix 4.1 still Pending) |
+| Notes | `8, 10, 13` | Letter/number codes into DOOR NOTES |
+| Fire rating | `90 MIN`, `45`, `NR` | Often absent — Matrix 7.3 Pending; flag, do not invent |
+| Handing | `LH`, `RHR` | Often only on the plan (Matrix 7.4) |
+| Finish | `US26D`, `626` | Sheet note "ALL HARDWARE SHALL BE US32D" applies to openings |
 
 ## The two size notations
 
@@ -75,18 +87,21 @@ the grade.
 
 Record `null` and flag. Never infer from a neighbouring row.
 
-- **Fire rating** - absent from the Dutch Bros door schedule entirely. Where it
-  lives in CBC bid sets is still an open question (Matrix 7.3). Interim: flag
-  `fire_rating_missing` at high severity; do **not** hard-stop or invent a rating.
-- **Handing** - usually present, but sometimes only derivable from the floor plan
-  swing arc.
-- **Finish** - typically stated per hardware item in the group, not per door.
-  Interpret both US and BHMA codes via `finish_crosswalk.json` (NR-3).
-- **Alternate designation** - when present, set `alternate` on the opening so
-  import can map it to `alternateGroup`. Formal base+alternate reconciliation
-  is still Pending (Matrix 4.1 / Open Item 11).
-- **Wall type** - read from the partition schedule or wall tags, then mapped to a
-  frame depth via `mcp__reference__get_frame_depth`.
+- **Fire rating** - often absent from the door schedule (Dutch Bros; Taco Bell
+  matrix). Search type schedule + Div 08 before finishing. Interim: flag
+  `fire_rating_missing` at high severity; do **not** hard-stop or invent.
+- **Handing** - when the schedule has no HAND column, **must** try the floor-plan
+  swing before leaving `handing_missing` (Matrix 7.4). Never default LH.
+- **Finish** - sheet-level note ("ALL HARDWARE SHALL BE US32D") or per HW item.
+  Interpret both US and BHMA codes (NR-3).
+- **Hardware set id** - matrix sheets have X columns, not `GROUP n`. Flag
+  `hardware_matrix_unexpanded` and fill `hardware` from the legend — do not invent
+  a GROUP number.
+- **Aluminum / storefront** - `AL`/`AL` or STOREFRONT → flag
+  `out_of_scope_storefront` and list under `out_of_scope_items` (Matrix 2.3). Do
+  not price as CBC HM/WD openings.
+- **Alternate designation** - when present, set `alternate`. Matrix 4.1 still Pending.
+- **Wall type** - partition schedule / wall tags → `mcp__reference__get_frame_depth`.
 
 ## Keying (Matrix 7.6)
 

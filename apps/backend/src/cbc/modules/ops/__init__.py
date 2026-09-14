@@ -33,11 +33,13 @@ def register(app) -> None:
         ListJobs,
         ListOllamaModels,
         ListUsers,
+        ParsingSettings,
         PipelineSettings,
         RetryJob,
         SpendSummary,
         StreamTerminal,
         TestClaudeSettings,
+        TestParsingSettings,
         UpdateUser,
         VerifyCredentials,
     )
@@ -56,6 +58,8 @@ def register(app) -> None:
         FreshnessSettings,
         ClaudeSettings,
         TestClaudeSettings,
+        ParsingSettings,
+        TestParsingSettings,
         ListOllamaModels,
         ClaudeOAuth,
         # Static /api/jobs paths before /api/jobs/{job_id}: routes match in the

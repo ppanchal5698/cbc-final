@@ -30,11 +30,12 @@ SERVERS = {
     "p21-connector": "mcp-servers/p21-connector/server.py",
     "catalog": "mcp-servers/catalog/server.py",
     "reference": "mcp-servers/reference/server.py",
+    "bid-docs": "mcp-servers/bid-docs/server.py",
 }
 
 # Reading drawings and writing what was found. Reference for finishes / frame
-# depths / FRP constants during take-off; no pricing tools.
-_READING = ["pdf-tools", "artifact-storage", "reference"]
+# depths / FRP constants during take-off; bid-docs for MinerU blocks; no pricing.
+_READING = ["pdf-tools", "artifact-storage", "reference", "bid-docs"]
 
 # Costing a confirmed schedule: the catalog for what things cost, calc-engine for
 # the arithmetic, p21 for last-PO history.
@@ -118,9 +119,9 @@ def config_for(job_type: str) -> str:
             "args": [str((REPO_ROOT / SERVERS[name]).resolve())],
         }
         env: dict[str, str] = {}
-        if name in ("catalog", "p21-connector", "reference"):
-            # Page index, freshness, and referenceData use a read-only credential
-            # with no fallback to the writable string.
+        if name in ("catalog", "p21-connector", "reference", "bid-docs"):
+            # Page index, freshness, referenceData, and parsed bid blocks use a
+            # read-only credential with no fallback to the writable string.
             readonly = _readonly_uri()
             if readonly:
                 env["MONGODB_READONLY_URI"] = readonly

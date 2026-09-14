@@ -76,11 +76,20 @@ const ATTRIBUTE_FIELDS = [
 ] as const;
 
 const FLAG_HINTS: Record<string, string> = {
-  fire_rating_missing: "Missing — flag only (Matrix 7.3 pending)",
-  handing_missing: "Missing handing",
-  finish_missing: "Missing finish",
+  fire_rating_missing:
+    "Agent searched schedule / type schedule / Div 08 on the PDF — still absent (Matrix 7.3)",
+  handing_missing:
+    "Agent searched schedule + floor-plan swing on the PDF — still unresolved",
+  finish_missing: "Agent checked HW group / sheet note on the PDF — still absent",
   finish_ambiguous: "Ambiguous finish code — confirm which satin",
-  finish_unrecognized: "Finish not in CBC crosswalk",
+  finish_unrecognized: "Finish not in CBC crosswalk — confirm on sheet",
+  frame_depth_needs_wall_assembly_review: "Wall type needed before throat depth",
+  hardware_set_missing: "No GROUP / HW set on the schedule row",
+  hardware_matrix_unexpanded: "Matrix X columns — expand hardware from legend",
+  out_of_scope_storefront: "Aluminum / storefront — not a CBC HM/WD quote line",
+  wall_type_missing: "Missing wall type",
+  frame_depth_underivable: "Frame depth needs wall type",
+  details_dropped: "Schedule cells (glass / materials / notes) were not carried into fields",
 };
 
 export function LineItemRow({

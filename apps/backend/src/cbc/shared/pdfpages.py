@@ -218,6 +218,10 @@ def page_image(
             return hit
         if region:
             clip = fitz.Rect(region[0], region[1], region[2], region[3])
+            # Clip is relative to the unrotated page; stored / agent bboxes are
+            # display-space (page.rect). Map back when the page is rotated.
+            if page.rotation:
+                clip = (clip * ~page.rotation_matrix).normalize()
             page.get_pixmap(clip=clip, dpi=effective_dpi).save(output)
         else:
             page.get_pixmap(dpi=effective_dpi).save(output)

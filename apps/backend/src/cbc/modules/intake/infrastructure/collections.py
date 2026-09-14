@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pymongo import ASCENDING, DESCENDING
+from pymongo import ASCENDING, DESCENDING, TEXT
 
 from cbc.shared.persistence import names
 from cbc.shared.mongo import database, replace_index
@@ -19,6 +19,10 @@ def documents():
 
 def versions():
     return database()[names.ESTIMATE_VERSIONS]
+
+
+def document_pages():
+    return database()[names.DOCUMENT_PAGES]
 
 
 async def ensure_indexes() -> None:
@@ -39,9 +43,22 @@ async def ensure_indexes() -> None:
         [("projectId", ASCENDING), ("version", DESCENDING)],
         unique=True,
     )
+    await replace_index(
+        document_pages(),
+        "document_page",
+        [("documentId", ASCENDING), ("page", ASCENDING)],
+        unique=True,
+    )
+    await document_pages().create_index([("projectId", ASCENDING), ("page", ASCENDING)])
+    await replace_index(
+        document_pages(),
+        "blocks_text",
+        [("blocks.text", TEXT)],
+    )
 
 
 async def delete_for_project(project_id: Any) -> None:
-    """A bid is being deleted: its documents and versions go with it. Files stay on disk."""
+    """A bid is being deleted: its documents, pages and versions go with it. Files stay on disk."""
     await documents().delete_many({"projectId": project_id})
+    await document_pages().delete_many({"projectId": project_id})
     await versions().delete_many({"projectId": project_id})

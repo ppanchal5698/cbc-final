@@ -226,6 +226,69 @@ def test_a_bbox_is_measured_from_the_row_the_opening_came_from(tmp_path):
     doc.close()
 
 
+def test_invented_bboxes_are_overwritten_on_rematch(tmp_path):
+    """Agent-written marching boxes must not stick when rematch runs."""
+    import fitz
+
+    from cbc.shared.pdfrows import attach_measured_bboxes
+
+    doc = fitz.open(_schedule_sheet(tmp_path))
+    page = doc[0]
+    openings = [
+        {
+            "door_number": "1",
+            "room_name": "DINING",
+            "width": "3'-0\"",
+            "height": "7'-0\"",
+            "bbox": [10, 10, 100, 20],
+        },
+        {
+            "door_number": "2",
+            "room_name": "LOBBY",
+            "width": "6'-0\"",
+            "height": "7'-0\"",
+            "bbox": [10, 20, 100, 30],
+        },
+    ]
+    attached, unmatched = attach_measured_bboxes(openings, page, overwrite=True)
+    assert (attached, unmatched) == (2, 0)
+    assert openings[0]["bbox"] != [10, 10, 100, 20]
+    assert openings[1]["bbox"] != [10, 20, 100, 30]
+    doc.close()
+
+
+def test_glued_mark_and_four_digit_size_still_match(tmp_path):
+    """Dutch Bros cells glue mark+width (`01 3' - 6"`) and store size as 3670."""
+    import fitz
+
+    from cbc.shared.pdfrows import attach_measured_bboxes
+
+    doc = fitz.open()
+    page = doc.new_page(width=612, height=792)
+    for column, text in enumerate(
+        ["01 3' - 6\"", "7' - 0\"", "A", "TEMP. HM HMD", "GROUP 1"]
+    ):
+        page.insert_text((72 + column * 70, 200), text, fontsize=9)
+    path = tmp_path / "glued.pdf"
+    doc.save(path)
+    doc.close()
+
+    doc = fitz.open(path)
+    openings = [
+        {
+            "door_number": "01",
+            "size": "3670",
+            "hardware_set": "GROUP 1",
+            "door_type": "A",
+            "bbox": [461, 380, 1190, 395],
+        }
+    ]
+    attached, unmatched = attach_measured_bboxes(openings, doc[0], overwrite=True)
+    assert (attached, unmatched) == (1, 0)
+    assert openings[0]["bbox"][1] > 180  # near the real row, not the invention
+    doc.close()
+
+
 def test_a_row_holding_several_doors_is_refused(tmp_path):
     """A wrong highlight is worse than none, because it looks checked.
 

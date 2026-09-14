@@ -275,16 +275,40 @@ def test_a_directory_of_the_same_name_elsewhere_is_not_this_project(path: str) -
 @pytest.mark.parametrize(
     "path",
     [
-        "projects/dutch_bros/extracted/door_schedule.json",
-        "projects/dutch_bros/priced/line_items.json",
         "/app/projects/x/review/review_flags.json",
         # Names the directory without being in it.
         "projects/pricebooks_notes/summary.md",
+        "projects/dutch_bros/extracted/_sheetmap.json",
     ],
 )
 def test_writing_inside_a_project_is_allowed(path: str) -> None:
     result = _run_guard({"tool_name": "Write", "tool_input": {"file_path": path}})
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "projects/dutch_bros/extracted/door_schedule.json",
+        "projects/dutch_bros/extracted/scope_metadata.json",
+        "projects/dutch_bros/extracted/scope_summary.json",
+        "projects/dutch_bros/extracted/frp_takeoff.json",
+        "projects/dutch_bros/priced/line_items.json",
+    ],
+)
+def test_write_to_checkpoint_artifacts_must_use_save_artifact(path: str) -> None:
+    """Bare Write skips MCP schema validation — force save_artifact instead."""
+    result = _run_guard({"tool_name": "Write", "tool_input": {"file_path": path}})
+    assert result.returncode == 2, result.stderr
+    assert "checkpoint-save-artifact" in result.stderr or "save_artifact" in result.stderr
+    # MCP save_artifact itself remains allowed (not a Write tool).
+    mcp = _run_guard(
+        {
+            "tool_name": "mcp__artifact-storage__save_artifact",
+            "tool_input": {"project": "dutch_bros", "path": path.split("projects/dutch_bros/")[-1], "content": "{}"},
+        }
+    )
+    assert mcp.returncode == 0, mcp.stderr
 
 
 def test_bash_deletion_guard_still_applies() -> None:

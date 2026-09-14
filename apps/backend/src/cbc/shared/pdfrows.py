@@ -214,12 +214,79 @@ def has_text_layer(page: fitz.Page, minimum_chars: int = 40) -> bool:
 # needs the number in the first cell plus two of these in the same row.
 CORROBORATING = ("room_name", "width", "height", "size", "hardware_set", "door_type")
 
+# Dutch Bros (and similar) glue the mark to the width: first cell reads
+# `01 3' - 6"` instead of a bare `01`.
+_MARK_PREFIX = re.compile(r"^(\d{1,3}[A-Z]?)\b", re.IGNORECASE)
+_SIZE_4DIGIT = re.compile(r"^([2-9])([0-9])([4-9])([0-9])$")
+
+
+def _first_cell_mark(cell: str) -> str | None:
+    text = (cell or "").strip()
+    if not text:
+        return None
+    if re.fullmatch(r"\d{1,3}[A-Z]?", text, re.IGNORECASE):
+        return text
+    match = _MARK_PREFIX.match(text)
+    return match.group(1) if match else None
+
+
+def _corroborant_needles(value: str) -> list[str]:
+    """Strings that count as a hit for one opening field inside a clustered row.
+
+    Four-digit sizes (3670) never appear literally on GROUP-style sheets that
+    print `3' - 6" | 7' - 0"`; expand them so rematch can still find the row.
+    """
+    text = (value or "").strip()
+    if not text:
+        return []
+    needles = [text]
+    match = _SIZE_4DIGIT.match(text)
+    if match:
+        w_ft, w_in, h_ft, h_in = match.groups()
+        for feet, inches in ((w_ft, w_in), (h_ft, h_in)):
+            needles.append(f"{feet}'-{inches}\"")
+            needles.append(f"{feet}' - {inches}\"")
+            needles.append(f"{feet}'-{int(inches):02d}\"")
+            needles.append(f"{feet}' - {int(inches):02d}\"")
+    return needles
+
+
+def _row_matches_opening(
+    row: dict[str, Any],
+    number: str,
+    corroborants: list[str],
+    other_marks: set[str],
+) -> bool:
+    cells = row.get("cells") or []
+    if not cells:
+        return False
+    if _first_cell_mark(cells[0]) != number:
+        return False
+    joined = " | ".join(cells)
+    hits = sum(
+        1
+        for value in corroborants
+        if any(needle in joined for needle in _corroborant_needles(value))
+    )
+    if hits < 2:
+        return False
+    # Refuse a row that also carries another opening's mark as its own cell.
+    for cell in cells[1:]:
+        mark = _first_cell_mark(cell)
+        if mark and mark in other_marks and re.fullmatch(
+            r"\d{1,3}[A-Z]?", cell.strip(), re.IGNORECASE
+        ):
+            return False
+    return True
+
 
 def attach_measured_bboxes(
     openings: list[dict[str, Any]],
     page: fitz.Page,
     number_key: str = "door_number",
     shift: int = 0,
+    *,
+    overwrite: bool = False,
 ) -> tuple[int, int]:
     """Fill in bboxes by finding the row each opening was read from.
 
@@ -238,6 +305,9 @@ def attach_measured_bboxes(
     highlight - and a wrong highlight is worse than none, because it looks
     checked.
 
+    When `overwrite` is true, any existing bbox is cleared first so invented
+    marching sequences from the model cannot stick.
+
     Returns (attached, unmatched).
     """
     rows = rows_from_words(page, shift=shift)
@@ -245,7 +315,22 @@ def attach_measured_bboxes(
     attached = unmatched = 0
 
     for opening in openings:
-        if opening.get("bbox"):
+        if overwrite:
+            opening.pop("bbox", None)
+            opening.pop("cell_boxes", None)
+            flags = opening.get("flags")
+            if isinstance(flags, list):
+                opening["flags"] = [
+                    f
+                    for f in flags
+                    if f
+                    not in (
+                        "bbox_row_ambiguous",
+                        "bbox_row_not_found",
+                        "bbox_unavailable",
+                    )
+                ]
+        elif opening.get("bbox"):
             continue
         number = str(opening.get(number_key) or "").strip()
         if not number:
@@ -270,10 +355,7 @@ def attach_measured_bboxes(
         hits = [
             row
             for row in rows
-            if row["cells"]
-            and row["cells"][0].strip() == number
-            and sum(1 for value in corroborants if value in " | ".join(row["cells"])) >= 2
-            and not others.intersection(cell.strip() for cell in row["cells"][1:])
+            if _row_matches_opening(row, number, corroborants, others)
         ]
         if len(hits) == 1:
             opening["bbox"] = hits[0]["bbox"]
@@ -282,6 +364,8 @@ def attach_measured_bboxes(
             attached += 1
         else:
             unmatched += 1
+            opening["bbox"] = None
+            opening.pop("cell_boxes", None)
             flags = opening.setdefault("flags", [])
             note = (
                 "bbox_row_ambiguous" if len(hits) > 1 else "bbox_row_not_found"

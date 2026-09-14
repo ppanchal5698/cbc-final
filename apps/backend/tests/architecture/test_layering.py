@@ -139,6 +139,7 @@ def test_domain_job_map_covers_expected_domains() -> None:
         "pricing",
         "quoting",
         "catalog",
+        "parsing",
     }
 
 

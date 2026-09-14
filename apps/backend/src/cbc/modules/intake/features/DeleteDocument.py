@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Response
 
-from cbc.modules.intake.infrastructure.collections import documents
+from cbc.modules.intake.infrastructure.collections import document_pages, documents
 from cbc.modules.intake.infrastructure.document_access import find_on_bid
 from cbc.modules.ops.api import audit
 from cbc.shared.auth import Actor
@@ -18,6 +18,7 @@ async def delete_document(code: str, document_id: str, actor: Actor) -> Response
     document = await find_on_bid(code, document_id)
 
     await documents().delete_one({"_id": document["_id"]})
+    await document_pages().delete_many({"documentId": document["_id"]})
     await audit.record(
         "document.delete",
         actor,

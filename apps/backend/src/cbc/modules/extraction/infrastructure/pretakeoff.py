@@ -16,6 +16,10 @@ this file" to "check these rows against the sheet and fill what is null" - a tas
 small model can actually do, and one whose failure mode is a missing improvement
 rather than a missing artifact.
 
+If pretakeoff finds no openings, the takeoff agent must still run `parse_schedule.py`
+on remaining sheetmap pages before freehand authoring — never invent Opening keys
+(`thickness`) or `page_size` arrays.
+
 What this must never do is overwrite a person. Rows the estimator confirmed or added
 by hand are decisions; a reseed carries them across untouched.
 """

@@ -68,3 +68,12 @@ def test_a_hallucinated_opening_field_is_still_refused() -> None:
         {"openings": [{"door_number": "101", "hallucinated_price": "12.00"}]},
     )
     assert problems, "an unknown opening key must not validate"
+
+
+def test_page_size_in_schema_requires_width_and_height() -> None:
+    opening = json.loads(
+        (contracts.SCHEMA_DIR / "door_schedule.schema.json").read_text(encoding="utf-8")
+    )["$defs"]["opening"]["properties"]["page_size"]
+    assert opening.get("required") == ["width", "height"]
+    assert "width" in (opening.get("properties") or {})
+    assert "height" in (opening.get("properties") or {})

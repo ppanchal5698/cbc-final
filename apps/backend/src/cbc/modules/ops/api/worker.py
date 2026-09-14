@@ -67,11 +67,14 @@ def _now() -> datetime:
 Handler = Callable[[dict[str, Any]], Awaitable[None]]
 AfterFinish = Callable[[dict[str, Any], str, str | None, Any], Awaitable[None]]
 OnDead = Callable[[dict[str, Any], str], Awaitable[None]]
+IncompleteParses = Callable[[Any], Awaitable[list[dict[str, Any]]]]
 
 _handlers: dict[str, Handler] = {}
 _after: dict[str, AfterFinish] = {}
 _after_finish: AfterFinish | None = None
 _on_dead: OnDead | None = None
+# Bound by intake: documents still queued/running for MinerU on a bid.
+_incomplete_parses: IncompleteParses | None = None
 
 
 def register(job_type: str, handler: Handler, *, after_finish: AfterFinish | None = None) -> None:
@@ -92,6 +95,12 @@ def bind(*, after_finish: AfterFinish, on_dead: OnDead) -> None:
     dead job tells - the bid's saga, the operators. The worker's root binds both."""
     global _after_finish, _on_dead
     _after_finish, _on_dead = after_finish, on_dead
+
+
+def bind_parse_status(*, incomplete_parses: IncompleteParses) -> None:
+    """Intake supplies which bid documents still need MinerU before Claude may run."""
+    global _incomplete_parses
+    _incomplete_parses = incomplete_parses
 
 
 def bound() -> bool:
@@ -408,3 +417,95 @@ async def defer_if_bid_busy(job: dict[str, Any]) -> dict[str, Any] | None:
         },
     )
     return other
+
+
+# Job types that must wait for MinerU before reading the PDF with pdf-tools /
+# starting Claude. When PARSER_URL is empty, defer_if_parsing is a no-op and
+# Claude extracts via pdf-tools as before.
+_WAIT_FOR_PARSE = frozenset({"extract_bid_set", "rerun_extraction", "ingest_addendum"})
+
+
+async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
+    """Hold Claude extract until MinerU has finished every in-flight parse on this bid.
+
+    When PARSER_URL is unset, returns None immediately — Claude handles the PDF
+    with pdf-tools. When parsing is on, requeues (15s, no attempt spent) while
+    any `parse_document` job is queued/running *or* any document still has
+    `parse.state` of queued/running. Does not proceed early on
+    PARSER_WAIT_MAX_SECONDS: that value is only used for the job note / log so
+    operators can see how long Claude has been waiting. Failed parses
+    (`parse.state=failed`) do not block — those documents fall back to pdf-tools.
+    """
+    if (
+        job.get("projectId") is None
+        or job["type"] not in _WAIT_FOR_PARSE
+        or job.get("status") != "running"
+    ):
+        return None
+
+    from cbc.modules.ops.api import parsing_config
+
+    stored = await settings_collection().find_one({"_id": parsing_config.DOC_ID}) or {}
+    resolved, _ = parsing_config.resolve(stored)
+    if not parsing_config.enabled(resolved):
+        return None
+
+    other = await jobs_collection().find_one(
+        {
+            "projectId": job["projectId"],
+            "type": "parse_document",
+            "status": {"$in": ["queued", "running"]},
+        }
+    )
+    pending_docs: list[dict[str, Any]] = []
+    if _incomplete_parses is not None:
+        pending_docs = await _incomplete_parses(job["projectId"])
+
+    if not other and not pending_docs:
+        return None
+
+    created = job.get("createdAt") or _now()
+    if getattr(created, "tzinfo", None) is None:
+        created = created.replace(tzinfo=timezone.utc)
+    waited = int((_now() - created).total_seconds())
+    wait_max = int(resolved.get("waitMaxSeconds") or 1800)
+    if waited >= wait_max:
+        log.warning(
+            "job %s still waiting for MinerU after %ss (PARSER_WAIT_MAX_SECONDS=%s); "
+            "Claude will not start until parse finishes or fails",
+            job["_id"],
+            waited,
+            wait_max,
+        )
+
+    if other:
+        filename = (other.get("payload") or {}).get("filename") or "document"
+        blocker: dict[str, Any] = other
+    else:
+        filename = pending_docs[0].get("filename") or "document"
+        blocker = {"_id": pending_docs[0].get("_id"), "type": "parse_document", "status": "document"}
+
+    note = f"waiting for MinerU to parse {filename}"
+    if waited > 0:
+        note = f"{note} ({waited}s so far)"
+
+    await jobs_collection().update_one(
+        {
+            "_id": job["_id"],
+            "status": "running",
+            "workerId": job.get("workerId"),
+            "claimGeneration": job.get("claimGeneration"),
+        },
+        {
+            "$set": {
+                "status": "queued",
+                "startedAt": None,
+                "heartbeatAt": None,
+                "workerId": None,
+                "nextAttemptAt": _now() + timedelta(seconds=15),
+                "note": note,
+            },
+            "$inc": {"attempts": -1},
+        },
+    )
+    return blocker

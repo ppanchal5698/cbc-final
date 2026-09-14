@@ -6,6 +6,9 @@ from typing import Any
 
 from cbc.modules.intake.infrastructure.collections import documents
 
+# parse.state values that mean MinerU is not finished yet — Claude must wait.
+_PARSE_INCOMPLETE = frozenset({"queued", "running"})
+
 
 async def mark_received(project_id: Any, state: str, *, uploaded_by: datetime | None) -> int:
     """Move this bid's still-`received` documents - uploaded no later than `uploaded_by`,
@@ -27,6 +30,19 @@ async def count_received_after(project_id: Any, uploaded_after: datetime | None)
     if uploaded_after is not None:
         query["uploadedAt"] = {"$gt": uploaded_after}
     return await documents().count_documents(query)
+
+
+async def incomplete_parses(project_id: Any) -> list[dict[str, Any]]:
+    """Documents on this bid whose MinerU parse is still queued or running.
+
+    Used by the extract worker so Claude does not start until GPU parsing finishes
+    when PARSER_URL is set. Failed / missing parse fields are not incomplete —
+    those fall back to pdf-tools.
+    """
+    return await documents().find(
+        {"projectId": project_id, "parse.state": {"$in": list(_PARSE_INCOMPLETE)}},
+        {"filename": 1, "parse.state": 1},
+    ).to_list(length=200)
 
 
 async def count_by_project(ids: list[Any]) -> dict[Any, int]:

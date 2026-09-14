@@ -125,8 +125,25 @@ def validate_artifact_path(rel_path: str, data: Any) -> list[str]:
 
 
 def validate_artifact_text(rel_path: str, content: str) -> list[str]:
+    from cbc.modules.extraction.api.normalize_artifacts import (
+        normalize_artifact_text,
+        normalize_door_schedule_payload,
+    )
+
+    content = normalize_artifact_text(rel_path, content)
     try:
         data = json.loads(content)
     except json.JSONDecodeError as exc:
         return [f"{rel_path}: not valid JSON ({exc})"]
+    key = rel_path.replace("\\", "/").lstrip("/")
+    if key == "extracted/door_schedule.json":
+        data = normalize_door_schedule_payload(data)
     return validate_artifact_path(rel_path, data)
+
+
+def prepare_artifact_text(rel_path: str, content: str) -> tuple[str, list[str]]:
+    """Normalize then validate. Returns (possibly rewritten content, problems)."""
+    from cbc.modules.extraction.api.normalize_artifacts import normalize_artifact_text
+
+    normalized = normalize_artifact_text(rel_path, content)
+    return normalized, validate_artifact_text(rel_path, normalized)

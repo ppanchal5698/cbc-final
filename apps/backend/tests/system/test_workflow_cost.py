@@ -79,7 +79,7 @@ def test_a_take_off_cannot_see_the_pricing_tools():
 
     # `reference` is finishes, frame depths and FRP constants - take-off data,
     # not prices.
-    assert set(servers) == {"pdf-tools", "artifact-storage", "reference"}
+    assert set(servers) == {"pdf-tools", "artifact-storage", "reference", "bid-docs"}
     for absent in ("catalog", "calc-engine", "p21-connector"):
         assert absent not in servers
 

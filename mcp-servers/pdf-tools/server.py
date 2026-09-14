@@ -334,6 +334,30 @@ def search_pdf(
         doc.close()
 
 
+def parse_door_openings(file_path: str, page_number: int) -> dict[str, Any]:
+    """FR-2 openings for one page via the extract-door-schedule parser."""
+    import importlib.util
+
+    script = (
+        Path(__file__).resolve().parents[2]
+        / ".claude"
+        / "skills"
+        / "extract-door-schedule"
+        / "scripts"
+        / "parse_schedule.py"
+    )
+    # Worker image also mirrors skills under /app/agent-runtime/.claude/…
+    if not script.exists():
+        alt = Path("/app/.claude/skills/extract-door-schedule/scripts/parse_schedule.py")
+        script = alt if alt.exists() else script
+    spec = importlib.util.spec_from_file_location("cbc_parse_schedule", script)
+    if spec is None or spec.loader is None:
+        raise FileNotFoundError(f"parse_schedule.py not found at {script}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.openings_envelope(file_path, int(page_number), source_file=file_path)
+
+
 HANDLERS = {
     "find_sheets": find_sheets,
     "extract_text": extract_text,
@@ -341,6 +365,7 @@ HANDLERS = {
     "get_page_image": get_page_image,
     "get_page_size": get_page_size,
     "search_pdf": search_pdf,
+    "parse_door_openings": parse_door_openings,
 }
 
 

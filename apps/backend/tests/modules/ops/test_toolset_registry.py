@@ -68,7 +68,7 @@ def test_a_take_off_still_cannot_see_the_pricing_tools():
     from cbc.modules.ops.api import toolsets
 
     servers = json.loads(toolsets.config_for("extract_bid_set"))["mcpServers"]
-    assert set(servers) == {"pdf-tools", "artifact-storage", "reference"}
+    assert set(servers) == {"pdf-tools", "artifact-storage", "reference", "bid-docs"}
     for absent in ("catalog", "calc-engine", "p21-connector"):
         assert absent not in servers
 

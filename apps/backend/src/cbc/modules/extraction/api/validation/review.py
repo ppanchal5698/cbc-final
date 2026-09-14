@@ -242,7 +242,33 @@ def derive_flags(slug: str) -> list[dict]:
             _load(project / "extracted" / "scope_summary.json"),
             _load(project / "extracted" / "scope_metadata.json"),
         ),
+        *_document_not_parsed_flags(project),
     ]
+
+
+def _document_not_parsed_flags(project: Path) -> list[dict]:
+    """NFR-2: a bid PDF that never got MinerU blocks must be visible on review."""
+    status = _load(project / "extracted" / "_parse_status.json")
+    if not isinstance(status, dict):
+        return []
+    flags: list[dict] = []
+    for doc in status.get("documents") or []:
+        if not isinstance(doc, dict):
+            continue
+        state = doc.get("state")
+        if state in (None, "parsed", "off"):
+            continue
+        name = doc.get("filename") or "document"
+        note = (
+            f"{name} was not GPU-parsed (state={state}); "
+            "extraction read it with pdf-tools directly"
+        )
+        if doc.get("error"):
+            note = f"{note}. {doc['error']}"
+        flags.append(
+            _flag(None, "document_not_parsed", "info", note, source_page=None)
+        )
+    return flags
 
 
 def merge(derived: list[dict], existing: Any) -> list[dict]:
