@@ -119,7 +119,7 @@ Audit completed: 2026-08-31. Scope: `web/` Ops-Hub Next.js 16 frontend.
 | E2E requires full docker stack (API + MongoDB) | Specs written; not run in CI yet |
 | Role gating is UI-only (backend authoritative) | By design |
 | Bid edit/delete, price-book download, call delete UI | **Done** (2026-09-14) — edit on intake, download on price books, delete in the notes drawer |
-| Review flags, vendor RFQs, RFIs | **Done** (2026-09-14) — proposal aside and quote page; RFI status and applying a returned vendor price have no API route yet |
+| Review flags, vendor RFQs, RFIs | **Done** (2026-09-14) — proposal aside and quote page; a returned vendor price is recorded against its line and applied as its cost, and RFIs are sent, answered and closed |
 | 71% client components | Acceptable for SWR-heavy desk |
 | Header note count unavailable state | Shows no badge (not 0) on failure |
 
