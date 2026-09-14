@@ -1,1 +1,0 @@
-"""Shared worker runtime."""

@@ -9,8 +9,7 @@ Compose: one API container (`platform` on **8001**, `SERVICE_AUDIENCE=platform`)
 and one `worker` from this package's Dockerfile (`target: worker`).
 Web proxies all `/api` traffic to `PLATFORM_URL` with JWT audience `platform`.
 
-`archive/pre-monolith/` holds the pre-cutover trees for rollback; they are not
-started by the default compose file. CI gates this package's pytest suite.
+CI gates this package's pytest suite.
 
 ## Local run
 

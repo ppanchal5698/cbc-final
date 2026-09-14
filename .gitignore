@@ -75,7 +75,6 @@ graphify-out/
 # they are absent (tests/conftest.py::fixture_pdf), so they stay out of history
 # and are distributed alongside the repo instead.
 tests/fixtures/pdfs/
-archive/pre-monolith/tests/fixtures/pdfs/
 
 # Test output artifacts
 pytest*.txt

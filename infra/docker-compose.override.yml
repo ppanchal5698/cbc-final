@@ -1,2 +1,0 @@
-# Optional local overrides (Claude credential mounts, etc.).
-services: {}

@@ -22,17 +22,6 @@
 | `data/` | Runtime volumes (projects, pricebooks, reference-library) |
 | Root `pyproject.toml` | Editable install of `apps/backend/src` (`pip install -e .`) |
 
-## Archived (rollback only)
-
-| Path | Owns |
-|---|---|
-| `archive/pre-monolith/packages/cbc/` | Pre-cutover shared kernel mirror |
-| `archive/pre-monolith/services/{domain}/` | Pre-cutover thin routers + workers |
-| `archive/pre-monolith/Dockerfile` | Pre-cutover multi-service image |
-| `archive/pre-monolith/tests/` | Legacy api/pipeline/catalog suites (not CI-gated) |
-
-See [`archive/pre-monolith/README.md`](../archive/pre-monolith/README.md) for restore steps.
-
 ## Rules
 
 1. New backend work goes in a module slice under `apps/backend/src/cbc/modules/`.

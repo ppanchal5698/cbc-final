@@ -1,7 +1,7 @@
 """Every deferred import names something that exists.
 
 `cbc.services.alerts` and `cbc.services.matching_gate` were moved to
-`archive/pre-monolith/` while three unguarded call sites kept importing them
+the pre-monolith archive while three unguarded call sites kept importing them
 inside function bodies - `worker_kit.runtime._dead_letter` (every job failure),
 `reap_abandoned` (every reap) and the `match_and_price` branch (every pricing
 pass, after the quote had already been committed). A deferred import fails at

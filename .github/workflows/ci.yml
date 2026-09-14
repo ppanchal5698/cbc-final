@@ -5,9 +5,7 @@
 # codebase whose API could not be imported at all. So CI runs a real MongoDB and
 # sets REQUIRE_MONGO, which turns that skip into a failure.
 #
-# Live path: apps/backend (modular monolith) + apps/web. Pre-monolith
-# services/, packages/, root Dockerfile, and root tests/ are under
-# archive/pre-monolith/ (rollback only; not gated by the Python job below).
+# Live path: apps/backend (modular monolith) + apps/web.
 name: CI
 
 on:

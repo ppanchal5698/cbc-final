@@ -1,6 +1,6 @@
 """Shared test helpers, ported from the pre-monolith suite.
 
-`archive/pre-monolith/tests/` held 93 test files against the six-service tree.
+The pre-monolith suite held 93 test files against the six-service tree.
 The assertions are about business behaviour - margin snapshots, matching rules,
 freshness bands, bbox provenance, proposal approval - and are worth more than
 rewriting them would cost, so they come back module by module. This is the

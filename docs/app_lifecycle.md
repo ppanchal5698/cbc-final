@@ -3,8 +3,7 @@
 > **Live runtime (Phase 5+):** one FastAPI process under `apps/backend`
 > (compose service `platform` on port 8001). Web proxies all `/api` traffic to
 > `PLATFORM_URL` with JWT audience `platform`. One compose `worker` claims all
-> Mongo jobs via `WORKER_CLAIM_ALL=1` using `python -m cbc.app.worker`. Pre-monolith
-> trees are under `archive/pre-monolith/` (rollback only).
+> Mongo jobs via `WORKER_CLAIM_ALL=1` using `python -m cbc.app.worker`.
 
 ## 1. Overview
 The CBC Estimating Copilot (Ops-Hub) assists bidding and quoting. The live
@@ -147,7 +146,6 @@ sequenceDiagram
 | `apps/web` | Next.js Ops-Hub | proxy, auth, pages |
 | `apps/backend` | Live modular monolith API + worker | `cbc.app.main`, `cbc.app.worker`, `cbc.modules.*` |
 | `mcp-servers` | Claude MCP tools | per-server `server.py` |
-| `archive/pre-monolith/` | Pre-cutover services/packages/Dockerfile/tests | rollback only |
 
 ## 7. Data Layer
 * **Storage Engines**: MongoDB + shared disk (`/app/data/projects`, `/app/data/pricebooks`).
@@ -173,12 +171,10 @@ API lifespan cancels background tasks; workers handle SIGTERM/SIGINT; stale jobs
 
 ## 13. Build & Deployment Notes
 * Live image: `apps/backend/Dockerfile` (`api` + `worker` targets).
-* Root `Dockerfile`: legacy rollback only.
 * Compose: `platform` + `worker` + `web` (no live domain `*-api` / `*-worker`).
 
 ## 14. Open Questions / Ambiguities
-* Prefer `apps/backend/tests` for the live path; archived suites live under
-  `archive/pre-monolith/tests/`.
+* Tests live under `apps/backend/tests`.
 * Agent prompts and sandbox details live under `.claude/` and `cbc.worker_kit`.
 
 ## 15. Glossary

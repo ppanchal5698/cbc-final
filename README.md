@@ -28,7 +28,6 @@ docker compose -f infra/docker-compose.yml up -d --build
 - `infra/docker-compose.yml` — mongo, clamav, platform, worker, web
 - `mcp-servers` / `.claude` — Claude Code tools and agents
 - `data/projects`, `data/pricebooks`, `data/reference-library` — runtime volumes
-- `archive/pre-monolith/` — **rollback only** (`services/`, `packages/`, root `Dockerfile`, root `tests/`)
 
 ## Native API (local)
 
@@ -48,9 +47,7 @@ WORKER_CLAIM_ALL=1 python -m cbc.app.worker
 # or: WORKER_DOMAIN=catalog python -m cbc.app.worker --once
 ```
 
-Root [`Dockerfile`](archive/pre-monolith/Dockerfile) builds the pre-cutover
-`packages/` + `services/*` layout and is **rollback-only** (archived); live
-images use [`apps/backend/Dockerfile`](apps/backend/Dockerfile).
+Images build from [`apps/backend/Dockerfile`](apps/backend/Dockerfile).
 
 ## Tests
 
@@ -64,5 +61,4 @@ pytest
 
 CI (`.github/workflows/ci.yml`) runs `apps/backend` pytest, `apps/web`
 typecheck/lint/test/build, and Playwright e2e against compose
-(`platform` + `worker` + `web`). Archived root `tests/` under
-`archive/pre-monolith/tests/` are **not** gated.
+(`platform` + `worker` + `web`).

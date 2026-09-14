@@ -8,7 +8,4 @@ Web: [`apps/web`](apps/web). Data model: [`docs/collections.mongodb.md`](docs/co
 Runtime: [`docs/app_lifecycle.md`](docs/app_lifecycle.md). Architecture:
 [`docs/architecture.md`](docs/architecture.md).
 
-Pre-monolith `services/`, `packages/cbc`, root `Dockerfile`, and root `tests/`
-are under [`archive/pre-monolith/`](archive/pre-monolith/) for rollback only.
-
 Run: `docker compose -f infra/docker-compose.yml up -d --build`

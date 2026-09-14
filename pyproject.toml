@@ -3,7 +3,6 @@
 #   pip install -e .
 #   # or: pip install -e ./apps/backend
 #
-# Pre-monolith trees live under archive/pre-monolith/ (not installed here).
 # Prefer: cd apps/backend && pytest
 [build-system]
 requires = ["setuptools>=68"]
