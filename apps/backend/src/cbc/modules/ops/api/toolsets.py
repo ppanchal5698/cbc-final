@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-from pathlib import Path
 from typing import Any
 from cbc.shared.paths import repo_root
 
@@ -152,8 +151,6 @@ if __name__ == "__main__":  # `python -m cbc.modules.ops.api.toolsets <job_type>
     # server in .mcp.json plus WebSearch and WebFetch - the exact surface this
     # module exists to withhold, withheld only from the worker. The JSON payload
     # contains no newlines, so a line is a flag.
-    import sys
-
     if len(sys.argv) != 2:
         sys.exit("usage: python -m cbc.modules.ops.api.toolsets <job_type>")
     if sys.argv[1] not in PROFILES:

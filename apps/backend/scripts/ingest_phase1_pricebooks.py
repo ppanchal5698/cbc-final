@@ -14,7 +14,6 @@ import asyncio
 import json
 import os
 import shutil
-import sys
 from datetime import datetime, timezone
 
 from pymongo import MongoClient

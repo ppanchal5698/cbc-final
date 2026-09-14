@@ -16,7 +16,6 @@ import json
 import os
 import urllib.error
 from datetime import date, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 from _runtime import serve

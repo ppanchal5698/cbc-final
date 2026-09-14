@@ -14,7 +14,6 @@ page's own first line, and the overview says plainly that nobody summarised it.
 """
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 

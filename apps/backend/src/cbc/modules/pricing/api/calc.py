@@ -7,14 +7,14 @@ here under one name.
 """
 from __future__ import annotations
 
-from cbc.modules.pricing.domain.calc import (  # noqa: F401
+from cbc.modules.pricing.domain.calc import (
     DEFAULT_BANDS,
     DEFAULT_TAX_RATES,
     calculate_line,
     cost_from_list,
     normalise_state,
 )
-from cbc.modules.pricing.api.reference_calc import (  # noqa: F401
+from cbc.modules.pricing.api.reference_calc import (
     apply_margin,
     bands,
     compute_totals,
@@ -23,3 +23,18 @@ from cbc.modules.pricing.api.reference_calc import (  # noqa: F401
     tax_rates,
     validate_margin,
 )
+
+__all__ = [
+    "DEFAULT_BANDS",
+    "DEFAULT_TAX_RATES",
+    "apply_margin",
+    "bands",
+    "calculate_line",
+    "compute_totals",
+    "cost_from_list",
+    "invalidate_reference_caches",
+    "lookup_lite_kit_list_price",
+    "normalise_state",
+    "tax_rates",
+    "validate_margin",
+]

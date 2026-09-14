@@ -16,7 +16,7 @@ import hashlib
 import json
 import re
 import sys
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -147,8 +147,6 @@ def check_bboxes_are_real(project: str, openings: list[dict]) -> tuple[list[str]
                     f"{pdf.name} is {width:g}x{height:g}. A bbox scaled against the "
                     "wrong frame lands nowhere near its row"
                 )
-
-        import fitz
 
         claim = fitz.Rect(box)
         area = claim.get_area()

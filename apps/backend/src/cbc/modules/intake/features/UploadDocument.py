@@ -7,7 +7,6 @@ lands in `projects/{slug}/uploads/raw/`, a document row is written, and an
 from __future__ import annotations
 
 import asyncio
-import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
@@ -27,13 +26,6 @@ router = APIRouter(prefix="/api/projects/{code}/documents", tags=["documents"])
 
 
 PDF_MAGIC = b"%PDF-"
-
-
-# How long extract_bid_set waits after an upload, so several PDFs dropped
-# together are read as one bid set rather than starting a run that misses them
-# (Matrix 8.0 — one combined PDF or several separate PDFs). Quiet window default
-# 60s; hard cap PIPELINE_COALESCE_MAX_SECONDS (default 300s) lives in jobs.py.
-PIPELINE_DEBOUNCE_SECONDS = int(os.environ.get("PIPELINE_DEBOUNCE_SECONDS", "60"))
 
 
 @router.post("")
@@ -98,7 +90,7 @@ async def upload_document(
         ):
             job = (
                 await job_service.extend_queued_coalesce(
-                    active["_id"], PIPELINE_DEBOUNCE_SECONDS
+                    active["_id"], job_service.DEFAULT_COALESCE_SECONDS
                 )
                 or active
             )
@@ -160,7 +152,8 @@ async def upload_document(
             project["_id"],
             payload=payload,
             actor=actor,
-            delay_seconds=PIPELINE_DEBOUNCE_SECONDS,
+            # several PDFs dropped together are read as one bid set (Matrix 8.0)
+            delay_seconds=job_service.DEFAULT_COALESCE_SECONDS,
             session=session,
         )
 

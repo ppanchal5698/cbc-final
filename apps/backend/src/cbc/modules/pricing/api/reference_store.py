@@ -58,7 +58,7 @@ def use_memory(store: dict[str, dict[str, Any]] | None) -> None:
     The in-memory revision history is reset with it. Leaving it behind made one
     test's superseded margin bands turn up as another's history.
     """
-    global _memory, _cache
+    global _memory
     _memory = store
     _cache.clear()
     _memory_revisions.clear()

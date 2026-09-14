@@ -13,7 +13,6 @@ import asyncio
 import json
 import os
 import shutil
-import sys
 from datetime import datetime, timezone
 
 from pymongo import MongoClient
@@ -108,8 +107,6 @@ def update_index_json() -> None:
 
 
 def upsert_mongo(uri: str, db_name: str) -> dict[str, str]:
-    from bson import ObjectId
-
     from cbc.shared.mongo_uri import reachable_uri
 
     client = MongoClient(reachable_uri(uri), serverSelectionTimeoutMS=5000)

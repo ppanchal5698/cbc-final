@@ -36,7 +36,8 @@
       "mcp__p21-connector__lookup_last_po",
       "mcp__p21-connector__check_freshness",
       "mcp__p21-connector__search_item",
-      "mcp__catalog__*"
+      "mcp__catalog__*",
+      "mcp__reference__*"
     ],
     "deny": [
       "mcp__p21-connector__write_*",

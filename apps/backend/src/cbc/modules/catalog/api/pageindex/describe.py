@@ -11,7 +11,6 @@ confidence and `kind: "unknown"`, and the builder sends those few to the model.
 from __future__ import annotations
 
 import re
-from typing import Any
 
 from cbc.modules.catalog.api.pageindex.models import PageEntry, PageKind, PageProfile
 
