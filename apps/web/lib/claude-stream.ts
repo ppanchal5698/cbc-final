@@ -181,8 +181,28 @@ function summariseInputAnsi(name: string, input: Record<string, unknown>): strin
   return text ? `${DIM}${text}${RESET}` : "";
 }
 
-function toolResultBody(content: unknown): string {
-  return typeof content === "string" ? content : JSON.stringify(content ?? "");
+/**
+ * A tool result as text.
+ *
+ * The worker records a page image's size rather than its pixels and a long
+ * result's first part; `omitted_chars` on the block says how much it left out.
+ */
+function toolResultBody(content: unknown, omittedChars = 0): string {
+  const text = Array.isArray(content)
+    ? content
+        .map((part) => {
+          const block = part as Record<string, unknown> | null;
+          if (block?.type === "text") return String(block.text ?? "");
+          if (block?.type === "image") return "[image]";
+          return JSON.stringify(part);
+        })
+        .join("\n")
+    : typeof content === "string"
+      ? content
+      : JSON.stringify(content ?? "");
+  return omittedChars > 0
+    ? `${text}\n… ${omittedChars.toLocaleString()} more characters not kept in the run log`
+    : text;
 }
 
 function parseWarningLine(line: string): LogEntry | null {
@@ -293,7 +313,7 @@ function parseEvent(
       const content = (message?.content as Record<string, unknown>[] | undefined) ?? [];
       for (const block of content) {
         if (block.type !== "tool_result") continue;
-        const body = toolResultBody(block.content);
+        const body = toolResultBody(block.content, Number(block.omitted_chars ?? 0));
         out.push({
           id: nextId(),
           kind: "tool_call",
@@ -579,7 +599,7 @@ function renderEvent(event: Record<string, unknown>): string[] {
       const content = (message?.content as Record<string, unknown>[] | undefined) ?? [];
       for (const block of content) {
         if (block.type !== "tool_result") continue;
-        const body = toolResultBody(block.content);
+        const body = toolResultBody(block.content, Number(block.omitted_chars ?? 0));
         const size = body.length;
         const tone = block.is_error ? RED : GREEN;
         const label = block.is_error ? "failed" : "ok";
