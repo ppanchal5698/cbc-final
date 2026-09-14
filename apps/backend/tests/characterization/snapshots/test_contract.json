@@ -281,6 +281,12 @@
   },
   "status": 401
  },
+ "GET /api/projects/{code}/review-flags #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "GET /api/projects/{code}/rfis #wrong token": {
   "body": {
    "detail": "str"
@@ -1151,6 +1157,11 @@
   {
    "admin": false,
    "op": "GET /api/projects/{code}/quote",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/projects/{code}/review-flags",
    "status": 200
   },
   {

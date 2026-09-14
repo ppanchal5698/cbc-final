@@ -129,3 +129,11 @@ def test_delete_a_line_item(client, bid, snapshots) -> None:
     op = f"DELETE {LINES}/{{item_id}}"
     snapshots.pin(op, client.delete(_url(LINES + "/{item_id}", bid, item_id=bid["other"])))
     snapshots.pin(op, client.delete(_url(LINES + "/{item_id}", bid, item_id=bid["other"])), variant="already deleted")
+
+
+def test_list_review_flags(client, bid, snapshots) -> None:
+    op = "GET /api/projects/{code}/review-flags"
+    url = "/api/projects/{code}/review-flags"
+    response = snapshots.pin(op, client.get(_url(url, bid)))
+    assert response.status_code == 200 and isinstance(response.json()["flags"], list)
+    snapshots.pin(op, client.get(_url(url, {"code": "CBC-NO-SUCH-BID"})), variant="unknown bid")

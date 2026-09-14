@@ -46,6 +46,27 @@
   },
   "status": 400
  },
+ "GET /api/projects/{code}/review-flags": {
+  "body": {
+   "flags": [
+    {
+     "derived": "bool",
+     "field": "str",
+     "note": "str",
+     "opening": "str",
+     "severity": "str",
+     "source_page": "null"
+    }
+   ]
+  },
+  "status": 200
+ },
+ "GET /api/projects/{code}/review-flags #unknown bid": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
  "PATCH /api/projects/{code}/line-items/{item_id}": {
   "body": {
    "addedByHand": "bool",

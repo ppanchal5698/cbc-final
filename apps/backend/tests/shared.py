@@ -137,10 +137,14 @@ def opshub_client(
 
     scratch: Path | None = None
     previous_storage = settings.storage_root
+    previous_storage_env = os.environ.get("STORAGE_ROOT")
     if isolated_storage:
         scratch = ROOT / "apps" / "backend" / "tests" / "fixtures" / "scratch" / db_name
         scratch.mkdir(parents=True, exist_ok=True)
         settings.storage_root = scratch
+        # Validation and review resolve projects through cbc.shared.paths, which
+        # reads the environment rather than settings; both must name this scratch.
+        os.environ["STORAGE_ROOT"] = str(scratch)
 
     raw = mongo_client()
     require_mongo(raw)
@@ -164,5 +168,9 @@ def opshub_client(
         # this left every later test pointed at a database it had just dropped.
         settings.mongodb_db = previous_db
         settings.storage_root = previous_storage
+        if previous_storage_env is None:
+            os.environ.pop("STORAGE_ROOT", None)
+        else:
+            os.environ["STORAGE_ROOT"] = previous_storage_env
         if scratch is not None:
             shutil.rmtree(scratch, ignore_errors=True)

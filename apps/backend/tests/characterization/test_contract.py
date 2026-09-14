@@ -41,7 +41,7 @@ def _request(client, op: str, **kwargs):
 
 
 def test_the_route_table(snapshots) -> None:
-    assert len(ROUTES) == 124
+    assert len(ROUTES) == 125
     snapshots.pin_value("routes", ROUTES)
 
 

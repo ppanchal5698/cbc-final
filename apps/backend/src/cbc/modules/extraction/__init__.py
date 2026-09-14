@@ -37,6 +37,7 @@ def register(app) -> None:
         ListTakeoffs,
         RerunExtraction,
         ResolveDuplicate,
+        ReviewFlags,
         UpdateLineItem,
     )
 
@@ -54,6 +55,7 @@ def register(app) -> None:
         ListTakeoffs,
         CreateTakeoff,
         ListFeedback,
+        ReviewFlags,
     ):
         app.include_router(feature.router)
 

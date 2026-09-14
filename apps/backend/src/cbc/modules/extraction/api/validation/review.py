@@ -267,10 +267,19 @@ def merge(derived: list[dict], existing: Any) -> list[dict]:
     return [*derived, *kept]
 
 
+def _flags_path(slug: str) -> Path:
+    return storage_root() / slug / "review" / "review_flags.json"
+
+
+def read_flags(slug: str) -> list[dict]:
+    """What write_flags would save - derived now, merged over the pass's file - without writing."""
+    return merge(derive_flags(slug), _load(_flags_path(slug)))
+
+
 def write_flags(slug: str) -> int:
     """Derive, merge over what the pass wrote, and save. Returns the flag count."""
-    path = storage_root() / slug / "review" / "review_flags.json"
-    merged = merge(derive_flags(slug), _load(path))
+    path = _flags_path(slug)
+    merged = read_flags(slug)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(merged, indent=2), encoding="utf-8")
     return len(merged)
