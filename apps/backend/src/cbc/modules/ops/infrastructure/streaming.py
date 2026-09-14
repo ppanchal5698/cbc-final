@@ -12,12 +12,14 @@ the browser and xterm.js renders it - the same bytes, through a real terminal
 emulator, rather than a summary of them.
 
 The recording is bytes, not text: it carries the escape sequences that make it a
-terminal session. It is capped, and credentials are stripped on the way in.
+terminal session. Tool results are compacted, it is capped, and credentials are
+stripped on the way in.
 """
 from __future__ import annotations
 
 from collections.abc import Callable
 import errno
+import json
 import os
 import re
 import select
@@ -26,9 +28,23 @@ import subprocess
 import time
 from pathlib import Path
 
-# Enough to watch a long pass without letting one job fill the volume. A capped
-# recording keeps its tail, because the end is where a failure explains itself.
+# Enough to watch a long pass without letting one job fill the volume.
 MAX_RECORDING_BYTES = 4_000_000
+# Past the cap, what a run did still lands - agent text, errors, the final result
+# with its cost - up to this; the result itself always does.
+_HARD_CAP = MAX_RECORDING_BYTES * 2
+# How much of one tool result's text the recording keeps.
+RESULT_KEEP_CHARS = 4_000
+# A "line" this long with no newline is not an event stream; stop holding it.
+_MAX_LINE = 32_000_000
+
+_ESSENTIAL = frozenset(
+    {"assistant", "result", "rate_limit_event", "system/init", "system/error", "system/api_retry"}
+)
+_TRIMMED_MARKER = (
+    b"\r\n[recording trimmed: tool results past the size cap are not kept - the run "
+    b"continues, and its messages and final result still are]\r\n"
+)
 
 # Patterns from cbc_core.secrets, applied to bytes as they stream.
 _SECRET_PATTERNS = [
@@ -43,20 +59,105 @@ _SECRET_PATTERNS = [
     )
 ]
 
-# A credential can land across two reads, so the tail of each chunk is held back
-# until the next one arrives and the pair can be scanned together.
-_CARRY = 200
+def _compact_content(content: object) -> tuple[object, int]:
+    """A tool result's content with image data and long text left out, and how much was."""
+    if isinstance(content, str):
+        if len(content) <= RESULT_KEEP_CHARS:
+            return content, 0
+        return content[:RESULT_KEEP_CHARS], len(content) - RESULT_KEEP_CHARS
+    if not isinstance(content, list):
+        return content, 0
+    omitted = 0
+    parts: list[object] = []
+    for part in content:
+        if isinstance(part, dict) and part.get("type") == "image":
+            source = part.get("source")
+            data = source.get("data") if isinstance(source, dict) else None
+            if isinstance(data, str) and data:
+                omitted += len(data)
+                part = {**part, "source": {**source, "data": ""}}
+        elif isinstance(part, dict) and part.get("type") == "text" and isinstance(part.get("text"), str):
+            if len(part["text"]) > RESULT_KEEP_CHARS:
+                omitted += len(part["text"]) - RESULT_KEEP_CHARS
+                part = {**part, "text": part["text"][:RESULT_KEEP_CHARS]}
+        parts.append(part)
+    return parts, omitted
+
+
+def compact_line(line: bytes) -> bytes:
+    """Shrink the tool results in one stream-json line before it is recorded.
+
+    A page image read into context arrives as ~500 KB of base64 in a `user` event.
+    On a real bid, 63 tool results were 89% of a 4 MB recording, which then stopped
+    at the cap while the run went on for minutes - no log, and no final result, so
+    runMetrics never learned what the run cost. The terminal and runMetrics need
+    the fact of a result and its size, not its pixels: an image keeps its block with
+    the data emptied, long text keeps its head, and `omitted_chars` says how much
+    was left out.
+    """
+    if len(line) <= RESULT_KEEP_CHARS:
+        return line
+    start, end = line.find(b"{"), line.rfind(b"}")
+    if start < 0 or end < start:
+        return line
+    try:
+        event = json.loads(line[start : end + 1])
+    except ValueError:
+        return line
+    if not isinstance(event, dict) or event.get("type") != "user":
+        return line
+    changed = False
+    message = event.get("message")
+    blocks = message.get("content") if isinstance(message, dict) else None
+    for block in blocks if isinstance(blocks, list) else []:
+        if not isinstance(block, dict) or block.get("type") != "tool_result":
+            continue
+        content, omitted = _compact_content(block.get("content"))
+        if omitted:
+            block["content"] = content
+            block["omitted_chars"] = int(block.get("omitted_chars") or 0) + omitted
+            changed = True
+    extra = event.get("tool_use_result")
+    if extra is not None:
+        size = len(json.dumps(extra, default=str))
+        if size > RESULT_KEEP_CHARS:
+            event["tool_use_result"] = {"omitted_chars": size}
+            changed = True
+    if not changed:
+        return line
+    compacted = json.dumps(event, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return line[:start] + compacted + line[end + 1 :]
+
+
+def _event_kind(line: bytes) -> str | None:
+    """`result`, `assistant`, `system/init`... for a recorded line; None if it is not an event."""
+    start, end = line.find(b"{"), line.rfind(b"}")
+    if start < 0 or end < start:
+        return None
+    try:
+        event = json.loads(line[start : end + 1])
+    except ValueError:
+        return None
+    if not isinstance(event, dict):
+        return None
+    kind = str(event.get("type") or "")
+    return f"{kind}/{event.get('subtype')}" if kind == "system" else kind
 
 
 class Recorder:
-    """Appends a redacted byte stream to a file, holding back split secrets."""
+    """Appends a compacted, redacted stream-json session to a file, a line at a time.
+
+    Whole lines are held until their newline arrives, so a credential split across
+    two reads is scrubbed as one string and each event can be compacted as JSON.
+    """
 
     def __init__(self, path: Path, extra_secrets: list[str] | None = None) -> None:
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._handle = self.path.open("wb")
-        self._pending = b""
+        self._line = b""
         self._written = 0
+        self._trimmed = False
         self._extra = [s.encode("utf-8") for s in (extra_secrets or []) if len(s) >= 8]
 
     def _scrub(self, data: bytes) -> bytes:
@@ -66,32 +167,47 @@ class Recorder:
             data = pattern.sub(b"[redacted]", data)
         return data
 
-    def feed(self, chunk: bytes) -> None:
-        buffered = self._pending + chunk
-        # Everything but the tail is safe to emit; the tail waits for its other half.
-        emit, self._pending = buffered[:-_CARRY], buffered[-_CARRY:]
-        if not emit:
-            return
-        self._write(self._scrub(emit))
+    def feed(self, chunk: bytes) -> bytes:
+        """Record `chunk`. Returns the bytes actually kept - compacted and redacted."""
+        kept = bytearray()
+        self._line += chunk
+        while (newline := self._line.find(b"\n")) >= 0:
+            line, self._line = self._line[: newline + 1], self._line[newline + 1 :]
+            kept += self._write(self._scrub(compact_line(line)))
+        if len(self._line) > _MAX_LINE:
+            line, self._line = self._line, b""
+            kept += self._write(self._scrub(line))
+        return bytes(kept)
 
-    def _write(self, data: bytes) -> None:
-        if self._written >= MAX_RECORDING_BYTES:
-            return
-        room = MAX_RECORDING_BYTES - self._written
-        if len(data) > room:
-            data = data[:room] + b"\r\n[recording truncated]\r\n"
+    def _write(self, data: bytes) -> bytes:
+        if not data:
+            return b""
+        if self._written + len(data) > MAX_RECORDING_BYTES:
+            kind = _event_kind(data)
+            keep = kind == "result" or (
+                kind in _ESSENTIAL and self._written + len(data) <= _HARD_CAP
+            )
+            if not keep:
+                if self._trimmed:
+                    return b""
+                self._trimmed = True
+                data = _TRIMMED_MARKER
         self._handle.write(data)
         self._handle.flush()
         self._written += len(data)
+        return data
 
-    def close(self) -> None:
-        if self._pending:
-            self._write(self._scrub(self._pending))
-            self._pending = b""
+    def close(self) -> bytes:
+        """Flush an unfinished last line. Returns the bytes it kept."""
+        tail = b""
+        if self._line:
+            tail = self._write(self._scrub(compact_line(self._line)))
+            self._line = b""
         try:
             self._handle.close()
         except OSError:
             pass
+        return tail
 
 
 def run_on_pty(
@@ -173,11 +289,11 @@ def run_on_pty(
                 break
             if not chunk:
                 break
-            recorder.feed(chunk)
-            if len(collected) < MAX_RECORDING_BYTES:
-                collected.extend(chunk)
+            # What the worker reads back is what was recorded: the same compacted
+            # events, so the final result is in it however long the run went on.
+            collected.extend(recorder.feed(chunk))
     finally:
-        recorder.close()
+        collected.extend(recorder.close())
         try:
             os.close(controller)
         except OSError:

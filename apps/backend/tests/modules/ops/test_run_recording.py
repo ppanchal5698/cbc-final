@@ -150,3 +150,80 @@ def test_retry_banner_marks_a_fresh_attempt(tmp_path):
     streaming.write_retry_banner(recording, 2)
 
     assert b"=== RETRY attempt 2 ===" in recording.read_bytes()
+
+
+# ── what the recording keeps ────────────────────────────────────────────────
+
+
+def _event_line(event: dict) -> bytes:
+    import json
+
+    return json.dumps(event).encode() + b"\r\n"
+
+
+def test_a_page_image_is_recorded_as_its_size_not_its_pixels(tmp_path):
+    """Page images were 89% of a 4 MB recording that then stopped mid-run."""
+    import json
+
+    from cbc.modules.ops.api import runmetrics
+
+    recording = tmp_path / "run.log"
+    recorder = streaming.Recorder(recording)
+    pixels = "iVBORw0KGgo" + "A" * 600_000
+    line = _event_line({
+        "type": "user",
+        "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": [
+            {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": pixels}},
+        ]}]},
+    })
+    kept = recorder.feed(line[:1000]) + recorder.feed(line[1000:]) + recorder.close()
+
+    assert recording.stat().st_size < 2_000
+    assert kept == recording.read_bytes(), "the worker reads back exactly what was recorded"
+    block = json.loads(recording.read_bytes())["message"]["content"][0]
+    assert block["content"][0]["source"]["data"] == ""
+    assert block["omitted_chars"] == len(pixels)
+    assert runmetrics.parse_recording(recording)["tools"]["imageResultChars"] >= len(pixels)
+
+
+def test_a_long_text_result_keeps_its_head(tmp_path):
+    import json
+
+    recording = tmp_path / "run.log"
+    recorder = streaming.Recorder(recording)
+    rows = "row " * 50_000
+    recorder.feed(_event_line({"type": "user", "message": {"content": [
+        {"type": "tool_result", "tool_use_id": "t2", "content": rows},
+    ]}}))
+    recorder.close()
+
+    block = json.loads(recording.read_bytes())["message"]["content"][0]
+    assert block["content"] == rows[: streaming.RESULT_KEEP_CHARS]
+    assert block["omitted_chars"] == len(rows) - streaming.RESULT_KEEP_CHARS
+
+
+def test_the_run_still_ends_in_the_recording_past_the_cap(tmp_path, monkeypatch):
+    """Past the cap tool traffic is dropped, but what happened - and what it cost - is not."""
+    from cbc.modules.ops.api import runmetrics
+
+    monkeypatch.setattr(streaming, "MAX_RECORDING_BYTES", 2_000)
+    monkeypatch.setattr(streaming, "_HARD_CAP", 4_000)
+    recording = tmp_path / "run.log"
+    recorder = streaming.Recorder(recording)
+    for index in range(40):
+        recorder.feed(_event_line({"type": "system", "subtype": "thinking_tokens", "estimated_tokens": index}))
+    recorder.feed(_event_line({"type": "assistant", "message": {"id": "m9", "content": [
+        {"type": "text", "text": "Door schedule saved."},
+    ]}}))
+    recorder.feed(_event_line({
+        "type": "result", "subtype": "success", "session_id": "s-1",
+        "total_cost_usd": 0.42, "duration_api_ms": 61000, "result": "done",
+    }))
+    recorder.close()
+
+    raw = recording.read_bytes()
+    assert raw.count(b"[recording trimmed") == 1
+    assert b"Door schedule saved." in raw
+    parsed = runmetrics.parse_recording(recording)
+    assert parsed["totalCostUsd"] == 0.42
+    assert parsed["sessionId"] == "s-1"

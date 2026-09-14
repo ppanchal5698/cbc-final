@@ -28,6 +28,37 @@ SAVE_ALLOW = re.compile(
     r"^(extracted|priced|review)/[A-Za-z0-9._-]+\.(json|html|md)$|^quotation\.html$"
 )
 
+# Written inside the clone by the audit hook (NFR-3) and artifact-storage, and only
+# ever appended to. They used to be discarded with the stray files, so a run's audit
+# trail and its artifact history never reached the bid.
+APPEND_ONLY = frozenset({"audit_trail.jsonl", ".versions/versions.jsonl"})
+# artifact-storage's content-addressed copies: the name is the content's SHA-256.
+VERSION_COPY = re.compile(r"^\.versions/[0-9a-f]{64}$")
+
+
+def _append_new_lines(source: Path, target: Path) -> bool:
+    """Append the lines `source` has and `target` lacks. Returns whether any were.
+
+    The clone began as a copy of the live bid, so normally the new lines are the
+    clone's tail. If the live file moved on during the run, its lines are kept and
+    only the clone's unseen lines are added - history is appended, never rewritten.
+    """
+    new = source.read_bytes()
+    old = target.read_bytes() if target.exists() else b""
+    if new.startswith(old):
+        extra = new[len(old):]
+    else:
+        seen = set(old.splitlines())
+        extra = b"".join(line + b"\n" for line in new.splitlines() if line and line not in seen)
+    if not extra:
+        return False
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("ab") as handle:
+        if old and not old.endswith(b"\n") and not new.startswith(old):
+            handle.write(b"\n")
+        handle.write(extra)
+    return True
+
 
 def mode() -> str:
     raw = os.environ.get("CLAUDE_SANDBOX", "process").strip().lower()
@@ -135,7 +166,9 @@ def iter_outputs(project_clone: Path) -> Iterable[tuple[Path, str]]:
 def promote(job_id: str, slug: str) -> list[str]:
     """Copy allowlisted files from the scratch clone back to the live bid.
 
-    Returns the relative paths that were promoted. Anything else is discarded.
+    The audit trail and the versions index are appended to, never replaced; the
+    content-addressed version copies are copied. Returns the relative paths that
+    were promoted. Anything else is discarded.
     """
     clone = workspace_dir(job_id) / "projects" / slug
     dest = storage.project_dir(slug)
@@ -143,10 +176,14 @@ def promote(job_id: str, slug: str) -> list[str]:
     promoted: list[str] = []
     discarded: list[str] = []
     for path, rel in iter_outputs(clone):
-        if not allowed_relpath(rel):
+        target = dest / rel
+        if rel in APPEND_ONLY:
+            if _append_new_lines(path, target):
+                promoted.append(rel)
+            continue
+        if not (allowed_relpath(rel) or VERSION_COPY.match(rel)):
             discarded.append(rel)
             continue
-        target = dest / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target)
         promoted.append(rel)

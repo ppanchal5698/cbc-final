@@ -89,3 +89,44 @@ def test_prepare_marks_scratch_workspace_trusted(tmp_path, monkeypatch) -> None:
     finally:
         sandbox.cleanup("job-trust")
         settings.storage_root = previous
+
+
+def test_promote_appends_the_audit_trail_and_keeps_artifact_versions(tmp_path) -> None:
+    """A run's audit trail (NFR-3) and artifact-storage's versions used to be discarded."""
+    from cbc.shared.config import settings
+
+    previous = settings.storage_root
+    settings.storage_root = tmp_path
+    try:
+        slug = "demo"
+        live = tmp_path / slug
+        live.mkdir()
+        (live / "audit_trail.jsonl").write_text('{"tool_name": "before"}\n', encoding="utf-8")
+        workspace = sandbox.prepare("job2", slug)
+        clone = workspace / "projects" / slug
+        with (clone / "audit_trail.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write('{"tool_name": "Read"}\n{"tool_name": "mcp__artifact-storage__save_artifact"}\n')
+        digest = "a" * 64
+        (clone / ".versions").mkdir()
+        (clone / ".versions" / digest).write_text("{}", encoding="utf-8")
+        (clone / ".versions" / "versions.jsonl").write_text(json.dumps({"sha256": digest}) + "\n", encoding="utf-8")
+        (clone / ".versions" / "not-a-digest").write_text("nope", encoding="utf-8")
+
+        promoted = sandbox.promote("job2", slug)
+
+        trail = (live / "audit_trail.jsonl").read_text(encoding="utf-8").splitlines()
+        assert [json.loads(line)["tool_name"] for line in trail] == [
+            "before", "Read", "mcp__artifact-storage__save_artifact",
+        ]
+        assert "audit_trail.jsonl" in promoted
+        assert (live / ".versions" / digest).is_file()
+        assert (live / ".versions" / "versions.jsonl").is_file()
+        assert not (live / ".versions" / "not-a-digest").exists()
+
+        sandbox.promote("job2", slug)
+        assert len((live / "audit_trail.jsonl").read_text(encoding="utf-8").splitlines()) == 3, (
+            "promoting the same clone twice appends nothing twice"
+        )
+    finally:
+        sandbox.cleanup("job2")
+        settings.storage_root = previous

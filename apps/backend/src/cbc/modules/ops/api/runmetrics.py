@@ -213,15 +213,18 @@ def _carries_an_image(block: dict[str, Any]) -> bool:
 
 
 def _result_chars(block: dict[str, Any]) -> int:
+    # The recorder keeps a result's head and an image's size, not its pixels, and
+    # says how much it left out (`omitted_chars`); the result was that big all the same.
+    omitted = int(block.get("omitted_chars") or 0)
     content = block.get("content")
     if isinstance(content, str):
-        return len(content)
+        return len(content) + omitted
     if content is None:
-        return 0
+        return omitted
     try:
-        return len(json.dumps(content, default=str))
+        return len(json.dumps(content, default=str)) + omitted
     except (TypeError, ValueError):
-        return len(str(content))
+        return len(str(content)) + omitted
 
 
 def _percentile(values: list[int], pct: float) -> int:
