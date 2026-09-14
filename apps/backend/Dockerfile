@@ -47,20 +47,29 @@ RUN pip install --no-cache-dir -r /app/requirements.txt \
 USER cbc
 ENTRYPOINT ["/app/docker/entrypoint.sh"]
 
-FROM base AS api
-EXPOSE 8001
-CMD ["uvicorn", "cbc.app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8001"]
-
-# ── worker: Claude CLI + Docker CLI + MCP + agent runtime ───────────────────
-FROM base AS worker
+# ── Claude CLI: the API runs it too ─────────────────────────────────────────
+# Settings' browser sign-in (`claude setup-token`), the provider test and the
+# "is the CLI installed" check all run in the API process, not the worker.
+FROM base AS claude
 
 USER root
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
 RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
-    && npm install -g @anthropic-ai/claude-code
+    && npm install -g @anthropic-ai/claude-code \
+    && chown -R cbc:cbc /home/cbc
+USER cbc
+
+FROM claude AS api
+EXPOSE 8001
+CMD ["uvicorn", "cbc.app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8001"]
+
+# ── worker: + Docker CLI + MCP + agent runtime ──────────────────────────────
+FROM claude AS worker
+
+USER root
+COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
 
 COPY --chown=cbc:cbc mcp-servers /app/mcp-servers
 COPY --chown=cbc:cbc .mcp.json /app/.mcp.json

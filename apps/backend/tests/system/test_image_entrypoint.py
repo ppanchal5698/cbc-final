@@ -91,22 +91,27 @@ def test_the_entrypoint_does_not_require_pricebooks_to_be_writable() -> None:
 
 
 def test_dockerfile_splits_api_and_worker_targets() -> None:
-    """The api must not ship Claude or Docker; the worker must ship both, and MCP.
+    """Both targets carry the Claude CLI; only the worker ships Docker and MCP.
 
-    The pre-monolith image had three targets - a slim `api`, a `platform-api` that
-    carried Claude, and `worker`. The monolith builds two from `base`.
+    The API runs `claude setup-token` for Settings' browser sign-in, the provider
+    test, and the "is the CLI installed" check. The pre-monolith `platform-api`
+    target carried the CLI for exactly that. Collapsing it into a slim `api` left
+    Settings reporting "The CLI is not installed on the API host" and sign-in
+    impossible, so the CLI now lives in a `claude` stage both targets build from.
     """
     dockerfile = DOCKERFILE.read_text(encoding="utf-8")
     assert "AS base" in dockerfile
-    assert "AS api" in dockerfile
-    assert "AS worker" in dockerfile
+    assert "FROM claude AS api" in dockerfile
+    assert "FROM claude AS worker" in dockerfile
 
-    api_block = dockerfile.split("AS api", 1)[1].split("AS worker", 1)[0]
-    assert "claude-code" not in api_block
+    claude_block = dockerfile.split("FROM base AS claude", 1)[1].split("FROM claude AS api", 1)[0]
+    assert "npm install -g @anthropic-ai/claude-code" in claude_block
+
+    api_block = dockerfile.split("FROM claude AS api", 1)[1].split("FROM claude AS worker", 1)[0]
     assert "dockercli" not in api_block
+    assert "mcp-servers" not in api_block
 
-    worker_block = dockerfile.split("AS worker", 1)[1]
-    assert "claude-code" in worker_block
+    worker_block = dockerfile.split("FROM claude AS worker", 1)[1]
     assert "mcp-servers" in worker_block
     assert "dockercli" in worker_block or "docker /usr/local/bin/docker" in worker_block
 
