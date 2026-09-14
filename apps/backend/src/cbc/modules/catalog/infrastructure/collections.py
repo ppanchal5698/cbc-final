@@ -77,7 +77,10 @@ async def ensure_indexes() -> None:
             "the unique index could not be built. Run scripts/dedupe_products.py, "
             "then restart. Ingest is keyed on (manufacturer, part) either way."
         )
-    await products().create_index(
+    # A collection holds one text index; an earlier app's (sku, description) one
+    # made a plain create_index of this refuse to start. The helper swaps it over.
+    await create_index_resilient(
+        products(),
         [("part", TEXT), ("description", TEXT), ("manufacturer", TEXT)],
         name="product_search",
     )

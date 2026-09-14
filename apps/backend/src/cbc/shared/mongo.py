@@ -121,6 +121,10 @@ async def create_index_resilient(collection, keys, **options) -> None:
                 # "... different name: part_1"
                 if "different name:" in msg:
                     other = msg.rsplit("different name:", 1)[-1].strip().rstrip(".")
+                # A text index (a collection holds one): "... different name and options.
+                # Requested index: {...}, existing index: { ..., name: "sku_text", ... }"
+                elif 'name: "' in msg.partition("existing index:")[2]:
+                    other = msg.partition("existing index:")[2].split('name: "', 1)[1].split('"', 1)[0]
                 if other and options.get("name") and other != options["name"]:
                     try:
                         await collection.drop_index(other)

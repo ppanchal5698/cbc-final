@@ -9,7 +9,7 @@ from pymongo import ASCENDING, DESCENDING
 
 from cbc.shared.persistence import names
 from cbc.modules.ops.domain.jobs import EXCLUSIVE_JOB_TYPES
-from cbc.shared.mongo import database, replace_index
+from cbc.shared.mongo import create_index_resilient, database, replace_index
 
 # How long a failed sign-in stays counted. The TTL index below and
 # VerifyCredentials' window both read it from here, so they cannot disagree.
@@ -52,8 +52,11 @@ async def ensure_indexes() -> None:
     # Sign-in attempts, counted across replicas rather than in one process. The
     # TTL is only garbage collection - `verify` filters on `at` itself, so the
     # window does not depend on when the background sweep last ran.
-    await auth_attempts().create_index(
-        [("at", ASCENDING)], name="attempt_ttl", expireAfterSeconds=AUTH_ATTEMPT_TTL
+    # The named TTL indexes go through create_index_resilient: a database from an
+    # earlier app carries the same keys as auto-named `at_1`, which a plain
+    # create_index refuses (IndexOptionsConflict) and stops startup on.
+    await create_index_resilient(
+        auth_attempts(), [("at", ASCENDING)], name="attempt_ttl", expireAfterSeconds=AUTH_ATTEMPT_TTL
     )
     await auth_attempts().create_index([("email", ASCENDING), ("at", DESCENDING)])
     await run_metrics().create_index([("jobType", ASCENDING), ("startedAt", DESCENDING)])
@@ -62,8 +65,8 @@ async def ensure_indexes() -> None:
     await run_metrics().create_index(
         [("outcome.errorCode", ASCENDING), ("startedAt", DESCENDING)]
     )
-    await oauth_sessions().create_index(
-        [("expiresAt", ASCENDING)], name="oauth_session_ttl", expireAfterSeconds=0
+    await create_index_resilient(
+        oauth_sessions(), [("expiresAt", ASCENDING)], name="oauth_session_ttl", expireAfterSeconds=0
     )
     await jobs().create_index([("status", ASCENDING), ("createdAt", ASCENDING)])
     await jobs().create_index([("projectId", ASCENDING), ("createdAt", DESCENDING)])
