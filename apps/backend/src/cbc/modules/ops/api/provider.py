@@ -266,7 +266,9 @@ def _apply_non_catalog_model_compat(env: dict[str, str], *, max_context_tokens: 
     env.setdefault("ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES", "")
 
 
-def claude_settings_overlay(config: dict[str, Any] | None = None) -> dict[str, Any] | None:
+def claude_settings_overlay(
+    config: dict[str, Any] | None = None, *, prefer_config: bool = False
+) -> dict[str, Any] | None:
     """Settings JSON for `claude --settings` so unknown wire IDs are catalogued.
 
     Claude Code only reads `modelPicker` from user/managed/`--settings` (not
@@ -278,7 +280,7 @@ def claude_settings_overlay(config: dict[str, Any] | None = None) -> dict[str, A
     `--settings` overlay today — intake vs scope thinking pressure is handled
     by shorter Agent prompts / role-sliced pages in the extract prompt instead.
     """
-    env, _ = build_env(config)
+    env, _ = build_env(config, prefer_config=prefer_config)
     model = (env.get("ANTHROPIC_MODEL") or "").strip()
     if not _is_non_catalog_model(model):
         return None
@@ -310,13 +312,19 @@ def endpoint_urls(config: dict[str, Any] | None) -> list[str]:
     return found
 
 
-def build_env(config: dict[str, Any] | None) -> tuple[dict[str, str], dict[str, str]]:
+def build_env(
+    config: dict[str, Any] | None, *, prefer_config: bool = False
+) -> tuple[dict[str, str], dict[str, str]]:
     """Return (env for the subprocess, {field: source}).
 
     The environment wins over the database. On Fargate the credentials come from
     Secrets Manager, and a value typed into the settings screen must not be able
     to quietly replace them - so a variable already present is used as-is and
     reported as `env`, which is what the UI locks the field on.
+
+    `prefer_config` is the settings screen's Test button, which checks what is on
+    screen: a value in `config` then beats the `.env` file, which otherwise beats
+    it. The process environment still wins either way.
     """
     config = config or default_config()
     mode = resolve_mode(config)
@@ -337,7 +345,7 @@ def build_env(config: dict[str, Any] | None) -> tuple[dict[str, str], dict[str, 
             continue
 
         from_file = file_env.get(variable)
-        if from_file:
+        if from_file and not prefer_config:
             env[variable] = from_file
             sources[field] = "dotenv"
             continue
@@ -347,6 +355,9 @@ def build_env(config: dict[str, Any] | None) -> tuple[dict[str, str], dict[str, 
         if value:
             env[variable] = str(value)
             sources[field] = "db"
+        elif from_file:
+            env[variable] = from_file
+            sources[field] = "dotenv"
 
     if mode == BEDROCK:
         env["CLAUDE_CODE_USE_BEDROCK"] = "1"
@@ -400,14 +411,22 @@ def build_env(config: dict[str, Any] | None) -> tuple[dict[str, str], dict[str, 
     return env, sources
 
 
-def secret_values(config: dict[str, Any] | None) -> list[str]:
-    """Plaintext credentials in play, for redacting captured output."""
+def secret_values(config: dict[str, Any] | None, *, prefer_config: bool = False) -> list[str]:
+    """Plaintext credentials in play, for redacting captured output.
+
+    With `prefer_config` every candidate is redacted: the typed one under test and
+    the saved one it stands in for.
+    """
     config = config or default_config()
     mode = resolve_mode(config)
     found = []
     file_env = envfile.read()
     for field, (variable, is_secret) in FIELDS[mode].items():
         if not is_secret:
+            continue
+        if prefer_config:
+            candidates = (os.environ.get(variable), secrets.decrypt(config.get(field)), file_env.get(variable))
+            found.extend(candidate for candidate in candidates if candidate)
             continue
         value = (
             os.environ.get(variable)
@@ -484,18 +503,17 @@ def supports_subagents(config: dict[str, Any] | None) -> bool:
     return True
 
 
-def describe(config: dict[str, Any] | None) -> dict[str, Any]:
+def describe(config: dict[str, Any] | None, *, prefer_config: bool = False) -> dict[str, Any]:
     """A one-line answer to 'what served this job?', safe to log and store."""
     config = config or default_config()
     mode = resolve_mode(config)
-    env, sources = build_env(config)
+    env, sources = build_env(config, prefer_config=prefer_config)
     model = env.get("ANTHROPIC_MODEL") or "provider default"
     warnings: list[str] = []
     if mode == BEDROCK:
-        typed = (
-            os.environ.get("ANTHROPIC_MODEL")
-            or envfile.read().get("ANTHROPIC_MODEL")
-            or config.get("model")
+        saved = envfile.read().get("ANTHROPIC_MODEL")
+        typed = os.environ.get("ANTHROPIC_MODEL") or (
+            (config.get("model") or saved) if prefer_config else (saved or config.get("model"))
         )
         if typed and str(typed) != model:
             warnings.append(

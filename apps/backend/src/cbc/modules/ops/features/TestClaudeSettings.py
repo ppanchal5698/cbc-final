@@ -50,16 +50,18 @@ async def test_claude_settings(body: ClaudeSettings | None = None) -> dict[str, 
     else:
         candidate = await load_config()
 
-    env, _ = provider.build_env(candidate)
+    # What is on screen is what gets tested: a typed value beats the saved `.env`.
+    typed = body is not None
+    env, _ = provider.build_env(candidate, prefer_config=typed)
     problem = await asyncio.to_thread(
         runner.preflight,
         env,
-        provider.secret_values(candidate),
-        provider.claude_settings_overlay(candidate),
+        provider.secret_values(candidate, prefer_config=typed),
+        provider.claude_settings_overlay(candidate, prefer_config=typed),
     )
 
     return {
         "ok": problem is None,
-        "provider": provider.describe(candidate),
+        "provider": provider.describe(candidate, prefer_config=typed),
         "error": problem,
     }

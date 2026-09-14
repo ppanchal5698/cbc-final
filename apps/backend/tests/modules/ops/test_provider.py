@@ -546,3 +546,73 @@ def test_saving_settings_records_the_change_without_the_values(client):
     assert entries, "the change itself must be recorded"
     assert "apiKey" in entries[-1]["after"]["changed"]
     assert "sk-ant-must-not-be-audited" not in str(entries)
+
+
+# ── the connection test ─────────────────────────────────────────────────────
+
+
+def test_a_connection_test_uses_what_is_typed_over_the_env_file(monkeypatch):
+    """Settings says Test checks what is on screen, not what is saved.
+
+    The saved Bedrock key lives in `.env`, which rightly beats Mongo for jobs. It
+    beat the typed values too, so correcting a rejected key and pressing Test
+    tested the old key again.
+    """
+    from cbc.shared import envfile
+
+    envfile.upsert({"AWS_BEARER_TOKEN_BEDROCK": "ABSK-saved-in-fileWT0=", "ANTHROPIC_MODEL": "global.anthropic.saved-v1:0"})
+    typed = {
+        "mode": provider.BEDROCK,
+        "bedrockApiKey": secrets.encrypt("ABSK-typed-on-screenWT0="),
+        "model": "global.anthropic.typed-v1:0",
+    }
+
+    env, sources = provider.build_env(typed, prefer_config=True)
+    assert env["AWS_BEARER_TOKEN_BEDROCK"] == "ABSK-typed-on-screenWT0="
+    assert env["ANTHROPIC_MODEL"] == "global.anthropic.typed-v1:0"
+    assert sources["bedrockApiKey"] == "db"
+    assert provider.describe(typed, prefer_config=True)["model"] == "global.anthropic.typed-v1:0"
+    hidden = provider.secret_values(typed, prefer_config=True)
+    assert "ABSK-typed-on-screenWT0=" in hidden and "ABSK-saved-in-fileWT0=" in hidden
+
+    env, sources = provider.build_env(typed)
+    assert env["AWS_BEARER_TOKEN_BEDROCK"] == "ABSK-saved-in-fileWT0=", "jobs still take the file"
+    assert sources["bedrockApiKey"] == "dotenv"
+
+    monkeypatch.setenv("AWS_BEARER_TOKEN_BEDROCK", "ABSK-from-process-envWT0=")
+    env, sources = provider.build_env(typed, prefer_config=True)
+    assert env["AWS_BEARER_TOKEN_BEDROCK"] == "ABSK-from-process-envWT0=", "Secrets Manager still wins"
+    assert sources["bedrockApiKey"] == "env"
+
+
+def test_preflight_does_not_retry_a_rejected_key_into_a_timeout(monkeypatch):
+    """A 403 the CLI answers in a second became 90 silent seconds and "timed out"."""
+    from cbc.modules.ops.api import claude_cli
+
+    seen: list[dict] = []
+
+    def fake_run(prompt, **kwargs):
+        seen.append(kwargs["env"])
+        return claude_cli.RunResult(ok=True, output="WORKER_PREFLIGHT_OK", error=None, returncode=0)
+
+    monkeypatch.setattr(claude_cli, "run_claude", fake_run)
+    assert claude_cli.preflight({"CLAUDE_CODE_USE_BEDROCK": "1"}) is None
+    assert seen[0]["CLAUDE_CODE_MAX_RETRIES"] == str(claude_cli.PREFLIGHT_MAX_RETRIES)
+
+    claude_cli.preflight({"CLAUDE_CODE_MAX_RETRIES": "5"})
+    assert seen[1]["CLAUDE_CODE_MAX_RETRIES"] == "5", "an operator's own setting is kept"
+
+
+def test_a_rejected_bedrock_key_is_named_as_one():
+    from cbc.modules.ops.api import claude_cli
+
+    result = claude_cli._interpret(
+        'Failed to authenticate. API Error: 403 {"Message":"Authentication failed: '
+        'Please make sure your API Key is valid."}',
+        "",
+        1,
+        90,
+        [],
+    )
+    assert result.error_code == "bedrock_auth"
+    assert "AWS_BEARER_TOKEN_BEDROCK" in result.error

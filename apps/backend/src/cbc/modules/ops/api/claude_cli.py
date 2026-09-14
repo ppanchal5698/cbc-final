@@ -307,6 +307,8 @@ _BEDROCK_FAILURES: tuple[tuple[tuple[str, ...], str, str], ...] = (
             "authorization header is missing",
             "not authorized to perform: bedrock",
             "accessdeniedexception",
+            # A Bedrock API key the service rejects: 403 with this body.
+            "please make sure your api key is valid",
         ),
         (
             "Bedrock refused the request. Check the API key (AWS_BEARER_TOKEN_BEDROCK) "
@@ -424,6 +426,12 @@ def _interpret(
     return RunResult(ok=True, output=output, error=None, returncode=0)
 
 
+# A connection check asks for one line; it comes back or it does not. The CLI's
+# default retries repeated a rejected Bedrock key - a 403 it answers in about a
+# second - until the 90-second timeout, and reported only "timed out".
+PREFLIGHT_MAX_RETRIES = 1
+
+
 def preflight(
     env: dict[str, str] | None = None,
     redact_values: list[str] | None = None,
@@ -439,10 +447,13 @@ def preflight(
     Uses the empty-MCP `preflight` toolset so connectivity checks do not load
     every server schema just to answer one line.
     """
+    # An operator who set CLAUDE_CODE_MAX_RETRIES deliberately keeps theirs.
+    run_env = dict(os.environ if env is None else env)
+    run_env.setdefault("CLAUDE_CODE_MAX_RETRIES", str(PREFLIGHT_MAX_RETRIES))
     result = run_claude(
         "Reply with exactly: WORKER_PREFLIGHT_OK",
         timeout=90,
-        env=env,
+        env=run_env,
         redact_values=redact_values,
         settings=settings,
         job_type="preflight",
