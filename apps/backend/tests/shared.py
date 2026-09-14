@@ -50,10 +50,8 @@ for _skill_scripts in (
 # means the next move edits this file and nothing else.
 PKG = ROOT / "apps" / "backend" / "src" / "cbc"
 FIXTURES = ROOT / "apps" / "backend" / "tests" / "fixtures"
-# docs/ carries the architecture set; data/docs/ carries the requirements and
-# rollout records that the traceability test reads.
+# docs/ carries the architecture set and the requirements and rollout records.
 DOCS = ROOT / "docs"
-DATA_DOCS = ROOT / "data" / "docs"
 
 # The Dutch Bros bid set: the fixture the extraction tests read. Not committed
 # (.dockerignore excludes tests/fixtures/pdfs/), so anything needing it skips.

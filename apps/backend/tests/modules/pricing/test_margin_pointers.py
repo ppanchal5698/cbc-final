@@ -9,12 +9,12 @@ PROSE = (
     ROOT / ".claude" / "memory" / "margin_sheet.md",
     ROOT / ".claude" / "skills" / "apply-margin" / "SKILL.md",
     ROOT / ".claude" / "skills" / "apply-margin" / "references" / "margin_bands.md",
-    ROOT / "data" / "docs" / "cbc_process_flow.md",
+    ROOT / "docs" / "cbc_process_flow.md",
 )
 
 
 def test_inlined_process_flow_has_no_commodity_margin_table() -> None:
-    text = (ROOT / "data" / "docs" / "cbc_process_flow.md").read_text(encoding="utf-8")
+    text = (ROOT / "docs" / "cbc_process_flow.md").read_text(encoding="utf-8")
     assert "27%" not in text
     assert "0.27" not in text
 

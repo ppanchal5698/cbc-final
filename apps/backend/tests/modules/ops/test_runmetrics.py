@@ -1,7 +1,6 @@
 """B-06: parse Claude recordings into runMetrics documents."""
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
 
 from tests.shared import FIXTURES, ROOT
@@ -107,11 +106,6 @@ def test_image_bytes_are_counted_from_the_result_not_the_tool_name() -> None:
     assert tools["imageResultChars"] == tools["resultChars"]["total"]
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "services/runmetrics.py hashes ROOT/docs/cbc_process_flow.md, which moved to "
-    "data/docs/. The worker image COPYs docs/ and not data/docs/, so the processFlow "
-    "context hash is null in production too, not only in a checkout."
-))
 def test_context_hashes_cover_prompt_rules_agents_and_skills() -> None:
     from cbc.modules.ops.api import runmetrics
 
