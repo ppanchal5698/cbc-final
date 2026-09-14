@@ -142,12 +142,18 @@ def test_vendor_rfqs(client, bid, snapshots) -> None:
     op = "PATCH /api/projects/{code}/vendor-rfqs/{rfq_id}"
     snapshots.pin(op, client.patch(_p(bid, f"/vendor-rfqs/{rfq}"), json={"status": "requested"}))
     snapshots.pin(op, client.patch(_p(bid, f"/vendor-rfqs/{rfq}"), json={"status": "applied"}), variant="illegal transition")
+    assert client.patch(_p(bid, f"/vendor-rfqs/{rfq}"), json={"status": "awaiting"}).status_code == 200
+    snapshots.pin(op, client.patch(_p(bid, f"/vendor-rfqs/{rfq}"), json={"status": "received"}), variant="received without a price")
 
 
 def test_rfis(client, bid, snapshots) -> None:
     snapshots.pin("GET /api/projects/{code}/rfis", client.get(_p(bid, "/rfis")))
     body = {"subject": "Door 05 rating", "question": "Is opening 05 a 90-minute door?"}
-    snapshots.pin("POST /api/projects/{code}/rfis", client.post(_p(bid, "/rfis"), json=body))
+    created = snapshots.pin("POST /api/projects/{code}/rfis", client.post(_p(bid, "/rfis"), json=body))
+    op = "PATCH /api/projects/{code}/rfis/{rfi_id}"
+    rfi = created.json()["id"]
+    snapshots.pin(op, client.patch(_p(bid, f"/rfis/{rfi}"), json={"status": "sent"}))
+    snapshots.pin(op, client.patch(_p(bid, f"/rfis/{rfi}"), json={"status": "answered"}), variant="answered without an answer")
 
 
 def test_takeoffs(client, bid, snapshots) -> None:

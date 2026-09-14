@@ -47,6 +47,7 @@ def register(app) -> None:
         UpdateProposal,
         UpdateQuoteLine,
         UpdateQuoteSettings,
+        UpdateRfiStatus,
         UpdateVendorRfqStatus,
     )
 
@@ -71,6 +72,7 @@ def register(app) -> None:
         UpdateVendorRfqStatus,
         ListRfis,
         CreateRfi,
+        UpdateRfiStatus,
     ):
         app.include_router(feature.router)
 

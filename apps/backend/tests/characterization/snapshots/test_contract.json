@@ -509,6 +509,12 @@
   },
   "status": 401
  },
+ "PATCH /api/projects/{code}/rfis/{rfi_id} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "PATCH /api/projects/{code}/vendor-rfqs/{rfq_id} #wrong token": {
   "body": {
    "detail": "str"
@@ -1312,6 +1318,11 @@
   {
    "admin": false,
    "op": "PATCH /api/projects/{code}/quote/settings",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "PATCH /api/projects/{code}/rfis/{rfi_id}",
    "status": 200
   },
   {

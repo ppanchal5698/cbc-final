@@ -549,6 +549,41 @@
   },
   "status": 200
  },
+ "PATCH /api/projects/{code}/rfis/{rfi_id}": {
+  "body": {
+   "bidRequestId": "id",
+   "blocksFinalization": "bool",
+   "category": "str",
+   "createdAt": "datetime",
+   "createdBy": "str",
+   "id": "id",
+   "orgId": "id",
+   "projectId": "id",
+   "question": "str",
+   "raisedAt": "datetime",
+   "raisedBy": "str",
+   "rfiNumber": "str",
+   "schemaVersion": "number",
+   "status": "str",
+   "statusHistory": [
+    {
+     "at": "datetime",
+     "by": "str",
+     "status": "str"
+    }
+   ],
+   "subject": "str",
+   "updatedAt": "datetime",
+   "updatedBy": "str"
+  },
+  "status": 200
+ },
+ "PATCH /api/projects/{code}/rfis/{rfi_id} #answered without an answer": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 400
+ },
  "PATCH /api/projects/{code}/vendor-rfqs/{rfq_id}": {
   "body": {
    "bidRequestId": "id",
@@ -580,6 +615,12 @@
   "status": 200
  },
  "PATCH /api/projects/{code}/vendor-rfqs/{rfq_id} #illegal transition": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 400
+ },
+ "PATCH /api/projects/{code}/vendor-rfqs/{rfq_id} #received without a price": {
   "body": {
    "detail": "str"
   },
