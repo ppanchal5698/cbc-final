@@ -27,18 +27,18 @@ SPINE = (
 
 
 async def apply(db) -> None:
+    # A database that already held a spine collection from an earlier app carries
+    # the same keys under Mongo's auto-generated name (brandPrograms'
+    # orgId_1_active_1). A plain create_index refuses that with IndexOptionsConflict
+    # and stops every API start; create_index_resilient swaps the name over.
+    from cbc.shared.mongo import create_index_resilient
+
     for name in SPINE:
         coll = db[name]
-        await coll.create_index([("orgId", 1)], name="org")
-        await coll.create_index([("orgId", 1), ("active", 1)], name="org_active")
+        await create_index_resilient(coll, [("orgId", 1)], name="org")
+        await create_index_resilient(coll, [("orgId", 1), ("active", 1)], name="org_active")
         log.info("spine collection ready: %s", name)
 
-    await db["customers"].create_index(
-        [("orgId", 1), ("name", 1)], name="customer_name"
-    )
-    await db["vendors"].create_index(
-        [("orgId", 1), ("name", 1)], name="vendor_name", unique=True
-    )
-    await db["productTypes"].create_index(
-        [("orgId", 1), ("key", 1)], name="product_type_key", unique=True
-    )
+    await create_index_resilient(db["customers"], [("orgId", 1), ("name", 1)], name="customer_name")
+    await create_index_resilient(db["vendors"], [("orgId", 1), ("name", 1)], name="vendor_name", unique=True)
+    await create_index_resilient(db["productTypes"], [("orgId", 1), ("key", 1)], name="product_type_key", unique=True)

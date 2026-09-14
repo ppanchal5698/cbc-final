@@ -113,9 +113,11 @@ async def create_index_resilient(collection, keys, **options) -> None:
                 delay = min(delay * 2, 2.0)
                 continue
             # Same key under another name (e.g. auto-named part_1 vs part_lookup).
-            if exc.code == 85 and "different name" in (exc.details or {}).get("errmsg", exc.errmsg or ""):
+            # OperationFailure has no `errmsg` attribute in pymongo 4; reading it as a
+            # .get() default raised AttributeError on every conflict this handles.
+            msg = (exc.details or {}).get("errmsg") or str(exc)
+            if exc.code == 85 and "different name" in msg:
                 other = None
-                msg = (exc.details or {}).get("errmsg") or exc.errmsg or ""
                 # "... different name: part_1"
                 if "different name:" in msg:
                     other = msg.rsplit("different name:", 1)[-1].strip().rstrip(".")

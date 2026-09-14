@@ -358,3 +358,21 @@ def test_m003_leads_every_index_with_the_tenant(database) -> None:
             if name == "_id_":
                 continue
             assert spec["key"][0][0] == "orgId", f"{collection}.{name} does not lead with orgId"
+
+
+# ── m005: the reference spine ───────────────────────────────────────────────
+
+
+def test_m005_takes_over_an_index_an_earlier_app_already_built(database) -> None:
+    """Same keys under Mongo's auto-generated name stopped every API start.
+
+    The dev database had brandPrograms from an earlier app with orgId_1_active_1;
+    m005's plain create_index of `org_active` raised IndexOptionsConflict (85).
+    """
+    database["brandPrograms"].create_index([("orgId", 1), ("active", 1)])  # auto-named orgId_1_active_1
+
+    _run()
+
+    indexes = database["brandPrograms"].index_information()
+    assert "org_active" in indexes
+    assert "orgId_1_active_1" not in indexes
