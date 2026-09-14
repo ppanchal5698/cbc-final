@@ -13,6 +13,7 @@ These tests fail if a second copy ever comes back.
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 import pytest
@@ -31,14 +32,18 @@ def test_no_second_copy_of_the_agent_runtime() -> None:
     )
 
 
+# Pruned at any depth. Dependencies and build output are not source trees, and
+# hashing apps/web/node_modules (50,000 files) was 11 of this suite's 30 minutes.
+PRUNE = {".git", ".venv", "node_modules", ".next", "__pycache__", ".pytest_cache"}
+
+
 def _fingerprint(root: Path) -> dict[str, str]:
     out: dict[str, str] = {}
-    for path in sorted(root.rglob("*")):
-        if not path.is_file() or "__pycache__" in path.parts:
-            continue
-        out[str(path.relative_to(root)).replace("\\", "/")] = hashlib.sha256(
-            path.read_bytes()
-        ).hexdigest()
+    for directory, subdirs, files in os.walk(root):
+        subdirs[:] = [name for name in subdirs if name not in PRUNE]
+        for name in files:
+            path = Path(directory) / name
+            out[path.relative_to(root).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
     return out
 
 

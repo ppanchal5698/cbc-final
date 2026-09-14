@@ -17,10 +17,20 @@ from typing import Any
 
 from cbc.modules.catalog.api.pageindex import store
 from cbc.modules.catalog.api.pageindex.models import PageEntry, PageIndexDocument
+from cbc.shared.paths import pricebook_dir, repo_root
 
 # Where the vendor books live, relative to the repository root - which is what
-# pdf-tools resolves against.
-PRICEBOOK_DIR = "pricebooks"
+# pdf-tools resolves against. `data/pricebooks` in a checkout and in the image; the
+# bare `pricebooks` this used to be existed only as the image's symlink.
+def _pricebook_prefix() -> str:
+    directory = pricebook_dir()
+    try:
+        return directory.relative_to(repo_root()).as_posix()
+    except ValueError:
+        return directory.as_posix()
+
+
+PRICEBOOK_DIR = _pricebook_prefix()
 
 _FIND_PAGES_MAX = 256
 _api_find_cache: OrderedDict[tuple, dict[str, Any]] = OrderedDict()

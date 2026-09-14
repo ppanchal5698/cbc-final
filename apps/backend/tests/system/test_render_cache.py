@@ -46,6 +46,8 @@ def test_second_page_image_does_not_rerender(tmp_path, monkeypatch) -> None:
 def test_render_cache_stays_out_of_uploads_raw(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(pdfpages, "ROOT", tmp_path)
     monkeypatch.setattr(pdfpages, "RENDER_CACHE", tmp_path / ".cache" / "pdf-pages")
+    # Renders may land under the projects directory, which is STORAGE_ROOT, not ROOT/projects.
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     raw = tmp_path / "projects" / "demo" / "uploads" / "raw"
     raw.mkdir(parents=True)
     with pytest.raises(ValueError, match="uploads/raw"):

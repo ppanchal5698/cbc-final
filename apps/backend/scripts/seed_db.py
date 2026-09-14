@@ -24,6 +24,7 @@ from pathlib import Path
 import bcrypt
 from pymongo import MongoClient
 
+from cbc.shared.mongo_uri import reachable_uri
 from cbc.shared.persistence import names
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -287,7 +288,7 @@ def main() -> int:
 
     import os
 
-    client = MongoClient(args.uri or os.environ.get("MONGODB_URI", URI), serverSelectionTimeoutMS=5000)
+    client = MongoClient(reachable_uri(args.uri or os.environ.get("MONGODB_URI", URI)), serverSelectionTimeoutMS=5000)
     db = client[os.environ.get("MONGODB_DB", "cbc_opshub")]
     client.server_info()
 

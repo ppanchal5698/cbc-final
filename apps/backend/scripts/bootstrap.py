@@ -56,7 +56,9 @@ def main() -> int:
     db_name = os.environ.get("MONGODB_DB", "cbc_opshub")
 
     try:
-        client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+        from cbc.shared.mongo_uri import reachable_uri
+
+        client = MongoClient(reachable_uri(uri), serverSelectionTimeoutMS=5000)
         client.server_info()
         db = client[db_name]
     except Exception as exc:

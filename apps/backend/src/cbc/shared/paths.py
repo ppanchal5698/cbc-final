@@ -13,6 +13,7 @@ mattering, so a file can move without taking a hidden dependency on where it was
 """
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -35,6 +36,30 @@ def repo_root() -> Path:
         f"cannot locate the repository root above {here}: none of {MARKERS} found. "
         "If this is a partial checkout or a slimmed image, restore one of them."
     )
+
+
+def data_dir(env_var: str, default: str) -> Path:
+    """A data directory named by `env_var`; a relative value resolves against the root.
+
+    Read at call time and free of `cbc.shared.config`: the MCP servers import these
+    in a subprocess that is deliberately not handed the root settings. The defaults
+    are the checkout's layout - the image sets every one of these variables.
+    """
+    path = Path(os.environ.get(env_var) or default)
+    return path if path.is_absolute() else (repo_root() / path).resolve()
+
+
+def storage_root() -> Path:
+    return data_dir("STORAGE_ROOT", "data/projects")
+
+
+def pricebook_dir() -> Path:
+    return data_dir("PRICEBOOK_DIR", "data/pricebooks")
+
+
+def reference_dir() -> Path:
+    """The seed JSON. It was `reference-library/`, which exists only inside the image."""
+    return data_dir("REFERENCE_DIR", "data/reference-library")
 
 
 def _demo() -> None:

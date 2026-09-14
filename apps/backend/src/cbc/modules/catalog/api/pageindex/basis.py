@@ -26,12 +26,11 @@ all, so a net has never been silently discounted a second time.
 from __future__ import annotations
 
 import json
-import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from cbc.shared.paths import repo_root
+from cbc.shared.paths import pricebook_dir
 
 LIST = "list"
 NET = "net"
@@ -50,11 +49,7 @@ def _file_signature(path: Path) -> tuple[int, int]:
 
 
 def _pricebook_dir() -> Path:
-    raw = os.environ.get("PRICEBOOK_DIR")
-    if not raw:
-        return repo_root() / "pricebooks"
-    path = Path(raw)
-    return path if path.is_absolute() else (repo_root() / path).resolve()
+    return pricebook_dir()
 
 
 @lru_cache(maxsize=4)

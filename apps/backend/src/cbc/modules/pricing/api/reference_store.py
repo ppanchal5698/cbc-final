@@ -8,7 +8,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,6 +18,7 @@ from pymongo.collection import Collection
 from pymongo.errors import PyMongoError
 
 from cbc.shared.config import settings
+from cbc.shared.mongo_uri import reachable_uri
 
 log = logging.getLogger("cbc.reference_store")
 
@@ -49,6 +49,7 @@ _memory: dict[str, dict[str, Any]] | None = None
 _memory_revisions: dict[str, list[dict[str, Any]]] = {}
 _cache: dict[str, tuple[Any, dict[str, Any]]] = {}
 _sync_client: MongoClient | None = None
+_ro_client: MongoClient | None = None
 
 
 def use_memory(store: dict[str, dict[str, Any]] | None) -> None:
@@ -106,7 +107,7 @@ def _sync_collection() -> Collection | None:
     global _sync_client
     if _memory is not None:
         return None
-    uri = os.environ.get("MONGODB_URI") or settings.mongodb_uri
+    uri = reachable_uri(settings.mongodb_uri)
     try:
         if _sync_client is None:
             _sync_client = MongoClient(
@@ -124,23 +125,29 @@ def _sync_collection() -> Collection | None:
 
 
 def _ro_sync_collection() -> Collection | None:
-    """Prefer read-only URI for MCP; fall back to primary."""
+    """Prefer the read-only URI for MCP; fall back to the primary.
+
+    The client is kept, like `_sync_client`. Building and pinging a new one on every
+    call was a connection handshake per reference lookup.
+    """
+    global _ro_client
     if _memory is not None:
         return None
     from cbc.shared.mongo import readonly_uri
 
-    uri = readonly_uri() or os.environ.get("MONGODB_URI") or settings.mongodb_uri
     try:
-        client = MongoClient(
-            uri,
-            tz_aware=True,
-            serverSelectionTimeoutMS=3000,
-            connectTimeoutMS=3000,
-        )
-        client.admin.command("ping")
-        return client[settings.mongodb_db][COLLECTION]
+        if _ro_client is None:
+            _ro_client = MongoClient(
+                reachable_uri(readonly_uri() or settings.mongodb_uri),
+                tz_aware=True,
+                serverSelectionTimeoutMS=3000,
+                connectTimeoutMS=3000,
+            )
+            _ro_client.admin.command("ping")
+        return _ro_client[settings.mongodb_db][COLLECTION]
     except Exception as exc:
         log.warning("reference_store RO Mongo unavailable: %s", exc)
+        _ro_client = None
         return _sync_collection()
 
 

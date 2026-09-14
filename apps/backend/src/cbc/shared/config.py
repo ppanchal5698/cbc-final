@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
-from cbc.shared.paths import repo_root
+from cbc.shared.paths import pricebook_dir, reference_dir, repo_root, storage_root
 
 REPO_ROOT = repo_root()
 
@@ -34,9 +34,9 @@ class Settings:
         )
         self.mongodb_db = os.environ.get("MONGODB_DB", "cbc_opshub")
         self.repo_root = REPO_ROOT
-        self.storage_root = _path("STORAGE_ROOT", "data/projects")
-        self.pricebook_dir = _path("PRICEBOOK_DIR", "data/pricebooks")
-        self.reference_dir = _path("REFERENCE_DIR", "reference-library")
+        self.storage_root = storage_root()
+        self.pricebook_dir = pricebook_dir()
+        self.reference_dir = reference_dir()
         self.templates_dir = _path("TEMPLATES_DIR", "templates")
         self.cors_origins = [
             origin.strip()

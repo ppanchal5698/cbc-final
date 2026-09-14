@@ -83,12 +83,9 @@ def direct_uri(uri: str) -> str:
     skips discovery and talks to the published port. Applied only to a loopback
     URI, so an in-container run is untouched.
     """
-    if "directConnection" in uri:
-        return uri
-    host = uri.split("@")[-1]
-    if not host.startswith(("localhost", "127.0.0.1")):
-        return uri
-    return uri + ("&" if "?" in uri else "?") + "directConnection=true"
+    from cbc.shared.mongo_uri import reachable_uri
+
+    return reachable_uri(uri)
 
 
 def mongo_client(**kwargs):

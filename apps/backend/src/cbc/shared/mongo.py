@@ -20,6 +20,7 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo.errors import OperationFailure, PyMongoError
 
 from cbc.shared.config import settings
+from cbc.shared.mongo_uri import reachable_uri
 
 log = logging.getLogger("cbc.api.db")  # the name these index messages have always logged under
 
@@ -30,7 +31,7 @@ def client() -> AsyncIOMotorClient:
     global _client
     if _client is None:
         _client = AsyncIOMotorClient(
-            settings.mongodb_uri,
+            reachable_uri(settings.mongodb_uri),
             tz_aware=True,
             serverSelectionTimeoutMS=5000,
             connectTimeoutMS=5000,
@@ -191,7 +192,7 @@ def readonly_uri() -> str | None:
     """
     explicit = os.environ.get("MONGODB_READONLY_URI")
     if explicit:
-        return explicit
+        return reachable_uri(explicit)
 
     parsed = urlsplit(settings.mongodb_uri)
     if not parsed.hostname:
@@ -206,7 +207,7 @@ def readonly_uri() -> str | None:
     # `ensure_readonly_user` creates this one in the application database. The
     # two never matched, and nothing noticed because neither function had ever
     # been called: the first real connection failed authentication.
-    return (
+    return reachable_uri(
         f"{parsed.scheme}://{credentials}@{host}/{settings.mongodb_db}"
         f"?authSource={settings.mongodb_db}"
     )

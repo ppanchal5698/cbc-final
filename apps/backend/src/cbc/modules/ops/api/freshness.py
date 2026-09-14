@@ -154,7 +154,9 @@ def _settings_collection():
     if _sync_client is None:
         from pymongo import MongoClient
 
-        _sync_client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+        from cbc.shared.mongo_uri import reachable_uri
+
+        _sync_client = MongoClient(reachable_uri(uri), serverSelectionTimeoutMS=5000)
     path = urlsplit(uri).path.lstrip("/").split("?")[0]
     database = path or os.environ.get("MONGODB_DB") or "cbc_opshub"
     return _sync_client[database]["settings"]

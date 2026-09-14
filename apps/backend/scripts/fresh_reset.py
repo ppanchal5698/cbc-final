@@ -50,7 +50,9 @@ PRICEBOOK_KEEP = frozenset({"index.json", "README.md"})
 def reset_mongo(uri: str, db_name: str) -> None:
     from scripts.seed_db import seed_users
 
-    client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+    from cbc.shared.mongo_uri import reachable_uri
+
+    client = MongoClient(reachable_uri(uri), serverSelectionTimeoutMS=5000)
     client.server_info()
     db = client[db_name]
 

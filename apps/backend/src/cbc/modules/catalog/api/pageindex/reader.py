@@ -37,7 +37,9 @@ def _collection():
             )
         from pymongo import MongoClient
 
-        _client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+        from cbc.shared.mongo_uri import reachable_uri
+
+        _client = MongoClient(reachable_uri(uri), serverSelectionTimeoutMS=5000)
     return _client[_database_name()][COLLECTION]
 
 

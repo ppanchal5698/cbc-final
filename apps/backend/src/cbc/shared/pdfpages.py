@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import fitz  # PyMuPDF
-from cbc.shared.paths import repo_root
+from cbc.shared.paths import pricebook_dir, reference_dir, repo_root, storage_root
 
 ROOT = repo_root()
 
@@ -24,8 +24,6 @@ ROOT = repo_root()
 # beside the drawings they came from. Shared with intake's infrastructure/pdf.py so there is
 # one cache rather than two.
 RENDER_CACHE = ROOT / ".cache" / "pdf-pages"
-PRICEBOOKS = ROOT / "pricebooks"
-REFERENCE_LIBRARY = ROOT / "reference-library"
 RENDERER_VERSION = str(getattr(fitz, "version", "unknown"))
 
 # Anthropic's documented long-edge cap for a useful vision token budget.
@@ -116,14 +114,16 @@ def _writable_target(file_path: Path, out_dir: str | Path | None) -> Path:
     target = Path(out_dir).resolve() if out_dir else RENDER_CACHE.resolve()
     allowed_roots = (
         RENDER_CACHE.resolve(),
-        (root / "projects").resolve(),
+        storage_root().resolve(),
         (root / ".cache").resolve(),
     )
     if not any(target == allowed or allowed in target.parents for allowed in allowed_roots):
         raise ValueError(
             f"refusing to write a rendered page outside allowed directories: {target}"
         )
-    for protected in (PRICEBOOKS, REFERENCE_LIBRARY):
+    # Resolved, like the target: in the image /app/pricebooks is a symlink, so the
+    # unresolved path never matched a resolved target and the guard let writes in.
+    for protected in (pricebook_dir().resolve(), reference_dir().resolve()):
         if target == protected or protected in target.parents:
             raise ValueError(
                 f"refusing to write a rendered page into {protected.name}/ - it is "

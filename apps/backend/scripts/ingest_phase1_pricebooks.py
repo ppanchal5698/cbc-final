@@ -248,7 +248,9 @@ def update_index_json() -> None:
 
 def upsert_mongo(uri: str, db_name: str) -> dict[str, str]:
     tiers = load_tiers()
-    client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+    from cbc.shared.mongo_uri import reachable_uri
+
+    client = MongoClient(reachable_uri(uri), serverSelectionTimeoutMS=5000)
     client.server_info()
     db = client[db_name]
     ids: dict[str, str] = {}

@@ -18,13 +18,10 @@ os.environ["APP_ENV"] = "development"
 # process, so test_recovery's backoff test could never claim the extract_bid_set
 # job it queued. tests/modules/ops/test_worker.py sets its own domain and reloads.
 os.environ.setdefault("WORKER_CLAIM_ALL", "1")
-# REFERENCE_DIR defaults to a repo-root `reference-library/` that exists only
-# inside the image; a checkout keeps the seed JSON at `data/reference-library`.
-# Must be set before anything imports cbc.shared.config, which reads os.environ once at
-# import. setdefault, so an in-container run (Dockerfile sets it) is untouched.
+# The data directories default to the checkout layout (cbc.shared.paths). Pinned
+# here too, so a developer .env naming another directory cannot redirect the suite;
+# setdefault, so an in-container run (the Dockerfile sets them) is untouched.
 os.environ.setdefault("REFERENCE_DIR", "data/reference-library")
-# Same for PRICEBOOK_DIR: pageindex/basis.py falls back to repo_root()/"pricebooks",
-# which exists only as the image's /app/pricebooks symlink.
 os.environ.setdefault("PRICEBOOK_DIR", "data/pricebooks")
 # The test process never talks to the dev database. MONGODB_DB defaults to
 # `cbc_opshub` in config.py, compose and .env.example, so any test that reached

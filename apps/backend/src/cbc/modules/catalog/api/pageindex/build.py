@@ -27,7 +27,6 @@ from pathlib import Path
 
 import fitz
 
-from cbc.shared.paths import repo_root
 from cbc.modules.catalog.api.pageindex import basis, store
 from cbc.modules.catalog.api.pageindex.describe import describe_page, needs_a_second_look
 from cbc.modules.catalog.api.pageindex.models import BUILDER_VERSION, PageIndexDocument, PageProfile
@@ -51,7 +50,7 @@ def _sample_pages(doc: fitz.Document) -> list[tuple[int, str]]:
 
 def _inventory() -> dict[str, dict]:
     """The curated price-book inventory: vendor, kind and effective date."""
-    path = repo_root() / "pricebooks" / "index.json"
+    path = basis._pricebook_dir() / "index.json"
     if not path.exists():
         return {}
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -199,7 +198,7 @@ def _fallback_overview(file_name: str, pages: list) -> "object":
 
 
 async def build_all(*, force: bool = False, use_llm: bool = True) -> int:
-    directory = repo_root() / "pricebooks"
+    directory = basis._pricebook_dir()
     built = 0
     for path in sorted(directory.glob("*.pdf")):
         try:
@@ -231,7 +230,7 @@ def main() -> int:
     if not args.file:
         parser.error("give a file name or --all")
 
-    path = repo_root() / "pricebooks" / args.file
+    path = basis._pricebook_dir() / args.file
     document = asyncio.run(build_one(path, force=args.force, use_llm=use_llm))
     if document is None:
         print(f"{args.file} was already current")
