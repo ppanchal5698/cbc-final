@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { MagnifyingGlass, Sun, Moon, PhoneCall } from "@phosphor-icons/react/dist/ssr";
+import { MagnifyingGlass, Sun, Moon, PhoneCall, TerminalWindow } from "@phosphor-icons/react/dist/ssr";
 
 import { ReviewQueuePopover } from "@/components/shell/review-queue-popover";
 import { useUiState } from "@/components/shell/ui-state";
@@ -21,6 +22,12 @@ function roleLabel(role: string): string {
   return "Estimator";
 }
 
+/** The bid in `/bids/{code}/...`, the same way ShellOverlays finds it for the drawer. */
+function bidCodeFrom(pathname: string | null): string | null {
+  const match = pathname?.match(/^\/bids\/([^/]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 export function Header({
   crumbs,
   user,
@@ -34,9 +41,24 @@ export function Header({
   reviewCount?: number;
   code?: string | null;
 }) {
-  const { openNotes, setPaletteOpen, setTerminalOpen, focusMode, notesVersion, theme, toggleTheme } =
-    useUiState();
+  const {
+    openNotes,
+    setPaletteOpen,
+    terminalOpen,
+    setTerminalOpen,
+    focusMode,
+    notesVersion,
+    theme,
+    toggleTheme,
+  } = useUiState();
   const [noteCount, setNoteCount] = useState<number | null>(null);
+
+  // The run pill was the only way into the terminal drawer, and it shows only
+  // while a page reports a run - so an idle bid had no way to open its log at
+  // all. The Terminal button is there on every bid page, found from the URL
+  // like the drawer itself, whether or not the page passed `code`.
+  const pathname = usePathname();
+  const bidCode = code ?? bidCodeFrom(pathname);
 
   useEffect(() => {
     if (!code) return;
@@ -95,6 +117,28 @@ export function Header({
         >
           <span className={cn("h-1.5 w-1.5 rounded-full animate-pulse", toneColourClass)} />
           <span className="text-tx-secondary font-medium">{runPill.label}</span>
+        </button>
+      )}
+
+      {bidCode && (
+        <button
+          type="button"
+          onClick={() => setTerminalOpen(!terminalOpen)}
+          aria-pressed={terminalOpen}
+          title="Run log and live Claude Code output for this bid"
+          className={cn(
+            "flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[12px] font-medium transition-colors shadow-sm",
+            terminalOpen
+              ? "border-brand-primary/30 bg-brand-soft text-brand-primary"
+              : "border-subtle bg-background text-tx-secondary hover:bg-panel-muted",
+          )}
+        >
+          <TerminalWindow
+            size={14}
+            weight="duotone"
+            className={terminalOpen ? "text-brand-primary" : "text-tx-muted"}
+          />
+          Terminal
         </button>
       )}
 
