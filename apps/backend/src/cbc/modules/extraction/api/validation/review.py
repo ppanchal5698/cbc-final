@@ -23,7 +23,7 @@ from typing import Any
 
 from cbc.modules.pricing.api import calc
 from cbc.shared.paths import repo_root, storage_root
-from cbc.modules.pricing.api import pricing
+from cbc.modules.pricing.api import pricing, reference_library
 from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
 
 ROOT = repo_root()
@@ -106,12 +106,23 @@ def _opening_flags(openings: list[dict]) -> list[dict]:
     return flags
 
 
-def _line_flags(lines: list[dict]) -> list[dict]:
+def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[dict]:
     flags: list[dict] = []
     for line in lines:
         label = line.get("group") or line.get("line_id") or "unknown line"
         page = line.get("source_page")
         source = str(line.get("cost_source") or "").upper()
+
+        # scope-boundaries: an excluded vendor is not quoted at any price. The
+        # tier sheet's `excluded` list is the record of who that is.
+        vendor = str(line.get("vendor") or line.get("manufacturer") or "").lower()
+        for entry in excluded or []:
+            name = str(entry.get("name") or "")
+            if name and name.lower() in vendor:
+                note = "{} is not quoted by CBC ({}) - remove the line and list it as out of scope".format(
+                    name, entry.get("reason") or "excluded vendor"
+                )
+                flags.append(_flag(label, "out_of_scope", "high", note, page))
 
         if source in UNFINISHED_COST_SOURCES and line.get("cost") is None:
             flags.append(
@@ -204,6 +215,12 @@ def _no_scope_flags(schedule: Any, openings: list[dict]) -> list[dict]:
     ]
 
 
+def _excluded_vendors() -> list[dict]:
+    """The vendors the live tier sheet says CBC no longer quotes."""
+    excluded = reference_library.load_vendor_tiers().get("excluded")
+    return [e for e in excluded if isinstance(e, dict)] if isinstance(excluded, list) else []
+
+
 def derive_flags(slug: str) -> list[dict]:
     """Every finding that follows from the artifacts, without a model."""
     project = storage_root() / slug
@@ -220,7 +237,7 @@ def derive_flags(slug: str) -> list[dict]:
     return [
         *_no_scope_flags(schedule, openings),
         *_opening_flags(openings),
-        *_line_flags([line for line in lines if isinstance(line, dict)]),
+        *_line_flags([line for line in lines if isinstance(line, dict)], _excluded_vendors() if lines else []),
         *_scope_flags(
             _load(project / "extracted" / "scope_summary.json"),
             _load(project / "extracted" / "scope_metadata.json"),

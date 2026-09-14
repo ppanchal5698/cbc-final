@@ -16,6 +16,7 @@ import json
 import pytest
 
 from cbc.modules.extraction.api.validation import review
+from cbc.modules.pricing.api import reference_store
 
 
 @pytest.fixture
@@ -25,7 +26,9 @@ def project(tmp_path, monkeypatch):
     slug = "flagtest"
     (tmp_path / "projects" / slug / "extracted").mkdir(parents=True)
     (tmp_path / "projects" / slug / "priced").mkdir(parents=True)
-    return slug, tmp_path / "projects" / slug
+    reference_store.use_memory({})  # the seed tier sheet and margins, never a database
+    yield slug, tmp_path / "projects" / slug
+    reference_store.use_memory(None)
 
 
 def _write(directory, relative, payload):
@@ -182,3 +185,26 @@ def test_write_flags_is_idempotent(project) -> None:
 
     saved = json.loads((directory / "review" / "review_flags.json").read_text(encoding="utf-8"))
     assert len(saved) == first
+
+
+def test_a_line_priced_from_an_excluded_vendor_is_flagged_out_of_scope(project) -> None:
+    """scope-boundaries: an excluded vendor is flagged whatever price the line carries."""
+    reference_store.use_memory({"vendor_tiers": {"data": {"vendors": [], "excluded": [
+        {"name": "American Dryer", "reason": "No longer used"},
+    ]}}})
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "L1", "manufacturer": "American Dryer Inc.", "cost": 410.0, "source_page": 12},
+        {"line_id": "L2", "vendor": "World Dryer", "cost": 395.0, "source_page": 12},
+    ]})
+    flags = [f for f in review.derive_flags(slug) if f["field"] == "out_of_scope"]
+    assert [(f["opening"], f["severity"], f["source_page"]) for f in flags] == [("L1", "high", 12)]
+    assert "American Dryer" in flags[0]["note"]
+
+
+def test_the_seed_tier_sheet_excludes_the_vendors_the_scope_rule_names(project) -> None:
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "P1", "vendor": "Scranton Products"},
+    ]})
+    assert ("P1", "out_of_scope") in _fields(review.derive_flags(slug))
