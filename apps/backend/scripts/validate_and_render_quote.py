@@ -11,11 +11,13 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
 
 from cbc.modules.extraction.api.validation import check_pricing  # noqa: E402
+from cbc.shared.paths import repo_root  # noqa: E402
+
+# The repository root: `.claude/` and the render's working directory are there.
+# This was the script's parent directory, which is apps/backend in a checkout.
+ROOT = repo_root()
 
 RENDER_SCRIPT = (
     ROOT / ".claude" / "skills" / "generate-quotation" / "scripts" / "render_quote.py"

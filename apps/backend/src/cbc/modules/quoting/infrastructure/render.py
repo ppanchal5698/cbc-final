@@ -20,17 +20,22 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from cbc.shared.paths import repo_root
+from cbc.shared.paths import repo_root, storage_root
 
 REPO_ROOT = repo_root()
 
-QUOTE_SCRIPT = REPO_ROOT / "scripts" / "validate_and_render_quote.py"
-REVIEW_SCRIPT = REPO_ROOT / "scripts" / "render_review_summary.py"
+# The backend's scripts. The image copies them to /app/scripts and links
+# /app/apps/backend/scripts to that, so this one path holds in a checkout and in a
+# container. It was REPO_ROOT/scripts, which a checkout does not have.
+SCRIPTS = REPO_ROOT / "apps" / "backend" / "scripts"
+QUOTE_SCRIPT = SCRIPTS / "validate_and_render_quote.py"
+REVIEW_SCRIPT = SCRIPTS / "render_review_summary.py"
 QUOTE_TEMPLATE = REPO_ROOT / "templates" / "quotation.html"
 REVIEW_TEMPLATE = REPO_ROOT / "templates" / "review_summary.html"
 # Bump when check_pricing, render_quote.py, or the review script change.
@@ -61,7 +66,7 @@ def _fingerprint(*parts: str) -> str:
 
 
 def _project_root(slug: str) -> Path:
-    return REPO_ROOT / "projects" / slug
+    return storage_root() / slug
 
 
 def _stamp_path(html: Path) -> Path:
@@ -112,6 +117,20 @@ def _review_key(slug: str) -> str:
     )
 
 
+def _script_env() -> dict[str, str]:
+    """The scripts import cbc and the MCP runtime; hand them both, installed or not.
+
+    The image pip-installs both. In a checkout pytest puts src/ on its own sys.path
+    only, so the render subprocess failed with ModuleNotFoundError: cbc.
+    """
+    import cbc
+
+    entries = [str(Path(cbc.__file__).resolve().parent.parent), str(REPO_ROOT / "mcp-servers")]
+    if os.environ.get("PYTHONPATH"):
+        entries.append(os.environ["PYTHONPATH"])
+    return {**os.environ, "PYTHONPATH": os.pathsep.join(entries)}
+
+
 def _run(script, slug: str, label: str) -> RenderResult:
     if not script.exists():
         return RenderResult(False, f"{label}: script missing at {script}")
@@ -119,6 +138,7 @@ def _run(script, slug: str, label: str) -> RenderResult:
         done = subprocess.run(
             [sys.executable, str(script), slug],
             cwd=REPO_ROOT,
+            env=_script_env(),
             capture_output=True,
             text=True,
             timeout=TIMEOUT_SECONDS,

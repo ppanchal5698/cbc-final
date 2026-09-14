@@ -6,7 +6,7 @@
     python scripts/seed_db.py --demo     # also create the Dutch Bros demo project
 
 Price books and multiplier tiers come from the real files already in this repo
-(`pricebooks/index.json`, `reference-library/multipliers/vendor_tiers.json`).
+(`data/pricebooks/index.json`, `data/reference-library/multipliers/vendor_tiers.json`).
 
 Catalog rows are marked with `seedSource` so it is always visible where a number
 came from. Rows tagged `prototype sample` are illustrative figures taken from the
@@ -24,24 +24,28 @@ from pathlib import Path
 import bcrypt
 from pymongo import MongoClient
 
+from cbc.shared import storage
 from cbc.shared.mongo_uri import reachable_uri
+from cbc.shared.paths import pricebook_dir, reference_dir
 from cbc.shared.persistence import names
 
 ROOT = Path(__file__).resolve().parents[1]
 
 URI = "mongodb://cbc:cbc_local_dev@localhost:27017/cbc_opshub?authSource=admin"
+# What --reset drops, by the names migration 1 gave them. These were the
+# pre-migration names, so a reset dropped nothing that still held data.
 APP_COLLECTIONS = (
-    "users",
-    "projects",
-    "documents",
-    "lineItems",
-    "quoteLines",
-    "quotes",
-    "proposals",
-    "products",
-    "priceBooks",
-    "jobs",
-    "auditLog",
+    names.USERS,
+    names.BID_REQUESTS,
+    names.DOCUMENTS,
+    names.OPENINGS,
+    names.ESTIMATE_LINES,
+    names.QUOTES,
+    names.PROPOSALS,
+    names.CATALOG_ITEMS,
+    names.PRICE_BOOKS,
+    names.JOBS,
+    names.AUDIT_LOGS,
 )
 
 USERS = [
@@ -116,8 +120,8 @@ def seed_users(db) -> int:
 
 def seed_price_books(db) -> int:
     """Build price-book rows from the real index plus the real multiplier tiers."""
-    index_path = ROOT / "pricebooks" / "index.json"
-    tiers_path = ROOT / "reference-library" / "multipliers" / "vendor_tiers.json"
+    index_path = pricebook_dir() / "index.json"
+    tiers_path = reference_dir() / "multipliers" / "vendor_tiers.json"
     if not index_path.exists():
         print("  ! pricebooks/index.json missing - skipping price books")
         return 0
@@ -153,7 +157,7 @@ def seed_price_books(db) -> int:
                     "steward": "Purchasing" if multiplier else None,
                     "kind": book.get("kind"),
                     "filename": book["file"],
-                    "path": f"pricebooks/{book['file']}",
+                    "path": storage.relative(pricebook_dir() / book["file"]),
                     "account": tier.get("account"),
                     "note": tier.get("note"),
                     "updatedAt": now(),
@@ -218,8 +222,6 @@ def seed_products(db) -> int:
 
 def seed_demo_project(db) -> str | None:
     """Create the Dutch Bros bid from the fixture already in the repo."""
-    from cbc.shared import storage
-
     fixture = ROOT / "tests" / "fixtures" / "pdfs" / "1_Architectural.pdf"
     if not fixture.exists():
         print("  ! tests/fixtures/pdfs/1_Architectural.pdf missing - skipping demo project")
@@ -270,7 +272,7 @@ def seed_demo_project(db) -> str | None:
                 "kind": "plan",
                 "pages": pages,
                 "bytes": target.stat().st_size,
-                "path": f"projects/{slug}/uploads/raw/{fixture.name}",
+                "path": storage.relative(target),
                 "state": "received",
                 "uploadedAt": now(),
                 "uploadedBy": "seed",

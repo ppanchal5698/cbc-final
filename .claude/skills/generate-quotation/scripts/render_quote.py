@@ -22,6 +22,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[4]
 
+from cbc.shared.paths import storage_root  # noqa: E402
+
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from _runtime import load_server
@@ -58,7 +60,7 @@ def build_blocks(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def render(project: str) -> Path:
-    project_dir = ROOT / "projects" / project
+    project_dir = storage_root() / project
     data = _load(project_dir / "priced" / "line_items.json")
     lines = data.get("lines", [])
 

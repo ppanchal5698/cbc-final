@@ -16,7 +16,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
+from cbc.shared.paths import repo_root, storage_root  # noqa: E402
+
+ROOT = repo_root()
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -93,7 +95,7 @@ def _summary(lines: list[dict[str, Any]], grand_total: float) -> dict[str, Any]:
 
 
 def render(project: str) -> Path:
-    project_dir = ROOT / "projects" / project
+    project_dir = storage_root() / project
     priced = _load(project_dir / "priced" / "line_items.json")
     if not priced:
         raise FileNotFoundError(f"{project_dir / 'priced' / 'line_items.json'} not found")

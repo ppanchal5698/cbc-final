@@ -89,9 +89,10 @@ def main() -> int:
     if indexed:
         print(f"[bootstrap] page index already built ({indexed} catalogs)")
     else:
-        pricebook_dir = Path(os.environ.get("PRICEBOOK_DIR", ROOT / "pricebooks"))
-        if not pricebook_dir.is_absolute():
-            pricebook_dir = (ROOT / pricebook_dir).resolve()
+        from cbc.shared.paths import pricebook_dir as configured_pricebook_dir
+
+        # PRICEBOOK_DIR resolved against the repo root, not this script's parent.
+        pricebook_dir = configured_pricebook_dir()
         if pricebook_dir.is_dir():
             print(f"[bootstrap] building the page index from {pricebook_dir}")
             from cbc.modules.catalog.api.pageindex.build import build_all

@@ -46,7 +46,7 @@ def test_pymongo_accepts_every_uri_it_hands_back() -> None:
 
 
 def test_the_data_directories_default_to_the_checkout(monkeypatch) -> None:
-    for name in ("STORAGE_ROOT", "PRICEBOOK_DIR", "REFERENCE_DIR"):
+    for name in ("STORAGE_ROOT", "PRICEBOOK_DIR", "REFERENCE_DIR", "CBC_PROJECTS_ROOT"):
         monkeypatch.delenv(name, raising=False)
     root = paths.repo_root()
     assert paths.storage_root() == root / "data" / "projects"
@@ -55,13 +55,26 @@ def test_the_data_directories_default_to_the_checkout(monkeypatch) -> None:
     assert (paths.reference_dir() / "margins" / "margin_framework.json").is_file()
 
 
-def test_no_module_builds_a_data_directory_off_the_repo_root() -> None:
-    pattern = re.compile(r'(repo_root\(\)|\bROOT)\s*/\s*"(pricebooks|reference-library)"')
+def test_a_sandboxed_run_reads_its_own_clone(monkeypatch, tmp_path) -> None:
+    """sandbox.py hands the Claude subprocess CBC_PROJECTS_ROOT; what runs there reads that copy."""
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "live"))
+    monkeypatch.setenv("CBC_PROJECTS_ROOT", str(tmp_path / "clone"))
+    assert paths.storage_root() == tmp_path / "clone"
+    monkeypatch.delenv("CBC_PROJECTS_ROOT")
+    assert paths.storage_root() == tmp_path / "live"
+
+
+def test_no_code_builds_a_data_directory_off_a_root() -> None:
+    """Backend, scripts and skill scripts alike: the directories come from cbc.shared.paths."""
+    pattern = re.compile(r'(repo_root\(\)|\bROOT|\bREPO_ROOT)\s*/\s*"(pricebooks|reference-library|projects)"')
+    repo = paths.repo_root()
+    roots = (SRC, SRC.parents[1] / "scripts", repo / ".claude" / "skills")
     offenders = [
-        f"{path.relative_to(SRC).as_posix()}:{number}"
-        for path in SRC.rglob("*.py")
+        f"{path.relative_to(repo).as_posix()}:{number}"
+        for root in roots
+        for path in root.rglob("*.py")
         if "__pycache__" not in path.parts
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
         if pattern.search(line)
     ]
-    assert not offenders, "use cbc.shared.paths.pricebook_dir() / reference_dir(): " + ", ".join(offenders)
+    assert not offenders, "use cbc.shared.paths (storage_root, pricebook_dir, reference_dir): " + ", ".join(offenders)

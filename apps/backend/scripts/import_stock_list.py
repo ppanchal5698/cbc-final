@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Import an NR-6 top-10 stock list into reference-library/hardware_sets/.
+"""Import an NR-6 top-10 stock list into data/reference-library/hardware_sets/.
 
 CBC still owes the authoritative stock list; until it arrives, this script
 validates and installs a candidate file (such as the draft harvested from the
 Hager price book).
 
-    python scripts/import_stock_list.py reference-library/hardware_sets/hager_top10_stock.json
+    python scripts/import_stock_list.py data/reference-library/hardware_sets/hager_top10_stock.json
     python scripts/import_stock_list.py --vendor hager path/to/cbc_stock.json
 """
 from __future__ import annotations
@@ -15,8 +15,9 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-TARGET_DIR = ROOT / "reference-library" / "hardware_sets"
+from cbc.shared.paths import reference_dir
+
+TARGET_DIR = reference_dir() / "hardware_sets"
 
 
 def validate(payload: dict) -> list[str]:

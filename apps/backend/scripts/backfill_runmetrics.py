@@ -27,10 +27,11 @@ from cbc.modules.ops.api import runmetrics  # noqa: E402
 from cbc.app import migrations  # noqa: E402
 from cbc.shared.persistence import names  # noqa: E402
 from cbc.shared.mongo import database  # noqa: E402
+from cbc.shared.paths import storage_root
 
 
 def _recordings() -> list[Path]:
-    return sorted((ROOT / "projects").glob("*/.runs/*.log"))
+    return sorted(storage_root().glob("*/.runs/*.log"))
 
 
 async def backfill(*, dry_run: bool = False) -> int:

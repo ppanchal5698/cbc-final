@@ -11,6 +11,7 @@ from _runtime import load_server
 
 def test_save_artifact_writes_sidecar_with_matching_sha(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(manifests, "ROOT", tmp_path)
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     art = load_server("artifact-storage")
     monkeypatch.setenv("CBC_PROJECTS_ROOT", str(tmp_path / "projects"))
     content = '{"openings": []}'
@@ -25,6 +26,7 @@ def test_save_artifact_writes_sidecar_with_matching_sha(tmp_path, monkeypatch) -
 
 def test_reuse_ok_false_when_input_hash_changes(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(manifests, "ROOT", tmp_path)
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     project = "demo"
     raw = tmp_path / "projects" / project / "uploads" / "raw"
     raw.mkdir(parents=True)
@@ -43,6 +45,7 @@ def test_reuse_ok_false_when_input_hash_changes(tmp_path, monkeypatch) -> None:
 
 def test_reuse_ok_false_when_sidecar_missing(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(manifests, "ROOT", tmp_path)
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     live = tmp_path / "projects" / "demo" / "extracted" / "door_schedule.json"
     live.parent.mkdir(parents=True)
     live.write_text("{}", encoding="utf-8")
@@ -51,6 +54,7 @@ def test_reuse_ok_false_when_sidecar_missing(tmp_path, monkeypatch) -> None:
 
 def test_reusable_phases_drop_on_sha_mismatch(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(manifests, "ROOT", tmp_path)
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     live = tmp_path / "projects" / "demo" / "extracted" / "door_schedule.json"
     live.parent.mkdir(parents=True)
     live.write_text("{}", encoding="utf-8")

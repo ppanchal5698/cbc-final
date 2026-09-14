@@ -15,14 +15,14 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from cbc.shared.paths import reference_dir, repo_root
 SOURCE = (
-    ROOT
+    repo_root()
     / "final_pricebooks"
     / "HAGER"
     / "Hager Multipliers and Special Nets - Effective 3-2-26.pdf"
 )
-TARGET = ROOT / "reference-library" / "multipliers" / "hager_special_nets.json"
+TARGET = reference_dir() / "multipliers" / "hager_special_nets.json"
 
 _ITEM_CODE = re.compile(r"^(\d{6})\s*$")
 _PRICE = re.compile(r"^([\d.]+)\s*$")

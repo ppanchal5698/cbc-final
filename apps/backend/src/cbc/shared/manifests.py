@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from cbc.shared.paths import repo_root
+from cbc.shared.paths import repo_root, storage_root
 
 ROOT = repo_root()
 
@@ -26,7 +26,7 @@ def _sha256_file(path: Path) -> str:
 
 
 def live_path(project: str, relative: str) -> Path:
-    return ROOT / "projects" / project / relative
+    return storage_root() / project / relative
 
 
 def sidecar_path(project: str, relative: str) -> Path:
@@ -35,7 +35,7 @@ def sidecar_path(project: str, relative: str) -> Path:
 
 
 def _raw_inputs(project: str) -> dict[str, str]:
-    raw = ROOT / "projects" / project / "uploads" / "raw"
+    raw = storage_root() / project / "uploads" / "raw"
     if not raw.is_dir():
         return {}
     return {

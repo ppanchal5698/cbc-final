@@ -16,16 +16,16 @@ import os
 import shutil
 import sys
 from datetime import datetime, timezone
-from pathlib import Path
 
 from pymongo import MongoClient
 
-ROOT = Path(__file__).resolve().parents[1]
+from cbc.shared import storage
+from cbc.shared.paths import pricebook_dir, reference_dir, repo_root
 
 URI = "mongodb://cbc:cbc_local_dev@localhost:27017/cbc_opshub?authSource=admin"
-SOURCE_ROOT = ROOT / "final_pricebooks"
-TARGET = ROOT / "pricebooks"
-TIERS_PATH = ROOT / "reference-library" / "multipliers" / "vendor_tiers.json"
+SOURCE_ROOT = repo_root() / "final_pricebooks"
+TARGET = pricebook_dir()
+TIERS_PATH = reference_dir() / "multipliers" / "vendor_tiers.json"
 
 HAGER_CATEGORIES = {
     "locks": 0.29,
@@ -275,7 +275,7 @@ def upsert_mongo(uri: str, db_name: str) -> dict[str, str]:
             "steward": "Purchasing",
             "kind": entry["kind"],
             "filename": entry["file"],
-            "path": f"pricebooks/{entry['file']}",
+            "path": storage.relative(TARGET / entry["file"]),
             "bytes": path.stat().st_size,
             "account": entry.get("account") or tier.get("account"),
             "note": tier.get("note"),

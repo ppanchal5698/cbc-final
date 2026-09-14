@@ -20,7 +20,7 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
+from cbc.shared.paths import storage_root
 
 PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -51,7 +51,7 @@ PAGE = """<!doctype html>
 
 
 def load_trail(project: str) -> list[dict[str, Any]]:
-    path = ROOT / "projects" / project / "audit_trail.jsonl"
+    path = storage_root() / project / "audit_trail.jsonl"
     if not path.exists():
         return []
     records = []
@@ -67,7 +67,7 @@ def load_trail(project: str) -> list[dict[str, Any]]:
 
 
 def cost_sources(project: str) -> list[dict[str, Any]]:
-    path = ROOT / "projects" / project / "priced" / "line_items.json"
+    path = storage_root() / project / "priced" / "line_items.json"
     if not path.exists():
         return []
     return json.loads(path.read_text(encoding="utf-8")).get("lines", [])
@@ -135,7 +135,7 @@ def build_report(project: str) -> str:
 
 def _demo() -> None:
     """Runnable check: malformed lines must not break the report."""
-    project_dir = ROOT / "projects" / "_audit_demo"
+    project_dir = storage_root() / "_audit_demo"
     project_dir.mkdir(parents=True, exist_ok=True)
     trail = project_dir / "audit_trail.jsonl"
     try:
@@ -171,7 +171,7 @@ def main() -> int:
     if not args.project:
         parser.error("a project name is required unless --demo is given")
 
-    output = Path(args.out) if args.out else ROOT / "projects" / args.project / "audit_report.html"
+    output = Path(args.out) if args.out else storage_root() / args.project / "audit_report.html"
     output.write_text(build_report(args.project), encoding="utf-8")
     print(f"Audit report written to {output}")
     return 0

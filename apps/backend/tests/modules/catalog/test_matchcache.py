@@ -9,7 +9,7 @@ from cbc.shared import manifests
 
 
 def _isolate(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(matchcache, "PROJECTS", tmp_path / "projects")
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     monkeypatch.setattr(manifests, "ROOT", tmp_path)
 
 

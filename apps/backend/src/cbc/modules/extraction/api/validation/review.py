@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from cbc.modules.pricing.api import calc
-from cbc.shared.paths import repo_root
+from cbc.shared.paths import repo_root, storage_root
 from cbc.modules.pricing.api import pricing
 from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
 
@@ -206,7 +206,7 @@ def _no_scope_flags(schedule: Any, openings: list[dict]) -> list[dict]:
 
 def derive_flags(slug: str) -> list[dict]:
     """Every finding that follows from the artifacts, without a model."""
-    project = ROOT / "projects" / slug
+    project = storage_root() / slug
     schedule = _load(project / "extracted" / "door_schedule.json")
     openings = _openings(schedule)
     priced = _load(project / "priced" / "line_items.json")
@@ -252,7 +252,7 @@ def merge(derived: list[dict], existing: Any) -> list[dict]:
 
 def write_flags(slug: str) -> int:
     """Derive, merge over what the pass wrote, and save. Returns the flag count."""
-    path = ROOT / "projects" / slug / "review" / "review_flags.json"
+    path = storage_root() / slug / "review" / "review_flags.json"
     merged = merge(derive_flags(slug), _load(path))
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(merged, indent=2), encoding="utf-8")

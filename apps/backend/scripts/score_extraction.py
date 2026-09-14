@@ -26,6 +26,7 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
+from cbc.shared.paths import storage_root
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -83,7 +84,7 @@ def _candidates(slug: str | None) -> dict[str, dict[str, Any]]:
     """
     if not slug:
         return {}
-    schedule = ROOT / "projects" / slug / "extracted" / "door_schedule.json"
+    schedule = storage_root() / slug / "extracted" / "door_schedule.json"
     if not schedule.exists():
         return {}
     payload = json.loads(schedule.read_text(encoding="utf-8"))
@@ -190,7 +191,7 @@ def score(actual: list[dict[str, Any]], golden: dict[str, Any]) -> dict[str, Any
 
 
 def score_project(slug: str) -> dict[str, Any] | None:
-    schedule = ROOT / "projects" / slug / "extracted" / "door_schedule.json"
+    schedule = storage_root() / slug / "extracted" / "door_schedule.json"
     if not schedule.exists():
         return None
     payload = json.loads(schedule.read_text(encoding="utf-8"))
@@ -202,7 +203,7 @@ def score_project(slug: str) -> dict[str, Any] | None:
     source = (payload.get("source_file") if isinstance(payload, dict) else None) or ""
     if source:
         names.append(Path(source).stem)
-    names += [pdf.stem for pdf in sorted((ROOT / "projects" / slug / "uploads" / "raw").glob("*.pdf"))]
+    names += [pdf.stem for pdf in sorted((storage_root() / slug / "uploads" / "raw").glob("*.pdf"))]
 
     for name in names:
         golden_file = GOLDEN_DIR / f"{name}.json"
@@ -252,7 +253,7 @@ def main() -> int:
         return 0
 
     slugs = [args.project] if args.project else (
-        sorted(p.name for p in (ROOT / "projects").iterdir()
+        sorted(p.name for p in (storage_root()).iterdir()
                if (p / "extracted" / "door_schedule.json").exists())
         if args.all else []
     )

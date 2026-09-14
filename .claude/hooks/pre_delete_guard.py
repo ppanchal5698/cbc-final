@@ -16,7 +16,9 @@ import shlex
 import sys
 from pathlib import Path
 
-PROTECTED_DIRS = ("pricebooks", "reference-library", ".claude")
+# The repo-root names are the rule's own wording and the image's symlinks; data/ is
+# where the reference data actually lives in a checkout, and behind those symlinks.
+PROTECTED_DIRS = ("pricebooks", "reference-library", "data/pricebooks", "data/reference-library", ".claude")
 
 _SEGMENT_SPLIT = re.compile(r"\|\||&&|[|;&\n()]")
 GIT_PUSH = re.compile(r"\bgit\s+push\b")

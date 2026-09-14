@@ -21,6 +21,7 @@ from cbc.modules.extraction.api.validation import review
 @pytest.fixture
 def project(tmp_path, monkeypatch):
     monkeypatch.setattr(review, "ROOT", tmp_path)
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     slug = "flagtest"
     (tmp_path / "projects" / slug / "extracted").mkdir(parents=True)
     (tmp_path / "projects" / slug / "priced").mkdir(parents=True)

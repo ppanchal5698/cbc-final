@@ -203,8 +203,6 @@ def test_the_full_pipeline_runs_all_three_check_sets() -> None:
 
 def _priced(tmp_path, lines) -> str:
     """Write a minimal project and return its slug, for check_pricing."""
-    import cbc.modules.extraction.api.validation.artifacts as vp
-
     slug = "gate_fixture"
     root = tmp_path / "projects" / slug
     (root / "priced").mkdir(parents=True)
@@ -213,7 +211,6 @@ def _priced(tmp_path, lines) -> str:
     (root / "priced" / "line_items.json").write_text(
         json.dumps({"lines": lines}), encoding="utf-8"
     )
-    vp.ROOT = tmp_path
     return slug
 
 
@@ -230,6 +227,7 @@ def test_a_line_with_no_identity_is_refused(tmp_path, monkeypatch) -> None:
     import cbc.modules.extraction.api.validation.artifacts as vp
 
     monkeypatch.setattr(vp, "ROOT", tmp_path)
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     slug = _priced(tmp_path, [BLANK_MANUAL])
     problems, _ = vp.check_pricing(slug, require_hardware_sets=True)
 
@@ -240,6 +238,7 @@ def test_a_manual_line_that_names_the_item_passes(tmp_path, monkeypatch) -> None
     import cbc.modules.extraction.api.validation.artifacts as vp
 
     monkeypatch.setattr(vp, "ROOT", tmp_path)
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     named = {**BLANK_MANUAL, "description": 'IVES 700 83", 630',
              "cost_source_detail": "Allegion - bought through Banner or SecLock"}
     slug = _priced(tmp_path, [named])
@@ -255,6 +254,7 @@ def test_a_manual_line_with_no_reason_is_refused(tmp_path, monkeypatch) -> None:
     import cbc.modules.extraction.api.validation.artifacts as vp
 
     monkeypatch.setattr(vp, "ROOT", tmp_path)
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     slug = _priced(tmp_path, [{**BLANK_MANUAL, "description": "IVES 700"}])
     problems, _ = vp.check_pricing(slug, require_hardware_sets=True)
 

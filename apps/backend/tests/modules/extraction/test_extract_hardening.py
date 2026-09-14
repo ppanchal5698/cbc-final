@@ -29,6 +29,7 @@ def test_post_extraction_blocks_invalid_scope_summary(tmp_path, monkeypatch) -> 
     import post_extraction_validate as pev
 
     monkeypatch.setattr(pev, "ROOT", tmp_path)
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     project = "demo"
     path = tmp_path / "projects" / project / "extracted" / "scope_summary.json"
     path.parent.mkdir(parents=True)
@@ -85,6 +86,7 @@ def test_check_extraction_fails_when_frp_flag_without_file(tmp_path, monkeypatch
     from cbc.modules.extraction.api.validation import artifacts
 
     monkeypatch.setattr(artifacts, "ROOT", tmp_path)
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     slug = "frp_gate"
     extracted = tmp_path / "projects" / slug / "extracted"
     extracted.mkdir(parents=True)
@@ -106,7 +108,7 @@ def test_total_page_count(tmp_path, monkeypatch) -> None:
 
     from cbc.modules.extraction.infrastructure import sheetmap
 
-    monkeypatch.setattr(sheetmap, "PROJECTS", tmp_path / "projects")
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     slug = "pages"
     raw = tmp_path / "projects" / slug / "uploads" / "raw"
     raw.mkdir(parents=True)
@@ -126,7 +128,7 @@ def test_exceeds_page_cap_is_cumulative_including_straggler_sets(tmp_path, monke
 
     from cbc.modules.extraction.infrastructure import sheetmap
 
-    monkeypatch.setattr(sheetmap, "PROJECTS", tmp_path / "projects")
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     slug = "cap_merge"
     raw = tmp_path / "projects" / slug / "uploads" / "raw"
     raw.mkdir(parents=True)

@@ -28,7 +28,8 @@ from cbc.modules.ops.api.freshness import load_sync  # noqa: E402
 
 raw_days = sys.argv[2] if len(sys.argv) > 2 else ""
 days = int(raw_days) if raw_days else load_sync().catalog_stale_days
-index = root / "pricebooks" / "index.json"
+from cbc.shared.paths import pricebook_dir  # noqa: E402
+index = pricebook_dir() / "index.json"
 if not index.exists():
     sys.exit("pricebooks/index.json not found")
 

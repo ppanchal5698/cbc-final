@@ -23,7 +23,7 @@ from typing import Any
 
 import fitz
 
-from cbc.shared.paths import repo_root
+from cbc.shared.paths import repo_root, storage_root
 from cbc.modules.ops.api.artifact_gate import ArtifactValidationError
 from cbc.shared.pdfrows import rows_from_words
 
@@ -107,7 +107,7 @@ def check_bboxes_are_real(project: str, openings: list[dict]) -> tuple[list[str]
     problems: list[str] = []
     warnings: list[str] = []
 
-    raw = ROOT / "projects" / project / "uploads" / "raw"
+    raw = storage_root() / project / "uploads" / "raw"
     pdfs = sorted(raw.glob("*.pdf")) if raw.is_dir() else []
 
     cache: dict[tuple[str, int], Any] = {}
@@ -201,7 +201,7 @@ def _extraction_found_no_scope(project: str) -> bool:
     proposal gates run as independent checks and must reach the same verdict the
     extraction gate did.
     """
-    path = ROOT / "projects" / project / "extracted" / "door_schedule.json"
+    path = storage_root() / project / "extracted" / "door_schedule.json"
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -229,7 +229,7 @@ def _sheetmap_says_a_schedule_exists(project: str) -> list[int]:
     missed the schedule". Absent or unreadable, it claims nothing: an older
     sheet map without these keys must not turn a correct run into a failure.
     """
-    path = ROOT / "projects" / project / "extracted" / "_sheetmap.json"
+    path = storage_root() / project / "extracted" / "_sheetmap.json"
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -253,7 +253,7 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
     """Return (problems, warnings) for extraction artifacts."""
     problems: list[str] = []
     warnings: list[str] = []
-    extracted = ROOT / "projects" / project / "extracted"
+    extracted = storage_root() / project / "extracted"
 
     if not extracted.exists():
         problems.append(f"{project}: no extracted/ directory")
@@ -407,7 +407,7 @@ def check_pricing(project: str, *, require_hardware_sets: bool = False) -> tuple
     """Return (problems, warnings) for priced artifacts."""
     problems: list[str] = []
     warnings: list[str] = []
-    root = ROOT / "projects" / project
+    root = storage_root() / project
 
     # Nothing in scope means nothing to price, and that is not a pricing failure.
     # Fixing this only at extraction left the same bug one layer down: a
@@ -613,7 +613,7 @@ def check_proposal(project: str) -> tuple[list[str], list[str]]:
     """Return (problems, warnings) for proposal artifacts."""
     problems: list[str] = []
     warnings: list[str] = []
-    root = ROOT / "projects" / project
+    root = storage_root() / project
 
     # Same reasoning as check_pricing: there is no quotation to render for a bid
     # CBC is not quoting. The estimator gets the no_scope review flag instead.
@@ -686,7 +686,7 @@ UNCHECKED_JOB_TYPES = frozenset(
 
 
 def _file_sha(project: str, relative: str) -> str | None:
-    path = ROOT / "projects" / project / relative
+    path = storage_root() / project / relative
     if not path.is_file():
         return None
     return hashlib.sha256(path.read_bytes()).hexdigest()

@@ -2,7 +2,7 @@
 """Wipe Ops-Hub to a clean slate — dev sign-in accounts only.
 
 Removes all bids, price books, catalog rows, jobs, and on-disk project workspaces.
-Resets pricebooks/ and the SQLite catalog index. Re-seeds only the two local
+Resets the price-book directory; the page index goes with the Mongo collections. Re-seeds only the two local
 developer accounts (estimator@cbc.com, admin@cbc.com).
 
     python scripts/fresh_reset.py
@@ -19,35 +19,49 @@ from pathlib import Path
 
 from pymongo import MongoClient
 
+from cbc.shared.paths import pricebook_dir, storage_root
+from cbc.shared.persistence import names
+
 ROOT = Path(__file__).resolve().parents[1]
 
 URI = "mongodb://cbc:cbc_local_dev@localhost:27017/cbc_opshub?authSource=admin"
 
+# By the names migration 1 gave them. These were the pre-migration names, so a
+# "fresh" reset dropped empty collections and left every bid, opening and part.
 COLLECTIONS = (
-    "users",
-    "projects",
-    "documents",
-    "lineItems",
-    "quoteLines",
-    "quotes",
-    "proposals",
-    "products",
-    "priceBooks",
-    "jobs",
-    "auditLog",
-    "calls",
-    "estimateVersions",
-    "counters",
-    "settings",
+    names.USERS,
+    names.BID_REQUESTS,
+    names.DOCUMENTS,
+    names.OPENINGS,
+    names.ESTIMATE_LINES,
+    names.QUOTES,
+    names.PROPOSALS,
+    names.CATALOG_ITEMS,
+    names.PRICE_BOOKS,
+    names.JOBS,
+    names.AUDIT_LOGS,
+    names.CALLS,
+    names.ESTIMATE_VERSIONS,
+    names.COUNTERS,
+    names.SETTINGS,
+    names.TAKEOFFS,
+    names.VENDOR_RFQS,
+    names.RFIS,
+    names.FEEDBACK_EVENTS,
+    names.FAILED_EXTRACTIONS,
+    names.RUN_METRICS,
     # The page index. Absent here, a "fresh" install kept every indexed catalog
     # while reset_pricebooks() deleted the very PDFs those pages point at.
-    "pageIndex",
+    names.PAGE_INDEX,
 )
 
 PRICEBOOK_KEEP = frozenset({"index.json", "README.md"})
 
 
 def reset_mongo(uri: str, db_name: str) -> None:
+    # `scripts.` resolves from apps/backend, which running this file does not put on the path.
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
     from scripts.seed_db import seed_users
 
     from cbc.shared.mongo_uri import reachable_uri
@@ -116,8 +130,8 @@ def main() -> int:
     db_name = os.environ.get("MONGODB_DB", "cbc_opshub")
 
     reset_mongo(uri, db_name)
-    reset_pricebooks(ROOT / "pricebooks")
-    reset_projects(ROOT / "projects")
+    reset_pricebooks(pricebook_dir())
+    reset_projects(storage_root())
 
     # No catalog step here any more. The page index is a Mongo collection, so
     # reset_mongo() above already dropped it - there is no `catalog_index`

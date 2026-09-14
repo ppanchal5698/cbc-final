@@ -38,11 +38,6 @@ def test_the_worker_renders_both_artifacts_itself(job_slice: str) -> None:
     assert "render_artifacts" in body, f"{job_slice} trusts the pass for rendering"
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "quoting/infrastructure/render.py resolves REPO_ROOT/scripts/validate_and_render_quote.py. "
-    "The scripts live at apps/backend/scripts and reach /app/scripts only through "
-    "the Dockerfile COPY, so rendering works in the image and fails in a checkout."
-))
 def test_a_render_failure_is_reported_rather_than_raised() -> None:
     """A good review with a quote that does not validate is still worth keeping."""
     result = render.render_quotation("no_such_project_anywhere")
@@ -51,11 +46,6 @@ def test_a_render_failure_is_reported_rather_than_raised() -> None:
     assert not result  # RenderResult is falsy when it failed
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "quoting/infrastructure/render.py resolves REPO_ROOT/scripts/validate_and_render_quote.py. "
-    "The scripts live at apps/backend/scripts and reach /app/scripts only through "
-    "the Dockerfile COPY, so rendering works in the image and fails in a checkout."
-))
 def test_the_scripts_it_calls_actually_exist() -> None:
     """A path typo here fails only at the end of a run that already cost minutes."""
     assert render.QUOTE_SCRIPT.exists(), render.QUOTE_SCRIPT
@@ -71,6 +61,7 @@ def test_a_missing_script_is_a_clean_failure(monkeypatch, tmp_path) -> None:
 
 def _quote_project(tmp_path, monkeypatch, slug: str = "demo"):
     monkeypatch.setattr(render, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     templates = tmp_path / "templates"
     templates.mkdir()
     (templates / "quotation.html").write_text("quote-tmpl", encoding="utf-8")

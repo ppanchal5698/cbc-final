@@ -25,7 +25,7 @@ def test_the_path_is_the_one_a_tool_takes(tmp_path, monkeypatch) -> None:
     """It was `uploads/raw/<name>`, so every caller retyped the project slug in
     front of it. One run typed `dunkin_donots_remodel` and the three searches
     hunting for the door schedule came back "PDF not found"."""
-    monkeypatch.setattr(sheetmap, "PROJECTS", tmp_path / "projects")
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     slug = "sheetmap_paths"
     _tiny_pdf(tmp_path / "projects" / slug / "uploads" / "raw" / "set.pdf")
 
@@ -43,7 +43,7 @@ def test_schedule_markers_are_stated_not_inferred(tmp_path, monkeypatch) -> None
     """An accessibility sheet scored 44 on the word "door" alone and led the map
     on a bid whose Division 08 scope was nil. A run needs to be able to read
     "no page here carries a schedule marker" as a fact."""
-    monkeypatch.setattr(sheetmap, "PROJECTS", tmp_path / "projects")
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     slug = "sheetmap_markers"
     _tiny_pdf(
         tmp_path / "projects" / slug / "uploads" / "raw" / "ada.pdf",
@@ -107,7 +107,7 @@ def test_pages_for_roles_filters() -> None:
 
 
 def test_build_sheetmap_ranks_pages_and_skips_unchanged(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(sheetmap, "PROJECTS", tmp_path / "projects")
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     slug = "sheetmap_demo"
     pdf = _tiny_pdf(tmp_path / "projects" / slug / "uploads" / "raw" / "set.pdf")
     first = sheetmap.build_sheetmap(slug)

@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
-from cbc.shared.paths import repo_root
+from cbc.shared.paths import repo_root, storage_root
 from cbc.modules.extraction.api.claude_output import (
     DoorSchedule,
     FrpTakeoff,
@@ -75,7 +75,7 @@ def _project_root(slug: str) -> Path:
     try:
         return storage.project_dir(slug)
     except Exception:
-        return ROOT / "projects" / slug
+        return storage_root() / slug
 
 
 def check_contracts(slug: str, rel_and_kind: tuple[tuple[str, str], ...]) -> tuple[list[str], list[dict[str, Any]]]:

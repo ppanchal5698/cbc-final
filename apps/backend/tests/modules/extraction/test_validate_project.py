@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 
 import pytest
@@ -13,13 +12,13 @@ from cbc.modules.extraction.api.validation.artifacts import (
     check_proposal,
     validate_job_artifacts,
 )
-from tests.shared import ROOT
+from cbc.shared.paths import storage_root
 
 from cbc.modules.pricing.api import calc  # noqa: E402
 
 
 def _write(project: str, relative: str, payload) -> Path:
-    path = ROOT / "projects" / project / relative
+    path = storage_root() / project / relative
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return path
@@ -39,15 +38,17 @@ def _good_opening(**overrides):
     return base
 
 
+@pytest.fixture(autouse=True)
+def _isolated_storage(tmp_path, monkeypatch):
+    """Validation reads storage_root(); each test gets its own, never data/projects."""
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
+
+
 @pytest.fixture
-def validate_project(tmp_path, monkeypatch):
+def validate_project():
     project = "_validate_test"
-    project_dir = ROOT / "projects" / project
-    if project_dir.exists():
-        shutil.rmtree(project_dir)
-    project_dir.mkdir(parents=True)
+    (storage_root() / project).mkdir(parents=True)
     yield project
-    shutil.rmtree(project_dir, ignore_errors=True)
 
 
 def test_extraction_takes_the_shapes_the_importer_takes(validate_project):
@@ -415,7 +416,7 @@ def _sheet_with_text(project: str):
 
     from cbc.shared.pdfrows import rows_from_words
 
-    raw = ROOT / "projects" / project / "uploads" / "raw"
+    raw = storage_root() / project / "uploads" / "raw"
     raw.mkdir(parents=True, exist_ok=True)
     path = raw / "sheet.pdf"
 

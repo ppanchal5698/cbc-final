@@ -13,11 +13,9 @@ from pathlib import Path
 from typing import Any
 
 from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
-from cbc.shared.paths import repo_root
+from cbc.shared.paths import storage_root
 from cbc.shared import manifests
 
-ROOT = repo_root()
-PROJECTS = ROOT / "projects"
 MATCHCACHE_REL = "extracted/_matchcache.json"
 HARDWARE_SETS_REL = "extracted/hardware_sets.json"
 DOOR_SCHEDULE_REL = "extracted/door_schedule.json"
@@ -37,7 +35,7 @@ def _sha256_file(path: Path) -> str | None:
 
 
 def cache_path(slug: str) -> Path:
-    return PROJECTS / slug / MATCHCACHE_REL
+    return storage_root() / slug / MATCHCACHE_REL
 
 
 def catalog_watermark() -> str:
@@ -94,7 +92,7 @@ def _confidence(item: dict[str, Any]) -> float:
 
 def ingest(slug: str) -> dict[str, Any]:
     """Write high-confidence matches from hardware_sets.json into the cache."""
-    root = PROJECTS / slug
+    root = storage_root() / slug
     live = root / HARDWARE_SETS_REL
     payload_out: dict[str, Any] = {
         "generated_at": _now(),
@@ -166,7 +164,7 @@ def reusable(slug: str, *, force: bool = False) -> list[dict[str, Any]]:
     if str(payload.get("matcherPromptVersion") or "") != MATCHER_PROMPT_VERSION:
         return []
     watermark = catalog_watermark()
-    door_sha = _sha256_file(PROJECTS / slug / DOOR_SCHEDULE_REL)
+    door_sha = _sha256_file(storage_root() / slug / DOOR_SCHEDULE_REL)
     kept: list[dict[str, Any]] = []
     for entry in payload.get("entries") or []:
         if not isinstance(entry, dict):

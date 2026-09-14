@@ -50,6 +50,14 @@ def data_dir(env_var: str, default: str) -> Path:
 
 
 def storage_root() -> Path:
+    """Where projects live - inside a sandboxed Claude run, that run's own clone.
+
+    worker_kit/sandbox.py hands the Claude subprocess CBC_PROJECTS_ROOT, its scratch
+    workspace. Hooks, skill scripts and the validation they import run there and
+    must read that copy, not the live one; the artifact-storage server already did.
+    """
+    if os.environ.get("CBC_PROJECTS_ROOT"):
+        return data_dir("CBC_PROJECTS_ROOT", "data/projects")
     return data_dir("STORAGE_ROOT", "data/projects")
 
 

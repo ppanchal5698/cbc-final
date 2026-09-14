@@ -22,9 +22,11 @@ import json
 import subprocess
 import sys
 from datetime import date, datetime
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from cbc.shared.paths import pricebook_dir, reference_dir, repo_root, storage_root  # noqa: E402
+
+# The repository root: mcp-servers/ and .claude/ are there, not beside this script.
+ROOT = repo_root()
 
 # The artifact checks are domain rules and live in the domain. This file is the
 # command-line front for them, plus the pre-flight that checks this checkout -
@@ -62,8 +64,8 @@ __all__ = [
     "validate_job_artifacts",
 ]
 
-REFERENCE = ROOT / "reference-library"
-PRICEBOOKS = ROOT / "pricebooks"
+REFERENCE = reference_dir()
+PRICEBOOKS = pricebook_dir()
 # Mirrors .mcp.json. `pricebook` was here until it turned out to be a pure alias
 # over `catalog` and was deleted; the pre-flight was still checking for it.
 SERVERS = ["pdf-tools", "catalog", "calc-engine", "artifact-storage", "p21-connector"]
@@ -165,7 +167,7 @@ def _demo() -> None:
     """Runnable check: the extraction validator's field logic."""
     import shutil
 
-    project_dir = ROOT / "projects" / "_validate_demo"
+    project_dir = storage_root() / "_validate_demo"
     (project_dir / "extracted").mkdir(parents=True, exist_ok=True)
     target = project_dir / "extracted" / "door_schedule.json"
     try:

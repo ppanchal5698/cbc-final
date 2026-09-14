@@ -18,11 +18,10 @@ from pathlib import Path
 from typing import Any
 
 from cbc.shared import pdfpages
-from cbc.shared.paths import repo_root
+from cbc.shared.paths import repo_root, storage_root
 from cbc.shared.storage import atomic_write_json
 
 ROOT = repo_root()
-PROJECTS = ROOT / "projects"
 SHEETMAP_REL = "extracted/_sheetmap.json"
 SHEETMAP_JOB_TYPES = frozenset(
     {
@@ -48,7 +47,7 @@ def _now() -> str:
 
 
 def sheetmap_path(slug: str) -> Path:
-    return PROJECTS / slug / SHEETMAP_REL
+    return storage_root() / slug / SHEETMAP_REL
 
 
 def _load_parse_schedule():
@@ -223,7 +222,7 @@ def _unchanged(slug: str, existing: dict[str, Any], files: list[Path]) -> bool:
 
 def total_page_count(slug: str) -> int:
     """Sum of PDF pages under uploads/raw/ (circuit-breaker input)."""
-    raw = PROJECTS / slug / "uploads" / "raw"
+    raw = storage_root() / slug / "uploads" / "raw"
     if not raw.is_dir():
         return 0
     total = 0
@@ -253,7 +252,7 @@ def build_sheetmap(slug: str, *, force: bool = False) -> dict[str, Any]:
     Skip the rewrite when every file SHA already matches, unless `force`.
     Does not write `door_schedule.json`.
     """
-    project = PROJECTS / slug
+    project = storage_root() / slug
     raw = project / "uploads" / "raw"
     target = sheetmap_path(slug)
     files = sorted(raw.glob("*.pdf")) if raw.is_dir() else []

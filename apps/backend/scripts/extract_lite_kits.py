@@ -25,15 +25,14 @@ import json
 import re
 import sys
 import warnings
-from pathlib import Path
 
 warnings.filterwarnings("ignore")
 
-ROOT = Path(__file__).resolve().parents[1]
+from cbc.shared.paths import pricebook_dir, reference_dir, repo_root  # noqa: E402
 
 import fitz  # noqa: E402
 
-BOOK = ROOT / "pricebooks" / "national_guard_price_list.pdf"
+BOOK = pricebook_dir() / "national_guard_price_list.pdf"
 COLUMN_TOLERANCE = 3.0  # points; right edges of one column vary by well under this
 _INT = re.compile(r"^\d{1,4}$")
 _RULE = re.compile(r"^[\u2022\-\*]\s*(.+)$")
@@ -186,7 +185,7 @@ def main() -> int:
         out.append(entry)
     doc.close()
 
-    target = ROOT / "reference-library" / "adders" / "lite_kit_prices.json"
+    target = reference_dir() / "adders" / "lite_kit_prices.json"
     payload = {
         "description": "National Guard lite-kit and louver list prices, by width x height.",
         "source": f"pricebooks/{BOOK.name}",
@@ -205,7 +204,7 @@ def main() -> int:
     target.write_text(json.dumps(payload, indent=1) + "\n", encoding="utf-8")
     print(
         f"{len(out)} tables, {sum(t['cell_count'] for t in out)} cells -> "
-        f"{target.relative_to(ROOT)}"
+        f"{target.relative_to(repo_root())}"
     )
     return 0
 

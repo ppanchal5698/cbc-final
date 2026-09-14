@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,13 +29,15 @@ SAVE_ALLOW = re.compile(
 
 
 def _projects_root() -> Path:
-    override = os.environ.get("CBC_PROJECTS_ROOT")
-    if override:
-        return Path(override).resolve()
-    storage = os.environ.get("STORAGE_ROOT")
-    if storage:
-        return Path(storage).resolve()
-    return ROOT / "projects"
+    """CBC_PROJECTS_ROOT (a sandboxed run's clone), else STORAGE_ROOT, else the default.
+
+    One definition, cbc.shared.paths.storage_root(). This kept its own fallback to
+    ROOT/projects while the manifests it writes followed the storage root, so a
+    save landed in one directory and its sidecar in another.
+    """
+    from cbc.shared.paths import storage_root
+
+    return storage_root().resolve()
 
 
 def _project_dir(project: str) -> Path:

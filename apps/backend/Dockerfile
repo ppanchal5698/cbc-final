@@ -40,6 +40,7 @@ RUN pip install --no-cache-dir -r /app/requirements.txt \
  && mkdir -p /app/data/projects /app/data/pricebooks /app/.cache /home/cbc/.claude \
  && ln -sfn /app/data/projects /app/projects \
  && ln -sfn /app/data/pricebooks /app/pricebooks \
+ && ln -sfn /app/scripts /app/apps/backend/scripts \
  && chmod +x /app/docker/entrypoint.sh \
  && chown -R cbc:cbc /app /home/cbc
 

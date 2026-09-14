@@ -32,6 +32,7 @@ def _project(root: Path, slug: str, schedule: object) -> None:
 def project_root(tmp_path, monkeypatch):
     monkeypatch.setattr(artifacts, "ROOT", tmp_path)
     monkeypatch.setattr(review, "ROOT", tmp_path)
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     return tmp_path
 
 

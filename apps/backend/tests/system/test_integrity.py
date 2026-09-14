@@ -512,14 +512,6 @@ def test_a_quoted_absolute_path_into_reference_data_is_blocked() -> None:
     assert result.returncode == 2, result.stdout
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "pre_delete_guard.PROTECTED_DIRS names repo-root pricebooks/ and "
-    "reference-library/. The data moved to data/pricebooks and "
-    "data/reference-library in the monolith cutover and the hook was not told: "
-    "writes and deletes there exit 0. The container is covered only because the "
-    "Dockerfile symlinks /app/pricebooks. Strict, so fixing the hook fails this "
-    "marker and it gets removed."
-))
 @pytest.mark.parametrize(
     "command",
     [
