@@ -118,7 +118,8 @@ Audit completed: 2026-08-31. Scope: `web/` Ops-Hub Next.js 16 frontend.
 | next-auth v5 beta (`5.0.0-beta.32`) | Documented — upgrade when stable |
 | E2E requires full docker stack (API + MongoDB) | Specs written; not run in CI yet |
 | Role gating is UI-only (backend authoritative) | By design |
-| Bid edit/delete, price-book download, call delete UI | Out of scope — backend exists |
+| Bid edit/delete, price-book download, call delete UI | **Done** (2026-09-14) — edit on intake, download on price books, delete in the notes drawer |
+| Review flags, vendor RFQs, RFIs | **Done** (2026-09-14) — proposal aside and quote page; RFI status and applying a returned vendor price have no API route yet |
 | 71% client components | Acceptable for SWR-heavy desk |
 | Header note count unavailable state | Shows no badge (not 0) on failure |
 
