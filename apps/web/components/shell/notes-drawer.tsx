@@ -10,6 +10,7 @@ import {
   X,
   PaperPlaneTilt,
   CheckCircle,
+  Trash,
 } from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
 
@@ -93,6 +94,20 @@ export function NotesDrawer({ code }: { code: string | null }) {
       bumpNotes();
     } catch (problem) {
       toast.error("Could not close that RFI", { description: errorMessage(problem) });
+    }
+  }
+
+  async function remove(entry: CallEntry) {
+    if (!window.confirm(`Delete this ${entry.kind} from ${entry.who}? It is removed from the bid's log.`)) {
+      return;
+    }
+    try {
+      await proxyMutate(`/api/proxy/projects/${code}/calls/${entry.id}`, { method: "DELETE" });
+      toast.success("Removed from the log");
+      mutate();
+      bumpNotes();
+    } catch (problem) {
+      toast.error("Could not remove that entry", { description: errorMessage(problem) });
     }
   }
 
@@ -235,6 +250,14 @@ export function NotesDrawer({ code }: { code: string | null }) {
                         <CheckCircle size={20} weight="fill" />
                       </button>
                     )}
+                    <button
+                      onClick={() => remove(entry)}
+                      title="Delete this entry"
+                      aria-label={`Delete the ${entry.kind} from ${entry.who}`}
+                      className="text-tx-muted hover:text-status-error transition-colors p-1.5 rounded-md hover:bg-status-error-soft"
+                    >
+                      <Trash size={18} weight="duotone" />
+                    </button>
                   </div>
                 </div>
               );

@@ -14,6 +14,8 @@ import {
 import { toast } from "sonner";
 
 import { JobFailedBanner } from "@/components/jobs/job-failed-banner";
+import { ReviewFlagsPanel } from "@/components/proposal/review-flags-panel";
+import { RfisPanel } from "@/components/proposal/rfis-panel";
 import { useUiState } from "@/components/shell/ui-state";
 import { formatMoney } from "@/lib/format";
 import { taxSummary } from "@/lib/tax-display";
@@ -472,6 +474,8 @@ ${draft.body}`;
         </section>
 
         <aside className="z-10 flex shrink-0 flex-col gap-4 xl:sticky xl:top-4 xl:w-[340px] xl:self-start bg-background">
+          <ReviewFlagsPanel code={code} />
+          <RfisPanel code={code} />
           <div className="rounded-xl p-5 bg-panel border border-subtle shadow-sm">
             <span className="block text-[11px] font-bold uppercase tracking-widest text-tx-muted">
               Proposal settings

@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 
 import { AlternateBar } from "@/components/bids/alternate-bar";
+import { VendorRfqsPanel } from "@/components/quote/vendor-rfqs-panel";
 import { JobFailedBanner } from "@/components/jobs/job-failed-banner";
 import { useUiState } from "@/components/shell/ui-state";
 import { formatMoney, formatPercent } from "@/lib/format";
@@ -684,6 +685,8 @@ export function QuoteClient({
             </div>
           )}
         </div>
+
+        <VendorRfqsPanel code={code} />
       </main>
 
       <footer className="flex flex-wrap items-center gap-4 border-t border-subtle px-6 py-4 bg-background">

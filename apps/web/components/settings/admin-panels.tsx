@@ -127,6 +127,19 @@ export function UsersAdminPanel() {
     }
   }
 
+  async function removeUser(user: UserRow) {
+    if (!window.confirm(`Delete ${user.name} (${user.email})? They will no longer be able to sign in.`)) {
+      return;
+    }
+    try {
+      await proxyMutate(`/api/proxy/users/${user.id}`, { method: "DELETE" });
+      toast.success(`${user.name} deleted`);
+      mutate();
+    } catch (problem) {
+      toast.error("Could not delete that user", { description: errorMessage(problem) });
+    }
+  }
+
   return (
     <section className="rounded-xl bg-panel border border-subtle shadow-sm">
       <div className="border-b border-subtle px-5 py-4">
@@ -215,6 +228,14 @@ export function UsersAdminPanel() {
               <option value="estimator">estimator</option>
               <option value="admin">admin</option>
             </select>
+            <button
+              type="button"
+              onClick={() => removeUser(user)}
+              aria-label={`Delete ${user.name}`}
+              className="rounded-md px-2.5 py-1.5 text-[12.5px] font-semibold border border-status-error/30 text-status-error hover:bg-status-error-soft transition-colors shadow-sm"
+            >
+              Delete
+            </button>
           </div>
         ))}
       </div>

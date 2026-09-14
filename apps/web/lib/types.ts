@@ -797,3 +797,42 @@ export interface SpendSummary {
     finishedAt?: string | null;
   }[];
 }
+
+/** `GET /api/projects/{code}/review-flags` - NFR-2, derived on every read. */
+export interface ReviewFlag {
+  opening: string;
+  field: string;
+  severity: string;
+  source_page?: number | null;
+  note: string;
+  derived?: boolean;
+}
+
+/** `GET /api/projects/{code}/vendor-rfqs` - FR-16, the third cost path. */
+export interface VendorRfq {
+  id: string;
+  rfqNumber: string;
+  triggerReason: string;
+  vendorId?: string | null;
+  requestedItems?: {
+    description?: string | null;
+    partNumber?: string | null;
+    quantity?: number | null;
+  }[];
+  status: string;
+  dueBy?: string | null;
+  blocksBid?: boolean;
+}
+
+/** `GET /api/projects/{code}/rfis` - questions raised before the quote is final. */
+export interface Rfi {
+  id: string;
+  rfiNumber: string;
+  subject: string;
+  question: string;
+  category: string;
+  status: string;
+  blocksFinalization?: boolean;
+  raisedBy?: string | null;
+  raisedAt?: string | null;
+}

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowRight } from "@phosphor-icons/react/dist/ssr";
 
 import { DeleteBidButton } from "@/components/bids/delete-bid-button";
+import { EditBidButton } from "@/components/bids/edit-bid-button";
 import { UploadPanel } from "@/components/intake/upload-panel";
 import { VersionsPanel } from "@/components/intake/versions-panel";
 import { PageHeader } from "@/components/shell/page-header";
@@ -151,6 +152,7 @@ export default async function IntakePage({ params }: { params: Promise<{ code: s
                 {project.pipelineNote}
               </p>
             )}
+            <EditBidButton project={project} />
             <DeleteBidButton
               code={project.code}
               name={project.jobName ?? project.name}

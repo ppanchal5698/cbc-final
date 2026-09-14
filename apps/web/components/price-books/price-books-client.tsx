@@ -9,6 +9,7 @@ import {
   CheckCircle,
   Plus,
   Envelope,
+  DownloadSimple,
 } from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
 
@@ -16,7 +17,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { formatMoney } from "@/lib/format";
 import type { PriceBookDetail, PriceBooksResponse } from "@/lib/types";
 
-import { errorMessage, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
+import { errorMessage, proxyFetch, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
 import { cn } from "@/lib/utils";
 
 function formatMultiplier(value: number | null | undefined): string {
@@ -115,6 +116,28 @@ export function PriceBooksClient() {
     } catch (problem) {
       toast.error("Could not record the review", { description: errorMessage(problem) });
     }
+  }
+
+  async function downloadSheet() {
+    if (!selectedId) return;
+    const response = await proxyFetch(`/api/proxy/price-books/${selectedId}/file`);
+    if (!response.ok) {
+      toast.error("Could not download the sheet", {
+        description: response.status === 404 ? "No sheet has been uploaded for this program." : response.statusText,
+      });
+      return;
+    }
+    const disposition = response.headers.get("content-disposition") ?? "";
+    const filename =
+      /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? `${selected?.vendor ?? "price-book"}-sheet`;
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   async function remove() {
@@ -423,6 +446,13 @@ export function PriceBooksClient() {
               >
                 <CheckCircle size={15} weight="duotone" />
                 Mark as reviewed today
+              </button>
+              <button
+                onClick={downloadSheet}
+                className="flex items-center gap-1.5 rounded-md px-4 py-2.5 text-[13px] font-medium border border-subtle text-tx-secondary hover:bg-panel-muted transition-colors shadow-sm"
+              >
+                <DownloadSimple size={15} weight="duotone" />
+                Download current sheet
               </button>
               <span className="flex-1" />
               <button
