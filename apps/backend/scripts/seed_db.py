@@ -24,6 +24,8 @@ from pathlib import Path
 import bcrypt
 from pymongo import MongoClient
 
+from cbc.shared.persistence import names
+
 ROOT = Path(__file__).resolve().parents[1]
 
 URI = "mongodb://cbc:cbc_local_dev@localhost:27017/cbc_opshub?authSource=admin"

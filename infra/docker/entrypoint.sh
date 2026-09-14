@@ -59,7 +59,9 @@ for mounted in /app/data/projects /app/projects; do
 done
 
 if [ "${AUTO_BOOTSTRAP:-1}" != "0" ]; then
-  python /app/scripts/bootstrap.py || echo "[entrypoint] bootstrap skipped (MongoDB may still be starting)"
+  # bootstrap.py already exits 0 when MongoDB is not up yet, so a failure here is
+  # a real one - say so, rather than blame a Mongo that was fine.
+  python /app/scripts/bootstrap.py || echo "[entrypoint] bootstrap FAILED - see the traceback above; starting anyway"
 fi
 
 exec "$@"
