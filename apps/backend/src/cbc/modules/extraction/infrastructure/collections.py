@@ -5,12 +5,16 @@ No other module may name these. Everything else reaches this data through
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from pymongo import ASCENDING, DESCENDING
+from pymongo.errors import DuplicateKeyError
 
 from cbc.shared.persistence import names
 from cbc.shared.mongo import database, replace_index
+
+log = logging.getLogger("cbc.api.db")  # where catalog's index messages already go
 
 
 def openings():
@@ -35,15 +39,28 @@ def feedback_events():
 async def ensure_indexes() -> None:
     """Idempotent. Runs after the migrations, like every module's."""
     await openings().create_index([("projectId", ASCENDING), ("status", ASCENDING)])
-    await replace_index(
-        openings(),
-        "opening_door_identity",
-        [("orgId", ASCENDING), ("projectId", ASCENDING), ("doorNumber", ASCENDING)],
-        unique=True,
-        partialFilterExpression={
-            "doorNumber": {"$exists": True, "$type": "string"},
-        },
-    )
+    # Two openings with one door number on a bid make this unique index unbuildable.
+    # That raised out of startup, so a single dirty bid stopped the API; migration 4
+    # only logged it. Report it, as catalog does for products, and keep serving -
+    # the identity is not enforced until the duplicates are merged.
+    try:
+        await replace_index(
+            openings(),
+            "opening_door_identity",
+            [("orgId", ASCENDING), ("projectId", ASCENDING), ("doorNumber", ASCENDING)],
+            unique=True,
+            partialFilterExpression={
+                "doorNumber": {"$exists": True, "$type": "string"},
+            },
+        )
+    except DuplicateKeyError as exc:
+        log.error(
+            "openings holds two rows with the same bid and door number, so the "
+            "opening_door_identity index could not be built and door identity is not "
+            "enforced. Merge them (group openings by orgId, projectId, doorNumber) and "
+            "restart. %s",
+            exc.details.get("keyValue") if exc.details else exc,
+        )
     # Legacy non-unique mark lookup kept for list screens that still sort by mark.
     await openings().create_index([("projectId", ASCENDING), ("mark", ASCENDING)])
     await failed_extractions().create_index(

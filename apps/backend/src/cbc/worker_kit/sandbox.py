@@ -216,7 +216,8 @@ def docker_available() -> bool:
 
 
 def sandbox_image() -> str:
-    return os.environ.get("CBC_SANDBOX_IMAGE", "cbc-final-extraction:latest").strip()
+    # The worker image compose builds; no separate extraction image is built.
+    return os.environ.get("CBC_SANDBOX_IMAGE", "cbc-final-worker:latest").strip()
 
 
 def sandbox_network() -> str:
