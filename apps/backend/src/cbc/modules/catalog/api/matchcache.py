@@ -38,17 +38,23 @@ def cache_path(slug: str) -> Path:
     return storage_root() / slug / MATCHCACHE_REL
 
 
-def catalog_watermark() -> str:
-    """max(builtAt) across pageIndex; empty when the collection is unreachable."""
-    try:
-        from cbc.shared.mongo import database
+def catalog_watermark() -> str | None:
+    """max(builtAt) over the indexed catalogs, or None when the index cannot be read.
 
-        rows = list(database()["pageIndex"].find({}, {"builtAt": 1}).limit(200))
+    This called `list()` on an async Motor cursor, which raises; the except turned
+    every call into "", so the key never moved when a price book was re-indexed and
+    a cached match outlived the catalog it was made against. It now reads the page
+    index through its sync read-only reader - the worker derives that credential at
+    startup - with the same watermark find_pages uses. None means "cannot tell",
+    and nothing is reused on it.
+    """
+    from cbc.modules.catalog.api.pageindex import reader
+    from cbc.modules.catalog.api.pageindex.query import headers_watermark
+
+    try:
+        return headers_watermark(reader.list_catalogs())
     except Exception:
-        return ""
-    if not rows:
-        return ""
-    return max(str(row.get("builtAt") or "") for row in rows)
+        return None
 
 
 def item_key(specified: Any, watermark: str) -> str:
@@ -164,6 +170,8 @@ def reusable(slug: str, *, force: bool = False) -> list[dict[str, Any]]:
     if str(payload.get("matcherPromptVersion") or "") != MATCHER_PROMPT_VERSION:
         return []
     watermark = catalog_watermark()
+    if watermark is None:
+        return []  # the catalog may have changed; a flagged-free reuse needs proof it did not
     door_sha = _sha256_file(storage_root() / slug / DOOR_SCHEDULE_REL)
     kept: list[dict[str, Any]] = []
     for entry in payload.get("entries") or []:

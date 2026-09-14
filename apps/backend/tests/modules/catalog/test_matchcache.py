@@ -107,3 +107,27 @@ def test_match_prompt_includes_cached_item_unless_forced(tmp_path, monkeypatch) 
     )
     assert "Reuse these cached matches" not in forced
 
+
+def test_the_watermark_moves_when_a_catalog_is_rebuilt(monkeypatch) -> None:
+    """It read an async cursor with list(), raised, and returned "" for ever."""
+    from cbc.modules.catalog.api.pageindex import reader
+
+    headers = [{"builtAt": "2026-09-01T00:00:00"}]
+    monkeypatch.setattr(reader, "list_catalogs", lambda vendor=None: list(headers))
+    before = matchcache.catalog_watermark()
+    headers.append({"builtAt": "2026-09-14T00:00:00"})
+    assert (before, matchcache.catalog_watermark()) == ("2026-09-01T00:00:00", "2026-09-14T00:00:00")
+
+
+def test_an_unreadable_index_reuses_nothing(tmp_path, monkeypatch) -> None:
+    """Not knowing whether the catalog changed is not knowing that it did not (NFR-2)."""
+    _isolate(tmp_path, monkeypatch)
+    monkeypatch.setattr(matchcache, "catalog_watermark", lambda: "wm-1")
+    extracted = tmp_path / "projects" / "demo" / "extracted"
+    extracted.mkdir(parents=True)
+    (extracted / "door_schedule.json").write_text("{}", encoding="utf-8")
+    (extracted / "hardware_sets.json").write_text(json.dumps(_hardware(_item("3400", 0.95))), encoding="utf-8")
+    matchcache.ingest("demo")
+    assert matchcache.reusable("demo")
+    monkeypatch.setattr(matchcache, "catalog_watermark", lambda: None)
+    assert matchcache.reusable("demo") == []
