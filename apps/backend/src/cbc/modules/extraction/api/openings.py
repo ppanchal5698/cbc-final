@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
+from pymongo import UpdateOne
+
 from cbc.modules.extraction.infrastructure.collections import failed_extractions, openings
 
 # An estimator confirmed openings on a bid: project_id, count.
@@ -56,6 +58,15 @@ async def set_version(project_id: Any, version_id: Any) -> None:
 
 async def update_fields(opening_id: Any, fields: dict[str, Any]) -> None:
     await openings().update_one({"_id": opening_id}, {"$set": fields})
+
+
+async def update_fields_many(updates: list[tuple[Any, dict[str, Any]]]) -> None:
+    """Many openings' fields in one unordered bulk write."""
+    if updates:
+        await openings().bulk_write(
+            [UpdateOne({"_id": opening_id}, {"$set": fields}) for opening_id, fields in updates],
+            ordered=False,
+        )
 
 
 async def apply_bulk(requests: list[Any]) -> None:

@@ -48,36 +48,40 @@ async def apply_to_project(project: dict[str, Any], *, limit: int = 5000) -> dic
     for line in await quoting_lines.list_for_project(project_id):
         lines[line.get("mark") or line.get("doorNumber")] = line
 
+    def part_of(opening: dict[str, Any]) -> str | None:
+        line = lines.get(opening.get("mark") or opening.get("doorNumber")) or {}
+        return line.get("part") or line.get("partNumber")
+
+    # One catalog query and one bulk write for the bid. This was a query and an
+    # update per opening - two round trips a door, a thousand on a 500-door bid.
+    catalog = await catalog_products.by_parts(part_of(opening) for opening in openings)
     flagged = 0
+    updates: list[tuple[Any, dict[str, Any]]] = []
     for opening in openings:
-        mark = opening.get("mark") or opening.get("doorNumber")
-        line = lines.get(mark) or {}
-        part = line.get("part") or line.get("partNumber")
-        candidates: list[dict[str, Any]] = []
-        if part:
-            for product in await catalog_products.by_part(part, limit=20):
-                candidates.append(
-                    {
-                        "id": str(product.get("_id")),
-                        "part": product.get("part"),
-                        "fire_rating": product.get("fireRating") or product.get("rating"),
-                        "handing": product.get("handing"),
-                        "finish": product.get("finish"),
-                        "description": product.get("description"),
-                    }
-                )
+        part = part_of(opening)
+        candidates = [
+            {
+                "id": str(product.get("_id")),
+                "part": product.get("part"),
+                "fire_rating": product.get("fireRating") or product.get("rating"),
+                "handing": product.get("handing"),
+                "finish": product.get("finish"),
+                "description": product.get("description"),
+            }
+            for product in (catalog.get(part, []) if part else [])
+        ]
         opening_view = {
             **opening,
             "fire_rating": opening.get("fire_rating") or opening.get("fireRating"),
         }
         result = matching.candidates(opening_view, candidates)
-        update = {
+        updates.append((opening["_id"], {
             "ratingConflict": result["ratingConflict"],
             "ratingMissing": result["ratingMissing"],
             "matchCandidates": result["matchCandidates"],
-        }
+        }))
         if result["ratingConflict"] or result["ratingMissing"]:
             flagged += 1
-        await extraction_openings.update_fields(opening["_id"], update)
+    await extraction_openings.update_fields_many(updates)
 
     return {"openings": len(openings), "flagged": flagged}

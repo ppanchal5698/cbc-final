@@ -274,11 +274,8 @@ async def find_pages(
     if cached is not None:
         return cached
 
-    documents: list[PageIndexDocument] = []
-    for header in headers:
-        document = await store.get(header["_id"])
-        if document:
-            documents.append(document)
+    # One query for every catalog, where this was one round trip a catalog.
+    documents = await store.get_many([header["_id"] for header in headers])
     ranked = await asyncio.to_thread(rank_pages, documents, query, limit=limit)
     return _cache_put(key, ranked)
 

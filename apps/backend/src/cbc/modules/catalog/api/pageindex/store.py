@@ -65,6 +65,15 @@ async def get(catalog_id: str) -> PageIndexDocument | None:
     return PageIndexDocument.from_mongo(row) if row else None
 
 
+async def get_many(catalog_ids: list[str]) -> list[PageIndexDocument]:
+    """Several catalogs in one round trip, in the order asked for; unknown ids are skipped."""
+    if not catalog_ids:
+        return []
+    rows = await _collection().find({"_id": {"$in": list(catalog_ids)}}).to_list(len(catalog_ids))
+    by_id = {row["_id"]: row for row in rows}
+    return [PageIndexDocument.from_mongo(by_id[catalog_id]) for catalog_id in catalog_ids if catalog_id in by_id]
+
+
 async def get_by_file(file_name: str) -> PageIndexDocument | None:
     row = await _collection().find_one({"fileName": file_name})
     return PageIndexDocument.from_mongo(row) if row else None
