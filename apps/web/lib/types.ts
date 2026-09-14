@@ -822,6 +822,14 @@ export interface VendorRfq {
   status: string;
   dueBy?: string | null;
   blocksBid?: boolean;
+  /** Recorded when the RFQ is marked received, each against the quote line it prices. */
+  quotedPrices?: {
+    estimateLineId: string;
+    amount: number;
+    leadTimeDays?: number | null;
+    notes?: string | null;
+  }[];
+  respondedAt?: string | null;
 }
 
 /** `GET /api/projects/{code}/rfis` - questions raised before the quote is final. */
@@ -835,4 +843,6 @@ export interface Rfi {
   blocksFinalization?: boolean;
   raisedBy?: string | null;
   raisedAt?: string | null;
+  answer?: string | null;
+  answeredAt?: string | null;
 }

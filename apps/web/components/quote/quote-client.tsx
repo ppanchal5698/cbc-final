@@ -686,7 +686,11 @@ export function QuoteClient({
           )}
         </div>
 
-        <VendorRfqsPanel code={code} />
+        <VendorRfqsPanel
+          code={code}
+          lines={(data?.groups ?? []).flatMap((group) => group.lines)}
+          onApplied={() => mutate()}
+        />
       </main>
 
       <footer className="flex flex-wrap items-center gap-4 border-t border-subtle px-6 py-4 bg-background">

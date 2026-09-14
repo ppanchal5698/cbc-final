@@ -23,8 +23,14 @@ import type { CallEntry, CallsResponse } from "@/lib/types";
 const KINDS = [
   { key: "call", label: "Call", Icon: PhoneCall, placeholder: "Who did you speak to, and what was agreed?" },
   { key: "note", label: "Note", Icon: NotePencil, placeholder: "Anything the next person needs to know." },
-  { key: "rfi", label: "RFI", Icon: Question, placeholder: "What is unclear, and who has to answer it?" },
 ] as const;
+
+/**
+ * RFIs used to be logged here as free text. They are raised on the proposal page
+ * now, where they are sent, answered and closed; entries logged before still
+ * show here and can still be marked answered.
+ */
+const LEGACY_RFI = { key: "rfi", label: "RFI", Icon: Question } as const;
 
 /** Which stage the note was logged from, so it carries its own context. */
 function stageFromPath(pathname: string): string {
@@ -159,6 +165,9 @@ export function NotesDrawer({ code }: { code: string | null }) {
               );
             })}
           </div>
+          <p className="mt-3 text-[12px] font-medium text-tx-muted">
+            Raise RFIs on the proposal page, where they are sent, answered and closed.
+          </p>
 
           <input
             value={org}
@@ -209,7 +218,8 @@ export function NotesDrawer({ code }: { code: string | null }) {
             </p>
           ) : (
             (data?.calls ?? []).map((entry) => {
-              const meta = KINDS.find((k) => k.key === entry.kind) ?? KINDS[0];
+              const meta =
+                KINDS.find((k) => k.key === entry.kind) ?? (entry.kind === "rfi" ? LEGACY_RFI : KINDS[0]);
               const open = entry.kind === "rfi" && !entry.resolvedAt;
               return (
                 <div

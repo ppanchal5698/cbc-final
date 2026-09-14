@@ -6,30 +6,52 @@ import { Plus } from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
 
 import { FetchError } from "@/components/ui/fetch-error";
+import { formatMoney } from "@/lib/format";
 import { errorMessage, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
 import { RFQ_TRIGGERS, nextRfqStatuses, type RfqTrigger } from "@/lib/rfq";
-import type { VendorRfq } from "@/lib/types";
+import type { QuoteLine, VendorRfq } from "@/lib/types";
 
 const inputClass =
   "rounded-md px-3 py-2 text-[13px] outline-none border border-subtle bg-background text-tx-primary placeholder:text-tx-muted focus:ring-1 focus:ring-brand-border transition-colors shadow-sm";
 
 const pillClass = "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest";
 
+const ACTION_LABEL: Record<string, string> = {
+  received: "Record price",
+  applied: "Apply to quote",
+  cancelled: "Cancel",
+};
+
+function lineLabel(line: QuoteLine): string {
+  return [line.part, line.description].filter(Boolean).join(" · ") || "Untitled line";
+}
+
 /**
  * FR-16, the third cost path: ask a vendor for a price the books cannot give.
  *
- * Tracks each request through the states the API enforces. Recording the price
- * that comes back and applying it to a line is still done on the quote grid.
+ * A request moves through the states the API enforces. The price that comes back
+ * is recorded against the quote line it prices, and applying it makes that the
+ * line's cost - source VENDOR_RFQ - and reprices the quote.
  */
-export function VendorRfqsPanel({ code }: { code: string }) {
+export function VendorRfqsPanel({
+  code,
+  lines = [],
+  onApplied,
+}: {
+  code: string;
+  lines?: QuoteLine[];
+  onApplied?: () => void;
+}) {
   const url = `/api/proxy/projects/${encodeURIComponent(code)}/vendor-rfqs`;
   const { data, error, isLoading, mutate } = useSWR<{ vendorRfqs: VendorRfq[] }>(
     url,
     proxyFetcher,
   );
   const [adding, setAdding] = useState(false);
+  const [receiving, setReceiving] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const rfqs = data?.vendorRfqs ?? [];
+  const linesById = new Map(lines.map((line) => [line.id, line]));
 
   async function create(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -68,14 +90,55 @@ export function VendorRfqsPanel({ code }: { code: string }) {
   }
 
   async function advance(rfq: VendorRfq, status: string) {
+    if (status === "received") {
+      setReceiving((current) => (current === rfq.id ? null : rfq.id));
+      return;
+    }
     try {
       await proxyMutate(`${url}/${rfq.id}`, { method: "PATCH", body: { status } });
-      toast.success(`${rfq.rfqNumber} is now ${status}`);
+      toast.success(
+        status === "applied"
+          ? `${rfq.rfqNumber}'s price is now the line's cost`
+          : `${rfq.rfqNumber} is now ${status}`,
+      );
       mutate();
+      if (status === "applied") onApplied?.();
     } catch (problem) {
       toast.error("Could not change the request's status", {
         description: errorMessage(problem),
       });
+    }
+  }
+
+  async function receive(event: React.FormEvent<HTMLFormElement>, rfq: VendorRfq) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const leadTime = Number(String(form.get("leadTimeDays") ?? "").trim());
+
+    setBusy(true);
+    try {
+      await proxyMutate(`${url}/${rfq.id}`, {
+        method: "PATCH",
+        body: {
+          status: "received",
+          quotedPrices: [
+            {
+              estimateLineId: String(form.get("estimateLineId")),
+              amount: Number(form.get("amount")),
+              leadTimeDays: Number.isInteger(leadTime) && leadTime > 0 ? leadTime : null,
+            },
+          ],
+        },
+      });
+      toast.success(`${rfq.rfqNumber}'s price is recorded`, {
+        description: "Apply it to make it the line's cost.",
+      });
+      setReceiving(null);
+      mutate();
+    } catch (problem) {
+      toast.error("Could not record the price", { description: errorMessage(problem) });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -185,38 +248,103 @@ export function VendorRfqsPanel({ code }: { code: string }) {
       )}
 
       <div className="divide-y divide-subtle">
-        {rfqs.map((rfq) => (
-          <div key={rfq.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[13.5px] font-bold text-tx-primary">{rfq.rfqNumber}</span>
-                <span className={`${pillClass} bg-panel-muted text-tx-secondary`}>{rfq.status}</span>
-                {rfq.blocksBid && (
-                  <span className={`${pillClass} bg-status-warning-soft text-status-warning`}>
-                    blocks bid
-                  </span>
-                )}
+        {rfqs.map((rfq) => {
+          const quoted = rfq.quotedPrices?.[0];
+          const quotedLine = quoted ? linesById.get(quoted.estimateLineId) : undefined;
+          return (
+            <div key={rfq.id} className="px-5 py-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[13.5px] font-bold text-tx-primary">{rfq.rfqNumber}</span>
+                    <span className={`${pillClass} bg-panel-muted text-tx-secondary`}>{rfq.status}</span>
+                    {rfq.blocksBid && (
+                      <span className={`${pillClass} bg-status-warning-soft text-status-warning`}>
+                        blocks bid
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-0.5 text-[12px] font-medium text-tx-muted">
+                    {RFQ_TRIGGERS[rfq.triggerReason as RfqTrigger] ?? rfq.triggerReason}
+                    {rfq.requestedItems?.[0]?.description ? ` · ${rfq.requestedItems[0].description}` : ""}
+                    {rfq.dueBy ? ` · due ${new Date(rfq.dueBy).toLocaleDateString()}` : ""}
+                  </div>
+                  {quoted && (
+                    <div className="mt-0.5 text-[12px] font-semibold text-tx-secondary">
+                      Quoted ${formatMoney(quoted.amount)}
+                      {quotedLine ? ` for ${lineLabel(quotedLine)}` : ""}
+                      {quoted.leadTimeDays ? ` · ${quoted.leadTimeDays}-day lead time` : ""}
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {nextRfqStatuses(rfq.status).map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => advance(rfq, status)}
+                      aria-expanded={status === "received" ? receiving === rfq.id : undefined}
+                      className="rounded-md px-2.5 py-1.5 text-[12px] font-semibold border border-subtle bg-background text-tx-secondary hover:bg-panel-muted transition-colors shadow-sm"
+                    >
+                      {ACTION_LABEL[status] ?? `Mark ${status}`}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="mt-0.5 text-[12px] font-medium text-tx-muted">
-                {RFQ_TRIGGERS[rfq.triggerReason as RfqTrigger] ?? rfq.triggerReason}
-                {rfq.requestedItems?.[0]?.description ? ` · ${rfq.requestedItems[0].description}` : ""}
-                {rfq.dueBy ? ` · due ${new Date(rfq.dueBy).toLocaleDateString()}` : ""}
-              </div>
+
+              {receiving === rfq.id &&
+                (lines.length === 0 ? (
+                  <p className="mt-3 rounded-md bg-panel-muted px-3 py-2 text-[12.5px] font-medium text-tx-secondary">
+                    A price is recorded against a quote line. Add the line on the quote first.
+                  </p>
+                ) : (
+                  <form
+                    onSubmit={(event) => receive(event, rfq)}
+                    className="mt-3 grid gap-2.5 rounded-lg bg-panel-muted p-3 sm:grid-cols-[1fr_140px_120px_auto]"
+                  >
+                    <select
+                      name="estimateLineId"
+                      required
+                      aria-label="Quote line this price is for"
+                      className={inputClass}
+                    >
+                      {lines.map((line) => (
+                        <option key={line.id} value={line.id}>
+                          {lineLabel(line)}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      name="amount"
+                      type="number"
+                      required
+                      min="0"
+                      step="0.01"
+                      placeholder="Unit cost $"
+                      aria-label="Quoted unit cost"
+                      className={inputClass}
+                    />
+                    <input
+                      name="leadTimeDays"
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="Lead days"
+                      aria-label="Lead time in days"
+                      className={inputClass}
+                    />
+                    <button
+                      type="submit"
+                      disabled={busy}
+                      className="rounded-md px-4 py-2 text-[13px] font-semibold bg-brand-primary text-white shadow-sm hover:bg-brand-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      {busy ? "Saving…" : "Save price"}
+                    </button>
+                  </form>
+                ))}
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {nextRfqStatuses(rfq.status).map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => advance(rfq, status)}
-                  className="rounded-md px-2.5 py-1.5 text-[12px] font-semibold border border-subtle bg-background text-tx-secondary hover:bg-panel-muted transition-colors shadow-sm"
-                >
-                  {status === "cancelled" ? "Cancel" : `Mark ${status}`}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

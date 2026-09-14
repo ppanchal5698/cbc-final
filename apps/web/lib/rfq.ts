@@ -50,3 +50,19 @@ export const RFI_CATEGORIES = {
 } as const;
 
 export type RfiCategory = keyof typeof RFI_CATEGORIES;
+
+export type RfiStatus = "open" | "sent" | "answered" | "closed" | "withdrawn";
+
+/** The RFI edges the API accepts; `answered` also needs the answer itself. */
+const RFI_TRANSITIONS: Record<RfiStatus, readonly RfiStatus[]> = {
+  open: ["sent", "withdrawn"],
+  sent: ["answered", "withdrawn"],
+  answered: ["closed"],
+  closed: [],
+  withdrawn: [],
+};
+
+/** Where an RFI may go next. A new RFI is open; an unknown state goes nowhere. */
+export function nextRfiStatuses(current: string | null | undefined): readonly RfiStatus[] {
+  return RFI_TRANSITIONS[(current ?? "open") as RfiStatus] ?? [];
+}
