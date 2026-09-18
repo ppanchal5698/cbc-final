@@ -49,7 +49,7 @@ until CBC names a person and an interval.
 - The P21 freshness rule (more than 6 months unreliable, more than 3 years
   discard — Matrix 6.2) applies independently. It is a **different window** from
   the ~24-month price-sheet one above, and moving one must not move the other.
-  That rule lives in `.claude/rules/pricing.md`.
+  That rule lives in `.claude/guides/pricing.md`.
 
 ## Risk if left open
 
