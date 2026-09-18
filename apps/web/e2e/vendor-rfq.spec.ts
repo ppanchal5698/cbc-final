@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-import { credentials, openNewBid, signIn } from "./helpers";
+import { credentials, openNewBid, signIn, submitNewBid } from "./helpers";
 
 test.describe("Vendor quote requests", () => {
   test("an estimator opens a request as a draft and moves it to requested", async ({ page }) => {
@@ -9,7 +9,7 @@ test.describe("Vendor quote requests", () => {
     await page.goto("/bids");
     await openNewBid(page);
     await page.getByLabel(/^job name/i).fill(`E2E vendor RFQ ${Date.now()}`);
-    await page.getByRole("button", { name: /create/i }).click();
+    await submitNewBid(page);
     await page.waitForURL(/\/bids\/([^/]+)\/intake/);
     const code = page.url().match(/\/bids\/([^/]+)\/intake/)?.[1];
     expect(code).toBeTruthy();

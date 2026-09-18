@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-import { credentials, openNewBid, signIn } from "./helpers";
+import { credentials, openNewBid, signIn, submitNewBid } from "./helpers";
 
 test.describe("Bid board", () => {
   test.beforeEach(async ({ page }) => {
@@ -26,7 +26,7 @@ test.describe("Bid lifecycle", () => {
     await page.goto("/bids");
     await openNewBid(page);
     await page.getByLabel(/^job name/i).fill("E2E Test Bid");
-    await page.getByRole("button", { name: /create/i }).click();
+    await submitNewBid(page);
     await page.waitForURL(/\/bids\/[^/]+\/intake/);
     await expect(page.getByText(/bid documents|upload/i).first()).toBeVisible({
       timeout: 15_000,
@@ -36,7 +36,7 @@ test.describe("Bid lifecycle", () => {
   test("shows inline validation when job name is empty", async ({ page }) => {
     await page.goto("/bids");
     await openNewBid(page);
-    await page.getByRole("button", { name: /create bid/i }).click();
+    await submitNewBid(page);
     await expect(page.getByText("Job name is required.")).toBeVisible();
     await expect(page.getByRole("dialog", { name: /create bid request/i })).toBeVisible();
   });
@@ -59,7 +59,7 @@ test.describe("Bid outcome", () => {
     await openNewBid(page);
     const name = `E2E outcome ${Date.now()}`;
     await page.getByLabel(/^job name/i).fill(name);
-    await page.getByRole("button", { name: /create/i }).click();
+    await submitNewBid(page);
     await page.waitForURL(/\/bids\/[^/]+\/intake/);
 
     await page.goto("/bids");

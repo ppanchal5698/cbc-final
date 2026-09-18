@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-import { credentials, openNewBid, signIn } from "./helpers";
+import { credentials, openNewBid, signIn, submitNewBid } from "./helpers";
 
 test.describe("Project delete", () => {
   test("admin can delete a bid from intake", async ({ page }) => {
@@ -10,7 +10,7 @@ test.describe("Project delete", () => {
     await page.goto("/bids");
     await openNewBid(page);
     await page.getByLabel(/^job name/i).fill(jobName);
-    await page.getByRole("button", { name: /create/i }).click();
+    await submitNewBid(page);
     await page.waitForURL(/\/bids\/([^/]+)\/intake/);
 
     const match = page.url().match(/\/bids\/([^/]+)\/intake/);

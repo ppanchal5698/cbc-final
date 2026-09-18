@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-import { credentials, openNewBid, signIn } from "./helpers";
+import { credentials, openNewBid, signIn, submitNewBid } from "./helpers";
 
 test.describe("Review flags", () => {
   test("a new bid's proposal page lists the flags the API derives", async ({ page }) => {
@@ -9,7 +9,7 @@ test.describe("Review flags", () => {
     await page.goto("/bids");
     await openNewBid(page);
     await page.getByLabel(/^job name/i).fill(`E2E review flags ${Date.now()}`);
-    await page.getByRole("button", { name: /create/i }).click();
+    await submitNewBid(page);
     await page.waitForURL(/\/bids\/([^/]+)\/intake/);
     const code = page.url().match(/\/bids\/([^/]+)\/intake/)?.[1];
     expect(code).toBeTruthy();
