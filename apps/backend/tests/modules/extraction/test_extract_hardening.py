@@ -103,6 +103,26 @@ def test_check_extraction_fails_when_frp_flag_without_file(tmp_path, monkeypatch
     assert not any("frp_takeoff.json" in w for w in warnings)
 
 
+def test_check_extraction_fails_when_div10_flag_without_file(tmp_path, monkeypatch) -> None:
+    from cbc.modules.extraction.api.validation import artifacts
+
+    monkeypatch.setattr(artifacts, "ROOT", tmp_path)
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
+    slug = "div10_gate"
+    extracted = tmp_path / "projects" / slug / "extracted"
+    extracted.mkdir(parents=True)
+    (extracted / "scope_metadata.json").write_text("{}", encoding="utf-8")
+    (extracted / "scope_summary.json").write_text(
+        json.dumps({"frp_in_scope": False, "div10_in_scope": True}), encoding="utf-8"
+    )
+    (extracted / "door_schedule.json").write_text(
+        json.dumps({"openings": [], "no_scope_reason": "none"}), encoding="utf-8"
+    )
+
+    problems, _warnings = artifacts.check_extraction(slug, require_scope=True)
+    assert any("div10_takeoff.json" in p for p in problems)
+
+
 def test_total_page_count(tmp_path, monkeypatch) -> None:
     import fitz
 

@@ -6,6 +6,7 @@ import useSWR from "swr";
 import {
   PhoneCall,
   NotePencil,
+  CompassTool,
   Question,
   X,
   PaperPlaneTilt,
@@ -18,11 +19,41 @@ import { useUiState } from "@/components/shell/ui-state";
 import { useDialog } from "@/hooks/use-dialog";
 
 import { errorMessage, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
-import type { CallEntry, CallsResponse } from "@/lib/types";
+import type { CallEntry, CallsResponse, Project } from "@/lib/types";
 
+/**
+ * What an estimator is actually logging.
+ *
+ * Three one-click starts over the two kinds the API stores: a GC call and an
+ * architect call are both `call`, they differ by who it was with - so picking
+ * one prefills `org` from the bid's own GC or architect rather than asking the
+ * estimator to retype a name the record already holds.
+ */
 const KINDS = [
-  { key: "call", label: "Call", Icon: PhoneCall, placeholder: "Who did you speak to, and what was agreed?" },
-  { key: "note", label: "Note", Icon: NotePencil, placeholder: "Anything the next person needs to know." },
+  {
+    key: "gc",
+    kind: "call",
+    label: "GC call",
+    Icon: PhoneCall,
+    placeholder: "What was said, what was agreed, what to assume until it is confirmed.",
+    orgOf: (project?: Project | null) => project?.gc ?? "",
+  },
+  {
+    key: "architect",
+    kind: "call",
+    label: "Architect call",
+    Icon: CompassTool,
+    placeholder: "What was said, what was agreed, what to assume until it is confirmed.",
+    orgOf: (project?: Project | null) => project?.architect ?? "",
+  },
+  {
+    key: "internal",
+    kind: "note",
+    label: "Internal note",
+    Icon: NotePencil,
+    placeholder: "What should the team know? Visible internally only.",
+    orgOf: () => "Estimating",
+  },
 ] as const;
 
 /**
@@ -32,9 +63,20 @@ const KINDS = [
  */
 const LEGACY_RFI = { key: "rfi", label: "RFI", Icon: Question } as const;
 
+/**
+ * How a stored entry reads back. The composer's three presets collapse onto the
+ * two kinds the API stores, so the log is labelled by what was saved, not by
+ * which button started it.
+ */
+const STORED = {
+  call: { label: "Call", Icon: PhoneCall },
+  note: { label: "Note", Icon: NotePencil },
+  rfi: LEGACY_RFI,
+} as const;
+
 /** Which stage the note was logged from, so it carries its own context. */
-function stageFromPath(pathname: string): string {
-  const stage = pathname.split("/").pop() ?? "";
+function stageFromPath(pathname: string | null): string {
+  const stage = pathname?.split("/").pop() ?? "";
   const labels: Record<string, string> = {
     intake: "Intake",
     extraction: "Extraction & entry",
@@ -47,7 +89,7 @@ function stageFromPath(pathname: string): string {
 export function NotesDrawer({ code }: { code: string | null }) {
   const { notesOpen, closeNotes, notesRef, bumpNotes } = useUiState();
   const pathname = usePathname();
-  const [kind, setKind] = useState<(typeof KINDS)[number]["key"]>("call");
+  const [kind, setKind] = useState<(typeof KINDS)[number]["key"]>("gc");
   const [text, setText] = useState("");
   const [org, setOrg] = useState("");
   const [busy, setBusy] = useState(false);
@@ -55,6 +97,12 @@ export function NotesDrawer({ code }: { code: string | null }) {
 
   const { data, error, mutate } = useSWR<CallsResponse>(
     notesOpen && code ? `/api/proxy/projects/${code}/calls` : null,
+    proxyFetcher,
+  );
+
+  // Only to prefill who a call was with; the log itself does not need it.
+  const { data: project } = useSWR<Project>(
+    notesOpen && code ? `/api/proxy/projects/${code}` : null,
     proxyFetcher,
   );
 
@@ -73,7 +121,7 @@ export function NotesDrawer({ code }: { code: string | null }) {
     try {
       await proxyMutate(`/api/proxy/projects/${code}/calls`, {
         body: {
-          kind,
+          kind: active.kind,
           text: text.trim(),
           org: org.trim() || null,
           ref: notesRef ?? stageFromPath(pathname),
@@ -152,7 +200,12 @@ export function NotesDrawer({ code }: { code: string | null }) {
               return (
                 <button
                   key={entry.key}
-                  onClick={() => setKind(entry.key)}
+                  onClick={() => {
+                    setKind(entry.key);
+                    // Prefill who it was with, but never overwrite what the
+                    // estimator has already typed.
+                    setOrg((current) => current.trim() || entry.orgOf(project));
+                  }}
                   className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-[13px] font-bold transition-all shadow-sm ${
                     on 
                       ? "bg-brand-primary/10 text-brand-primary border border-brand-primary/20" 
@@ -218,8 +271,7 @@ export function NotesDrawer({ code }: { code: string | null }) {
             </p>
           ) : (
             (data?.calls ?? []).map((entry) => {
-              const meta =
-                KINDS.find((k) => k.key === entry.kind) ?? (entry.kind === "rfi" ? LEGACY_RFI : KINDS[0]);
+              const meta = STORED[entry.kind] ?? STORED.call;
               const open = entry.kind === "rfi" && !entry.resolvedAt;
               return (
                 <div

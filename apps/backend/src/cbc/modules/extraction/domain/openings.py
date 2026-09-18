@@ -2,7 +2,7 @@
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -27,6 +27,15 @@ class LineItemBase(BaseModel):
     # Derived from wallType against the five standard throats, never typed twice.
     frameDepth: str | None = None
     notes: str | None = None
+    doorType: str | None = None
+    doorMaterial: str | None = None
+    frameMaterial: str | None = None
+    glass: str | None = None
+    manufacturer: str | None = None
+    series: str | None = None
+    hardware: str | None = None
+    location: str | None = None
+    keying: dict[str, Any] | None = None
 
 
 class LineItemCreate(LineItemBase):
@@ -46,9 +55,20 @@ class LineItemUpdate(BaseModel):
     finish: str | None = None
     fireRating: str | None = None
     frameDepth: str | None = None
+    frameType: str | None = None
+    wallType: str | None = None
     status: LineStatus | None = None
     notes: str | None = None
     alternateGroup: str | None = None
+    doorType: str | None = None
+    doorMaterial: str | None = None
+    frameMaterial: str | None = None
+    glass: str | None = None
+    manufacturer: str | None = None
+    series: str | None = None
+    hardware: str | None = None
+    location: str | None = None
+    keying: dict[str, Any] | None = None
 
 
 class BulkAction(BaseModel):

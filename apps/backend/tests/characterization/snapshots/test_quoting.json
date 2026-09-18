@@ -36,6 +36,7 @@
     {
      "appliedToLearning": "bool",
      "bidRequestId": "id",
+     "correctedCatalogItemId": "null",
      "correctedValue": {
       "value": "number"
      },
@@ -46,10 +47,12 @@
      "matchConfidenceAtTime": "null",
      "occurredAt": "datetime",
      "openingId": "null",
+     "proposedCatalogItemId": "null",
      "proposedValue": {
       "value": "number"
      },
      "reason": "str",
+     "specifiedItem": "str",
      "userId": "str"
     }
    ]
@@ -100,6 +103,8 @@
     "degraded": "bool",
     "degradedNote": "null",
     "flaggedLineItems": "number",
+    "lapsedAcknowledgedBy": "null",
+    "lapsedLines": "number",
     "note": "str",
     "producedBy": "null",
     "unpricedQuoteLines": "number"
@@ -214,6 +219,7 @@
    "groups": [
     {
      "division": "str",
+     "group": "str",
      "lines": [
       {
        "addedByHand": "bool",
@@ -321,6 +327,8 @@
  },
  "GET /api/projects/{code}/takeoffs": {
   "body": {
+   "div10InScope": "bool",
+   "frpInScope": "bool",
    "takeoffs": []
   },
   "status": 200
@@ -375,6 +383,8 @@
     "degraded": "bool",
     "degradedNote": "null",
     "flaggedLineItems": "number",
+    "lapsedAcknowledgedBy": "null",
+    "lapsedLines": "number",
     "note": "str",
     "producedBy": "null",
     "unpricedQuoteLines": "number"
@@ -626,6 +636,16 @@
   },
   "status": 400
  },
+ "POST /api/learning/apply": {
+  "body": {
+   "learned": "number",
+   "marked": "number",
+   "read": "number",
+   "rejected": "number",
+   "skipped": "number"
+  },
+  "status": 200
+ },
  "POST /api/projects/{code}/proposal/complete": {
   "body": {
    "draftPath": "str",
@@ -774,17 +794,26 @@
   "body": {
    "bidRequestId": "id",
    "constantsUsed": "null",
+   "drawingRef": "null",
+   "drawingScale": "null",
+   "finish": "null",
    "flags": [
     "str"
    ],
    "id": "id",
    "insideCorners": "number",
+   "location": "null",
+   "manufacturer": "null",
    "notes": "null",
    "outsideCorners": "number",
    "perimeterLf": "number",
+   "productType": "null",
    "projectId": "id",
+   "qty": "null",
+   "specifiedModel": "null",
    "status": "str",
    "takeoffType": "str",
+   "unit": "null",
    "wallHeightFt": "number"
   },
   "status": 201

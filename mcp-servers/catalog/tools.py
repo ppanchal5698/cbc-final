@@ -115,6 +115,84 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "lookup_catalog_item",
+        "description": (
+            "Product catalog first (Path 2b): look up a seeded catalogItems cost "
+            "for a part before opening PDF price books. Returns cost, listPrice, "
+            "multiplier, defaultMargin, and priceBasis for curated rows "
+            "(seedSource cites catalog.md or hand-added). Never returns "
+            "price-book ingest extracts — for those, open the PDF page instead. "
+            "Cite the product catalog / seedSource in cost_source_detail."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "part": {
+                    "type": "string",
+                    "description": "Part number or model token, e.g. '3510' or '010108'",
+                },
+                "vendor": {
+                    "type": "string",
+                    "description": "Optional vendor key, e.g. 'hager'",
+                },
+            },
+            "required": ["part"],
+        },
+    },
+    {
+        "name": "search_catalog_items",
+        "description": (
+            "Search the product catalog (catalogItems) for matching parts before "
+            "PDF search_blocks / find_pages. Returns ranked candidates with part, "
+            "model, description, manufacturer, cost, and listPrice. Use for "
+            "product matching Tier 1–3; pricing still calls lookup_catalog_item."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Part number, model, or description fragment",
+                },
+                "vendor": {
+                    "type": "string",
+                    "description": "Optional vendor key or manufacturer name",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max candidates (default 8, max 25)",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "recall_match",
+        "description": (
+            "What an estimator already decided this specification means. "
+            "Returns prior confirmed matches with how many times each was "
+            "confirmed, by whom and when - CBC's own history, not a guess. "
+            "Call FIRST, before lookup_catalog_item: an exact recall is Tier 0. "
+            "Fire rating, handing and finish still veto a recalled match; a "
+            "learned mistake must not outlive the estimator who corrected it."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "specified": {
+                    "type": "string",
+                    "description": "The item as the schedule specifies it, e.g. 'IVES 700 83\", 630'",
+                },
+                "vendor": {
+                    "type": "string",
+                    "description": "Optional manufacturer to narrow the recall",
+                },
+                "limit": {"type": "integer", "default": 5},
+            },
+            "required": ["specified"],
+        },
+    },
+    {
         "name": "is_stock_item",
         "description": (
             "Whether a part is on CBC's top-10 stock list for that vendor (NR-6). "

@@ -42,15 +42,26 @@ def check(payload: dict) -> int:
         return 0
 
     path = str(target)
-    if shutil.which("prettier"):
-        subprocess.run(["prettier", "--write", "--parser", "html", path], capture_output=True)
-        return 0
-
     try:
-        import pyhtmlbeautifier  # noqa: F401
-    except ImportError:
+        if shutil.which("prettier"):
+            subprocess.run(
+                ["prettier", "--write", "--parser", "html", path],
+                capture_output=True,
+                timeout=15,
+            )
+            return 0
+
+        try:
+            import pyhtmlbeautifier  # noqa: F401
+        except ImportError:
+            return 0
+        subprocess.run(
+            [sys.executable, "-m", "pyhtmlbeautifier", path],
+            capture_output=True,
+            timeout=15,
+        )
+    except subprocess.TimeoutExpired:
         return 0
-    subprocess.run([sys.executable, "-m", "pyhtmlbeautifier", path], capture_output=True)
     return 0
 
 

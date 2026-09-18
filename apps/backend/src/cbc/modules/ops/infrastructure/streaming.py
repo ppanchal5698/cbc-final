@@ -334,6 +334,7 @@ def recording_path(
     job_id: str,
     root: Path,
     attempt: int = 1,
+    label: str | None = None,
 ) -> Path:
     """Where a job's terminal recording lives.
 
@@ -345,10 +346,14 @@ def recording_path(
     unexplained second session appended to the first attempt's log.
     """
     base = root / (f"projects/{project_slug}" if project_slug else "projects/_system")
+    # Concurrent passes in one job each get their own file, for the same reason
+    # retries do: three sessions interleaved into one log is not a recording of
+    # anything, and the estimator watches these.
+    stem = f"{job_id}-{label}" if label else job_id
     if attempt <= 1:
-        name = f"{job_id}.log"
+        name = f"{stem}.log"
     else:
-        name = f"{job_id}-attempt{attempt}.log"
+        name = f"{stem}-attempt{attempt}.log"
     return base / ".runs" / name
 
 

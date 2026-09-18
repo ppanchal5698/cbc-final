@@ -56,7 +56,7 @@ def test_a_full_run_gets_every_mcp_server() -> None:
     # drawings, the artifact store, and the reference data a take-off needs for
     # finishes / frame depths / FRP constants. No pricing tools.
     reading = set(json.loads(toolsets.config_for("extract_bid_set"))["mcpServers"])
-    assert reading == {"pdf-tools", "artifact-storage", "reference"}
+    assert reading == {"pdf-tools", "artifact-storage", "reference", "bid-docs"}
     assert not reading & {"catalog", "calc-engine", "p21-connector"}
 
 
@@ -70,7 +70,7 @@ def test_the_prompt_delegates_to_every_phase_subagent() -> None:
     prompt = prompts.pipeline_for("projects/demo", code="CBC-260001")
     for subagent in (
         "intake-coordinator", "spec-scope-analyst", "takeoff-engineer",
-        "frp-specialist", "product-matcher", "pricing-engineer",
+        "frp-specialist", "div10-specialist", "product-matcher", "pricing-engineer",
         "quality-reviewer", "delivery-agent",
     ):
         assert subagent in prompt, f"{subagent} is never invoked"

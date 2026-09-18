@@ -9,11 +9,14 @@ The decision record is [ADR-005](adr/005-modules-own-their-data.md), which super
 ```
 apps/web  ──►  platform API (apps/backend :8001, cbc.app.main:create_app)  ──►  MongoDB
                       modules/{ops,projects,catalog,intake,extraction,pricing,quoting}
-worker (WORKER_CLAIM_ALL=1, python -m cbc.app.worker)  ──►  claim  ──►  Claude CLI + MCP
+worker (WORKER_CLAIM_ALL=1, python -m cbc.app.worker)  ──►  Claude CLI + MCP
+parser (profile gpu, WORKER_DOMAIN=parsing)  ──►  mineru (:8000)  ──►  documentPages
 ```
 
-Compose service name for the API remains `platform`; one `worker` claims all job types.
-There is no HTTP between modules; API and worker share MongoDB, disk/S3 and the job queue.
+Compose service name for the API remains `platform`; one `worker` claims Claude / pipeline
+jobs. With `COMPOSE_PROFILES=gpu`, a separate `parser` worker runs `parse_document` against
+the `mineru` GPU service and stores blocks in `documentPages`. There is no HTTP between
+modules; API and workers share MongoDB, disk/S3 and the job queue.
 
 ## Dependency rule
 
@@ -36,3 +39,22 @@ docker compose -f infra/docker-compose.yml up -d --build
 ```
 
 Health: `GET http://127.0.0.1:8001/api/health` (`service: platform`).
+
+## Tuning the parser
+
+Two kinds of settings (do not mix them):
+
+| Kind | Where | When it applies |
+| --- | --- | --- |
+| **Runtime** (`PARSER_*`) | process env, mounted `.env`, Settings → parsing, or profile preset | next `parse_document` job; no restart |
+| **Container** (`MINERU_*`, `PARSER_WORKER_CONCURRENCY`, `MINERU_SHM_SIZE`) | `infra/mineru/{low,medium,high}.env` via compose `--env-file` | rebuild/restart of `mineru` / `parser` |
+
+Never set `MINERU_FORMULA_ENABLE` / `MINERU_TABLE_ENABLE` on the container — they override
+request bodies; use `PARSER_TABLES` / `PARSER_FORMULAS` instead. Empty `PARSER_URL` means
+parsing is off (extraction falls back to pdf-tools).
+
+### High-spec checklist
+
+1. `docker compose -f infra/docker-compose.yml --env-file .env --env-file infra/mineru/high.env --profile gpu up -d --build`
+2. Settings → High → Test with a sample page
+3. Upload Dutch Bros and compare `runMetrics` to the pre-MinerU baseline

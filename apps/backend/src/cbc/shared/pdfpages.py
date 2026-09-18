@@ -16,9 +16,9 @@ from pathlib import Path
 from typing import Any
 
 import fitz  # PyMuPDF
-from cbc.shared.paths import pricebook_dir, reference_dir, repo_root, storage_root
+from cbc.shared import paths
 
-ROOT = repo_root()
+ROOT = paths.repo_root()
 
 # Rendered pages are derived data: cheap to recreate, and not something to leave
 # beside the drawings they came from. Shared with intake's infrastructure/pdf.py so there is
@@ -30,6 +30,49 @@ RENDERER_VERSION = str(getattr(fitz, "version", "unknown"))
 MAX_LONG_EDGE_PX = 1568
 MAX_DPI = 300
 MIN_DPI = 36
+
+
+def resolve_pdf_path(file_path: str | Path) -> Path:
+    """Resolve a PDF path from catalog tools, pdf-tools, or project uploads.
+
+    Catalog MCP returns repo-relative paths such as ``data/pricebooks/foo.pdf``.
+    Claude runs with ``cwd`` under a sandbox workspace, so a bare ``Path`` lookup
+    fails even when the file exists under ``/app/data/pricebooks``.
+    """
+    raw = Path(str(file_path))
+    if raw.is_absolute() and raw.is_file():
+        return raw.resolve()
+    if raw.is_file():
+        return raw.resolve()
+
+    root = paths.repo_root()
+    posix = raw.as_posix().replace("\\", "/").lstrip("/")
+    candidates: list[Path] = [root / raw]
+    if posix.startswith("projects/"):
+        candidates.append(paths.storage_root() / posix[len("projects/") :])
+    if posix.startswith("data/pricebooks/"):
+        candidates.append(paths.pricebook_dir() / posix[len("data/pricebooks/") :])
+    elif posix.startswith("pricebooks/"):
+        candidates.append(paths.pricebook_dir() / posix[len("pricebooks/") :])
+    else:
+        candidates.append(paths.pricebook_dir() / posix)
+    # Bare filename last — avoids grabbing the wrong book when cwd differs.
+    candidates.append(paths.pricebook_dir() / raw.name)
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            continue
+        key = str(resolved)
+        if key in seen:
+            continue
+        seen.add(key)
+        if resolved.is_file():
+            return resolved
+
+    raise FileNotFoundError(f"PDF not found: {file_path}.{_near_miss(raw)}")
 
 
 def _near_miss(path: Path) -> str:
@@ -61,10 +104,7 @@ def _near_miss(path: Path) -> str:
 
 
 def _open(file_path: str | Path) -> fitz.Document:
-    path = Path(file_path)
-    if not path.exists():
-        raise FileNotFoundError(f"PDF not found: {file_path}.{_near_miss(path)}")
-    return fitz.open(path)
+    return fitz.open(resolve_pdf_path(file_path))
 
 
 def page_count(file_path: str | Path) -> int:
@@ -114,7 +154,7 @@ def _writable_target(file_path: Path, out_dir: str | Path | None) -> Path:
     target = Path(out_dir).resolve() if out_dir else RENDER_CACHE.resolve()
     allowed_roots = (
         RENDER_CACHE.resolve(),
-        storage_root().resolve(),
+        paths.storage_root().resolve(),
         (root / ".cache").resolve(),
     )
     if not any(target == allowed or allowed in target.parents for allowed in allowed_roots):
@@ -123,7 +163,7 @@ def _writable_target(file_path: Path, out_dir: str | Path | None) -> Path:
         )
     # Resolved, like the target: in the image /app/pricebooks is a symlink, so the
     # unresolved path never matched a resolved target and the guard let writes in.
-    for protected in (pricebook_dir().resolve(), reference_dir().resolve()):
+    for protected in (paths.pricebook_dir().resolve(), paths.reference_dir().resolve()):
         if target == protected or protected in target.parents:
             raise ValueError(
                 f"refusing to write a rendered page into {protected.name}/ - it is "
@@ -218,6 +258,10 @@ def page_image(
             return hit
         if region:
             clip = fitz.Rect(region[0], region[1], region[2], region[3])
+            # Clip is relative to the unrotated page; stored / agent bboxes are
+            # display-space (page.rect). Map back when the page is rotated.
+            if page.rotation:
+                clip = (clip * ~page.rotation_matrix).normalize()
             page.get_pixmap(clip=clip, dpi=effective_dpi).save(output)
         else:
             page.get_pixmap(dpi=effective_dpi).save(output)

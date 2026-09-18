@@ -15,7 +15,7 @@ import os
 import threading
 from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from cbc.modules.ops.api import claude_cli as runner
 from cbc.modules.ops.infrastructure import streaming
@@ -46,6 +46,46 @@ PIPELINE_MAX_TURNS = int(os.environ.get("WORKER_PIPELINE_MAX_TURNS", "200"))
 Sync = Callable[[dict[str, Any], dict[str, Any] | None], Awaitable[str]]
 Watch = Callable[[dict[str, Any], Path], Awaitable[None]]
 OnProvider = Callable[[dict[str, Any], dict[str, Any]], Awaitable[None]]
+
+
+class WavePass(NamedTuple):
+    """One Claude pass in a wave that the worker runs itself.
+
+    Wave 2 of an extraction is three take-offs that read different pages and
+    write different files. Nothing in it reads another's output, so nothing in it
+    has to wait - and yet a measured run spent 11 of its 17 minutes doing exactly
+    that, because the orchestrator emitted its three `Agent` calls in three
+    separate messages instead of one.
+
+    Asking a model to parallelise is not a mechanism. The worker starts these
+    together, in one shared sandbox: disjoint writes, so a single promote at the
+    end needs no merge.
+    """
+
+    label: str
+    prompt: str
+
+
+def _combine(legs: list[WavePass], results: list[runner.RunResult]) -> runner.RunResult:
+    """One result for a wave. Every failure is named, not just the first.
+
+    A wave is not all-or-nothing on the artifacts - each leg has already written
+    what it finished - but the job is only a success when every leg was.
+    """
+    failed = [(leg, res) for leg, res in zip(legs, results) if not res.ok]
+    output = "\n".join(
+        f"--- {leg.label} ---\n{res.output or ''}" for leg, res in zip(legs, results)
+    )
+    if not failed:
+        return runner.RunResult(ok=True, output=output, error=None, returncode=0)
+    return runner.RunResult(
+        ok=False,
+        output=output,
+        error="; ".join(f"{leg.label}: {res.error}" for leg, res in failed),
+        returncode=next(res.returncode for _leg, res in failed),
+        permanent=all(res.permanent for _leg, res in failed),
+        error_code=next((res.error_code for _leg, res in failed if res.error_code), None),
+    )
 
 
 def limits_for(job_type: str) -> tuple[int, int]:
@@ -91,6 +131,7 @@ async def run(
     watch: Watch | None = None,
     on_provider: OnProvider | None = None,
     needs_catalog: bool = False,
+    wave: list[WavePass] | None = None,
 ) -> None:
     """Run one Claude pass for a claimed job, sync what it wrote, and finish the job.
 
@@ -133,17 +174,33 @@ async def run(
     # Where the estimator watches this happen. Recorded per job under the project
     # so the session can be replayed after the fact, not only while it runs.
     attempt = max(int(job.get("attempts") or 1), 1)
-    recording = streaming.recording_path(
-        project["slug"] if project else None,
-        str(job["_id"]),
-        REPO_ROOT,
-        attempt=attempt,
-    )
+    legs = list(wave) if wave else [WavePass(label="", prompt=prompt)]
+    recordings = [
+        streaming.recording_path(
+            project["slug"] if project else None,
+            str(job["_id"]),
+            REPO_ROOT,
+            attempt=attempt,
+            label=leg.label or None,
+        )
+        for leg in legs
+    ]
+    # The first is the job's recording, so a single-pass job is unchanged and a
+    # wave still has one log the run page opens by default.
+    recording = recordings[0]
     if attempt > 1:
-        await asyncio.to_thread(streaming.write_retry_banner, recording, attempt)
-    await ops_jobs.set_fields(
-        job["_id"], {"recording": str(recording.relative_to(REPO_ROOT)).replace("\\", "/")}
-    )
+        for path in recordings:
+            await asyncio.to_thread(streaming.write_retry_banner, path, attempt)
+
+    def _rel(path: Path) -> str:
+        return str(path.relative_to(REPO_ROOT)).replace("\\", "/")
+
+    fields: dict[str, Any] = {"recording": _rel(recording)}
+    if len(legs) > 1:
+        fields["recordings"] = [
+            {"label": leg.label, "path": _rel(path)} for leg, path in zip(legs, recordings)
+        ]
+    await ops_jobs.set_fields(job["_id"], fields)
 
     timeout, max_turns = limits_for(job["type"])
     cancel_event = threading.Event()
@@ -202,13 +259,13 @@ async def run(
         except Exception as exc:  # noqa: BLE001
             log.warning("wrapper heartbeat for job %s failed: %s", job["_id"], exc)
 
-    def run_cli():
+    def run_leg(leg: WavePass, leg_recording: Path):
         kwargs = dict(
-            prompt=prompt,
+            prompt=leg.prompt,
             timeout=timeout,
             env=env,
             redact_values=provider.secret_values(config),
-            recording=recording,
+            recording=leg_recording,
             job_type=job["type"],
             max_turns=max_turns,
             cancel_check=cancel_event.is_set,
@@ -228,22 +285,67 @@ async def run(
     progress_watcher = asyncio.create_task(watch_progress_bound())
     result = None
     try:
-        result = await asyncio.to_thread(run_cli)
+        if len(legs) == 1:
+            result = await asyncio.to_thread(run_leg, legs[0], recordings[0])
+        else:
+            # Started in one gather, so they overlap rather than queue. They share
+            # one sandbox and write different files; the single promote below
+            # copies all of it back with nothing to reconcile.
+            log.info(
+                "%s wave: starting %s concurrently",
+                job["type"],
+                ", ".join(leg.label for leg in legs),
+            )
+            result = _combine(
+                legs,
+                list(
+                    await asyncio.gather(
+                        *(
+                            asyncio.to_thread(run_leg, leg, path)
+                            for leg, path in zip(legs, recordings)
+                        )
+                    )
+                ),
+            )
     finally:
         cancel_event.set()
         watcher.cancel()
         heartbeat.cancel()
         progress_watcher.cancel()
+        promote_ok = True
         if sandbox_ws is not None and project is not None and result is not None and result.ok:
             try:
                 await asyncio.to_thread(sandbox_mod.promote, str(job["_id"]), project["slug"])
-            except Exception:
+            except Exception as exc:
+                promote_ok = False
                 log.exception("sandbox promote failed for job %s", job["_id"])
-        if sandbox_ws is not None:
+                from cbc.worker_kit.sandbox import EmptyPricingPromoteError
+
+                error_code = (
+                    EmptyPricingPromoteError.error_code
+                    if isinstance(exc, EmptyPricingPromoteError)
+                    else "sandbox_promote_failed"
+                )
+                # Do not report Claude success when outputs never reached the live bid;
+                # otherwise sync validation surfaces as missing hardware_sets/line_items.
+                result = runner.RunResult(
+                    ok=False,
+                    output=result.output,
+                    error=f"sandbox promote failed: {exc}",
+                    returncode=result.returncode,
+                    permanent=True,
+                    error_code=error_code,
+                )
+        if sandbox_ws is not None and promote_ok:
             try:
                 await asyncio.to_thread(sandbox_mod.cleanup, str(job["_id"]))
             except Exception:
                 log.exception("sandbox cleanup failed for job %s", job["_id"])
+        elif sandbox_ws is not None and not promote_ok:
+            log.error(
+                "sandbox: leaving scratch %s for recovery after promote failure",
+                job["_id"],
+            )
 
     # Stopped because the worker is going down, not because anyone asked. Put it
     # back on the queue rather than recording a failure nobody caused.

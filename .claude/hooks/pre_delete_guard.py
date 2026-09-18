@@ -99,8 +99,12 @@ _WRITE_LAST = ("cp", "mv", "install", "rsync")
 # writing documentation about the rule included.
 _WRITE_ANY = (
     "rm", "rmdir", "unlink", "del",
+    "remove-item", "ri", "rd", "erase-item",
     "tee", "touch", "mkdir", "truncate", "chmod", "chown", "unzip", "tar",
 )
+_RECURSIVE_FORCE_CMDS = {
+    "rm", "remove-item", "ri", "rd", "erase-item", "del",
+}
 _INPLACE = ("sed", "perl")
 _PYTHON = {"python", "python3", "py"}
 _PDF_IMPORT = re.compile(r"(?:^|\s)(?:import|from)\s+(fitz|pymupdf|pypdf)\b")
@@ -261,6 +265,15 @@ def _write_targets(command: str) -> list[str]:
 _WRAPPERS = ("sudo", "env", "nohup", "time", "command", "exec", "nice", "then", "do")
 
 
+def _is_flag_token(token: str) -> bool:
+    """True for POSIX (`-rf`, `--force`) and Windows (`/s`, `/q`) switches."""
+    if token.startswith("-") and token != "-":
+        return True
+    if token.startswith("/") and 2 <= len(token) <= 3 and token[1:].isalpha():
+        return True
+    return False
+
+
 def _segment_write_targets(command: str) -> list[str]:
     try:
         tokens = shlex.split(command, posix=True)
@@ -291,12 +304,13 @@ def _segment_write_targets(command: str) -> list[str]:
         elif token.startswith(">") and len(token.lstrip(">")) > 0:
             targets.append(token.lstrip(">"))
 
-    name = Path(tokens[0]).name
+    name = Path(tokens[0]).name.lower()
     # Flags and redirection are not path arguments. `2>&1` trailing a command made
     # itself the "last argument" of a cp and hid the real destination behind it.
+    # Windows cmd switches (`/s`, `/q`) are flags too, not destinations.
     arguments = [
         t for t in tokens[1:]
-        if not t.startswith("-") and ">" not in t and "<" not in t
+        if not _is_flag_token(t) and ">" not in t and "<" not in t
     ]
 
     if name in _WRITE_LAST and arguments:
@@ -354,12 +368,10 @@ def _strip_heredoc_bodies(command: str) -> str:
 
 
 def _is_recursive_force_rm(segment: str) -> tuple[bool, str]:
-    """True when this segment is an `rm` carrying both recursive and force.
+    """True when this segment is a recursive+force delete.
 
-    The regex this replaces required both letters inside one flag cluster, so
-    `rm -r -f <path>` - the same command, spelled the way half the world spells
-    it - was not recognised at all. Reading the flags as tokens covers clustered,
-    separated and long forms without another unreadable alternation.
+    Covers POSIX `rm -rf` / `rm -r -f` / `rm --recursive --force`, Windows
+    `del /s /q`, and PowerShell `Remove-Item -Recurse -Force` (and aliases).
     """
     try:
         tokens = shlex.split(segment, posix=True)
@@ -369,22 +381,33 @@ def _is_recursive_force_rm(segment: str) -> tuple[bool, str]:
         "=" in tokens[0].split("/")[0] or Path(tokens[0].strip("([{ ")).name in _WRAPPERS
     ):
         tokens = tokens[1:]
-    if not tokens or Path(tokens[0].strip("([{ ")).name != "rm":
+    if not tokens:
+        return False, ""
+    name = Path(tokens[0].strip("([{ ")).name.lower()
+    if name not in _RECURSIVE_FORCE_CMDS:
         return False, ""
 
     recursive = force = False
     flags: list[str] = []
     for token in tokens[1:]:
-        if not token.startswith("-") or token == "-":
+        if not _is_flag_token(token):
             continue
         flags.append(token)
-        if token.startswith("--"):
-            recursive |= token == "--recursive"
-            force |= token == "--force"
+        lowered = token.lower()
+        if lowered in ("--recursive", "-recurse", "/s"):
+            recursive = True
+        elif lowered in ("--force", "-force", "/q", "/f"):
+            force = True
+        elif token.startswith("--"):
+            recursive |= lowered == "--recursive"
+            force |= lowered == "--force"
+        elif token.startswith("/"):
+            recursive |= "s" in lowered
+            force |= "q" in lowered or "f" in lowered
         else:
-            recursive |= "r" in token.lower()
-            force |= "f" in token
-    return recursive and force, ("rm " + " ".join(flags)).strip()
+            recursive |= "r" in lowered
+            force |= "f" in lowered
+    return recursive and force, (name + " " + " ".join(flags)).strip()
 
 
 def _under_projects(path: str) -> bool:
@@ -395,6 +418,81 @@ def _under_projects(path: str) -> bool:
         return False
     workspaces = (PROJECT_ROOT / "projects").resolve()
     return resolved == workspaces or workspaces in resolved.parents
+
+
+# Checkpoint artifacts must go through save_artifact (schema + versioning).
+# Bare Write/Edit bypasses MCP validation and caused invalid door_schedule.json
+# to land on disk (thickness / page_size array) while the agent reported success.
+_CHECKPOINT_ARTIFACTS = frozenset(
+    {
+        "extracted/scope_metadata.json",
+        "extracted/scope_summary.json",
+        "extracted/door_schedule.json",
+        "extracted/frp_takeoff.json",
+        "extracted/div10_takeoff.json",
+        "extracted/hardware_sets.json",
+        "priced/line_items.json",
+    }
+)
+
+# Artifacts `propose_patch` can actually edit. It addresses openings by door
+# number, so it understands the door schedule and nothing else yet. Withdrawing
+# whole-file authority for an artifact it cannot edit would leave no way to write
+# that artifact at all, which is a worse failure than a whole-file write.
+_PATCHABLE_ARTIFACTS = frozenset({"extracted/door_schedule.json"})
+
+
+def _seeded_file_exists(project: str, rel: str) -> bool:
+    """True only when the seeded artifact is positively there.
+
+    Unknown counts as absent, so the write is allowed. A bid whose schedule will
+    not parse has no seed, and `propose_patch` edits rather than creates - a
+    guard that fails closed here would strand that run with no way to produce the
+    artifact. The schema gate still runs on whichever path the write takes.
+    """
+    if not project:
+        return False
+    # Resolved without importing `cbc`. The hook runs in a bare interpreter where
+    # that import fails - the first version of this check relied on it, caught the
+    # ImportError, and so answered "absent" every single time, which made the whole
+    # rule dead code that looked live.
+    roots = [
+        os.environ.get("CBC_PROJECTS_ROOT"),
+        os.environ.get("STORAGE_ROOT"),
+        str(PROJECT_ROOT / "data" / "projects"),
+        str(PROJECT_ROOT / "projects"),
+    ]
+    for root in roots:
+        if not root:
+            continue
+        try:
+            if (Path(root) / project / rel).is_file():
+                return True
+        except (OSError, ValueError):
+            continue
+    return False
+
+
+def _checkpoint_relpath(path: str) -> str | None:
+    """Return the checkpoint-relative path if this Write targets one."""
+    try:
+        from _artifact_path import project_path_from_tool, slashes
+    except ImportError:
+        normalized = path.replace("\\", "/")
+        for rel in _CHECKPOINT_ARTIFACTS:
+            if normalized.endswith("/" + rel) or normalized.endswith(rel):
+                return rel
+        return None
+    resolved = project_path_from_tool("Write", {"file_path": path})
+    if not resolved:
+        normalized = slashes(path)
+        for rel in _CHECKPOINT_ARTIFACTS:
+            if normalized.endswith("/" + rel) or normalized == rel:
+                return rel
+        return None
+    _project, rel = resolved
+    rel = rel.replace("\\", "/")
+    return rel if rel in _CHECKPOINT_ARTIFACTS else None
 
 
 def block(reason: str, *, rule: str | None = None, matched: str | None = None) -> int:
@@ -434,6 +532,35 @@ def check(payload: dict) -> int:
                 f"{target} is read-only during a run",
                 rule="protected-write-tool",
                 matched=target,
+            )
+        # Bare Write/Edit of extraction checkpoints skips save_artifact schema
+        # validation. Force the MCP path instead.
+        if _WRITES_A_FILE.match(tool_name) and target:
+            checkpoint = _checkpoint_relpath(target)
+            if checkpoint:
+                return block(
+                    f"{checkpoint} must be written via mcp__artifact-storage__save_artifact "
+                    "(not Write/Edit) so schema validation and versioning run",
+                    rule="checkpoint-save-artifact",
+                    matched=target,
+                )
+
+    # Whole-file authorship of a checkpoint Python already seeded. A pass that
+    # rewrites the document puts one bad key between the run and everything the
+    # earlier phases produced - three runs on one bid died that way, on
+    # `thickness`, on `page_size`, on `flags`. `propose_patch` validates each
+    # field on its own, so a bad one costs that field and leaves a review flag.
+    if tool_name == "mcp__artifact-storage__save_artifact":
+        rel = str(tool_input.get("path") or "").replace("\\", "/").lstrip("/")
+        project = str(tool_input.get("project") or "")
+        if rel in _PATCHABLE_ARTIFACTS and _seeded_file_exists(project, rel):
+            return block(
+                f"{rel} is already seeded - change named fields with "
+                "mcp__artifact-storage__propose_patch instead of replacing the file. "
+                "Each patch is validated on its own, so a rejected one costs that "
+                "field rather than the run.",
+                rule="checkpoint-propose-patch",
+                matched=rel,
             )
 
     if tool_name.startswith("mcp__p21-connector__"):

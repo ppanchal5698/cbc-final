@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from cbc.modules.ops.api import identity as ops_identity
 from cbc.modules.ops.api import jobs as ops_jobs
 from cbc.modules.projects.api import board_sources
 from cbc.modules.projects.infrastructure.collections import calls as calls_collection
@@ -44,13 +45,27 @@ async def decorate_many(projects: list[dict[str, Any]]) -> list[dict[str, Any]]:
     documents = await board_sources.document_counts(ids)
     calls = await _count_by_project(calls_collection(), ids)
 
+    # One lookup for the page, so the board can print who a bid is assigned to
+    # rather than an email address.
+    people = await ops_identity.directory(
+        [project.get("assignedEstimator") or "" for project in projects]
+    )
+
     decorated = []
     for project in projects:
         project_id = project["_id"]
         by_status = counts.get(project_id, {})
+        assigned = (project.get("assignedEstimator") or "").lower()
         decorated.append(
             {
                 **serialise(project),
+                # Absent on every bid opened before the board gained these
+                # fields, so default here rather than backfilling the
+                # collection: a bid with no recorded outcome is simply open.
+                "bidStatus": project.get("bidStatus") or "bid",
+                "outcome": project.get("outcome") or "",
+                "assignedEstimator": assigned,
+                "estimator": people.get(assigned),
                 "counts": {
                     "total": sum(by_status.values()),
                     "clear": confirmed.get(project_id, 0),

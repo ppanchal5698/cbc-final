@@ -1,19 +1,18 @@
 import Link from "next/link";
-import {
-  ListChecks,
-  CaretRight,
-  Buildings,
-  Timer,
-  WarningCircle,
-  Lightning,
-  FileText,
-  Table,
-  Tray,
-} from "@phosphor-icons/react/dist/ssr";
+import { ListChecks, CaretRight, Buildings, FileText, Table, Tray } from "@phosphor-icons/react/dist/ssr";
 
 import { auth } from "@/auth";
 import { PageHeader } from "@/components/shell/page-header";
 import { NewBidDialog } from "@/components/bids/new-bid-dialog";
+import {
+  BidToOrder,
+  DueNext,
+  EstimatorLoad,
+  Panel,
+  PipelineByStage,
+  ValueByProgramme,
+  WonLostNotBid,
+} from "@/components/dashboard/panels";
 import { StatusBadge, type StatusBadgeVariant } from "@/components/ui/status-badge";
 import { api } from "@/lib/api";
 import { formatMoneyShort } from "@/lib/format";
@@ -29,10 +28,11 @@ const STAGE_ICON = {
   proposal: FileText,
 } as const;
 
-function greeting(name: string): string {
+function greeting(name?: string | null): string {
   const hour = new Date().getHours();
   const part = hour < 12 ? "Morning" : hour < 18 ? "Afternoon" : "Evening";
-  return `${part}, ${name.split(" ")[0]}`;
+  const first = String(name ?? "there").trim().split(/\s+/)[0] || "there";
+  return `${part}, ${first}`;
 }
 
 /** What this bid is actually waiting on, in the estimator's words. */
@@ -72,9 +72,6 @@ export default async function DashboardPage() {
   const projects = (await api.get<{ projects: Project[] }>("/api/projects")).projects;
 
   const needsLook = projects.reduce((sum, project) => sum + project.counts.needsLook, 0);
-  const running = projects.filter((project) => project.activeJob).length;
-  const openValue = projects.reduce((sum, project) => sum + (project.quoteTotal ?? 0), 0);
-  const handedOff = projects.filter((project) => project.handedOffTo).length;
 
   // Most urgent first: flagged work, then anything Claude is mid-way through.
   const queue = [...projects].sort((a, b) => {
@@ -82,21 +79,17 @@ export default async function DashboardPage() {
     return score(a) - score(b);
   });
 
-  const cleared = projects.reduce((sum, p) => sum + p.counts.clear, 0);
-  const total = projects.reduce((sum, p) => sum + p.counts.total, 0);
-  const focusPct = total ? Math.round((cleared / total) * 100) : 0;
-
   return (
     <>
       <PageHeader crumbs={[{ label: "Workspace" }, { label: "Dashboard" }]} reviewCount={needsLook} />
 
-      <main id="main-content" className="min-h-0 flex-1 overflow-auto p-8 bg-background">
-        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+      <main id="main-content" className="min-h-0 flex-1 overflow-auto bg-background p-8">
+        <div className="mb-7 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="flex items-center gap-2 text-[26px] font-bold text-tx-primary tracking-tight">
+            <h1 className="flex items-center gap-2 text-[30px] font-extrabold tracking-tight text-tx-primary">
               {greeting(name)} <span className="animate-fade-in">👋</span>
             </h1>
-            <p className="mt-1.5 text-[14px] text-tx-secondary font-medium max-w-[600px] leading-relaxed">
+            <p className="mt-1 max-w-[640px] text-[14px] font-medium leading-relaxed text-tx-secondary">
               {needsLook > 0
                 ? `${needsLook} line${needsLook === 1 ? "" : "s"} are waiting on you across ${projects.length} bid${projects.length === 1 ? "" : "s"}.`
                 : "Nothing is flagged. Bid documents in, priced proposal out."}
@@ -104,10 +97,10 @@ export default async function DashboardPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="hidden items-center gap-3 rounded-lg border border-subtle bg-panel px-4 py-2 sm:flex shadow-sm">
+            <div className="hidden items-center gap-3 rounded-lg border border-subtle bg-panel px-4 py-2 shadow-1 sm:flex">
               <Buildings size={18} weight="duotone" className="text-tx-muted" />
               <span className="flex flex-col leading-tight">
-                <span className="text-[10px] uppercase tracking-widest text-tx-muted font-bold">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-tx-muted">
                   Current workspace
                 </span>
                 <span className="text-[13px] font-semibold text-tx-primary">Hamilton Parker · CBC</span>
@@ -117,32 +110,38 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
-          <section className="overflow-hidden rounded-xl border border-subtle bg-panel shadow-sm flex flex-col">
-            <div className="flex items-center gap-3 border-b border-subtle px-5 py-4 bg-background">
-              <ListChecks size={18} weight="duotone" className="text-brand-primary" />
-              <span className="text-[15px] font-semibold text-tx-primary tracking-tight">Your queue</span>
-              <span className="flex-1" />
+        {/* The prototype's two rows: the pipeline and its outcomes, then the
+            queue beside the four roll-ups that explain it. */}
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+          <PipelineByStage projects={projects} />
+          <WonLostNotBid projects={projects} />
+        </div>
+
+        <div className="mt-5 grid items-start gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+          <Panel
+            title="Your queue"
+            icon={<ListChecks size={17} weight="duotone" />}
+            action={
               <Link
                 href="/bids"
-                className="text-[13px] font-medium text-brand-primary no-underline hover:text-brand-primary/80 transition-colors"
+                className="text-[13px] font-medium text-brand-primary no-underline transition-colors hover:text-brand-primary/80"
               >
                 Open the bid board &rarr;
               </Link>
-            </div>
-
+            }
+          >
             {queue.length === 0 ? (
               <div className="grid place-items-center gap-3 px-6 py-24 text-center">
-                <div className="w-16 h-16 rounded-full bg-brand-soft flex items-center justify-center mb-2 shadow-sm border border-brand-border">
+                <div className="mb-2 flex h-16 w-16 items-center justify-center rounded-full border border-brand-border bg-brand-soft shadow-1">
                   <Tray size={28} weight="duotone" className="text-brand-primary" />
                 </div>
                 <span className="text-[16px] font-semibold text-tx-primary">Nothing in the queue</span>
-                <span className="max-w-[380px] text-[13.5px] text-tx-secondary leading-relaxed">
+                <span className="max-w-[380px] text-[13.5px] leading-relaxed text-tx-secondary">
                   Create a bid and drop the plan set in to get started. Everything is clear for now.
                 </span>
               </div>
             ) : (
-              <div className="flex-1 overflow-auto">
+              <div className="max-h-[420px] overflow-auto">
                 {queue.map((project) => {
                   const Icon = STAGE_ICON[project.stage];
                   const state = waitingOn(project);
@@ -150,108 +149,52 @@ export default async function DashboardPage() {
                     <Link
                       key={project.id}
                       href={`/bids/${project.code}/${project.stage}`}
-                      className="group flex items-center gap-4 border-b border-subtle px-5 py-3.5 no-underline last:border-b-0 hover:bg-panel-muted transition-colors"
+                      className="group grid items-center gap-3 border-b border-subtle px-5 py-3 no-underline transition-colors last:border-b-0 hover:bg-panel-muted"
+                      style={{ gridTemplateColumns: "34px minmax(0,1fr) 104px 88px 20px" }}
                     >
-                      <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg shadow-sm border border-subtle/50", state.softClass, state.colourClass)}>
-                        <Icon size={18} weight="duotone" />
+                      <span
+                        className={cn(
+                          "grid h-[34px] w-[34px] shrink-0 place-items-center rounded-lg border border-subtle/50 shadow-1",
+                          state.softClass,
+                          state.colourClass,
+                        )}
+                      >
+                        <Icon size={17} weight="duotone" />
                       </span>
-                      <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                        <span className="truncate text-[14px] font-semibold text-tx-primary group-hover:text-brand-primary transition-colors">{project.name}</span>
-                        <span className="truncate text-[12px] font-medium text-tx-muted mt-0.5">
+                      <span className="flex min-w-0 flex-col leading-tight">
+                        <span className="truncate text-[13.5px] font-semibold text-tx-primary transition-colors group-hover:text-brand-primary">
+                          {project.name}
+                        </span>
+                        <span className="mt-0.5 truncate text-[11.5px] font-medium text-tx-muted">
                           {project.code}
                           {project.gc ? ` · ${project.gc}` : ""}
                           {project.location ? ` · ${project.location}` : ""}
                         </span>
                       </span>
                       <StatusBadge variant={state.variant}>{state.tag}</StatusBadge>
-                      <span className="tnum hidden w-[92px] shrink-0 text-right text-[12px] font-medium text-tx-muted sm:block">
+                      <span className="tnum text-right text-[12px] font-medium text-tx-muted">
                         {project.bidDue
                           ? `due ${new Date(project.bidDue).toLocaleDateString()}`
-                          : "no due date"}
+                          : formatMoneyShort(project.quoteTotal)}
                       </span>
-                      <CaretRight size={14} weight="bold" className="text-tx-muted group-hover:text-tx-primary transition-colors ml-2" />
+                      <CaretRight
+                        size={14}
+                        weight="bold"
+                        className="text-tx-muted transition-colors group-hover:text-tx-primary"
+                      />
                     </Link>
                   );
                 })}
               </div>
             )}
-          </section>
+          </Panel>
 
-          <aside className="flex flex-col gap-6">
-            <div className="rounded-xl border border-subtle bg-panel p-5 shadow-sm">
-              <div className="flex items-center gap-2 mb-6">
-                <Timer size={16} weight="duotone" className="text-brand-primary" />
-                <span className="text-[14px] font-semibold text-tx-primary tracking-tight">Focus</span>
-              </div>
-
-              <div className="grid place-items-center relative">
-                <div
-                  className="grid h-[120px] w-[120px] place-items-center rounded-full shadow-sm"
-                  style={{
-                    background: `conic-gradient(var(--brand-primary) ${focusPct * 3.6}deg, var(--panel-muted) 0deg)`,
-                  }}
-                >
-                  <div className="grid h-[92px] w-[92px] place-items-center rounded-full bg-panel shadow-sm">
-                    <span className="flex flex-col items-center leading-tight">
-                      <span className="tnum text-[26px] font-bold text-tx-primary">{focusPct}%</span>
-                      <span className="text-[11px] font-medium text-tx-muted mt-0.5 uppercase tracking-wider">
-                        cleared
-                      </span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 text-center">
-                <p className="text-[14px] font-semibold text-tx-primary">
-                  {needsLook > 0 ? `${needsLook} still need a look` : "Everything is checked"}
-                </p>
-                <p className="mt-1 text-[12.5px] font-medium text-tx-secondary leading-relaxed">
-                  {cleared} of {total} extracted lines confirmed across every open bid.
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-subtle bg-panel p-5 shadow-sm">
-              <div className="mb-4">
-                <span className="text-[14px] font-semibold text-tx-primary tracking-tight">Overview</span>
-              </div>
-              <div className="flex flex-col gap-1">
-                {[
-                  { label: "Open bids", value: String(projects.length), Icon: Buildings },
-                  {
-                    label: "Claude running",
-                    value: String(running),
-                    Icon: Lightning,
-                    toneClass: running ? "text-status-warning" : "text-tx-primary",
-                  },
-                  {
-                    label: "Lines to check",
-                    value: String(needsLook),
-                    Icon: WarningCircle,
-                    toneClass: needsLook ? "text-status-error" : "text-tx-primary",
-                  },
-                  { label: "Handed to sales", value: String(handedOff), Icon: FileText, toneClass: "text-tx-primary" },
-                  { label: "Quoted value", value: formatMoneyShort(openValue), Icon: Table, toneClass: "text-brand-primary" },
-                ].map((tile) => (
-                  <div
-                    key={tile.label}
-                    className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-panel-muted transition-colors"
-                  >
-                    <div className="flex h-7 w-7 items-center justify-center rounded-md border border-subtle bg-background shadow-sm">
-                      <tile.Icon size={14} weight="duotone" className="text-tx-muted" />
-                    </div>
-                    <span className="flex-1 text-[13px] font-medium text-tx-secondary">
-                      {tile.label}
-                    </span>
-                    <span className={cn("tnum text-[14px] font-bold", tile.toneClass || "text-tx-primary")}>
-                      {tile.value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </aside>
+          <div className="flex min-w-0 flex-col gap-5">
+            <DueNext projects={projects} />
+            <EstimatorLoad projects={projects} />
+            <BidToOrder projects={projects} />
+            <ValueByProgramme projects={projects} />
+          </div>
         </div>
       </main>
     </>

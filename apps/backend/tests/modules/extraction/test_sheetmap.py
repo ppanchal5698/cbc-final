@@ -1,6 +1,7 @@
 """B-11: worker sheetmap pre-pass writes ranked pages and is a no-op on matching SHA."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import fitz
@@ -72,12 +73,159 @@ def test_a_schedule_page_outranks_a_higher_scoring_word_count() -> None:
     assert "door_schedule" in pages[0]["roles"]
 
 
+def test_text_poor_a4_sheet_gets_door_schedule_candidate() -> None:
+    """CAD schedule sheets often have title-block-only text; still flag for image review."""
+    ranked = {
+        "pages": [
+            {
+                "source_page": 37,
+                "score": 19,
+                "terms": {"door": 6, "partition": 6},
+                "sheet_ids": ["E3.0"],
+                "char_count": 40000,
+            },
+            {
+                "source_page": 16,
+                "score": 0,
+                "terms": {},
+                "sheet_ids": ["A4.0"],
+                "char_count": 166,
+            },
+            {
+                "source_page": 17,
+                "score": 0,
+                "terms": {"storefront": 3, "window type": 2},
+                "sheet_ids": ["A4.1"],
+                "char_count": 166,
+            },
+            {
+                "source_page": 18,
+                "score": 0,
+                "terms": {},
+                "sheet_ids": ["A2.2"],
+                "char_count": 200,
+            },
+            {
+                "source_page": 6,
+                "score": 2,
+                "terms": {"floor plan": 1},
+                "sheet_ids": ["A1.0"],
+                "char_count": 249,
+            },
+        ]
+    }
+
+    pages = sheetmap._merge_pages(ranked, [])
+    by_page = {p["source_page"]: p for p in pages}
+
+    assert "door_schedule_candidate" in by_page[16]["roles"]
+    assert "text_poor" in by_page[16]["roles"]
+    assert "hardware" in by_page[16]["roles"]
+    assert by_page[16]["text_poor"] is True
+    assert by_page[16]["needs_visual_read"] is True
+    assert by_page[16]["has_text_layer"] is True  # 166 >= 40
+    assert "text_poor" in by_page[16]["visual_reasons"]
+    # A4.1 with storefront/window cues — soft-excluded from schedule candidates.
+    assert "door_schedule_candidate" not in by_page[17]["roles"]
+    # A2.2 text-poor is a common schedule sheet (not only A4.0).
+    assert "door_schedule_candidate" in by_page[18]["roles"]
+    assert "floor_plan" in by_page[6]["roles"]
+    # Candidate outranks pure word-count noise on electrical specs.
+    assert pages[0]["source_page"] in (16, 18)
+
+
+def test_no_text_layer_forces_visual_read() -> None:
+    pages = sheetmap._merge_pages(
+        {
+            "pages": [
+                {
+                    "source_page": 3,
+                    "score": 0,
+                    "terms": {},
+                    "sheet_ids": [],
+                    "char_count": 5,
+                }
+            ]
+        },
+        [],
+    )
+    assert pages[0]["has_text_layer"] is False
+    assert pages[0]["needs_visual_read"] is True
+    assert "no_text_layer" in pages[0]["visual_reasons"]
+
+
+def test_text_rich_page_without_schedule_role_not_forced() -> None:
+    pages = sheetmap._merge_pages(
+        {
+            "pages": [
+                {
+                    "source_page": 2,
+                    "score": 1,
+                    "terms": {"elevation": 2},
+                    "sheet_ids": ["A2.1"],
+                    "char_count": 12000,
+                }
+            ]
+        },
+        [],
+    )
+    assert pages[0]["has_text_layer"] is True
+    assert pages[0]["text_poor"] is False
+    assert pages[0]["needs_visual_read"] is False
+    assert pages[0]["visual_reasons"] == []
+
+
+def test_mineru_empty_blocks_force_visual_read() -> None:
+    page = {
+        "source_page": 9,
+        "roles": ["door_schedule"],
+        "char_count": 8000,
+        "text_poor": False,
+    }
+    needs, reasons = sheetmap.page_needs_visual_read(
+        page, mineru={"verified": None, "block_count": 0}
+    )
+    assert needs is True
+    assert "mineru_verified_null" in reasons
+    assert "mineru_empty_blocks" in reasons
+
+
+def test_select_visual_targets_caps_and_prioritises() -> None:
+    sheet = {
+        "files": [
+            {
+                "path": "projects/x/uploads/raw/a.pdf",
+                "pages": [
+                    {
+                        "source_page": 1,
+                        "needs_visual_read": True,
+                        "visual_reasons": ["text_poor"],
+                        "roles": ["text_poor"],
+                    },
+                    {
+                        "source_page": 16,
+                        "needs_visual_read": True,
+                        "visual_reasons": ["door_schedule_candidate", "text_poor"],
+                        "roles": ["door_schedule_candidate", "text_poor"],
+                    },
+                ],
+            }
+        ]
+    }
+    targets = sheetmap.select_visual_targets(sheet, cap=1)
+    assert len(targets) == 1
+    assert targets[0]["source_page"] == 16
+
+
 def test_roles_tag_frp_and_title_terms() -> None:
     pages = sheetmap._merge_pages(
         {
             "pages": [
                 {"source_page": 1, "score": 5, "terms": {"architect": 2, "title block": 1}},
                 {"source_page": 4, "score": 8, "terms": {"frp": 3, "wall panel": 1}},
+                {"source_page": 6, "score": 4, "terms": {"floor plan": 2}},
+                {"source_page": 8, "score": 3, "terms": {"toilet partition": 1, "hand dryer": 1}},
+                {"source_page": 10, "score": 2, "terms": {"division 08": 1, "hollow metal": 1}},
             ]
         },
         [],
@@ -85,6 +233,9 @@ def test_roles_tag_frp_and_title_terms() -> None:
     by_page = {p["source_page"]: p["roles"] for p in pages}
     assert "title" in by_page[1]
     assert "frp" in by_page[4]
+    assert "floor_plan" in by_page[6]
+    assert "div10" in by_page[8]
+    assert "div08_specs" in by_page[10]
 
 
 def test_pages_for_roles_filters() -> None:
@@ -134,5 +285,39 @@ def test_extract_prompt_names_the_sheetmap() -> None:
     assert "find_sheets" in text
     assert "roles" in text
     assert "frp_in_scope" in text
+    assert "div10_in_scope" in text
+    assert "div10-specialist" in text
+    assert "div08_specs" in text
+    assert "floor_plan" in text
     assert "save_artifact" in text
+    assert "_visual_pages.json" in text
+
+
+def test_extract_prompt_includes_visual_checklist(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
+    slug = "vis_prompt"
+    extracted = tmp_path / "projects" / slug / "extracted"
+    extracted.mkdir(parents=True)
+    (extracted / "_visual_pages.json").write_text(
+        json.dumps(
+            {
+                "pages": [
+                    {
+                        "path": f"projects/{slug}/uploads/raw/set.pdf",
+                        "source_page": 16,
+                        "reasons": ["text_poor", "door_schedule_candidate"],
+                        "image_path": ".cache/pdf-pages/demo.png",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    text = prompts.build(
+        {"type": "extract_bid_set", "payload": {}},
+        {"slug": slug, "code": "CBC-VIS"},
+    )
+    assert "Mandatory visual reads" in text
+    assert "page 16" in text
+    assert "visual_pages_checked" in text
 

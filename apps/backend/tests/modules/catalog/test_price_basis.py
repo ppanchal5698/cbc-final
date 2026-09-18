@@ -57,13 +57,44 @@ def test_a_vendor_bought_on_a_net_program_is_net() -> None:
     assert basis.price_basis("gamco_hp_program_net.xlsx", "gamco") == basis.NET
 
 
-def test_an_untranscribed_tier_is_not_a_net_program() -> None:
-    """Pemko's multipliers were never transcribed. That is not the same fact.
+def test_an_untranscribed_tier_is_not_a_net_program(monkeypatch: pytest.MonkeyPatch) -> None:
+    """"No multiplier recorded" and "bought at net" are different facts.
 
-    Both look like "no multiplier on file", and collapsing them would label a list
-    price as a net - the mirror of the bug this exists for.
+    Collapsing them labels a list price as a net - the mirror of the bug this
+    file exists for.
+
+    This used to name Pemko, whose multipliers genuinely had not been transcribed.
+    They have been since, so the assertion started testing the data rather than
+    the rule. The payload is supplied here so it keeps testing the rule.
     """
-    assert basis.price_basis("pemko_markar_price_book_2026.pdf", "pemko") == basis.UNKNOWN
+    monkeypatch.setattr(
+        basis,
+        "_vendor_tiers_payload",
+        lambda: {"vendors": [{"key": "untranscribed", "multiplier": None, "tier": "TBC"}]},
+    )
+    assert basis.price_basis("untranscribed_price_book.pdf", "untranscribed") == basis.UNKNOWN
+
+
+def test_an_identity_multiplier_is_a_net_program(monkeypatch: pytest.MonkeyPatch) -> None:
+    """x1.000 is how the tier sheet writes a flat net, not a list to discount.
+
+    Bobrick reads "Priced from 2020 Distributor Net Price List (x1.000). Not list
+    x discount." Reading that as list-priced sent a net sheet down the
+    list x multiplier path: changing the book's multiplier to 0.25 repriced a
+    $40.00 net part to $10.00.
+    """
+    monkeypatch.setattr(
+        basis,
+        "_vendor_tiers_payload",
+        lambda: {
+            "vendors": [
+                {"key": "flatnet", "multiplier": 1.0, "tier": "2020 Distributor Net"},
+                {"key": "discounted", "multiplier": 0.29, "tier": "Advantage Program"},
+            ]
+        },
+    )
+    assert basis.price_basis("flatnet_program.xlsx", "flatnet") == basis.NET
+    assert basis.price_basis("discounted_book.pdf", "discounted") == basis.LIST
 
 
 def test_an_unrecognised_sheet_says_so_rather_than_guessing() -> None:

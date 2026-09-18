@@ -14,7 +14,7 @@ import { TerminalDrawer } from "@/components/terminal/terminal-drawer";
  */
 export function ShellOverlays() {
   const pathname = usePathname();
-  const match = pathname.match(/^\/bids\/([^/]+)/);
+  const match = pathname?.match(/^\/bids\/([^/]+)/);
   const code = match ? decodeURIComponent(match[1]) : null;
 
   return (

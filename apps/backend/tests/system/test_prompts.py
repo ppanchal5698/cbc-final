@@ -92,3 +92,74 @@ def test_no_prompt_names_a_server_that_does_not_exist() -> None:
     for name in ("catalog", "pdf-tools"):
         assert name in toolsets.SERVERS
 
+
+def test_extract_prompt_points_at_the_seeded_artifact_and_the_patch_path() -> None:
+    text = _render("extract_bid_set", delegates=True)
+    assert "door_schedule.json" in text
+    assert "propose_patch" in text
+    assert "Verify on disk" in text or "get_artifact" in text
+    assert "parse_schedule" in text
+
+
+def test_the_prompt_no_longer_carries_json_shape_instructions() -> None:
+    """Every one of these was added after a run deviated a new way.
+
+    `page_size must be {width,height}`, `Thickness -> notes`, `max 2
+    schema-repair retries` - a list of scars on a stochastic thing, which is a
+    loop that cannot converge. They are normaliser and schema concerns now, and
+    a patch that breaks the contract is refused on its own.
+    """
+    rule = prompts.DELEGATION_RULE
+    for scar in ("page_size must be", "never a thickness key",
+                 "Max 2 schema-repair", "schema-repair retries",
+                 "closed-world: allowlisted"):
+        assert scar not in rule, f"{scar!r} is back in DELEGATION_RULE"
+
+
+def test_delegation_rule_briefs_a_verifier_not_an_author() -> None:
+    rule = prompts.DELEGATION_RULE
+    assert "Subagent brief template" in rule
+    assert "Verify on disk" in rule
+    assert "propose_patch" in rule
+    # The point of the whole redesign: Python owns the artifact.
+    assert "already seeded" in rule or "already exists" in rule
+    assert "source_page" in rule and "excerpt" in rule
+
+
+def test_split_phase_handoff_and_delivery_gate_are_in_prompt() -> None:
+    job = {
+        "type": "build_proposal",
+        "phaseState": {"pricing": {"passed": True, "artifacts": {"priced/line_items.json": "sha"}}},
+    }
+    text = prompts.build(job, PROJECT)
+    assert "Validated handoff from earlier jobs" in text
+    assert "pricing: priced/line_items.json" in text
+    assert "--check-delivery" in text
+    assert "do not infer estimator approval" in text
+    assert "new scratch path is isolation, not a blank bid" in text
+    assert "do not independently read or process" in text
+
+    forced = prompts.build({**job, "payload": {"force": True}}, PROJECT)
+    assert "Validated handoff from earlier jobs" not in forced
+
+
+
+@pytest.mark.parametrize("job_type", PROJECT_JOB_TYPES)
+def test_a_forced_job_is_told_so_whatever_its_template(job_type: str) -> None:
+    """`force` used to be a string replacement that matched one template in seven.
+
+    It swapped out "Ignore this only if told to force a clean run.", and that
+    sentence lives only in the full-pipeline template. `str.replace` with no
+    match is a silent no-op, so a forced `match_and_price` resumed off the very
+    files it was told to distrust, made five tool calls, reported "already
+    complete", and cost half a dollar. A prefix cannot miss.
+    """
+    forced = prompts.build({"type": job_type, "payload": {"force": True}}, PROJECT)
+    assert "FORCED CLEAN RUN" in forced, job_type
+
+
+@pytest.mark.parametrize("job_type", PROJECT_JOB_TYPES)
+def test_an_ordinary_job_is_not_told_to_rebuild_everything(job_type: str) -> None:
+    """Resume is the default, and it is the expensive thing to get wrong."""
+    ordinary = prompts.build({"type": job_type, "payload": {}}, PROJECT)
+    assert "FORCED CLEAN RUN" not in ordinary, job_type

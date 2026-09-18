@@ -46,7 +46,17 @@
   .terms li { margin-bottom: 4px; }
   .draft { margin-top: 24px; padding: 12px 16px; border: 2px dashed var(--flag);
            background: var(--flag-bg); color: var(--flag); font-weight: 600; }
-  @media print { body { padding: 0; } .draft { border-style: solid; } }
+  @page { size: A4; margin: 15mm; }
+  @media print {
+    body { padding: 0; font-size: 11px; }
+    .lines { table-layout: fixed; }
+    .lines th { font-size: 8px; letter-spacing: 0; }
+    .lines th, .lines td { padding: 5px 3px; overflow-wrap: anywhere; }
+    .lines .num, .lines .flag { white-space: normal; }
+    .lines .flag, .lines .src { font-size: 9px; }
+    .lines tr { break-inside: avoid; }
+    .draft { border-style: solid; }
+  }
 </style>
 </head>
 <body>
@@ -86,7 +96,7 @@
   <table class="lines">
     <thead>
       <tr>
-        <th style="width:34%">Item</th>
+        <th style="width:30%">Item</th>
         <th style="width:14%">Part number</th>
         <th style="width:10%">Vendor</th>
         <th class="num" style="width:6%">Qty</th>

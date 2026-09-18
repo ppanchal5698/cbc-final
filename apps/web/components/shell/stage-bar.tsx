@@ -34,7 +34,7 @@ export function StageBar({ project, current }: { project: Project; current: Stag
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-4 border-b border-subtle bg-background px-5 py-3">
+    <div className="flex shrink-0 items-center gap-4 border-b border-subtle bg-panel-raised px-5 py-3 overflow-x-auto min-w-0">
       <span className="flex w-[230px] shrink-0 flex-col leading-tight">
         <span className="truncate text-[14px] font-bold tracking-tight text-tx-primary" title={project.name}>
           {project.name}

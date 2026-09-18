@@ -19,7 +19,16 @@ JOB_TYPES = ("extract_bid_set", "rerun_extraction")
 
 
 async def run(job: dict[str, Any]) -> None:
-    await pipeline.run_pass(job, sync=sync_results, prepare=passes.prepare, watch=passes.watch_progress)
+    await pipeline.run_pass(
+        job,
+        sync=sync_results,
+        prepare=passes.prepare,
+        watch=passes.watch_progress,
+        # The three take-offs start together. Nothing in wave 2 reads another's
+        # output, and asking the orchestrator to launch them in one message did
+        # not make it happen.
+        wave_for=passes.extraction_wave,
+    )
 
 
 async def sync_results(job: dict[str, Any], project: dict[str, Any] | None) -> str:
@@ -29,6 +38,11 @@ async def sync_results(job: dict[str, Any], project: dict[str, Any] | None) -> s
     counts = await door_schedule.import_extraction(project, job=job)
     if counts.get("aborted"):
         return "lease stolen; discarded output"
+    from cbc.modules.extraction.api import specialty_takeoffs
+
+    specialties = await specialty_takeoffs.import_specialty_takeoffs(project, job=job)
+    if specialties.get("aborted"):
+        return "lease stolen; discarded specialty takeoffs"
     started = job.get("startedAt") or job.get("createdAt")
     await documents.mark_received(project["_id"], "read", uploaded_by=started)
     if extraction_review_verdict(project["slug"]) == "needs_review":
@@ -39,7 +53,8 @@ async def sync_results(job: dict[str, Any], project: dict[str, Any] | None) -> s
     await bids.set_stage(project["_id"], "extraction", 33)
     return (
         f"{counts['inserted']} new, {counts['updated']} updated, "
-        f"{counts['skipped']} left as the estimator set them"
+        f"{counts['skipped']} left as the estimator set them; "
+        f"specialties frp={specialties.get('frp', 0)} div10={specialties.get('div10', 0)}"
     )
 
 

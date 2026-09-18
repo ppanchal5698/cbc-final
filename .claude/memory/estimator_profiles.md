@@ -11,7 +11,7 @@ not in P21 or on a multiplier sheet.
 ## Rick — his own Excel
 Works from his own spreadsheet rather than either shared workbook.
 Occasionally includes **freight** for customers who demand an all-inclusive bottom line —
-otherwise freight is not quoted at estimate stage (see [[process_flow]] Phase 6).
+otherwise freight is not quoted at estimate stage (see [process_flow](process_flow.md) Phase 6).
 
 ## Shanna — templated mode ("start full, delete down")
 Opens a **previous job's workbook** (not a clean template), saves-as, and trims the
@@ -19,7 +19,7 @@ residual rows down to the current job. Clearing residual rows is therefore the f
 of every templated job. Shanna also runs the **FRP take-off** in Vu360 + calculator.
 
 ## Workbook facts
-- Both shared Excel workbooks are password-protected: **estimator**.
+- Both shared Excel workbooks are password-protected (credential not stored in repo).
 - Adoption of the blank-quote workbook is uneven; the copilot must not disrupt anyone —
   "it only helps" (NFR-11).
 

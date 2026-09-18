@@ -1,4 +1,4 @@
-"""POST /api/projects/{code}/takeoffs - record FRP geometry; conversion waits on CBC's constants.
+"""POST /api/projects/{code}/takeoffs - record FRP geometry or Div 10 specialty counts.
 """
 from __future__ import annotations
 
@@ -20,6 +20,15 @@ class TakeoffCreate(BaseModel):
     insideCorners: int | None = None
     outsideCorners: int | None = None
     wallHeightFt: float | None = None
+    drawingScale: str | None = None
+    productType: str | None = None
+    manufacturer: str | None = None
+    location: str | None = None
+    drawingRef: str | None = None
+    qty: float | None = None
+    unit: str | None = None
+    specifiedModel: str | None = None
+    finish: str | None = None
     notes: str | None = None
 
 
@@ -27,18 +36,32 @@ class TakeoffCreate(BaseModel):
 async def create_takeoff(code: str, body: TakeoffCreate, actor: Actor) -> dict:
     project = await load(code)
     coll = await repos.for_project(takeoffs(), project, actor)
+    is_div10 = body.takeoffType in {"div10", "accessoryCount", "accessory"}
     document = {
         "bidRequestId": project["_id"],
         "projectId": project["_id"],
-        "takeoffType": body.takeoffType,
+        "takeoffType": "accessoryCount" if is_div10 else body.takeoffType,
         "perimeterLf": body.perimeterLf,
         "insideCorners": body.insideCorners,
         "outsideCorners": body.outsideCorners,
         "wallHeightFt": body.wallHeightFt,
+        "drawingScale": body.drawingScale,
+        "productType": body.productType,
+        "manufacturer": body.manufacturer,
+        "location": body.location,
+        "drawingRef": body.drawingRef,
+        "qty": body.qty,
+        "unit": body.unit,
+        "specifiedModel": body.specifiedModel,
+        "finish": body.finish,
         "notes": body.notes,
         "constantsUsed": None,
-        "status": "pendingConstants",
-        "flags": ["Open Item 5: FRP conversion constants owed by CBC"],
+        "status": "measured" if is_div10 else "pendingConstants",
+        "flags": (
+            []
+            if is_div10
+            else ["Open Item 5: FRP conversion constants owed by CBC"]
+        ),
     }
     result = await coll.insert(document)
     document["_id"] = result.inserted_id

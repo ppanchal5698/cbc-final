@@ -53,7 +53,7 @@ flowchart TD
 | **platform API** | `apps/backend` → `cbc.app.main:create_app` (factory) | FastAPI monolith: seven modules registered by one composition root |
 | **Worker** | `python -m cbc.app.worker` (`WORKER_CLAIM_ALL=1` in compose) | Claim and run Claude / local catalog jobs |
 | **Web** | `apps/web` | Next.js Ops-Hub; proxies to `PLATFORM_URL` |
-| **Compose** | `infra/docker-compose.yml` | mongo, clamav, platform, worker, web |
+| **Compose** | `infra/docker-compose.yml` | mongo, clamav, platform, worker, web; optional `mineru` + `parser` (`--profile gpu`) |
 
 Start (Docker):
 
@@ -69,11 +69,11 @@ cd apps/backend && pip install -e ".[dev]" && uvicorn cbc.app.main:create_app --
 
 ## 4. Startup Sequence
 
-1. **Infrastructure**: `infra/docker-compose.yml` boots `mongo` (and optional `litellm` / `clamav`).
+1. **Infrastructure**: `infra/docker-compose.yml` boots `mongo` (and optional `litellm` / `clamav` / `mineru`+`parser` with `--profile gpu`).
 2. **platform API**: `uvicorn cbc.app.main:create_app --factory` from `apps/backend`.
    - Lifespan runs the migrations, then each module's `ensure_indexes()`, `ensure_readonly_user()`, and ops' OAuth session sweep.
    - Each module's `register(app)` mounts its slices on one FastAPI app (`SERVICE_AUDIENCE=platform`).
-3. **Worker**: compose `worker` with `WORKER_CLAIM_ALL=1`; ops' claim loop runs each job with the Claude pipeline `cbc/app/worker.py` binds in (local runs may set `WORKER_DOMAIN`).
+3. **Worker**: compose `worker` with `WORKER_CLAIM_ALL=1`; ops' claim loop runs each job with the Claude pipeline `cbc/app/worker.py` binds in (local runs may set `WORKER_DOMAIN`). With the `gpu` profile, compose `parser` (`WORKER_DOMAIN=parsing`) claims `parse_document` only.
 4. **Web**: `next start`; `/api/proxy/*` forwards to `PLATFORM_URL` with audience `platform`.
 
 ## 5. Core Lifecycle Flows
@@ -101,17 +101,21 @@ sequenceDiagram
     NextJS-->>User: Issue JWT and Redirect
 ```
 
-### Flow 2: Queued Job (Document Upload & Extraction)
+### Flow 2: Queued Job (Document Upload → Parse → Extraction)
 1. **Trigger**: User uploads a PDF via the web proxy to platform documents API.
 2. **Route**: intake's `UploadDocument` slice receives the file.
 3. **Storage**: PDF saved under `projects/{slug}/uploads/raw/`.
-4. **Enqueue**: Pipeline job (e.g. `extract_bid_set`) queued through `cbc.modules.ops.api.jobs`.
-5. **Worker Poll**: compose `worker` (`WORKER_CLAIM_ALL=1`) claims the job.
-6. **Execution**: the job slice registered for its type runs it - a headless Claude Code pass (`cbc.modules.ops.api.claude_pass`), or in-process work for the catalog's local jobs.
-7. **Heartbeat**: Updates `heartbeatAt` so the job is not reaped.
-8. **Sync**: Disk JSON artifacts synced into Mongo.
-9. **Orchestration**: Autopilot may enqueue the next phase (e.g. `match_and_price`).
-10. **Cleanup**: Job `status="done"`.
+4. **Parse (optional GPU)**: When `PARSER_URL` resolves, upload also enqueues
+   `parse_document`. The compose `parser` worker (`WORKER_DOMAIN=parsing`, profile
+   `gpu`) sends page windows to `mineru` and upserts `documentPages`. Extraction
+   jobs defer until parsing finishes (or `PARSER_WAIT_MAX_SECONDS` elapses).
+5. **Enqueue**: Pipeline job (e.g. `extract_bid_set`) queued through `cbc.modules.ops.api.jobs`.
+6. **Worker Poll**: compose `worker` (`WORKER_CLAIM_ALL=1`) claims the job (not parsing).
+7. **Execution**: the job slice registered for its type runs it - a headless Claude Code pass (`cbc.modules.ops.api.claude_pass`), or in-process work for the catalog's local jobs. Parsed bids are read via bid-docs / `documentPages` first; unparsed docs still use pdf-tools.
+8. **Heartbeat**: Updates `heartbeatAt` so the job is not reaped.
+9. **Sync**: Disk JSON artifacts synced into Mongo.
+10. **Orchestration**: Autopilot may enqueue the next phase (e.g. `match_and_price`).
+11. **Cleanup**: Job `status="done"`.
 
 ```mermaid
 sequenceDiagram
@@ -119,15 +123,23 @@ sequenceDiagram
     participant PlatformAPI
     participant Disk
     participant MongoDB
+    participant Parser
+    participant MinerU
     participant Worker
     participant Claude
     UI->>PlatformAPI: POST PDF File
     PlatformAPI->>Disk: Save to /app/data/projects/{slug}/raw/
+    PlatformAPI->>MongoDB: Insert job type parse_document (if PARSER_URL)
     PlatformAPI->>MongoDB: Insert job type extract_bid_set
     PlatformAPI-->>UI: 201 Created
-    
-    Worker->>MongoDB: claim()
-    MongoDB-->>Worker: Return queued job
+
+    Parser->>MongoDB: claim(parse_document)
+    Parser->>MinerU: POST /tasks (page windows)
+    MinerU-->>Parser: middle.json
+    Parser->>MongoDB: upsert documentPages
+
+    Worker->>MongoDB: claim(extract_bid_set)
+    MongoDB-->>Worker: Return queued job (after parse, or pdf-tools fallback)
     Worker->>Claude: Invoke Claude CLI pass
     loop Heartbeat
         Worker->>MongoDB: Update heartbeatAt
@@ -138,7 +150,6 @@ sequenceDiagram
     Worker->>MongoDB: sync_results() (Save extractions)
     Worker->>MongoDB: finish() (Set status="done")
 ```
-
 ## 6. Module Map
 
 | Module / Package | Responsibility | Key Files |
@@ -171,7 +182,7 @@ API lifespan cancels background tasks; workers handle SIGTERM/SIGINT; stale jobs
 
 ## 13. Build & Deployment Notes
 * Live image: `apps/backend/Dockerfile` (`api` + `worker` targets).
-* Compose: `platform` + `worker` + `web` (no live domain `*-api` / `*-worker`).
+* Compose: `platform` + `worker` + `web`; optional `mineru` + `parser` with `--profile gpu` (no live domain `*-api` / `*-worker`).
 
 ## 14. Open Questions / Ambiguities
 * Tests live under `apps/backend/tests`.

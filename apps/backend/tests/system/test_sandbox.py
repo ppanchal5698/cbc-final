@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from cbc.worker_kit import sandbox
 
 
@@ -88,6 +90,85 @@ def test_prepare_marks_scratch_workspace_trusted(tmp_path, monkeypatch) -> None:
         assert trusted == [workspace]
     finally:
         sandbox.cleanup("job-trust")
+        settings.storage_root = previous
+
+
+def test_promote_rejects_empty_priced_over_live_quote(tmp_path) -> None:
+    """Empty scratch line_items must not erase a live priced quote."""
+    from cbc.shared.config import settings
+    from cbc.worker_kit.sandbox import EmptyPricingPromoteError
+
+    previous = settings.storage_root
+    settings.storage_root = tmp_path
+    try:
+        slug = "demo"
+        live = tmp_path / slug
+        (live / "priced").mkdir(parents=True)
+        (live / "priced" / "line_items.json").write_text(
+            json.dumps({"lines": [{"part_number": "X", "cost": 1.0}]}),
+            encoding="utf-8",
+        )
+        workspace = sandbox.prepare("job-empty", slug)
+        clone = workspace / "projects" / slug
+        (clone / "priced").mkdir(parents=True, exist_ok=True)
+        (clone / "priced" / "line_items.json").write_text(
+            json.dumps({"lines": [], "generated_by": "estimator-approved via Ops-Hub"}),
+            encoding="utf-8",
+        )
+        with pytest.raises(EmptyPricingPromoteError):
+            sandbox.promote("job-empty", slug)
+        live_payload = json.loads((live / "priced" / "line_items.json").read_text())
+        assert len(live_payload["lines"]) == 1
+    finally:
+        sandbox.cleanup("job-empty")
+        settings.storage_root = previous
+
+
+def test_promote_replaces_unwritable_live_targets(tmp_path, monkeypatch) -> None:
+    """Host/root-owned live files must not abort the rest of promote."""
+    from pathlib import Path
+
+    from cbc.shared.config import settings
+
+    previous = settings.storage_root
+    settings.storage_root = tmp_path
+    try:
+        slug = "demo"
+        live = tmp_path / slug
+        (live / "extracted").mkdir(parents=True)
+        blocked = live / "extracted" / "div10_takeoff.json"
+        blocked.write_text('{"stale": true}', encoding="utf-8")
+        workspace = sandbox.prepare("job-perm", slug)
+        clone = workspace / "projects" / slug
+        (clone / "extracted").mkdir(parents=True, exist_ok=True)
+        (clone / "extracted" / "div10_takeoff.json").write_text(
+            '{"fresh": true}', encoding="utf-8"
+        )
+        (clone / "extracted" / "hardware_sets.json").write_text("[]", encoding="utf-8")
+        (clone / "priced").mkdir(parents=True, exist_ok=True)
+        (clone / "priced" / "line_items.json").write_text(
+            json.dumps({"lines": [{"part_number": "Y", "cost": 2.0}]}),
+            encoding="utf-8",
+        )
+
+        real_copy2 = sandbox.shutil.copy2
+        calls = {"n": 0}
+
+        def flaky_copy2(src, dst, *args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1 and Path(dst).name == "div10_takeoff.json":
+                raise PermissionError("simulated root-owned target")
+            return real_copy2(src, dst, *args, **kwargs)
+
+        monkeypatch.setattr(sandbox.shutil, "copy2", flaky_copy2)
+        promoted = sandbox.promote("job-perm", slug)
+        assert "extracted/div10_takeoff.json" in promoted
+        assert "extracted/hardware_sets.json" in promoted
+        assert "priced/line_items.json" in promoted
+        assert '"fresh"' in blocked.read_text(encoding="utf-8")
+        assert (live / "priced" / "line_items.json").is_file()
+    finally:
+        sandbox.cleanup("job-perm")
         settings.storage_root = previous
 
 

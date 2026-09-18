@@ -2,11 +2,17 @@
 from __future__ import annotations
 
 import logging
+import shutil
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
+import fitz
+
+from cbc.modules.ops.api.artifact_gate import ArtifactValidationError
 from cbc.modules.quoting.infrastructure.collections import proposals
-from cbc.shared import storage
+from cbc.shared import pdfcheck, storage
+from cbc.shared.paths import storage_root
 from cbc.modules.quoting.infrastructure import render
 from cbc.modules.extraction.api.validation import review as review_flags
 
@@ -15,6 +21,85 @@ log = logging.getLogger("cbc.services.sync")
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _pdf_problems(content: bytes, label: str) -> list[str]:
+    """The shared structural check. Extraction gates on the same one."""
+    return pdfcheck.pdf_problems(content, label)
+
+
+def check_proposal_pdf(project: str) -> tuple[list[str], list[str]]:
+    """Validate existing PDF exports, including the copy offered for delivery.
+
+    Absence is allowed during the pre-render gate: the worker creates the PDF
+    afterwards, or records the unavailable local renderer in the email draft.
+    """
+    root = storage_root() / project
+    problems: list[str] = []
+    for relative in ("quotation.pdf", "uploads/final/quotation.pdf"):
+        path = root / relative
+        if path.exists():
+            try:
+                problems.extend(_pdf_problems(path.read_bytes(), f"{project}/{relative}"))
+            except OSError as exc:
+                problems.append(f"{project}/{relative}: PDF could not be read: {exc}")
+    return problems, []
+
+
+def _render_delivery(slug: str) -> None:
+    """Export exactly the worker-rendered HTML, then publish local final copies."""
+    import json
+
+    root = storage_root() / slug
+    html = root / "quotation.html"
+    pdf = root / "quotation.pdf"
+    final = root / "uploads" / "final"
+    final.mkdir(parents=True, exist_ok=True)
+    deliverable: dict[str, Any] = {
+        "html": False,
+        "pdf": False,
+        "pdf_validated": False,
+        "pdf_pages": 0,
+        "renderer": None,
+        "updated_at": _now().isoformat(),
+    }
+    try:
+        from weasyprint import HTML
+    except (ImportError, OSError) as exc:
+        # An older export must not survive and masquerade as this run's PDF.
+        pdf.unlink(missing_ok=True)
+        (final / pdf.name).unlink(missing_ok=True)
+        email = root / "review" / "quotation_email_draft.md"
+        notice = f"\n\nPDF export unavailable: {exc}. HTML is the deliverable; print it to PDF locally.\n"
+        storage.atomic_write_text(email, email.read_text(encoding="utf-8") + notice)
+        deliverable["renderer"] = "unavailable"
+        deliverable["pdf_error"] = str(exc)
+    else:
+        try:
+            content = HTML(filename=str(html), base_url=str(root)).write_pdf()
+        except Exception as exc:
+            raise ArtifactValidationError(f"{slug}: PDF export failed: {exc}") from exc
+        problems = _pdf_problems(content, f"{slug}/quotation.pdf")
+        if problems:
+            raise ArtifactValidationError("; ".join(problems))
+        pdf.write_bytes(content)
+        shutil.copy2(pdf, final / pdf.name)
+        deliverable["pdf"] = True
+        deliverable["pdf_validated"] = True
+        deliverable["renderer"] = "weasyprint"
+        try:
+            with fitz.open(stream=content, filetype="pdf") as document:
+                deliverable["pdf_pages"] = document.page_count
+        except Exception:
+            deliverable["pdf_pages"] = 0
+    if html.is_file():
+        shutil.copy2(html, final / html.name)
+        deliverable["html"] = True
+    review = root / "review"
+    review.mkdir(parents=True, exist_ok=True)
+    (review / "deliverables.json").write_text(
+        json.dumps(deliverable, indent=2), encoding="utf-8"
+    )
 
 
 async def import_proposal_artifacts(project: dict[str, Any]) -> dict[str, bool]:
@@ -77,4 +162,6 @@ def render_artifacts(job_type: str, slug: str) -> list[str]:
         if not result.ok:
             pass_log.warning("%s: %s", job_type, result.detail)
             failed.append(result.detail)
+    if not failed:
+        _render_delivery(slug)
     return failed

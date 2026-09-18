@@ -7,9 +7,10 @@ import { FetchError } from "@/components/ui/fetch-error";
 import { proxyFetcher } from "@/lib/proxy-fetcher";
 import type { ReviewFlag } from "@/lib/types";
 
-const RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
+const RANK: Record<string, number> = { critical: -1, high: 0, medium: 1, low: 2 };
 
 const SEVERITY_STYLE: Record<string, string> = {
+  critical: "bg-status-error-soft text-status-error",
   high: "bg-status-error-soft text-status-error",
   medium: "bg-status-warning-soft text-status-warning",
   low: "bg-panel-muted text-tx-secondary",
@@ -28,6 +29,12 @@ export function ReviewFlagsPanel({ code }: { code: string }) {
   );
   const flags = [...(data?.flags ?? [])].sort(
     (a, b) => (RANK[a.severity] ?? 3) - (RANK[b.severity] ?? 3),
+  );
+  const critical = flags.filter(
+    (f) =>
+      f.severity === "critical" ||
+      f.field === "project_identity" ||
+      f.category === "project_identity",
   );
 
   return (
@@ -48,6 +55,14 @@ export function ReviewFlagsPanel({ code }: { code: string }) {
         )}
       </div>
 
+      {critical.length > 0 && (
+        <div
+          role="alert"
+          className="mt-3 rounded-lg border border-status-error/40 bg-status-error-soft px-3 py-2 text-[12.5px] font-semibold text-status-error"
+        >
+          Critical: {critical.map((f) => f.note ?? f.issue ?? f.action_required).join(" · ")}
+        </div>
+      )}
       {error && (
         <div className="mt-3">
           <FetchError
@@ -77,13 +92,13 @@ export function ReviewFlagsPanel({ code }: { code: string }) {
                 >
                   {flag.severity}
                 </span>
-                <span className="text-[13px] font-bold text-tx-primary">{flag.opening}</span>
+                <span className="text-[13px] font-bold text-tx-primary">{flag.opening ?? flag.opening_id}</span>
                 <span className="text-[12px] font-medium text-tx-muted">
-                  {flag.field.split("_").join(" ")}
+                  {(flag.field ?? flag.category ?? "General review").replaceAll("_", " ")}
                 </span>
               </span>
               <span className="text-[12.5px] font-medium text-tx-secondary leading-relaxed">
-                {flag.note}
+                {flag.note ?? flag.issue ?? flag.action_required}
                 {flag.source_page ? ` · sheet page ${flag.source_page}` : ""}
               </span>
             </li>

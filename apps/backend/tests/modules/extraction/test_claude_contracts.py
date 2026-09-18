@@ -14,11 +14,53 @@ def test_qty_string_is_coerced() -> None:
     assert schedule.openings[0].qty == 2.0
 
 
-def test_unknown_opening_field_is_rejected() -> None:
-    with pytest.raises(Exception):
-        DoorSchedule.parse_payload(
-            {"openings": [{"door_number": "101", "hallucinated_price": "12.00"}]}
-        )
+def test_keying_object_is_accepted() -> None:
+    schedule = DoorSchedule.parse_payload(
+        {
+            "openings": [
+                {
+                    "door_number": "101",
+                    "size": "3070",
+                    "keying": {
+                        "coreType": "icSmallFormat",
+                        "keyway": "Schlage C",
+                        "lockFunction": "storeroom",
+                        "notes": None,
+                    },
+                }
+            ]
+        }
+    )
+    assert schedule.openings[0].keying is not None
+    assert schedule.openings[0].keying.coreType == "icSmallFormat"
+    assert schedule.openings[0].keying.keyway == "Schlage C"
+
+
+def test_keying_string_becomes_notes() -> None:
+    schedule = DoorSchedule.parse_payload(
+        {"openings": [{"door_number": "101", "keying": "SFIC keyed alike"}]}
+    )
+    assert schedule.openings[0].keying is not None
+    assert schedule.openings[0].keying.notes == "SFIC keyed alike"
+
+
+def test_an_unknown_opening_field_costs_that_field_not_the_run() -> None:
+    """It used to raise, which killed the whole take-off over one invented key.
+
+    A schedule of 27 good openings was refused because a pass added a field
+    nobody asked for. The value is kept where a person can see it - dropping it
+    silently is what the accuracy rule forbids - and the other 27 openings live.
+
+    The strict contract has not gone anywhere: the raw schema check still
+    refuses the key outright (`test_a_hallucinated_opening_field_is_still_refused`).
+    This is the repair layer, which Div10Item and PricedLine already had.
+    """
+    schedule = DoorSchedule.parse_payload(
+        {"openings": [{"door_number": "101", "hallucinated_price": "12.00"}]}
+    )
+    opening = schedule.openings[0]
+    assert opening.door_number == "101"
+    assert "hallucinated_price=12.00" in (opening.notes or "")
 
 
 def test_priced_line_rejects_boolean_cost() -> None:

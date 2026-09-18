@@ -1,0 +1,14 @@
+{
+  "project_slug": "taco_bell_endeavor_2_0",
+  "source_file": "1_Architectural.pdf",
+  "brand_from_pdf": "Dutch Bros Coffee",
+  "ops_hub_name": "Taco Bell - Endeavor 2.0",
+  "brand_note": "Ops-Hub project name and PDF brand can diverge (reused fixture PDF for pricing LIST_X regression). Do not treat brand_from_pdf as the Ops-Hub customer name, or vice versa.",
+  "in_scope_doors": ["01", "02", "03"],
+  "out_of_scope_doors": ["04"],
+  "expected_quote_lines_min": 25,
+  "expected_list_x_parts": ["275A", "39A", "188S"],
+  "expected_list_x_min_priced": 6,
+  "expected_manual_allegion_min": 15,
+  "notes": "LIST_X backfill prices Pemko/Zero via NGP crosswalk; Allegion stays MANUAL until P21/RFQ. Pricing golden only — not a door-schedule openings oracle."
+}

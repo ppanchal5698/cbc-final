@@ -14,7 +14,7 @@ not a code change.
 
 ## Training
 
-- Accuracy / trust rules (`.claude/rules/accuracy-trust.md`)
+- Accuracy / trust rules (`.claude/guides/extraction.md`)
 - When to mark VENDOR_RFQ vs MANUAL
 - How hand-off works (nothing is sent)
 

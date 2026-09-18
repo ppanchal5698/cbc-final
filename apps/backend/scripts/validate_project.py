@@ -5,6 +5,7 @@
     python scripts/validate_project.py --check-extraction <project>
     python scripts/validate_project.py --check-pricing <project>
     python scripts/validate_project.py --check-proposal <project>
+    python scripts/validate_project.py --check-delivery <project>
     python scripts/validate_project.py --demo
 
 --all runs the pre-flight: reference-library JSON valid, price books present and
@@ -43,6 +44,7 @@ from cbc.modules.extraction.api.validation.artifacts import (  # noqa: E402
     UNCHECKED_JOB_TYPES,
     check_bboxes_are_real,
     check_extraction,
+    check_delivery_readiness,
     check_pricing,
     check_proposal,
     validate_job_artifacts,
@@ -59,6 +61,7 @@ __all__ = [
     "check_all",
     "check_bboxes_are_real",
     "check_extraction",
+    "check_delivery_readiness",
     "check_pricing",
     "check_proposal",
     "validate_job_artifacts",
@@ -68,7 +71,16 @@ REFERENCE = reference_dir()
 PRICEBOOKS = pricebook_dir()
 # Mirrors .mcp.json. `pricebook` was here until it turned out to be a pure alias
 # over `catalog` and was deleted; the pre-flight was still checking for it.
-SERVERS = ["pdf-tools", "catalog", "calc-engine", "artifact-storage", "p21-connector"]
+SERVERS = [
+    "pdf-tools",
+    "catalog",
+    "catalog-docs",
+    "calc-engine",
+    "artifact-storage",
+    "p21-connector",
+    "reference",
+    "bid-docs",
+]
 HOOKS = [
     "pre_send_quote.py",
     "pre_delete_guard.py",
@@ -213,6 +225,7 @@ def main() -> int:
     parser.add_argument("--check-extraction", metavar="PROJECT")
     parser.add_argument("--check-pricing", metavar="PROJECT")
     parser.add_argument("--check-proposal", metavar="PROJECT")
+    parser.add_argument("--check-delivery", metavar="PROJECT")
     parser.add_argument("--demo", action="store_true")
     args = parser.parse_args()
 
@@ -227,6 +240,9 @@ def main() -> int:
         return _emit(problems, warnings)
     if args.check_proposal:
         problems, warnings = check_proposal(args.check_proposal)
+        return _emit(problems, warnings)
+    if args.check_delivery:
+        problems, warnings = check_delivery_readiness(args.check_delivery)
         return _emit(problems, warnings)
     return check_all()
 

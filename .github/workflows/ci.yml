@@ -104,6 +104,18 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     needs: [test, web]
+
+    # Every `docker compose` below reads both files. The overlay publishes the
+    # two ports the specs talk to; without it they are only on the compose
+    # network, because a deployment reaches them through nginx.
+    #
+    # An explicit project name because naming files with -f otherwise derives
+    # it from infra/, and the steps that inspect the stack would look at a
+    # different project than the one that was started.
+    env:
+      COMPOSE_FILE: infra/docker-compose.yml:infra/docker-compose.ci.yml
+      COMPOSE_PROJECT_NAME: cbc-final
+
     steps:
       - uses: actions/checkout@v4
 
@@ -130,8 +142,12 @@ jobs:
       # AUTO_BOOTSTRAP seeds estimator@cbc.com and admin@cbc.com, which is what
       # e2e/helpers.ts signs in as. Without it every spec fails at the login form.
       # Root docker-compose.yml includes infra/docker-compose.yml.
+      # Named services, not the whole file: nginx is the production TLS edge and
+      # wants a Let's Encrypt certificate for a real domain, so it crash-loops
+      # here and takes the stack down with it. web and worker pull in platform,
+      # which pulls in mongo, mongo-init and clamav - everything the specs need.
       - name: Start the stack
-        run: docker compose up -d --build
+        run: docker compose up -d --build web worker
         env:
           AUTO_BOOTSTRAP: "1"
 

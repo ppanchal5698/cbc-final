@@ -79,6 +79,53 @@ def _type_names(annotation: Any) -> list[str]:
 def _property(name: str, annotation: Any) -> dict[str, Any]:
     if name in _STRINGIFIED:
         return {"type": _STRINGIFIED[name]}
+    origin = typing.get_origin(annotation)
+    args = typing.get_args(annotation)
+    # Nested Pydantic models (e.g. Opening.keying → Keying).
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": properties_of(annotation),
+        }
+    if origin is list and args:
+        inner = args[0]
+        if isinstance(inner, type) and issubclass(inner, BaseModel):
+            return {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": properties_of(inner),
+                },
+            }
+        if inner is str:
+            return {"type": "array", "items": {"type": "string"}}
+    if origin in (typing.Union, types.UnionType):
+        non_none = [a for a in args if a is not type(None)]
+        if len(non_none) == 1 and isinstance(non_none[0], type) and issubclass(non_none[0], BaseModel):
+            return {
+                "type": ["object", "null"],
+                "additionalProperties": False,
+                "properties": properties_of(non_none[0]),
+            }
+        if (
+            len(non_none) == 1
+            and typing.get_origin(non_none[0]) is list
+            and typing.get_args(non_none[0])
+        ):
+            inner = typing.get_args(non_none[0])[0]
+            if isinstance(inner, type) and issubclass(inner, BaseModel):
+                return {
+                    "type": ["array", "null"],
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": properties_of(inner),
+                    },
+                }
+            if inner is str:
+                return {"type": ["array", "null"], "items": {"type": "string"}}
     names = _type_names(annotation)
     if name in _COERCED_TO_STRING and "string" not in names:
         names.insert(names.index("null") if "null" in names else len(names), "string")
@@ -89,10 +136,23 @@ def _property(name: str, annotation: Any) -> dict[str, Any]:
 
 def properties_of(model: type[BaseModel]) -> dict[str, Any]:
     """One JSON Schema `properties` block, in field-declaration order."""
-    return {
+    props = {
         name: _property(name, field.annotation)
         for name, field in model.model_fields.items()
     }
+    # page_size must be {width, height} — never a bare object or [w, h] array.
+    # Arrays are coerced before validate; the schema documents the closed shape.
+    if model is Opening and "page_size" in props:
+        props["page_size"] = {
+            "type": ["object", "null"],
+            "required": ["width", "height"],
+            "properties": {
+                "width": {"type": "number"},
+                "height": {"type": "number"},
+            },
+            "additionalProperties": False,
+        }
+    return props
 
 
 def _rows_envelope(model: type[BaseModel], *, defs_name: str, rows_key: str,
@@ -195,11 +255,33 @@ def scope_summary_schema() -> dict[str, Any]:
     )
 
 
+def div10_takeoff_schema() -> dict[str, Any]:
+    from cbc.modules.extraction.api.claude_output import Div10Takeoff
+
+    return _flat_schema(
+        Div10Takeoff,
+        schema_id="cbc.extracted.div10_takeoff",
+        title="div10_takeoff",
+    )
+
+
+def frp_takeoff_schema() -> dict[str, Any]:
+    from cbc.modules.extraction.api.claude_output import FrpTakeoff
+
+    return _flat_schema(
+        FrpTakeoff,
+        schema_id="cbc.extracted.frp_takeoff",
+        title="frp_takeoff",
+    )
+
+
 SCHEMAS = {
     "door_schedule.schema.json": door_schedule_schema,
     "line_items.schema.json": line_items_schema,
     "scope_metadata.schema.json": scope_metadata_schema,
     "scope_summary.schema.json": scope_summary_schema,
+    "div10_takeoff.schema.json": div10_takeoff_schema,
+    "frp_takeoff.schema.json": frp_takeoff_schema,
 }
 
 

@@ -65,6 +65,47 @@ def test_a_price_older_than_the_discard_window_is_stale() -> None:
     assert result["usable"] is False
 
 
+def test_lookup_with_base_url_uses_fresh_po(monkeypatch) -> None:
+    """When P21_BASE_URL is set, a fresh last-PO becomes cost_source P21_LAST_PO."""
+    from datetime import date, timedelta
+
+    monkeypatch.setattr(_server, "BASE_URL", "https://p21.example.test")
+
+    def fake_lookup(part_number, vendor=None):
+        return {
+            "last_po_price": 12.34,
+            "po_date": (date.today() - timedelta(days=20)).isoformat(),
+            "item_id": "ITEM-1",
+        }
+
+    monkeypatch.setattr(_server, "_http_lookup", fake_lookup)
+    result = lookup_last_po("BB1279", vendor="Hager")
+    assert result["connected"] is True
+    assert result["cost_source"] == "P21_LAST_PO"
+    assert result["last_po_price"] == 12.34
+    assert result["freshness_status"] == "fresh"
+    assert result.get("action_required") is None
+
+
+def test_lookup_with_base_url_stale_po_requires_manual(monkeypatch) -> None:
+    from datetime import date, timedelta
+
+    monkeypatch.setattr(_server, "BASE_URL", "https://p21.example.test")
+
+    def fake_lookup(part_number, vendor=None):
+        return {
+            "last_po_price": 9.99,
+            "po_date": (date.today() - timedelta(days=1500)).isoformat(),
+            "item_id": "ITEM-OLD",
+        }
+
+    monkeypatch.setattr(_server, "_http_lookup", fake_lookup)
+    result = lookup_last_po("BB1279", vendor="Hager")
+    assert result["cost_source"] == "P21_LAST_PO"
+    assert result["freshness_status"] == "stale"
+    assert result["action_required"] == "manual_price_entry"
+
+
 def test_freshness_respects_a_narrower_admin_window(monkeypatch) -> None:
     from datetime import date, timedelta
 

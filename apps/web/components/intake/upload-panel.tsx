@@ -10,12 +10,45 @@ import type { BidDocument, Job, UploadResult } from "@/lib/types";
 import { FetchError } from "@/components/ui/fetch-error";
 import { errorMessage, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
 import { waitingForSiblings } from "@/lib/run-pill";
+
 const KINDS = [
   { key: "plan", label: "Plan set" },
   { key: "spec", label: "Specification" },
   { key: "rfp", label: "RFP" },
   { key: "addendum", label: "Addendum" },
 ] as const;
+
+function parseStateLabel(document: BidDocument): {
+  text: string;
+  tone: "success" | "error" | "running" | "muted";
+} {
+  const parse = document.parse;
+  if (!parse?.state) {
+    return { text: "Not parsed — read directly", tone: "muted" };
+  }
+  if (parse.state === "queued") {
+    return { text: "Queued for GPU", tone: "running" };
+  }
+  if (parse.state === "running") {
+    const done = parse.pagesDone ?? 0;
+    const total = parse.pages ?? document.pages ?? "?";
+    const backend =
+      typeof parse.settings?.backend === "string" ? parse.settings.backend : null;
+    return {
+      text: backend
+        ? `Parsing ${done} / ${total} (${backend})`
+        : `Parsing ${done} / ${total}`,
+      tone: "running",
+    };
+  }
+  if (parse.state === "parsed") {
+    return { text: "Parsed", tone: "success" };
+  }
+  if (parse.state === "failed") {
+    return { text: "Parse failed — read directly", tone: "error" };
+  }
+  return { text: "Not parsed — read directly", tone: "muted" };
+}
 
 export function UploadPanel({
   code,
@@ -36,7 +69,16 @@ export function UploadPanel({
   const { data, error: docsError, mutate } = useSWR<{ documents: BidDocument[] }>(
     `/api/proxy/projects/${code}/documents`,
     proxyFetcher,
-    { fallbackData: { documents: initialDocuments } },
+    {
+      fallbackData: { documents: initialDocuments },
+      refreshInterval: (latest) => {
+        const docs = latest?.documents ?? [];
+        const parsing = docs.some(
+          (doc) => doc.parse?.state === "queued" || doc.parse?.state === "running",
+        );
+        return parsing ? 4000 : 0;
+      },
+    },
   );
   const documents = data?.documents ?? [];
 
@@ -164,8 +206,8 @@ export function UploadPanel({
           <div
             className="grid gap-4 border-b border-subtle px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-tx-muted bg-panel-muted"
             style={{
-              minWidth: 560,
-              gridTemplateColumns: "minmax(200px,1fr) 90px 110px 110px 40px",
+              minWidth: 640,
+              gridTemplateColumns: "minmax(200px,1fr) 90px 110px minmax(160px,1.4fr) 40px",
             }}
           >
             <span>File</span>
@@ -174,13 +216,15 @@ export function UploadPanel({
             <span>State</span>
             <span />
           </div>
-          {documents.map((document) => (
+          {documents.map((document) => {
+            const parseLabel = parseStateLabel(document);
+            return (
             <div
               key={document.id}
               className="grid items-center gap-4 border-b border-subtle px-5 py-3.5 last:border-b-0 hover:bg-background/50 transition-colors"
               style={{
-                minWidth: 560,
-                gridTemplateColumns: "minmax(200px,1fr) 90px 110px 110px 40px",
+                minWidth: 640,
+                gridTemplateColumns: "minmax(200px,1fr) 90px 110px minmax(160px,1.4fr) 40px",
               }}
             >
               <span className="flex min-w-0 items-center gap-3">
@@ -200,14 +244,17 @@ export function UploadPanel({
               </span>
               <span
                 className={`text-[12.5px] font-bold ${
-                  document.state === "read"
+                  parseLabel.tone === "success"
                     ? "text-status-success"
-                    : document.state === "failed"
+                    : parseLabel.tone === "error"
                       ? "text-status-error"
-                      : "text-tx-secondary"
+                      : parseLabel.tone === "running"
+                        ? "text-brand-primary"
+                        : "text-tx-secondary"
                 }`}
+                title={document.parse?.error ?? undefined}
               >
-                {document.state}
+                {parseLabel.text}
               </span>
               <button
                 onClick={() => remove(document)}
@@ -217,7 +264,8 @@ export function UploadPanel({
                 <Trash size={16} weight="fill" />
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

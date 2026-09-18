@@ -21,7 +21,7 @@ x-app-env: &app-env
   APP_ENV: ${APP_ENV:-development}
   MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-200}
   OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-  CORS_ORIGINS: http://localhost:3000
+  CORS_ORIGINS: ${CORS_ORIGINS:-https://app.<MY_DOMAIN>}
   MALWARE_SCAN: ${MALWARE_SCAN:-clamd}
   MALWARE_SCAN_REQUIRED: ${MALWARE_SCAN_REQUIRED:-0}
   CLAMD_HOST: ${CLAMD_HOST:-clamav}
@@ -73,8 +73,8 @@ services:
     container_name: cbc-final-mongo
     restart: unless-stopped
     entrypoint: ["bash", "/mongo-keyfile-entrypoint.sh"]
-    ports:
-      - "127.0.0.1:27017:27017"
+    expose:
+      - "27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: cbc
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-cbc_local_dev}
@@ -120,8 +120,8 @@ services:
     image: clamav/clamav:stable
     container_name: cbc-final-clamav
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:3310:3310"
+    expose:
+      - "3310"
     volumes:
       - clamav_data:/var/lib/clamav
     healthcheck:
@@ -139,8 +139,8 @@ services:
     image: cbc-final-platform:latest
     container_name: cbc-final-platform
     restart: unless-stopped
-    ports:
-      - "${API_BIND:-127.0.0.1}:8001:8001"
+    expose:
+      - "8001"
     environment:
       <<: *app-env
       SERVICE_AUDIENCE: platform
@@ -196,15 +196,15 @@ services:
     image: cbc-final-web:latest
     container_name: cbc-final-web
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
       PLATFORM_URL: http://platform:8001
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-cbc-local-dev-key-change-me}
       INTERNAL_AUTH: ${INTERNAL_AUTH:-jwt}
       INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET:-cbc-local-dev-key-change-me}
       APP_ENV: ${APP_ENV:-development}
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-}
       AUTH_SECRET: ${AUTH_SECRET:-cbc-opshub-local-dev-secret-change-in-production}
       AUTH_TRUST_HOST: "true"
     depends_on:
@@ -216,8 +216,8 @@ services:
     container_name: cbc-final-litellm
     profiles: ["oss"]
     restart: unless-stopped
-    ports:
-      - "4000:4000"
+    expose:
+      - "4000"
     entrypoint: ["bash", "/litellm-entrypoint.sh"]
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-cbc-local-dev}
@@ -235,11 +235,129 @@ services:
       - default
       - llm
 
+  # GPU MinerU API (compose network only). Profile + container knobs:
+  #   --env-file infra/mineru/{low,medium,high}.env --profile gpu
+  mineru:
+    profiles: ["gpu"]
+    build:
+      context: ./mineru
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: ${MINERU_BASE_IMAGE:-python:3.12-slim-bookworm}
+        MINERU_EXTRAS: ${MINERU_EXTRAS:-pipeline}
+    image: cbc-final-mineru:latest
+    container_name: cbc-final-mineru
+    restart: unless-stopped
+    environment:
+      MINERU_DEVICE_MODE: cuda
+      MINERU_MODELS: ${MINERU_MODELS:-pipeline}
+      MINERU_API_MAX_CONCURRENT_REQUESTS: ${MINERU_API_MAX_CONCURRENT_REQUESTS:-1}
+      MINERU_PROCESSING_WINDOW_SIZE: ${MINERU_PROCESSING_WINDOW_SIZE:-8}
+      MINERU_VIRTUAL_VRAM_SIZE: ${MINERU_VIRTUAL_VRAM_SIZE:-}
+      MINERU_API_EXTRA_ARGS: ${MINERU_API_EXTRA_ARGS:-}
+      MINERU_TOOLS_CONFIG_JSON: /models/mineru.json
+      # Do not set MINERU_FORMULA_ENABLE / MINERU_TABLE_ENABLE — they override
+      # request bodies; app settings use PARSER_TABLES / PARSER_FORMULAS.
+    volumes:
+      - mineru_models:/models
+    shm_size: ${MINERU_SHM_SIZE:-4g}
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${MINERU_GPU_COUNT:-1}
+              capabilities: [gpu]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status==200 else 1)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
+  # Parsing-domain worker: claims parse_document only; waits for MinerU.
+  parser:
+    profiles: ["gpu"]
+    build:
+      context: ..
+      dockerfile: apps/backend/Dockerfile
+      target: worker
+    image: cbc-final-worker:latest
+    container_name: cbc-final-parser
+    restart: unless-stopped
+    environment:
+      <<: *worker-env
+      WORKER_DOMAIN: parsing
+      WORKER_CONCURRENCY: ${PARSER_WORKER_CONCURRENCY:-1}
+      SERVICE_AUDIENCE: platform
+      PARSER_URL: ${PARSER_URL:-http://mineru:8000}
+    volumes:
+      - ../data/projects:/app/data/projects
+      - ../data/pricebooks:/app/data/pricebooks
+      - ../.claude:/app/.claude:ro
+      - ../data/reference-library:/app/reference-library:ro
+      - ../.env:/app/.env
+      - cbc_cache:/app/.cache
+      - claude_home:/home/cbc/.claude
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      mineru:
+        condition: service_healthy
+      platform:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: cbc-final-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    depends_on:
+      web:
+        condition: service_started
+      platform:
+        condition: service_healthy
+
+  certbot:
+    image: certbot/certbot:v3.1.0
+    container_name: cbc-final-certbot
+    restart: unless-stopped
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: cbc-final-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://nginx:80
+
 volumes:
   mongo_data:
   claude_home:
   cbc_cache:
   clamav_data:
+  mineru_models:
+  certbot_conf:
+  certbot_www:
 
 networks:
   default:

@@ -12,6 +12,7 @@ const PIPELINE_TYPES = new Set([
   "build_proposal",
   "ingest_addendum",
   "run_full_pipeline",
+  "parse_document",
 ]);
 
 export function isPipelineJob(job: Job | null | undefined): boolean {
@@ -21,7 +22,7 @@ export function isPipelineJob(job: Job | null | undefined): boolean {
 /** Active queued/running pipeline job for this bid, if any. */
 export function usePipelineJob(code: string, initialJob?: Job | null) {
   const { data, error, mutate } = useSWR<{ jobs: Job[] }>(
-    `/api/proxy/jobs?project=${encodeURIComponent(code)}&pipeline_active=true`,
+    code ? `/api/proxy/jobs?project=${encodeURIComponent(code)}&pipeline_active=true` : null,
     proxyFetcher,
     {
       refreshInterval: (latest) => {

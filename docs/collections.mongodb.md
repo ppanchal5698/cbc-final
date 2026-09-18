@@ -60,6 +60,8 @@ The guiding constraint from the workbook governs the whole design: *the estimato
 
 **32 collections.** Eight entities from the Phase 1 map are deliberately embedded rather than given their own collection; each is justified in §2.3.
 
+**Infrastructure (implemented, not in the workbook):** [`documentPages`](#documentpages-implemented) — one Mongo document per MinerU-parsed PDF page (blocks + bbox). See also `jobs`, `settings`, `pageIndex`, and related runtime collections in [data_model.md](data_model.md).
+
 ---
 
 ## 2. Entity Relationship Summary
@@ -1718,6 +1720,58 @@ db.documents.createIndex({ orgId: 1, ocrStatus: 1 },
 
 Per-page `ocrStatus` matters more than it might appear. Bid sets routinely contain graphic sheets that yield no text layer while the rest of the set extracts cleanly, and a document-level status alone would either mark the whole set failed or hide the gap. Per-page status makes the gap visible and reviewable, which is what NFR-2's *"never silently guessed"* requires.
 
+### `documentPages` (implemented)
+
+**Purpose:** MinerU parse output — one document per PDF page — so agents and the sheet viewer can query text blocks with bboxes without re-reading page images. Owned by intake (`cbc.modules.intake`); deleted with the parent document.
+
+| Field | Type | Notes |
+|---|---|---|
+| `projectId` | ObjectId | Bid / project |
+| `documentId` | ObjectId | → `documents` |
+| `contentSha` | string | Upload content hash; retries skip windows already stored |
+| `page` | int | 1-based |
+| `pageSize` | `{ width, height }` | Display frame (rotated page rect) |
+| `blocks` | array | `{ n, type, text, bbox, lines?: [{bbox,text}], html? }`; discarded blocks kept as `type: discarded` |
+| `verified` | float \| null | Share of text blocks ≥50% covered by pdf text-layer boxes; `null` if no text layer |
+| `parser` | object | `{ name, version, backend, effort }` used for this parse |
+| `parsedAt` | date | |
+
+**Indexes:** unique `(documentId, page)`; `(projectId, page)`; text on `blocks.text`.
+
+### `catalogPages` (implemented)
+
+**Purpose:** MinerU parse output for vendor price books — one document per PDF page — so `match_and_price` can query blocks with bboxes via **catalog-docs** (mirror of bid `documentPages` / bid-docs). Owned by catalog; purged with `delete_catalog`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `priceBookId` | ObjectId | → `priceBooks` |
+| `catalogId` | string | Stable stem id (same as pageIndex) |
+| `vendor` | string | |
+| `filename` / `filePath` | string | Path for pdf-tools crop |
+| `contentSha` | string | Upload hash; retries skip windows already stored |
+| `page` | int | 1-based |
+| `pageSize` | `{ width, height }` | |
+| `blocks` | array | Same shape as `documentPages.blocks` |
+| `verified` | float \| null | Bbox coverage vs PDF text layer |
+| `parser` | object | MinerU meta |
+| `parsedAt` | date | |
+
+**Indexes:** unique `(priceBookId, page)`; `(catalogId, page)`; `(vendor, page)`; text on `blocks.text`.
+
+### `multiplierPages` (implemented)
+
+**Purpose:** MinerU blocks for multiplier / special-net PDFs (`parse_multiplier`). Structured `referenceData` multipliers remain calc SoT; this collection is for sheet evidence.
+
+| Field | Type | Notes |
+|---|---|---|
+| `sheetId` | string | Stem id |
+| `family` / `vendor` | string | |
+| `priceBookId` | ObjectId \| null | When uploaded as a price book |
+| `filename` / `filePath` | string | |
+| `contentSha`, `page`, `pageSize`, `blocks`, `verified`, `parser`, `parsedAt` | | Same as catalogPages |
+
+**Indexes:** unique `(sheetId, page)`; `(family, page)`; text on `blocks.text`.
+
 ---
 
 ### 3.23 `openings`
@@ -2776,6 +2830,36 @@ db.feedbackEvents.createIndex({ orgId: 1, bidRequestId: 1, occurredAt: -1 });
 **Notes:** `proposedValue` and `correctedValue` are typed as generic objects rather than strings because the corrected thing might be a number, a part number, an enum, or a whole option set. Wrapping them (`{ value: ... }`) keeps the collection usable for every `eventType` without a discriminated union per field. `matchConfidenceAtTime` is the field that makes confidence calibration measurable — if corrections cluster at high reported confidence, the score is miscalibrated and FR-8's flagging threshold needs to move.
 
 **This collection is not `auditLogs`.** Feedback is about *what the copilot got wrong and what the right answer was*, for improving matching. Audit is about *who changed what and when*, for accountability. Merging them would make both queries slower and the learning signal noisier.
+
+---
+
+### 3.31a `matchLearning`
+
+**Purpose:** FR-13's *output*. §3.31 captures each correction; this is what the corrections add up to — one row per specification an estimator has ruled on, holding the catalog part they chose and how often they have chosen it. `feedbackEvents` is the journal; this is the balance.
+
+Deliberately a lookup table and not a model: it is auditable by name and date, useful on the second bid, and needs no training run to be either. Owned by `catalog` (a learned answer is a catalog fact); written by `extraction.api.feedback.apply_to_learning`, which drains the queue it owns.
+
+**`_id` strategy:** `ObjectId`.
+
+| Field | Type | Required | Default | Description | Source |
+|---|---|---|---|---|---|
+| `_id` | objectId | yes | auto | | — |
+| `specKey` | string | yes | — | The specification, normalised by `catalog.domain.partquery.spec_key` — the same normaliser the catalog lookup uses, so both agree on what a spec string is | FR-13 |
+| `specSample` | string | no | null | The most recent raw spec, for display | FR-13 |
+| `catalogItemId` | objectId | yes | — | → `catalogItems` — what the estimator chose | FR-4, FR-13 |
+| `part` / `manufacturer` / `division` | string | no | null | Denormalised from the catalog row, so a recall needs no join | FR-13 |
+| `confirmCount` | int | yes | `0` | How many times an estimator has chosen this part for this spec | FR-13 |
+| `rejectCount` | int | yes | `0` | How many times one has rejected it. `confirmCount <= rejectCount` is never recalled | FR-13 |
+| `lastConfirmedAt` / `lastConfirmedBy` | date / objectId | no | null | Who said so, and when — what a Tier 0 match cites (NFR-3) | FR-13, NFR-3 |
+| `reasons` | string[] | no | `[]` | The estimators' stated reasons | FR-13 |
+| `sourceEventIds` | objectId[] | no | `[]` | → `feedbackEvents` — the corrections this row was built from | FR-13 |
+| *envelope* | — | — | — | | §4.2 |
+
+**Indexes:**
+- `{ orgId: 1, specKey: 1 }` — **unique**. One learned answer per specification, so re-draining cannot double-count a lesson.
+- `{ orgId: 1, catalogItemId: 1, rejectCount: 1 }` — "which library items get rejected most", the curation question §3.31 asks and nothing could answer until this existed.
+
+**Notes:** recall is exact-key first, then similarity over token sets, with part-number tokens treated as decisive — `275A` and `2750A` are different parts however alike the surrounding prose reads. The matcher reads this through `catalog.api.pageindex.reader.recall_match` (sync, read-only credential) as MCP tool `recall_match`; a hit is **Tier 0 (0.97)**. Fire rating, handing and finish still veto it: an estimator confirming a part on one opening did not confirm it for every opening, and a learned mistake nothing can overrule is worse than no learning at all.
 
 ---
 

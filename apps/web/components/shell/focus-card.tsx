@@ -10,8 +10,43 @@ import { cn } from "@/lib/utils";
  * pass is not interrupted by a job finishing. It hides nothing that would let a
  * flagged line slip through - the counts on the extraction screen stay put.
  */
-export function FocusCard({ user }: { user: { name: string; initials: string } }) {
+export function FocusCard({
+  user,
+  collapsed = false,
+}: {
+  user: { name: string; initials: string };
+  collapsed?: boolean;
+}) {
   const { focusMode, toggleFocus } = useUiState();
+
+  if (collapsed) {
+    return (
+      <div className="flex flex-col items-center py-3">
+        <button
+          type="button"
+          onClick={toggleFocus}
+          role="switch"
+          aria-checked={focusMode}
+          aria-label={`Toggle focus mode for ${user.name}`}
+          title={`${user.name} · Focus mode: ${focusMode ? "ON (Quieted)" : "OFF"} · Click to toggle`}
+          className={cn(
+            "group relative grid h-10 w-10 place-items-center rounded-xl border transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-border",
+            focusMode
+              ? "border-brand-primary/40 bg-brand-soft text-brand-primary"
+              : "border-subtle bg-panel text-tx-secondary hover:border-brand-border hover:bg-panel-muted hover:text-tx-primary"
+          )}
+        >
+          <span className="text-[12px] font-bold tracking-tight">{user.initials}</span>
+          <span
+            className={cn(
+              "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-background",
+              focusMode ? "bg-status-warning shadow-xs animate-pulse" : "bg-status-success"
+            )}
+          />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="m-3 rounded-xl border border-subtle bg-panel p-4 shadow-sm transition-colors hover:border-brand-border">

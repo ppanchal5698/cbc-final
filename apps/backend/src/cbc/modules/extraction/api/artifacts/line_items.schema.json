@@ -172,7 +172,10 @@
           "type": [
             "array",
             "null"
-          ]
+          ],
+          "items": {
+            "type": "string"
+          }
         },
         "substitution_note": {
           "type": [

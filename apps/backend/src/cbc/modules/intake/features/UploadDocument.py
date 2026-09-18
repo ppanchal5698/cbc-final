@@ -13,8 +13,8 @@ from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 
 from cbc.modules.intake.infrastructure.collections import documents
 from cbc.modules.intake.infrastructure.snapshot import snapshot
-from cbc.modules.ops.api import audit, jobs as job_service
-from cbc.modules.ops.api.jobs import enqueue_pipeline, reserve
+from cbc.modules.ops.api import audit, jobs as job_service, parsing_config
+from cbc.modules.ops.api.jobs import enqueue, enqueue_pipeline, reserve
 from cbc.modules.projects.api.lookup import load
 from cbc.modules.intake.infrastructure import pdf
 from cbc.shared import storage
@@ -119,6 +119,11 @@ async def upload_document(
         "uploadedBy": actor,
     }
 
+    parse_resolved = await parsing_config.load_stored()
+    parse_on = parsing_config.enabled(parse_resolved)
+    if parse_on:
+        document["parse"] = {"state": "queued", "pages": pages}
+
     # Addendum snapshot is human-facing history; keep it outside the txn so a
     # failed enqueue does not leave a half-applied version number race.
     version = None
@@ -129,6 +134,14 @@ async def upload_document(
         session_kw = {"session": session} if session is not None else {}
         result = await documents().insert_one(document, **session_kw)
         document["_id"] = result.inserted_id
+        if parse_on:
+            await enqueue(
+                "parse_document",
+                project["_id"],
+                payload={"documentId": str(result.inserted_id), "filename": target.name},
+                actor=actor,
+                session=session,
+            )
         if job_type == "ingest_addendum":
             return await enqueue_pipeline(
                 "ingest_addendum",

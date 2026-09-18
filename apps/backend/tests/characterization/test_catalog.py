@@ -102,7 +102,12 @@ def test_mark_a_price_book_reviewed(client, state, snapshots) -> None:
 
 def test_upload_a_price_book_file(client, state, books_dir, snapshots) -> None:
     files = {"file": ("characterization_sheet.pdf", pdf_bytes(pages=1, label="PRICE SHEET"), "application/pdf")}
-    snapshots.pin("POST /api/price-books/{book_id}/file", client.post(f"/api/price-books/{state['book']}/file", files=files))
+    snapshots.pin(
+        "POST /api/price-books/{book_id}/file",
+        client.post(f"/api/price-books/{state['book']}/file", files=files),
+        # Both exist only when MinerU is reachable to parse the sheet.
+        drop=("body.parseJob", "body.priceBook.parse"),
+    )
     assert [p.name for p in books_dir.iterdir()] == ["characterization_sheet.pdf"]
     real = ROOT / "data" / "pricebooks"
     assert not any(p.name.startswith("characterization") for p in real.iterdir()), "upload leaked into data/pricebooks"

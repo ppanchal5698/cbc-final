@@ -14,10 +14,10 @@ The notation is applied consistently across all CBC quotes.
 
 ## But: not every bid set uses it
 Architectural schedules frequently state sizes **explicitly** instead — the Dutch Bros
-fixture writes 3' - 0" and 7' - 0" in separate schedule columns. The extractor must
-handle **both** forms and normalise to width / height strings plus the 4-digit size
-code when it is derivable.
+fixture writes 3' - 0" and 7' - 0" in separate schedule columns. Retail sheets often
+print bare inches (`36"` × `84"`). The extractor must handle **all three** forms and
+normalise to width / height strings plus the 4-digit size code when it is derivable.
 
 Never infer a size that is not on the drawing. A missing size is a review flag, not a default.
 
-See [[handing_codes]], [[frame_depths]].
+See [handing_codes](handing_codes.md), [frame_depths](frame_depths.md).

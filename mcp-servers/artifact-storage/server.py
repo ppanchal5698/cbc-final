@@ -81,15 +81,22 @@ def save_artifact(
         )
 
     # Schema gate for extract checkpoints (Claude Code has no Messages json_schema).
-    try:
-        from cbc.modules.extraction.api.artifact_schema import PATH_SCHEMAS, validate_artifact_text
+    # Normalize known LLM shape mistakes (page_size array, thickness→notes) first,
+    # then persist the cleaned payload so disk matches what validators accept.
+    # This import is deliberately unguarded. It used to sit under
+    # `except ImportError: pass`, which meant that if `artifact_schema` alone
+    # failed to import - a missing pydantic in the MCP subprocess is enough,
+    # while `cbc.shared` below still resolves - the gate vanished and every
+    # malformed checkpoint landed on disk reporting success. A validator that
+    # can disappear without saying so is worse than no validator, because the
+    # run looks clean. If this cannot import, the write must fail.
+    from cbc.modules.extraction.api.artifact_schema import PATH_SCHEMAS, prepare_artifact_text
 
-        if path.replace("\\", "/") in PATH_SCHEMAS:
-            problems = validate_artifact_text(path.replace("\\", "/"), content)
-            if problems:
-                raise ValueError("; ".join(problems))
-    except ImportError:
-        pass
+    posix_key = path.replace("\\", "/")
+    if posix_key in PATH_SCHEMAS:
+        content, problems = prepare_artifact_text(posix_key, content)
+        if problems:
+            raise ValueError("; ".join(problems))
 
     target = _resolve(project, path)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -190,8 +197,50 @@ def list_project_files(project: str, subdir: str | None = None) -> dict[str, Any
     return {"project": project, "root": str(root), "file_count": len(files), "files": files}
 
 
+def propose_patch(
+    project: str, path: str, patches: list[dict[str, Any]], version_note: str | None = None
+) -> dict[str, Any]:
+    """Change named fields of an artifact Python already owns.
+
+    Whole-file authorship is what made one bad key cost a whole run. Here the
+    deterministic seed on disk is the base, each patch is validated on its own,
+    and a patch that fails costs that field and leaves a review flag.
+
+    The write goes through `save_artifact`, so the schema gate and the SHA-256
+    version history apply exactly as they do to any other write.
+    """
+    from cbc.modules.extraction.api.patching import apply_patches, summarise
+
+    if not isinstance(patches, list) or not patches:
+        raise ValueError("patches must be a non-empty list")
+
+    target = _resolve(project, path)
+    if not target.is_file():
+        raise ValueError(
+            f"{path!r} does not exist yet - propose_patch edits the seeded artifact, "
+            "it does not create one"
+        )
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    updated, results = apply_patches(payload, patches)
+    summary = summarise(results)
+
+    # Nothing held: say so and leave the file alone rather than rewriting it
+    # byte-identically and reporting a version that means nothing.
+    if summary["applied"]:
+        saved = save_artifact(
+            project,
+            path,
+            json.dumps(updated, indent=2, ensure_ascii=False) + "\n",
+            version_note or f"patch: {summary['applied']} applied, {summary['rejected']} rejected",
+        )
+        summary["sha256"] = saved["sha256"]
+    summary["path"] = path
+    return summary
+
+
 HANDLERS = {
     "save_artifact": save_artifact,
+    "propose_patch": propose_patch,
     "get_artifact": get_artifact,
     "list_versions": list_versions,
     "list_project_files": list_project_files,
@@ -232,6 +281,35 @@ def _demo() -> None:
             pass
         else:  # pragma: no cover
             raise AssertionError("path escape was not blocked")
+
+        # propose_patch: the good field lands, the invented one costs itself.
+        seed = {"source_page": 16, "openings": [
+            {"door_number": "05", "size": "3068", "handing": None,
+             "source_page": 16, "flags": []},
+        ]}
+        save_artifact(project, "extracted/door_schedule.json", json.dumps(seed), "seed")
+        cite = {"source_page": 16, "excerpt": "05 UNISEX WRM RH"}
+        patched = propose_patch(project, "extracted/door_schedule.json", [
+            {"op": "set", "path": "openings/05/handing", "value": "RH", "evidence": cite},
+            {"op": "set", "path": "openings/05/thickness", "value": "1 3/4in", "evidence": cite},
+        ])
+        assert patched["applied"] == 1 and patched["rejected"] == 1, patched
+        on_disk = json.loads(
+            get_artifact(project, "extracted/door_schedule.json")["content"]
+        )["openings"][0]
+        assert on_disk["handing"] == "RH", on_disk
+        assert "thickness" not in on_disk, "an invented key must not reach disk"
+        assert "patch_rejected_thickness" in on_disk["flags"], on_disk
+        # The write went through save_artifact, so it is versioned like any other.
+        assert list_versions(project, "extracted/door_schedule.json")["version_count"] == 2
+
+        # Nothing applies: the file is left alone rather than re-versioned.
+        before = get_artifact(project, "extracted/door_schedule.json")["content"]
+        none_held = propose_patch(project, "extracted/door_schedule.json", [
+            {"op": "set", "path": "openings/99/handing", "value": "LH", "evidence": cite},
+        ])
+        assert none_held["applied"] == 0 and none_held["run_can_continue"] is True
+        assert get_artifact(project, "extracted/door_schedule.json")["content"] == before
     finally:
         shutil.rmtree(_projects_root() / project, ignore_errors=True)
     print("artifact-storage demo OK")

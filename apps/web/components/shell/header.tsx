@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { MagnifyingGlass, Sun, Moon, PhoneCall, TerminalWindow } from "@phosphor-icons/react/dist/ssr";
+import { MagnifyingGlass, Sun, Moon, PhoneCall, TerminalWindow, SidebarSimple } from "@phosphor-icons/react/dist/ssr";
 
 import { ReviewQueuePopover } from "@/components/shell/review-queue-popover";
 import { useUiState } from "@/components/shell/ui-state";
@@ -46,6 +46,8 @@ export function Header({
     setPaletteOpen,
     terminalOpen,
     setTerminalOpen,
+    sidebarCollapsed,
+    toggleSidebar,
     focusMode,
     notesVersion,
     theme,
@@ -77,23 +79,47 @@ export function Header({
         : "bg-status-success";
 
   return (
-    <header className="flex h-[54px] shrink-0 items-center gap-4 border-b border-subtle bg-background px-5">
-      <div className="flex items-center gap-1.5 text-[13px] font-medium">
-        {crumbs.map((crumb, index) => (
-          <span key={`${crumb.label}-${index}`} className="flex items-center gap-1.5">
-            {index > 0 && <span className="text-tx-muted">/</span>}
-            {crumb.href ? (
-              <Link href={crumb.href} className="text-tx-secondary no-underline hover:text-tx-primary transition-colors">
-                {crumb.label}
-              </Link>
-            ) : (
-              <span className="text-tx-primary">{crumb.label}</span>
-            )}
-          </span>
-        ))}
+    <header className="flex h-[54px] shrink-0 items-center gap-3 border-b border-subtle bg-panel-raised px-5 min-w-0 overflow-hidden">
+      <div className="flex items-center gap-2 text-[13px] font-medium min-w-0 flex-shrink">
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          title={sidebarCollapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)"}
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!sidebarCollapsed}
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-tx-secondary transition-colors hover:bg-panel-muted hover:text-tx-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-border"
+        >
+          <SidebarSimple size={17} weight="duotone" />
+        </button>
+
+        <div className="h-4 w-px bg-subtle mx-0.5 shrink-0" />
+
+        <div className="flex items-center gap-1.5 min-w-0 truncate">
+          {crumbs.map((crumb, index) => (
+            <span key={`${crumb.label}-${index}`} className="flex items-center gap-1.5 min-w-0 truncate">
+              {index > 0 && <span className="text-tx-muted shrink-0">/</span>}
+              {crumb.href ? (
+                <Link
+                  href={crumb.href}
+                  title={crumb.label}
+                  className="text-tx-secondary no-underline hover:text-tx-primary transition-colors truncate max-w-[140px] sm:max-w-[220px] md:max-w-[320px]"
+                >
+                  {crumb.label}
+                </Link>
+              ) : (
+                <span
+                  title={crumb.label}
+                  className="text-tx-primary truncate max-w-[140px] sm:max-w-[220px] md:max-w-[320px]"
+                >
+                  {crumb.label}
+                </span>
+              )}
+            </span>
+          ))}
+        </div>
       </div>
 
-      <div className="flex-1" />
+      <div className="flex-1 min-w-[8px]" />
 
       <button
         onClick={() => setPaletteOpen(true)}

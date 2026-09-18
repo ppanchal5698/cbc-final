@@ -53,6 +53,11 @@ def test_list_users(client, state, snapshots) -> None:
     state["me"] = next(u["id"] for u in response.json()["users"] if u["email"] == TEST_ACTOR)
 
 
+def test_list_assignable_users(client, snapshots) -> None:
+    """Names only, and readable without the admin role, unlike GET /api/users."""
+    snapshots.pin("GET /api/users/directory", client.get("/api/users/directory"))
+
+
 def test_verify_a_password(client, snapshots) -> None:
     op = "POST /api/auth/verify"
     body = {"email": ESTIMATOR["email"], "password": ESTIMATOR["password"]}
@@ -251,7 +256,12 @@ def test_autopilot(client, state, snapshots) -> None:
 
 
 def test_ops_spend(client, snapshots) -> None:
-    snapshots.pin("GET /api/ops/spend", client.get("/api/ops/spend", params={"hours": 24}))
+    snapshots.pin(
+        "GET /api/ops/spend",
+        client.get("/api/ops/spend", params={"hours": 24}),
+        # null unless WORKER_MAX_COST_USD_PER_* are configured.
+        drop=("body.dailyCapUsd", "body.projectCapUsd"),
+    )
 
 
 def test_audit_log(client, snapshots) -> None:
@@ -262,3 +272,36 @@ def test_delete_a_project(client, state, snapshots) -> None:
     op = "DELETE /api/projects/{code}"
     snapshots.pin(op, client.delete(f"/api/projects/{state['code']}"))
     snapshots.pin(op, client.delete(f"/api/projects/{state['code']}"), variant="already deleted")
+
+
+def test_parsing_settings(client, snapshots) -> None:
+    """The MinerU parser's runtime knobs. `PARSER_URL` empty means parsing is off."""
+    snapshots.pin(
+        "GET /api/settings/parsing",
+        client.get("/api/settings/parsing"),
+        # Live MinerU status; absent when the service is not answering.
+        drop=("body.mineru", "body.fields.effort.value"),
+    )
+    op = "PUT /api/settings/parsing"
+    snapshots.pin(
+        op,
+        client.put("/api/settings/parsing", json={"profile": "medium"}),
+        drop=("body.mineru", "body.fields.effort.value"),
+    )
+    snapshots.pin(
+        op,
+        client.put("/api/settings/parsing", json={"profile": "not-a-profile"}),
+        variant="unknown profile",
+        drop=("body.mineru", "body.fields.effort.value"),
+    )
+
+
+def test_parsing_connection_test(client, snapshots) -> None:
+    """With no parser configured this must answer, not hang or 500."""
+    snapshots.pin(
+        "POST /api/settings/parsing/test",
+        client.post("/api/settings/parsing/test"),
+        # What a reachable parser answers with, how long it took, and - when
+        # there is none - why not. The contract is that it answers at all.
+        drop=("body.backend", "body.seconds", "body.version", "body.blocks", "body.error"),
+    )

@@ -1,4 +1,5 @@
 import { ClaudeSettingsClient } from "@/components/settings/claude-settings";
+import { ParsingSettingsClient } from "@/components/settings/parsing-settings";
 import { AdminSettingsClient } from "@/components/settings/admin-settings-client";
 import { IntegrationsPanel } from "@/components/settings/admin-panels";
 import { PageHeader } from "@/components/shell/page-header";
@@ -21,10 +22,11 @@ export default async function SettingsPage() {
             <section className="rounded-xl px-6 py-5 bg-panel border border-subtle shadow-sm">
               <h2 className="text-[18px] font-bold text-tx-primary tracking-tight">Administration</h2>
               <p className="mt-1.5 text-[13.5px] font-medium text-tx-secondary">
-                Configure the AI provider, pipeline defaults, user accounts, and review the audit log.
+                Configure the AI provider, document parser, pipeline defaults, user accounts, and review the audit log.
               </p>
             </section>
             <ClaudeSettingsClient />
+            <ParsingSettingsClient />
             <AdminSettingsClient />
           </>
         ) : (

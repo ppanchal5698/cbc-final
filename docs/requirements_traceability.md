@@ -30,5 +30,5 @@ fails if a named path is missing (`apps/backend/tests/system/test_traceability_d
 | NFR-7 | Multi-tenant orgId | `apps/backend/src/cbc/shared/persistence/repository.py` | `apps/backend/tests/system/test_repository.py` |
 | NFR-8 | Margin floor flag only | `apps/backend/src/cbc/modules/pricing/domain/calc.py` | `apps/backend/tests/modules/pricing/test_pricing.py` |
 | NFR-9 | No approval routing (OOS) | `docs/data_model.md` | `apps/backend/tests/system/test_traceability_doc.py` |
-| NFR-10 | Stewardship (CBC owes) | `.claude/rules/data-stewardship.md` | `apps/backend/tests/system/test_traceability_doc.py` |
+| NFR-10 | Stewardship (CBC owes) | `docs/data_stewardship.md` | `apps/backend/tests/system/test_traceability_doc.py` |
 | NFR-11 | Adoption / rollout | `docs/rollout.md` | `apps/backend/tests/system/test_traceability_doc.py` |

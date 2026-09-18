@@ -7,6 +7,12 @@
     "frp_in_scope": {
       "type": "boolean"
     },
+    "div10_in_scope": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "divisions": {
       "type": [
         "array",
@@ -23,7 +29,10 @@
       "type": [
         "array",
         "null"
-      ]
+      ],
+      "items": {
+        "type": "string"
+      }
     },
     "door_schedule_found": {
       "type": [
@@ -44,6 +53,18 @@
       ]
     },
     "door_schedule_pages": {
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "hardware_group_pages": {
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "div10_schedule_pages": {
       "type": [
         "array",
         "null"

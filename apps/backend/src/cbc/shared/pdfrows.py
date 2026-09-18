@@ -33,7 +33,7 @@ _MAX_SHIFT = 64
 _SHIFT_CACHE: dict[tuple[str, float], int] = {}
 
 # Bump when clustering, glyph repair, or OCR fallback changes so C-02 misses.
-EXTRACTOR_VERSION = "1"
+EXTRACTOR_VERSION = "2"
 
 # Words a set of architectural drawings or a vendor price book is near-certain to
 # contain. Scoring on letter count alone picks a shift that turns everything into
@@ -141,16 +141,27 @@ def to_display_space(page: fitz.Page, words: list[tuple]) -> list[tuple]:
 
 
 def rows_from_words(
-    page: fitz.Page, region: list[float] | None = None, shift: int = 0
+    page: fitz.Page,
+    region: list[float] | None = None,
+    shift: int = 0,
+    *,
+    words: list[tuple] | None = None,
 ) -> list[dict[str, Any]]:
     """Cluster positioned words into rows of cells.
 
     Coordinates in and out are display-space: the same frame as `page_size` and
     the rendered image, so `region` is expressed the way the viewer shows it and
     every bbox returned can be drawn straight onto the page.
+
+    `words` lets a caller supply its own word boxes - OCR output for a sheet
+    whose text layer is outlined - in the same shape `get_text("words")` returns.
+    They are already in display space, so they skip that conversion.
     """
-    words = page.get_text("words")  # (x0, y0, x1, y1, word, block, line, word_no)
-    words = to_display_space(page, words)
+    if words is not None:
+        supplied = list(words)
+    else:
+        supplied = to_display_space(page, page.get_text("words"))
+    words = supplied
     if shift:
         words = [(*w[:4], shift_text(w[4], shift), *w[5:]) for w in words]
     if region:
@@ -184,7 +195,29 @@ def rows_from_words(
     return rows
 
 
-def ocr_page(page: fitz.Page, dpi: int = 300) -> str:
+def _prepare_ocr_image(image: Any, *, thicken: bool = True) -> Any:
+    """Boost thin architectural / CAD hand-lettering before Tesseract.
+
+    CityBlueprint-style schedule fonts are monoline and under-inked. At 200–300
+    DPI the strokes drop out under Tesseract's binarizer. Upscale + mild dilation
+    recovers WIDTH / HGT / MAT'L cells that otherwise OCR as noise or blanks.
+    """
+    from PIL import Image, ImageFilter, ImageOps
+
+    work = image.convert("L")
+    # 2× upscale when the render is short of ~2500 px on the long edge.
+    long_edge = max(work.size)
+    if long_edge < 2500:
+        work = work.resize((work.width * 2, work.height * 2), Image.Resampling.LANCZOS)
+    work = ImageOps.autocontrast(work, cutoff=1)
+    if thicken:
+        # MaxFilter expands dark strokes without needing OpenCV.
+        work = work.filter(ImageFilter.MaxFilter(3))
+        work = work.point(lambda p: 0 if p < 180 else 255)
+    return work
+
+
+def ocr_page(page: fitz.Page, dpi: int = 300, *, thicken: bool = True) -> str:
     """OCR fallback. Optional: returns a clear marker when pytesseract is unavailable."""
     try:
         import io
@@ -198,10 +231,68 @@ def ocr_page(page: fitz.Page, dpi: int = 300) -> str:
         )
     pixmap = page.get_pixmap(dpi=dpi)
     image = Image.open(io.BytesIO(pixmap.tobytes("png")))
+    prepared = _prepare_ocr_image(image, thicken=thicken)
     try:
-        return str(pytesseract.image_to_string(image))
+        # --psm 6: assume a single uniform block of text (schedule tables).
+        return str(pytesseract.image_to_string(prepared, config="--psm 6"))
     except Exception as exc:  # tesseract binary missing or failed
         return f"[OCR FAILED: {exc}]"
+
+
+def ocr_words(
+    page: fitz.Page, dpi: int = 300, *, thicken: bool = True
+) -> list[tuple]:
+    """Positioned OCR words in page display space, same shape as get_text('words').
+
+    Used when the PDF text layer is missing, outlined, or only carries the title
+    ("DOOR SCHEDULE") while the architectural body font never extracts.
+    """
+    try:
+        import io
+
+        import pytesseract
+        from PIL import Image
+    except ImportError:
+        return []
+
+    pixmap = page.get_pixmap(dpi=dpi)
+    image = Image.open(io.BytesIO(pixmap.tobytes("png")))
+    prepared = _prepare_ocr_image(image, thicken=thicken)
+    # Scale from prepared-image pixels back to PDF points (page.rect).
+    scale_x = page.rect.width / prepared.width
+    scale_y = page.rect.height / prepared.height
+    try:
+        data = pytesseract.image_to_data(
+            prepared, config="--psm 6", output_type=pytesseract.Output.DICT
+        )
+    except Exception:
+        return []
+
+    words: list[tuple] = []
+    n = len(data.get("text") or [])
+    for i in range(n):
+        text = str(data["text"][i] or "").strip()
+        if not text:
+            continue
+        try:
+            conf = float(data["conf"][i])
+        except (TypeError, ValueError):
+            conf = -1.0
+        if conf >= 0 and conf < 35:
+            continue
+        left = float(data["left"][i])
+        top = float(data["top"][i])
+        width = float(data["width"][i])
+        height = float(data["height"][i])
+        x0 = left * scale_x
+        y0 = top * scale_y
+        x1 = (left + width) * scale_x
+        y1 = (top + height) * scale_y
+        block = int(data.get("block_num", [0])[i] if data.get("block_num") else 0)
+        line = int(data.get("line_num", [0])[i] if data.get("line_num") else 0)
+        word_no = int(data.get("word_num", [i])[i] if data.get("word_num") else i)
+        words.append((x0, y0, x1, y1, text, block, line, word_no))
+    return words
 
 
 def has_text_layer(page: fitz.Page, minimum_chars: int = 40) -> bool:
@@ -209,10 +300,91 @@ def has_text_layer(page: fitz.Page, minimum_chars: int = 40) -> bool:
     return len(page.get_text().strip()) >= minimum_chars
 
 
+def text_looks_like_schedule_title_only(text: str, word_count: int) -> bool:
+    """True when extractable text is mostly a schedule title / index, not rows.
+
+    CAD sheets often keep "DOOR SCHEDULE" as a real font while body cells are
+    outlined architectural lettering invisible to get_text.
+    """
+    upper = (text or "").upper()
+    if "DOOR SCHEDULE" not in upper and "OPENING SCHEDULE" not in upper:
+        return False
+    # A real schedule body usually yields dozens of positioned words.
+    if word_count >= 40:
+        return False
+    # Title + a few index lines, but almost no tabular body.
+    return word_count < 25
+
+
 # Fields that corroborate a door number when matching an opening back to its row.
 # The number alone is not enough - "1" appears all over a drawing - so a match
 # needs the number in the first cell plus two of these in the same row.
 CORROBORATING = ("room_name", "width", "height", "size", "hardware_set", "door_type")
+
+# Dutch Bros (and similar) glue the mark to the width: first cell reads
+# `01 3' - 6"` instead of a bare `01`.
+_MARK_PREFIX = re.compile(r"^(\d{1,3}[A-Z]?)\b", re.IGNORECASE)
+_SIZE_4DIGIT = re.compile(r"^([2-9])([0-9])([4-9])([0-9])$")
+
+
+def _first_cell_mark(cell: str) -> str | None:
+    text = (cell or "").strip()
+    if not text:
+        return None
+    if re.fullmatch(r"\d{1,3}[A-Z]?", text, re.IGNORECASE):
+        return text
+    match = _MARK_PREFIX.match(text)
+    return match.group(1) if match else None
+
+
+def _corroborant_needles(value: str) -> list[str]:
+    """Strings that count as a hit for one opening field inside a clustered row.
+
+    Four-digit sizes (3670) never appear literally on GROUP-style sheets that
+    print `3' - 6" | 7' - 0"`; expand them so rematch can still find the row.
+    """
+    text = (value or "").strip()
+    if not text:
+        return []
+    needles = [text]
+    match = _SIZE_4DIGIT.match(text)
+    if match:
+        w_ft, w_in, h_ft, h_in = match.groups()
+        for feet, inches in ((w_ft, w_in), (h_ft, h_in)):
+            needles.append(f"{feet}'-{inches}\"")
+            needles.append(f"{feet}' - {inches}\"")
+            needles.append(f"{feet}'-{int(inches):02d}\"")
+            needles.append(f"{feet}' - {int(inches):02d}\"")
+    return needles
+
+
+def _row_matches_opening(
+    row: dict[str, Any],
+    number: str,
+    corroborants: list[str],
+    other_marks: set[str],
+) -> bool:
+    cells = row.get("cells") or []
+    if not cells:
+        return False
+    if _first_cell_mark(cells[0]) != number:
+        return False
+    joined = " | ".join(cells)
+    hits = sum(
+        1
+        for value in corroborants
+        if any(needle in joined for needle in _corroborant_needles(value))
+    )
+    if hits < 2:
+        return False
+    # Refuse a row that also carries another opening's mark as its own cell.
+    for cell in cells[1:]:
+        mark = _first_cell_mark(cell)
+        if mark and mark in other_marks and re.fullmatch(
+            r"\d{1,3}[A-Z]?", cell.strip(), re.IGNORECASE
+        ):
+            return False
+    return True
 
 
 def attach_measured_bboxes(
@@ -220,6 +392,8 @@ def attach_measured_bboxes(
     page: fitz.Page,
     number_key: str = "door_number",
     shift: int = 0,
+    *,
+    overwrite: bool = False,
 ) -> tuple[int, int]:
     """Fill in bboxes by finding the row each opening was read from.
 
@@ -238,6 +412,9 @@ def attach_measured_bboxes(
     highlight - and a wrong highlight is worse than none, because it looks
     checked.
 
+    When `overwrite` is true, any existing bbox is cleared first so invented
+    marching sequences from the model cannot stick.
+
     Returns (attached, unmatched).
     """
     rows = rows_from_words(page, shift=shift)
@@ -245,7 +422,22 @@ def attach_measured_bboxes(
     attached = unmatched = 0
 
     for opening in openings:
-        if opening.get("bbox"):
+        if overwrite:
+            opening.pop("bbox", None)
+            opening.pop("cell_boxes", None)
+            flags = opening.get("flags")
+            if isinstance(flags, list):
+                opening["flags"] = [
+                    f
+                    for f in flags
+                    if f
+                    not in (
+                        "bbox_row_ambiguous",
+                        "bbox_row_not_found",
+                        "bbox_unavailable",
+                    )
+                ]
+        elif opening.get("bbox"):
             continue
         number = str(opening.get(number_key) or "").strip()
         if not number:
@@ -270,10 +462,7 @@ def attach_measured_bboxes(
         hits = [
             row
             for row in rows
-            if row["cells"]
-            and row["cells"][0].strip() == number
-            and sum(1 for value in corroborants if value in " | ".join(row["cells"])) >= 2
-            and not others.intersection(cell.strip() for cell in row["cells"][1:])
+            if _row_matches_opening(row, number, corroborants, others)
         ]
         if len(hits) == 1:
             opening["bbox"] = hits[0]["bbox"]
@@ -282,6 +471,8 @@ def attach_measured_bboxes(
             attached += 1
         else:
             unmatched += 1
+            opening["bbox"] = None
+            opening.pop("cell_boxes", None)
             flags = opening.setdefault("flags", [])
             note = (
                 "bbox_row_ambiguous" if len(hits) > 1 else "bbox_row_not_found"

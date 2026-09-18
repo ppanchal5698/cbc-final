@@ -58,6 +58,7 @@ def test_pricing_can_read_the_page_it_is_sent_to():
 
     servers = json.loads(toolsets.config_for("match_and_price"))["mcpServers"]
     assert "catalog" in servers, "pricing needs the page index"
+    assert "catalog-docs" in servers, "pricing needs MinerU catalog blocks"
     assert "pdf-tools" in servers, "and the means to read the page it names"
 
 
@@ -68,7 +69,7 @@ def test_a_take_off_still_cannot_see_the_pricing_tools():
     from cbc.modules.ops.api import toolsets
 
     servers = json.loads(toolsets.config_for("extract_bid_set"))["mcpServers"]
-    assert set(servers) == {"pdf-tools", "artifact-storage", "reference"}
+    assert set(servers) == {"pdf-tools", "artifact-storage", "reference", "bid-docs"}
     for absent in ("catalog", "calc-engine", "p21-connector"):
         assert absent not in servers
 

@@ -16,6 +16,9 @@ import { toast } from "sonner";
 import { JobFailedBanner } from "@/components/jobs/job-failed-banner";
 import { ReviewFlagsPanel } from "@/components/proposal/review-flags-panel";
 import { RfisPanel } from "@/components/proposal/rfis-panel";
+import { LapsedGate } from "@/components/proposal/lapsed-gate";
+import { PriorBidCompare } from "@/components/proposal/prior-bid-compare";
+import { P21OrderField } from "@/components/proposal/p21-order-field";
 import { useUiState } from "@/components/shell/ui-state";
 import { formatMoney } from "@/lib/format";
 import { taxSummary } from "@/lib/tax-display";
@@ -350,6 +353,15 @@ ${draft.body}`;
               </div>
             </div>
 
+            {/* The banner CBC prints across every proposal: the confirmation is
+                the customer's, and it is asked for before anything is ordered. */}
+            <div
+              className="mt-5 border-y py-1.5 text-center text-[10.5px] font-bold uppercase tracking-[0.08em]"
+              style={{ borderColor: "#15151f" }}
+            >
+              All bidders — confirm all doors, frames and hardware are correct before ordering
+            </div>
+
             <p className="mt-5 text-[10px] leading-relaxed" style={{ color: "#55556b" }}>
               This quote is conditioned upon the use of HAMILTON PARKER CO. purchase order as the
               parties contract. This quote is only good for {proposal.validityDays} days from the
@@ -542,9 +554,20 @@ ${draft.body}`;
             </ul>
           </div>
 
+          <LapsedGate code={code} readiness={readiness} onAcknowledged={() => mutate()} />
+
+          <P21OrderField code={code} value={project.p21OrderNo ?? ""} onSaved={() => mutate()} />
+
+          <PriorBidCompare
+            code={code}
+            total={totals.grandTotal ?? 0}
+            lineCount={sections.reduce((sum, section) => sum + section.lines.length, 0)}
+          />
+
           <button
             onClick={markComplete}
-            disabled={busy}
+            disabled={busy || readiness.blocking}
+            title={readiness.blocking ? readiness.note : undefined}
             className="flex items-center justify-center gap-2 rounded-xl py-3.5 text-[14px] font-bold disabled:opacity-50 transition-all bg-brand-primary text-white hover:bg-brand-primary/90 shadow-md"
           >
             {project.initiator
@@ -552,7 +575,9 @@ ${draft.body}`;
               : "Mark complete and hand to sales"}
           </button>
           <p className="text-center text-[12px] font-medium text-tx-muted px-2">
-            This records your sign-off and puts the bid in their queue. It does not send anything.
+            {readiness.blocking
+              ? "Held until purchasing confirms the lapsed cost, or you override it above."
+              : "This records your sign-off and puts the bid in their queue. It does not send anything."}
           </p>
         </aside>
       </main>

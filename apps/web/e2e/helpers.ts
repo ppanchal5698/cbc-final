@@ -42,3 +42,22 @@ export async function openNewBid(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: /create bid request/i }).first().click();
   await page.getByRole("dialog", { name: /create bid request/i }).waitFor();
 }
+
+/**
+ * Submit the open "Create bid request" dialog.
+ *
+ * The dialog's submit button carries the same name as the trigger that opened
+ * it, and an empty board mounts that trigger twice (header + empty state), so
+ * an unscoped /create/i can match three buttons. `openNewBid` above already
+ * takes `.first()` for the trigger; this is the other half of the same problem,
+ * and it is why six specs passed on every developer machine - which has bids -
+ * and failed the first time CI ran them against a freshly bootstrapped board.
+ *
+ * Scoping to the dialog is unambiguous however many triggers are on the page.
+ */
+export async function submitNewBid(page: import("@playwright/test").Page) {
+  await page
+    .getByRole("dialog", { name: /create bid request/i })
+    .getByRole("button", { name: /create bid request/i })
+    .click();
+}

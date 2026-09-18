@@ -221,9 +221,7 @@
   "body": {
    "byProject": [],
    "byType": [],
-   "dailyCapUsd": "null",
    "overDailyCap": "bool",
-   "projectCapUsd": "null",
    "recent": [],
    "runs": "number",
    "since": "datetime",
@@ -237,9 +235,11 @@
    "projects": [
     {
      "activeJob": "null",
+     "assignedEstimator": "str",
      "autopilot": "bool",
      "bidAlternates": [],
      "bidDue": "null",
+     "bidStatus": "str",
      "brand": "str",
      "callCount": "number",
      "code": "str",
@@ -252,6 +252,7 @@
      },
      "createdAt": "datetime",
      "documentCount": "number",
+     "estimator": "null",
      "gc": "str",
      "id": "id",
      "initiator": "str",
@@ -259,6 +260,7 @@
      "mode": "str",
      "name": "str",
      "orgId": "id",
+     "outcome": "str",
      "progress": "number",
      "quoteTotal": "null",
      "slug": "str",
@@ -274,9 +276,11 @@
  "GET /api/projects/{code}": {
   "body": {
    "activeJob": "null",
+   "assignedEstimator": "str",
    "autopilot": "bool",
    "bidAlternates": [],
    "bidDue": "null",
+   "bidStatus": "str",
    "brand": "str",
    "callCount": "number",
    "code": "str",
@@ -289,6 +293,7 @@
    },
    "createdAt": "datetime",
    "documentCount": "number",
+   "estimator": "null",
    "gc": "str",
    "id": "id",
    "initiator": "str",
@@ -296,6 +301,7 @@
    "mode": "str",
    "name": "str",
    "orgId": "id",
+   "outcome": "str",
    "progress": "number",
    "quoteTotal": "null",
    "slug": "str",
@@ -330,7 +336,9 @@
      "code": "str",
      "gc": "str",
      "id": "id",
-     "name": "str"
+     "lineCount": "null",
+     "name": "str",
+     "quoteTotal": "null"
     }
    ]
   },
@@ -489,6 +497,128 @@
   },
   "status": 400
  },
+ "GET /api/settings/parsing": {
+  "body": {
+   "backends": [
+    "str"
+   ],
+   "efforts": [
+    "str"
+   ],
+   "enabled": "bool",
+   "fields": {
+    "backend": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "effort": {
+     "locked": "bool",
+     "source": "str"
+    },
+    "formulas": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "imageAnalysis": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "lang": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "method": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "profile": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "tables": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "url": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "waitMaxSeconds": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    },
+    "windowPages": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    },
+    "windowTimeoutSeconds": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    }
+   },
+   "methods": [
+    "str"
+   ],
+   "presets": {
+    "high": {
+     "backend": "str",
+     "effort": "str",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    },
+    "low": {
+     "backend": "str",
+     "effort": "null",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    },
+    "medium": {
+     "backend": "str",
+     "effort": "str",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    }
+   },
+   "profiles": [
+    "str"
+   ],
+   "updatedAt": "null",
+   "updatedBy": "null"
+  },
+  "status": 200
+ },
  "GET /api/settings/pipeline": {
   "body": {
    "autopilotDefault": "bool",
@@ -514,13 +644,27 @@
   },
   "status": 200
  },
+ "GET /api/users/directory": {
+  "body": {
+   "users": [
+    {
+     "email": "str",
+     "initials": "str",
+     "name": "str"
+    }
+   ]
+  },
+  "status": 200
+ },
  "PATCH /api/projects/{code}": {
   "body": {
    "activeJob": "null",
    "architect": "str",
+   "assignedEstimator": "str",
    "autopilot": "bool",
    "bidAlternates": [],
    "bidDue": "null",
+   "bidStatus": "str",
    "brand": "str",
    "callCount": "number",
    "code": "str",
@@ -533,6 +677,7 @@
    },
    "createdAt": "datetime",
    "documentCount": "number",
+   "estimator": "null",
    "gc": "str",
    "id": "id",
    "initiator": "str",
@@ -540,6 +685,7 @@
    "mode": "str",
    "name": "str",
    "orgId": "id",
+   "outcome": "str",
    "progress": "number",
    "quoteTotal": "null",
    "slug": "str",
@@ -669,9 +815,11 @@
  "POST /api/projects": {
   "body": {
    "activeJob": "null",
+   "assignedEstimator": "str",
    "autopilot": "bool",
    "bidAlternates": [],
    "bidDue": "null",
+   "bidStatus": "str",
    "brand": "str",
    "callCount": "number",
    "code": "str",
@@ -684,6 +832,7 @@
    },
    "createdAt": "datetime",
    "documentCount": "number",
+   "estimator": "null",
    "gc": "str",
    "id": "id",
    "initiator": "str",
@@ -691,6 +840,7 @@
    "mode": "str",
    "name": "str",
    "orgId": "id",
+   "outcome": "str",
    "progress": "number",
    "quoteTotal": "null",
    "slug": "str",
@@ -849,6 +999,12 @@
     "supportsSubagents": "bool",
     "warnings": []
    }
+  },
+  "status": 200
+ },
+ "POST /api/settings/parsing/test": {
+  "body": {
+   "ok": "bool"
   },
   "status": 200
  },
@@ -1038,6 +1194,250 @@
    "freshMonths": "number",
    "note": "str",
    "rule": "str",
+   "updatedAt": "datetime",
+   "updatedBy": "str"
+  },
+  "status": 200
+ },
+ "PUT /api/settings/parsing": {
+  "body": {
+   "backends": [
+    "str"
+   ],
+   "efforts": [
+    "str"
+   ],
+   "enabled": "bool",
+   "fields": {
+    "backend": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "effort": {
+     "locked": "bool",
+     "source": "str"
+    },
+    "formulas": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "imageAnalysis": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "lang": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "method": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "profile": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "tables": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "url": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "waitMaxSeconds": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    },
+    "windowPages": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    },
+    "windowTimeoutSeconds": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    }
+   },
+   "methods": [
+    "str"
+   ],
+   "presets": {
+    "high": {
+     "backend": "str",
+     "effort": "str",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    },
+    "low": {
+     "backend": "str",
+     "effort": "null",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    },
+    "medium": {
+     "backend": "str",
+     "effort": "str",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    }
+   },
+   "profiles": [
+    "str"
+   ],
+   "updatedAt": "datetime",
+   "updatedBy": "str"
+  },
+  "status": 200
+ },
+ "PUT /api/settings/parsing #unknown profile": {
+  "body": {
+   "backends": [
+    "str"
+   ],
+   "efforts": [
+    "str"
+   ],
+   "enabled": "bool",
+   "fields": {
+    "backend": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "effort": {
+     "locked": "bool",
+     "source": "str"
+    },
+    "formulas": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "imageAnalysis": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "lang": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "method": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "profile": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "tables": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "url": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "waitMaxSeconds": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    },
+    "windowPages": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    },
+    "windowTimeoutSeconds": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    }
+   },
+   "methods": [
+    "str"
+   ],
+   "presets": {
+    "high": {
+     "backend": "str",
+     "effort": "str",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    },
+    "low": {
+     "backend": "str",
+     "effort": "null",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    },
+    "medium": {
+     "backend": "str",
+     "effort": "str",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    }
+   },
+   "profiles": [
+    "str"
+   ],
    "updatedAt": "datetime",
    "updatedBy": "str"
   },

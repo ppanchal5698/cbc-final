@@ -52,6 +52,21 @@ def shape(value: Any) -> Any:
     return type(value).__name__
 
 
+def prune(described: dict[str, Any], paths: tuple[str, ...]) -> dict[str, Any]:
+    """Remove dotted paths (e.g. "body.document.parse") from a described shape."""
+    for path in paths:
+        node: Any = described
+        *walk, last = path.split(".")
+        for step in walk:
+            if not isinstance(node, dict) or step not in node:
+                node = None
+                break
+            node = node[step]
+        if isinstance(node, dict):
+            node.pop(last, None)
+    return described
+
+
 def describe(response) -> dict[str, Any]:
     content_type = response.headers.get("content-type", "").split(";")[0].strip()
     if response.status_code == 204 or not response.content:
@@ -81,10 +96,18 @@ class Snapshots:
         )
         return actual
 
-    def pin(self, op: str, response, variant: str = ""):
-        """`op` is the route template, e.g. "POST /api/projects/{code}/line-items"."""
+    def pin(self, op: str, response, variant: str = "", drop: tuple[str, ...] = ()):
+        """`op` is the route template, e.g. "POST /api/projects/{code}/line-items".
+
+        `drop` removes dotted paths from the recorded shape - for keys whose
+        very presence depends on an optional service being up. MinerU answers
+        on a developer machine and not in CI, so a response that carries
+        `parseJob` on one and not the other is describing the environment, not
+        the contract. Pinning it either way makes the snapshot fail wherever it
+        was not recorded, which is how these came to disagree.
+        """
         key = f"{op} #{variant}" if variant else op
-        self.pin_value(key, describe(response))
+        self.pin_value(key, prune(describe(response), drop))
         return response
 
     def save(self) -> None:

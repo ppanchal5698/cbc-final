@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api.lookup import load
+from cbc.modules.quoting.api import priced_lines
 from cbc.modules.quoting.api import quote as quote_service
 from cbc.modules.quoting.infrastructure.collections import estimate_lines
 from cbc.shared.auth import Actor
@@ -28,4 +29,8 @@ async def delete_line(code: str, line_id: str, actor: Actor) -> dict:
         {"projectId": project["_id"], "quoteLineId": line["_id"]},
         before=line.get("description"),
     )
-    return {"totals": await quote_service.persist(project)}
+    totals = await quote_service.persist(project)
+    # Persist deliberate deletions, including the last row, before a later export
+    # mistakes the remaining artifact for an unimported pricing pass.
+    await priced_lines.export_quote_lines(project, allow_empty=True)
+    return {"totals": totals}

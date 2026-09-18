@@ -6,6 +6,7 @@ import { DeleteBidButton } from "@/components/bids/delete-bid-button";
 import { EditBidButton } from "@/components/bids/edit-bid-button";
 import { UploadPanel } from "@/components/intake/upload-panel";
 import { VersionsPanel } from "@/components/intake/versions-panel";
+import { StartFromPrior } from "@/components/intake/start-from-prior";
 import { PageHeader } from "@/components/shell/page-header";
 import { runPillFor } from "@/lib/run-pill";
 import { StageBar } from "@/components/shell/stage-bar";
@@ -91,6 +92,7 @@ export default async function IntakePage({ params }: { params: Promise<{ code: s
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_340px]">
           <div className="flex flex-col gap-4">
             <UploadPanel code={project.code} initialDocuments={documents} />
+            <StartFromPrior code={project.code} documentCount={documents.length} />
             <VersionsPanel code={project.code} />
           </div>
 

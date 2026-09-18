@@ -28,6 +28,28 @@ returns a structured "manual entry required" response.
 
 ---
 
+## Path 1b - special net
+
+**Use when:** `get_special_net` returns a fixed net for the part (Hager
+multiplier sheet / curated nets). That number **is** cost — do not apply a
+category multiplier again.
+
+`cost_source: "SPECIAL_NET"`, cite item code / special-net provenance in
+`cost_source_detail`.
+
+---
+
+## Path 2b - product catalog baseline
+
+**Use when:** before opening a PDF (or when PDF page search would miss) and
+`lookup_catalog_item` finds a curated `catalogItems` row (seedSource cites
+catalog.md, or hand-added). Never use price-book ingest extracts this way.
+
+`cost_source: "CATALOG_BASELINE"` (or `SPECIAL_NET` when the row is a net),
+`cost_source_detail` must cite the product catalog / seedSource.
+
+---
+
 ## Path 2 - vendor list price x multiplier
 
 **Use when:** the item is not on special pricing and the vendor is one of the
@@ -59,8 +81,19 @@ Net-sheet vendors (not list x multiplier): Bobrick, Gamco.
 **Worked example:** Hager 3500-series storeroom lock, list 256.31, locks tier
 0.290, cost **74.33**.
 
+**Hager thresholds & weatherstrip:** architect schedules often specify **Pemko**
+or **Zero** catalog numbers (e.g. 275A, 39A). Hager Price Book #18 threshold
+pages list **NGP codes** (401S, 402S, …) with a **Pemko comparison-number**
+column — read the **NGP list price**, not a text search for 275A. When
+`lookup_catalog_item` misses, use `find_pages` → `get_page_blocks` or
+`get_page_image(region=bbox)` on the table block, then `get_multiplier` with
+category `thresholds_weatherstrip` (0.40). Never write `multiplier` under
+`cost_source: MANUAL` — either finish with a non-null `cost` or stay MANUAL
+without book metadata.
+
 `cost_source: "LIST_X_MULTIPLIER"`, plus `multiplier`, `multiplier_tier`,
-`multiplier_effective_date`, `price_book_version`, `source_page`.
+`multiplier_effective_date`, `price_book_version`, `source_page`. Cite a PDF
+`file_path`+locator **or** the product catalog when the list came from Path 2b.
 
 ---
 

@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from cbc.shared.paths import repo_root, storage_root
 from cbc.modules.extraction.api.claude_output import (
+    Div10Takeoff,
     DoorSchedule,
     FrpTakeoff,
     HardwareSets,
@@ -28,6 +29,7 @@ EXTRACT_REL = (
     ("extracted/scope_summary.json", "scope_summary"),
     ("extracted/hardware_sets.json", "hardware_sets"),
     ("extracted/frp_takeoff.json", "frp_takeoff"),
+    ("extracted/div10_takeoff.json", "div10_takeoff"),
 )
 PRICE_REL = (("priced/line_items.json", "priced_lines"),)
 
@@ -66,6 +68,8 @@ def parse_file(kind: str, raw: Any) -> Any:
         return HardwareSets.model_validate(raw)
     if kind == "frp_takeoff":
         return FrpTakeoff.model_validate(raw)
+    if kind == "div10_takeoff":
+        return Div10Takeoff.parse_payload(raw)
     if kind == "priced_lines":
         return PricedQuote.parse_payload(raw)
     raise ValueError(f"unknown Claude artifact kind {kind!r}")

@@ -28,6 +28,8 @@ def test_the_catalog_local_jobs_are_registered(wired_worker) -> None:
     importlib.reload(WorkerLoop)
     assert "index_catalog" in wired_worker._handlers
     assert "delete_catalog" in wired_worker._handlers
+    assert "parse_catalog" in wired_worker._handlers
+    assert "parse_multiplier" in wired_worker._handlers
     assert callable(WorkerLoop.main)
 
 

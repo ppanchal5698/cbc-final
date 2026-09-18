@@ -40,6 +40,15 @@ def check(payload: dict) -> int:
     blocked = pre_send_quote.check(payload)
     if blocked:
         return blocked
+    # Orchestrator / duplicate-read guard (warn or block).
+    try:
+        from cbc.worker_kit import tool_session
+
+        blocked = tool_session.check(payload)
+        if blocked:
+            return blocked
+    except Exception as exc:  # never fail a tool call because the guard broke
+        print(f"WARN: tool_session guard skipped: {exc}", file=sys.stderr)
     return pre_delete_guard.check(payload)
 
 

@@ -27,18 +27,22 @@ reference-library/frp_constants/conversion_constants.json
 
 ## What the copilot does until the constants arrive
 
-Extract and report the **raw geometry only**:
+Extract and report **geometry + product attributes**:
 
+- product type and manufacturer (when named)
+- location / room
+- drawing scale and Vu360 / geometry notes
 - perimeter linear feet
 - inside corner count
 - outside corner count
 - wall height
 - deducted opening areas, listed individually
+- panel / trim / adhesive / special-condition text when stated
 
 Then **stop**. Emit every material quantity as `null` with
 `status: "PENDING_CONSTANTS"`. Do not invent a panel size, a waste factor, or an
 adhesive coverage number - a wrong FRP quantity is a wrong quote, and this is
-exactly the kind of gap the accuracy-trust rule exists to keep visible.
+exactly the kind of gap `.claude/guides/extraction.md` exists to keep visible.
 
 ## Current manual process
 
@@ -47,9 +51,7 @@ gives geometry only; the conversion to material quantities is done by hand on a
 calculator and typed in. Automating that conversion is the point of FR-12 - it
 just cannot start until the constants land.
 
-## Price sources
+## Pricing (not this phase)
 
-- pricebooks/nudo_frp_pricing.pdf (Midwest-East Coast FRP, effective 2026-05-11)
-- pricebooks/nudo_vinyl_moldings_pricing.pdf (effective 2026-05-11)
-
-Vendors: NUDO, Marlite, Midwest-East Coast FRP.
+Vendor list prices and multipliers belong in Phase 4 (price books / P21 / RFQ).
+Do not open NUDO or other FRP price PDFs during Phase 3b take-off.

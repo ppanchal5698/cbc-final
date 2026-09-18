@@ -4,37 +4,73 @@
       "command": "python",
       "args": [
         "./mcp-servers/pdf-tools/server.py"
-      ]
+      ],
+      "env": {
+        "PYTHONPATH": "apps/backend/src"
+      }
     },
     "calc-engine": {
       "command": "python",
       "args": [
         "./mcp-servers/calc-engine/server.py"
-      ]
+      ],
+      "env": {
+        "PYTHONPATH": "apps/backend/src"
+      }
     },
     "artifact-storage": {
       "command": "python",
       "args": [
         "./mcp-servers/artifact-storage/server.py"
-      ]
+      ],
+      "env": {
+        "PYTHONPATH": "apps/backend/src"
+      }
     },
     "p21-connector": {
       "command": "python",
       "args": [
         "./mcp-servers/p21-connector/server.py"
-      ]
+      ],
+      "env": {
+        "PYTHONPATH": "apps/backend/src"
+      }
     },
     "catalog": {
       "command": "python",
       "args": [
         "./mcp-servers/catalog/server.py"
-      ]
+      ],
+      "env": {
+        "PYTHONPATH": "apps/backend/src"
+      }
     },
     "reference": {
       "command": "python",
       "args": [
         "./mcp-servers/reference/server.py"
-      ]
+      ],
+      "env": {
+        "PYTHONPATH": "apps/backend/src"
+      }
+    },
+    "bid-docs": {
+      "command": "python",
+      "args": [
+        "./mcp-servers/bid-docs/server.py"
+      ],
+      "env": {
+        "PYTHONPATH": "apps/backend/src"
+      }
+    },
+    "catalog-docs": {
+      "command": "python",
+      "args": [
+        "./mcp-servers/catalog-docs/server.py"
+      ],
+      "env": {
+        "PYTHONPATH": "apps/backend/src"
+      }
     }
   }
 }

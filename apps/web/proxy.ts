@@ -10,6 +10,10 @@ export default auth((request) => {
   const signedIn = !!request.auth;
   const { pathname } = request.nextUrl;
 
+  // Standalone Next is quiet in production (startup banner only). Log matched
+  // routes so `docker logs cbc-final-web` shows traffic the same way platform does.
+  console.log(`${request.method} ${pathname}`);
+
   if (!signedIn && pathname !== "/signin") {
     return Response.redirect(new URL("/signin", request.nextUrl));
   }

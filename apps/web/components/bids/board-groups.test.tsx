@@ -1,8 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 
 import { BoardGroups } from "@/components/bids/board-groups";
 import type { Project } from "@/lib/types";
+
+afterEach(cleanup);
 
 vi.mock("next/link", () => ({
   default: ({
@@ -52,5 +54,25 @@ describe("BoardGroups", () => {
     expect(screen.getByText("bid_01")).toBeInTheDocument();
     expect(screen.getByText("bid_02")).toBeInTheDocument();
     expect(screen.getByText("bid_03")).toBeInTheDocument();
+  });
+
+  it.each([null, undefined, "", "   "])("renders brand %s as Unbranded without crashing", (brand) => {
+    render(
+      <BoardGroups
+        projects={[
+          sampleProject({
+            id: "1",
+            brand,
+            code: "CBC-260006",
+            name: "Test Bid",
+            counts: undefined as unknown as Project["counts"],
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Unbranded")).toBeInTheDocument();
+    expect(screen.getByText("CBC-260006")).toBeInTheDocument();
+    expect(screen.getAllByText("No lines yet").length).toBeGreaterThan(0);
   });
 });

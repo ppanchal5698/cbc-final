@@ -36,6 +36,23 @@ def _load(path: Path) -> dict[str, Any] | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _priced_lines(priced: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = priced.get("lines")
+    if isinstance(rows, list) and rows:
+        return rows
+    alt = priced.get("line_items")
+    return alt if isinstance(alt, list) else (rows if isinstance(rows, list) else [])
+
+
+def _project_block(priced: dict[str, Any], fallback_name: str) -> dict[str, Any]:
+    raw = priced.get("project")
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw.strip():
+        return {"name": raw, "state": priced.get("state") or priced.get("project_state")}
+    return {"name": fallback_name}
+
+
 def _confidence_level(confidence: float | None, flags: list[str]) -> str:
     if flags and any("manual" in f.lower() or "missing" in f.lower() for f in flags):
         return "yellow"
@@ -50,7 +67,7 @@ def _confidence_level(confidence: float | None, flags: list[str]) -> str:
 
 def _build_lines(priced: dict[str, Any]) -> list[dict[str, Any]]:
     lines = []
-    for line in priced.get("lines", []):
+    for line in _priced_lines(priced):
         confidence = line.get("confidence")
         flags = list(line.get("flags") or [])
         cost = line.get("cost")
@@ -117,6 +134,7 @@ def render(project: str) -> Path:
         normalized_flags.append({**flag, "level": level})
 
     lines = _build_lines(priced)
+    project_meta = _project_block(priced, project)
     totals = calc.compute_totals(
         [
             {
@@ -125,9 +143,9 @@ def render(project: str) -> Path:
                 "sale_ea": line.get("sale_ea"),
                 "quantity": line.get("quantity", 1),
             }
-            for line in priced.get("lines", [])
+            for line in _priced_lines(priced)
         ],
-        project_state=(priced.get("project") or {}).get("state"),
+        project_state=project_meta.get("state"),
     )
 
     env = Environment(
@@ -137,7 +155,7 @@ def render(project: str) -> Path:
         lstrip_blocks=True,
     )
     html = env.get_template("review_summary.html").render(
-        project=priced.get("project", {"name": project}),
+        project=project_meta,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         summary=_summary(lines, totals.get("grand_total", 0.0)),
         lines=lines,

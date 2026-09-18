@@ -132,3 +132,17 @@ def test_ci_asserts_every_service_stayed_up() -> None:
     block = ci.split("Every service is still running")[1][:600]
     assert "platform" in block
     assert "worker" in block
+
+
+def test_mongo_keyfile_entrypoint_handles_a_missing_bind_mount() -> None:
+    """A fresh clone lacks infra/docker/mongo-keyfile because it is gitignored.
+
+    Docker bind-mounts that missing host path as a directory, so `cp /mongo-keyfile`
+    fails with "omitting directory" on Linux CI unless the entrypoint falls back to
+    a generated keyfile.
+    """
+    entrypoint = (ROOT / "infra" / "docker" / "mongo-keyfile-entrypoint.sh").read_text(
+        encoding="utf-8"
+    )
+    assert '[ -f "$KEY_SRC" ]' in entrypoint
+    assert 'head -c 756 /dev/urandom | base64 > "$KEY_DST"' in entrypoint

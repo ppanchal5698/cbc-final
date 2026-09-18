@@ -25,6 +25,19 @@ def price_books():
     return database()[names.PRICE_BOOKS]
 
 
+def catalog_pages():
+    return database()[names.CATALOG_PAGES]
+
+
+def multiplier_pages():
+    return database()[names.MULTIPLIER_PAGES]
+
+
+def match_learning():
+    """What an estimator confirmed a specification means (FR-13)."""
+    return database()[names.MATCH_LEARNING]
+
+
 async def _ensure_part_lookup_index() -> None:
     """Ensure non-unique `part_lookup`; migrate away from auto-named `part_1`.
 
@@ -85,3 +98,42 @@ async def ensure_indexes() -> None:
         name="product_search",
     )
     await price_books().create_index([("vendor", ASCENDING), ("program", ASCENDING)])
+    await replace_index(
+        catalog_pages(),
+        "pricebook_page",
+        [("priceBookId", ASCENDING), ("page", ASCENDING)],
+        unique=True,
+    )
+    await catalog_pages().create_index([("catalogId", ASCENDING), ("page", ASCENDING)])
+    await catalog_pages().create_index([("vendor", ASCENDING), ("page", ASCENDING)])
+    await replace_index(
+        catalog_pages(),
+        "blocks_text",
+        [("blocks.text", TEXT)],
+    )
+    await replace_index(
+        multiplier_pages(),
+        "sheet_page",
+        [("sheetId", ASCENDING), ("page", ASCENDING)],
+        unique=True,
+    )
+    await multiplier_pages().create_index([("family", ASCENDING), ("page", ASCENDING)])
+    await replace_index(
+        multiplier_pages(),
+        "blocks_text",
+        [("blocks.text", TEXT)],
+    )
+    # One learned answer per specification, so draining the same feedback event
+    # twice cannot count it twice.
+    await replace_index(
+        match_learning(),
+        "learned_spec",
+        [("orgId", ASCENDING), ("specKey", ASCENDING)],
+        unique=True,
+    )
+    # "Which library items get rejected most" - the curation question §3.31 asks
+    # and nothing could answer.
+    await create_index_resilient(
+        match_learning(),
+        [("orgId", ASCENDING), ("catalogItemId", ASCENDING), ("rejectCount", ASCENDING)],
+    )

@@ -12,6 +12,20 @@ Stage = Literal["intake", "extraction", "quote", "proposal"]
 
 EstimateMode = Literal["one_off", "templated"]
 
+# Whether CBC is quoting this job at all. `not_bid` is the spec's `noBid`
+# status (collections.mongodb.md 3.21): a job that went unworked, held apart
+# from Won and Lost so it is never counted as a loss.
+BidStatus = Literal["bid", "not_bid"]
+
+# How a bid ended. Entered by hand by the estimator - nothing derives it from
+# P21, from the proposal, or from anything else. "" means still open, and is
+# how a caller clears an outcome (`exclude_none` cannot carry a null).
+Outcome = Literal["won", "lost", ""]
+
+# The team the person who entered the bid sits on. A per-bid label, not an auth
+# role - `users.role` stays `admin | estimator`.
+EnteredByRole = Literal["Sales", "Estimating", "Purchasing", "Operations"]
+
 
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
@@ -36,6 +50,11 @@ class ProjectCreate(BaseModel):
     intakeChannel: Literal["email", "phone", "manual"] | None = None
     rfpText: str | None = None
     sourceEmailMessageId: str | None = None
+    # The team `initiator` sits on.
+    enteredByRole: EnteredByRole | None = None
+    # A user's email, or "" for unassigned. Email is the key because it is
+    # already the auth identity and `users.email` is unique.
+    assignedEstimator: str | None = None
 
 
 class ProjectUpdate(BaseModel):
@@ -53,3 +72,12 @@ class ProjectUpdate(BaseModel):
     projectNumber: str | None = None
     bidAlternates: list[str] | None = None
     stage: Stage | None = None
+    enteredByRole: EnteredByRole | None = None
+    assignedEstimator: str | None = None
+    # Setting `not_bid` clears the outcome; setting an outcome forces `bid`.
+    # Both transitions are recorded on `statusHistory` - see UpdateProject.
+    bidStatus: BidStatus | None = None
+    outcome: Outcome | None = None
+    # The P21 order raised against a won bid. Closes the bid-to-order loop the
+    # dashboard reports on.
+    p21OrderNo: str | None = None

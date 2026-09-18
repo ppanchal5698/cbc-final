@@ -32,6 +32,11 @@ interface UiState {
   terminalOpen: boolean;
   setTerminalOpen: (open: boolean) => void;
 
+  /** Collapsible main navigation sidebar rail. */
+  sidebarCollapsed: boolean;
+  toggleSidebar: () => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+
   focusMode: boolean;
   toggleFocus: () => void;
 
@@ -93,6 +98,10 @@ function getFocusSnapshot(): boolean {
   return stored("opshub-focus") === "1";
 }
 
+function getSidebarCollapsedSnapshot(): boolean {
+  return stored("opshub-sidebar-collapsed") === "1";
+}
+
 function getThemeSnapshot(): Theme {
   return stored("opshub-theme") === "light" ? "light" : "dark";
 }
@@ -115,6 +124,11 @@ export function UiStateProvider({
     getFocusSnapshot,
     () => false,
   );
+  const sidebarCollapsed = useSyncExternalStore(
+    subscribePreferences,
+    getSidebarCollapsedSnapshot,
+    () => false,
+  );
   const theme = useSyncExternalStore(
     subscribePreferences,
     getThemeSnapshot,
@@ -125,6 +139,17 @@ export function UiStateProvider({
     const next: Theme = getThemeSnapshot() === "dark" ? "light" : "dark";
     document.documentElement.dataset.theme = next;
     remember("opshub-theme", next);
+    notifyPreferenceChange();
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    const next = !getSidebarCollapsedSnapshot();
+    remember("opshub-sidebar-collapsed", next ? "1" : "0");
+    notifyPreferenceChange();
+  }, []);
+
+  const setSidebarCollapsed = useCallback((collapsed: boolean) => {
+    remember("opshub-sidebar-collapsed", collapsed ? "1" : "0");
     notifyPreferenceChange();
   }, []);
 
@@ -139,7 +164,7 @@ export function UiStateProvider({
     notifyPreferenceChange();
   }, []);
 
-  // Ctrl/Cmd+K anywhere; C opens the call drawer unless you are typing.
+  // Ctrl/Cmd+K anywhere; Ctrl/Cmd+B toggles sidebar; C opens the call drawer unless you are typing.
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
@@ -155,6 +180,12 @@ export function UiStateProvider({
           target.tagName === "TEXTAREA" ||
           target.isContentEditable);
 
+      if (!typing && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        toggleSidebar();
+        return;
+      }
+
       if (!typing && event.key.toLowerCase() === "c" && !event.ctrlKey && !event.metaKey) {
         event.preventDefault();
         setNotesOpen(true);
@@ -163,7 +194,7 @@ export function UiStateProvider({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [toggleSidebar]);
 
   const value = useMemo<UiState>(
     () => ({
@@ -175,6 +206,9 @@ export function UiStateProvider({
       setPaletteOpen,
       terminalOpen,
       setTerminalOpen,
+      sidebarCollapsed,
+      toggleSidebar,
+      setSidebarCollapsed,
       focusMode,
       toggleFocus,
       theme,
@@ -189,6 +223,9 @@ export function UiStateProvider({
       openNotes,
       paletteOpen,
       terminalOpen,
+      sidebarCollapsed,
+      toggleSidebar,
+      setSidebarCollapsed,
       focusMode,
       toggleFocus,
       theme,

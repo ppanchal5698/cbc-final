@@ -35,13 +35,20 @@ def test_list_documents_on_an_empty_bid(client, bid, snapshots) -> None:
 def test_upload_a_bid_set(client, bid, snapshots) -> None:
     op = "POST /api/projects/{code}/documents"
     data = pdf_bytes(pages=2)
-    response = snapshots.pin(op, client.post(_url(DOCS, bid), files={"file": ("plans.pdf", data, "application/pdf")}))
+    response = snapshots.pin(
+        op,
+        client.post(_url(DOCS, bid), files={"file": ("plans.pdf", data, "application/pdf")}),
+        # Present only when MinerU is reachable to parse the upload.
+        drop=("body.document.parse",),
+    )
     assert response.json()["document"]["pages"] == 2
     bid["document"] = response.json()["document"]["id"]
     snapshots.pin(
         op,
         client.post(_url(DOCS, bid), files={"file": ("again.pdf", data, "application/pdf")}),
         variant="identical bytes",
+        # The de-dup response echoes the stored document, parse state and all.
+        drop=("body.document.parse",),
     )
     snapshots.pin(
         op,
@@ -65,6 +72,20 @@ def test_render_a_page(client, bid, snapshots) -> None:
 def test_page_size(client, bid, snapshots) -> None:
     url = _url(DOCS + "/{document_id}/page/1/size", bid, document_id=bid["document"])
     snapshots.pin("GET /api/projects/{code}/documents/{document_id}/page/{page_number}/size", client.get(url))
+
+
+def test_page_blocks(client, bid, snapshots) -> None:
+    """MinerU blocks for one page. Empty until a parse has run, which is the
+    normal state on a freshly uploaded bid - and the answer must still be a
+    shaped 200, because extraction falls back to pdf-tools on an empty read."""
+    op = "GET /api/projects/{code}/documents/{document_id}/pages/{page_number}/blocks"
+    url = _url(DOCS + "/{document_id}/pages/1/blocks", bid, document_id=bid["document"])
+    snapshots.pin(op, client.get(url))
+    snapshots.pin(
+        op,
+        client.get(_url(DOCS + "/{document_id}/pages/99/blocks", bid, document_id=bid["document"])),
+        variant="no such page",
+    )
 
 
 def test_list_versions_before_any_snapshot(client, bid, snapshots) -> None:

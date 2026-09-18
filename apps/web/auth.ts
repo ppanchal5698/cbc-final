@@ -57,7 +57,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user) {
         session.user.id = token.sub ?? "";
         session.user.initials =
-          typeof token.initials === "string" ? token.initials : "";
+          typeof token.initials === "string" && token.initials.trim()
+            ? token.initials.trim()
+            : "";
         session.user.role = typeof token.role === "string" ? token.role : "estimator";
       }
       return session;

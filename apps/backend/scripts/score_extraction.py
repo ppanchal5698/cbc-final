@@ -36,7 +36,15 @@ GOLDEN_DIR = ROOT / "tests" / "fixtures" / "golden"
 def _load_parse_schedule():
     import importlib.util
 
-    path = ROOT / ".claude" / "skills" / "extract-door-schedule" / "scripts" / "parse_schedule.py"
+    # `.claude` sits at the repository root, not under apps/backend. Resolving it
+    # against ROOT meant `--generate` raised FileNotFoundError from any working
+    # directory, so the one command that drafts a golden could not be run.
+    from cbc.shared.paths import repo_root
+
+    path = (
+        repo_root() / ".claude" / "skills" / "extract-door-schedule" / "scripts"
+        / "parse_schedule.py"
+    )
     spec = importlib.util.spec_from_file_location("parse_schedule", path)
     if spec is None or spec.loader is None:  # pragma: no cover
         raise ImportError(f"cannot load {path}")
@@ -46,9 +54,15 @@ def _load_parse_schedule():
 
 # The fields a golden file pins. `door_number` and `source_page` are the identity
 # and the provenance; the rest are what an estimator reads off the schedule.
+# What the gate actually checks. `width`, `height`, `room_name` and the two
+# material columns were missing from this tuple, which is why the harness stayed
+# green for so long while the parser read every one of them from the wrong
+# column: `width` came back "VESTIBULE", `height` came back "HM". A field the
+# gate does not score is a field nothing is defending.
 SCORED_FIELDS = (
-    "door_number", "size", "handing", "finish", "fire_rating",
-    "hardware_set", "door_type", "frame_type", "wall_type", "source_page",
+    "door_number", "size", "width", "height", "room_name",
+    "handing", "finish", "fire_rating", "hardware_set", "door_type",
+    "frame_type", "door_material", "frame_material", "wall_type", "source_page",
 )
 
 

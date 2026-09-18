@@ -22,6 +22,8 @@ import { AlternateBar } from "@/components/bids/alternate-bar";
 import { BulkBar } from "@/components/extraction/bulk-bar";
 import { LineItemRow, ROW_COLUMNS } from "@/components/extraction/line-item-row";
 import { PartComposer } from "@/components/extraction/part-composer";
+import { SpecialtiesTakeoffPanel } from "@/components/extraction/specialties-takeoff-panel";
+import { UnreadPanel } from "@/components/extraction/unread-panel";
 import { JobFailedBanner } from "@/components/jobs/job-failed-banner";
 import { useRowKeys } from "@/hooks/use-row-keys";
 import { useUiState } from "@/components/shell/ui-state";
@@ -35,10 +37,38 @@ import type {
   Job,
   LineItem,
   LineItemsResponse,
+  ReviewFlag,
 } from "@/lib/types";
 
 // pdf.js touches DOMMatrix at module scope, so the viewer cannot be evaluated
 // during server rendering.
+/** The other reading of a duplicate, whichever side of the pair this row is. */
+function twinOf(item: LineItem, items: LineItem[]): LineItem | null {
+  if (item.status !== "duplicate") return null;
+  return (
+    items.find(
+      (other) =>
+        other.id !== item.id &&
+        (other.id === item.duplicateOf || other.duplicateOf === item.id),
+    ) ?? null
+  );
+}
+
+/**
+ * The review flags that belong to this opening.
+ *
+ * The API labels a flag with the door it came from ("Door 101"), so match on
+ * the mark appearing in that label rather than on an id it does not carry.
+ */
+function flagsFor(item: LineItem, flags: ReviewFlag[] | undefined): ReviewFlag[] {
+  const mark = (item.mark ?? "").trim();
+  if (!mark || !flags) return [];
+  return flags.filter((flag) => {
+    const opening = String(flag.opening ?? flag.opening_id ?? "").trim();
+    return opening === mark || opening.toLowerCase() === `door ${mark}`.toLowerCase();
+  });
+}
+
 const SheetViewer = dynamic(
   () => import("@/components/extraction/sheet-viewer").then((m) => m.SheetViewer),
   {
@@ -81,6 +111,8 @@ export function ExtractionClient({
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [alternate, setAlternate] = useState<string | null | undefined>(undefined);
   const [runDismissed, setRunDismissed] = useState<string | null>(null);
+  // A sheet page asked for by a review flag rather than by a line item.
+  const [sheetFocus, setSheetFocus] = useState<{ page: number; token: string } | null>(null);
   // Selection is scoped to the active filter/alternate; reset when the scope changes.
   const pickScope = `${filter}:${alternate === undefined ? "" : (alternate ?? "")}`;
   const [pickScopeKey, setPickScopeKey] = useState(pickScope);
@@ -98,6 +130,13 @@ export function ExtractionClient({
     `/api/proxy/projects/${code}/line-items?filter=${filter}${alternateQuery}`,
     proxyFetcher,
     { refreshInterval: running ? 4000 : 0 },
+  );
+
+  // Read once for the whole list: the unread panel needs the same flags, and a
+  // request per row would be one per opening.
+  const { data: flagData } = useSWR<{ flags: ReviewFlag[] }>(
+    `/api/proxy/projects/${code}/review-flags`,
+    proxyFetcher,
   );
 
   const { data: alternateData, mutate: mutateAlternates } = useSWR<AlternatesResponse>(
@@ -286,6 +325,19 @@ export function ExtractionClient({
 
           <AlternateBar code={code} active={alternate} onChange={setAlternate} />
 
+          <SpecialtiesTakeoffPanel code={code} />
+
+          <UnreadPanel
+            code={code}
+            onShowSheet={(page) => {
+              setShowSheet(true);
+              setSheetFocus({ page, token: `${page}:${Date.now()}` });
+            }}
+            onAddByHand={() =>
+              document.getElementById("add-by-hand")?.scrollIntoView({ block: "center" })
+            }
+          />
+
           {running && (
             <div className="anim-fadein relative overflow-hidden rounded-xl px-5 py-4 text-[13px] font-medium bg-status-warning-soft border border-status-warning/30 text-status-warning shadow-sm">
               <span className="anim-sweep opacity-50" />
@@ -393,6 +445,8 @@ export function ExtractionClient({
                   selected={selected?.id === item.id}
                   focused={cursorId === item.id}
                   picked={picked.has(item.id)}
+                  twin={twinOf(item, items)}
+                  reviewFlags={flagsFor(item, flagData?.flags)}
                   onPick={() => togglePick(item)}
                   onSelect={(next) => {
                     setSelected(next);
@@ -426,6 +480,7 @@ export function ExtractionClient({
             code={code}
             documents={documents}
             selected={selected}
+            focus={sheetFocus}
             onClose={() => setShowSheet(false)}
           />
         )}

@@ -53,6 +53,17 @@ export interface IntakeFieldSource {
   excerpt?: string | null;
 }
 
+export type BidStatus = "bid" | "not_bid";
+/** "" means open - the board cycles open -> won -> lost -> open. */
+export type Outcome = "" | "won" | "lost";
+export type EnteredByRole = "Sales" | "Estimating" | "Purchasing" | "Operations";
+
+export interface Person {
+  email: string;
+  name: string;
+  initials: string;
+}
+
 export interface Project {
   id: string;
   code: string;
@@ -88,6 +99,21 @@ export interface Project {
   autopilot?: boolean;
   version?: number;
   handedOffTo?: string | null;
+  /** The team `initiator` sits on - a per-bid label, not an auth role. */
+  enteredByRole?: EnteredByRole | null;
+  /** The assigned estimator's email, "" when unassigned. */
+  assignedEstimator?: string;
+  /** Resolved from `users` by the API; null when the address is unknown. */
+  estimator?: Person | null;
+  /** Whether CBC is quoting this job at all. Defaults to "bid". */
+  bidStatus?: BidStatus;
+  /**
+   * How the bid ended, entered by hand. "" is still open. Held apart from
+   * `not_bid` so an unworked job is never counted as a loss.
+   */
+  outcome?: Outcome;
+  /** The P21 order raised against a won bid. */
+  p21OrderNo?: string | null;
   counts: Counts;
   documentCount: number;
   quoteTotal?: number | null;
@@ -106,6 +132,14 @@ export interface BidDocument {
   contentSha?: string | null;
   state: string;
   uploadedAt: string;
+  /** MinerU parse progress when PARSER_URL is set; absent means read via pdf-tools. */
+  parse?: {
+    state?: string;
+    pages?: number;
+    pagesDone?: number;
+    settings?: Record<string, unknown>;
+    error?: string | null;
+  };
 }
 
 export interface Evidence {
@@ -118,6 +152,13 @@ export interface Evidence {
   /** [x0, y0, x1, y1] in PDF points, measured against pageSize. */
   bbox?: number[] | null;
   pageSize?: { width: number; height: number } | null;
+}
+
+export interface OpeningKeying {
+  coreType?: string | null;
+  keyway?: string | null;
+  lockFunction?: string | null;
+  notes?: string | null;
 }
 
 export interface LineItem {
@@ -137,17 +178,64 @@ export interface LineItem {
   /** Derived from wall type against the five standard throats (Matrix 7.0). */
   frameDepth?: string | null;
   notes?: string | null;
+  doorType?: string | null;
+  doorMaterial?: string | null;
+  frameMaterial?: string | null;
+  glass?: string | null;
+  manufacturer?: string | null;
+  series?: string | null;
+  hardware?: string | null;
+  location?: string | null;
+  keying?: OpeningKeying | null;
   /** null = base bid; named group = bid alternate (Matrix 4.1 interim). */
   alternateGroup?: string | null;
   status: LineStatus;
   confidence?: number | null;
   flags: string[];
+  /** The schedule row exactly as it was printed, before any interpretation. */
+  rawRow?: string | null;
+  width?: string | null;
+  height?: string | null;
+  sizeNotation?: string | null;
+  /** Decided by `domain.scope_rules`; null means the rules do not cover this row. */
+  inScope?: boolean | null;
+  scopeRule?: string | null;
+  scopeReason?: string | null;
   evidence?: Evidence | null;
   duplicateOf?: string | null;
   duplicateReason?: string | null;
   addedByHand: boolean;
   confirmedBy?: string | null;
   confirmedAt?: string | null;
+}
+
+export interface SpecialtyTakeoff {
+  id: string;
+  takeoffType?: string | null;
+  productType?: string | null;
+  manufacturer?: string | null;
+  location?: string | null;
+  drawingRef?: string | null;
+  qty?: number | null;
+  unit?: string | null;
+  specifiedModel?: string | null;
+  finish?: string | null;
+  perimeterLf?: number | null;
+  insideCorners?: number | null;
+  outsideCorners?: number | null;
+  wallHeightFt?: number | null;
+  drawingScale?: string | null;
+  status?: string | null;
+  notes?: string | null;
+  flags?: string[];
+  sourceRef?: { sourcePage?: number | null; sourceFile?: string | null } | null;
+}
+
+export interface TakeoffsResponse {
+  takeoffs: SpecialtyTakeoff[];
+  /** From extracted/scope_summary.json — drives empty-state visibility. */
+  frpInScope?: boolean;
+  div10InScope?: boolean;
 }
 
 export interface LineItemsResponse {
@@ -222,7 +310,12 @@ export interface QuoteTotals {
 
 export interface QuoteResponse {
   quote: Record<string, unknown> | null;
-  groups: { division: string; lines: QuoteLine[]; subtotal: number }[];
+  /**
+   * One entry per opening (the hardware group the pass assigned), with the
+   * division carried alongside and used as the key for a line that has no
+   * opening.
+   */
+  groups: { group: string; division: string; lines: QuoteLine[]; subtotal: number }[];
   totals: QuoteTotals;
   lineCount: number;
   edited?: { count: number; firstId: string | null };
@@ -304,6 +397,7 @@ export interface ProductSearchResponse {
   products: Product[];
   /** Pages of the vendor price books. Read-only, and not priced lines. */
   pages?: CatalogPage[];
+  /** Full filtered match count (not the current page length). */
   total: number;
   counts?: { manual: number; pages: number };
   divisions: { division: string; count: number }[];
@@ -311,6 +405,18 @@ export interface ProductSearchResponse {
   indexAvailable?: boolean;
   note?: string | null;
   pagesNote?: string | null;
+}
+
+/** MinerU parse progress on a price book (mirrors BidDocument.parse). */
+export interface PriceBookParse {
+  state?: string;
+  pages?: number;
+  pagesDone?: number;
+  error?: string | null;
+  sheetId?: string | null;
+  catalogId?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
 }
 
 export interface PriceBook {
@@ -326,12 +432,51 @@ export interface PriceBook {
   steward?: string | null;
   account?: string | null;
   note?: string | null;
+  /** `price_book` (default) or `multiplier_sheet`. */
   kind?: string | null;
   filename?: string | null;
+  path?: string | null;
+  bytes?: number | null;
+  uploadedAt?: string | null;
+  catalogId?: string | null;
+  /** Page-index status after `index_catalog` (e.g. ready / removed). */
+  indexStatus?: string | null;
+  parse?: PriceBookParse | null;
   partCount: number;
   ageDays: number | null;
   stale: boolean;
   undated: boolean;
+  /** Sheets this book has carried before, newest supersession last. */
+  sheetHistory?: {
+    filename?: string | null;
+    path?: string | null;
+    bytes?: number | null;
+    effective?: string | null;
+    uploadedAt?: string | null;
+    supersededAt?: string | null;
+    supersededBy?: string | null;
+  }[];
+  /** Local dev: staleness follows lastReviewed when set. */
+  devFreshnessControls?: boolean;
+  staleReferenceField?: "effective" | "lastReviewed";
+  staleReferenceDate?: string | null;
+}
+
+/** `POST /api/price-books/{id}/file` — sheet attached and jobs queued. */
+export interface PriceBookUploadResponse {
+  priceBook: PriceBook;
+  job: Job;
+  parseJob?: Job | null;
+}
+
+/**
+ * `GET /api/catalog/products/{id}`.
+ * `marginBand` is the division band key from the API (e.g. "commodity").
+ */
+export interface ProductDetailResponse {
+  product: Product;
+  priceBook: PriceBook | null;
+  marginBand: string | null;
 }
 
 export interface ProposalSection {
@@ -368,6 +513,11 @@ export interface ProposalResponse {
   readiness: {
     flaggedLineItems: number;
     unpricedQuoteLines: number;
+    /** Lines priced off a sheet past its review window. */
+    lapsedLines: number;
+    /** Who took responsibility for those lines, if anyone has. */
+    lapsedAcknowledgedBy?: string | null;
+    /** True only for lapsed lines: the one gate that stops a hand-off. */
     blocking: boolean;
     note: string;
   };
@@ -392,6 +542,73 @@ export interface ClaudeSettings {
   updatedBy?: string | null;
   localDev: boolean;
   cliAvailable: boolean;
+}
+
+/** One runtime PARSER_* field from GET /api/settings/parsing. */
+export interface ParsingField {
+  value: string | number | boolean | null;
+  source: string;
+  /** Process env owns this field — the settings screen cannot change it. */
+  locked: boolean;
+}
+
+export interface ParsingPreset {
+  backend: string;
+  effort: string | null;
+  method: string;
+  lang: string;
+  tables: boolean;
+  formulas: boolean;
+  imageAnalysis: boolean;
+  windowPages: number;
+  windowTimeoutSeconds: number;
+  waitMaxSeconds: number;
+  hardware: string;
+}
+
+export interface ParsingSettings {
+  enabled: boolean;
+  fields: Record<string, ParsingField>;
+  presets: Record<string, ParsingPreset>;
+  backends: string[];
+  efforts: string[];
+  methods: string[];
+  profiles: string[];
+  /** MinerU GET /health body, or `{ error }` when unreachable / parsing off. */
+  mineru?: Record<string, unknown> & { error?: string };
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export interface ParsingTestResult {
+  ok: boolean;
+  seconds: number | null;
+  blocks: number | null;
+  version: string | null;
+  backend?: string;
+  error: string | null;
+}
+
+/** `GET /api/projects/{code}/documents/{id}/pages/{n}/blocks`. */
+export interface PageBlock {
+  n?: number;
+  type?: string;
+  text?: string;
+  bbox?: number[] | null;
+  html?: string;
+  lines?: { bbox?: number[] | null; text?: string }[];
+}
+
+export interface PageBlocksResponse {
+  documentId: string;
+  page: number;
+  pageSize?: { width: number; height: number } | null;
+  verified: number | null;
+  parser?: Record<string, unknown> | null;
+  blocks: PageBlock[];
+  start: number;
+  next: number | null;
+  total: number;
 }
 
 export interface ProviderTest {
@@ -534,6 +751,7 @@ export interface PriceBooksResponse {
   priceBooks: PriceBook[];
   counts: { total: number; stale: number; undated: number };
   stewardship: { owner: string | null; cadence: string | null; note: string };
+  devFreshnessControls?: boolean;
 }
 
 export interface PriceBookDetail {
@@ -800,11 +1018,15 @@ export interface SpendSummary {
 
 /** `GET /api/projects/{code}/review-flags` - NFR-2, derived on every read. */
 export interface ReviewFlag {
-  opening: string;
-  field: string;
+  opening?: string | null;
+  opening_id?: string | null;
+  field?: string | null;
+  category?: string | null;
   severity: string;
   source_page?: number | null;
-  note: string;
+  note?: string | null;
+  issue?: string | null;
+  action_required?: string | null;
   derived?: boolean;
 }
 

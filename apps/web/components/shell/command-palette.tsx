@@ -39,7 +39,7 @@ const RUNS = [
 /** Ctrl+K. Real actions, not decoration. */
 export function CommandPalette({ code }: { code: string | null }) {
   const router = useRouter();
-  const { paletteOpen, setPaletteOpen, openNotes, toggleFocus, toggleTheme } = useUiState();
+  const { paletteOpen, setPaletteOpen, openNotes, toggleFocus, toggleTheme, toggleSidebar } = useUiState();
   const [query, setQuery] = useState("");
   const [parts, setParts] = useState<Product[]>([]);
 
@@ -228,6 +228,9 @@ export function CommandPalette({ code }: { code: string | null }) {
         )}
 
         <CommandGroup heading="Actions">
+          <CommandItem value="toggle sidebar collapse expand" onSelect={() => run(toggleSidebar)}>
+            Toggle sidebar (Ctrl+B)
+          </CommandItem>
           <CommandItem value="log a call note rfi" onSelect={() => run(() => openNotes())}>
             Log a call or note
           </CommandItem>

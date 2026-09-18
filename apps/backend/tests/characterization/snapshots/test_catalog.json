@@ -92,9 +92,11 @@
     "total": "number",
     "undated": "number"
    },
+   "devFreshnessControls": "bool",
    "priceBooks": [
     {
      "ageDays": "number",
+     "devFreshnessControls": "bool",
      "effective": "str",
      "id": "id",
      "kind": "str",
@@ -102,6 +104,8 @@
      "partCount": "number",
      "program": "str",
      "stale": "bool",
+     "staleReferenceDate": "str",
+     "staleReferenceField": "str",
      "undated": "bool",
      "updatedAt": "datetime",
      "vendor": "str"
@@ -121,6 +125,7 @@
    "parts": [],
    "priceBook": {
     "ageDays": "number",
+    "devFreshnessControls": "bool",
     "effective": "str",
     "id": "id",
     "kind": "str",
@@ -128,6 +133,8 @@
     "partCount": "number",
     "program": "str",
     "stale": "bool",
+    "staleReferenceDate": "str",
+    "staleReferenceField": "str",
     "undated": "bool",
     "updatedAt": "datetime",
     "vendor": "str"
@@ -172,6 +179,7 @@
  "PATCH /api/price-books/{book_id}": {
   "body": {
    "ageDays": "number",
+   "devFreshnessControls": "bool",
    "effective": "str",
    "id": "id",
    "kind": "str",
@@ -180,6 +188,8 @@
    "partCount": "number",
    "program": "str",
    "stale": "bool",
+   "staleReferenceDate": "str",
+   "staleReferenceField": "str",
    "undated": "bool",
    "updatedAt": "datetime",
    "vendor": "str"
@@ -211,6 +221,7 @@
  "POST /api/price-books": {
   "body": {
    "ageDays": "number",
+   "devFreshnessControls": "bool",
    "effective": "str",
    "id": "id",
    "kind": "str",
@@ -218,6 +229,8 @@
    "partCount": "number",
    "program": "str",
    "stale": "bool",
+   "staleReferenceDate": "str",
+   "staleReferenceField": "str",
    "undated": "bool",
    "updatedAt": "datetime",
    "vendor": "str"
@@ -250,6 +263,7 @@
    "priceBook": {
     "ageDays": "number",
     "bytes": "number",
+    "devFreshnessControls": "bool",
     "effective": "str",
     "filename": "str",
     "id": "id",
@@ -261,6 +275,8 @@
     "path": "str",
     "program": "str",
     "stale": "bool",
+    "staleReferenceDate": "str",
+    "staleReferenceField": "str",
     "undated": "bool",
     "updatedAt": "datetime",
     "uploadedAt": "datetime",
@@ -272,6 +288,7 @@
  "POST /api/price-books/{book_id}/mark-reviewed": {
   "body": {
    "ageDays": "number",
+   "devFreshnessControls": "bool",
    "effective": "str",
    "id": "id",
    "kind": "str",
@@ -281,6 +298,8 @@
    "partCount": "number",
    "program": "str",
    "stale": "bool",
+   "staleReferenceDate": "str",
+   "staleReferenceField": "str",
    "undated": "bool",
    "updatedAt": "datetime",
    "vendor": "str"

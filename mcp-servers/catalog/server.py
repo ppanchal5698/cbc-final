@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""catalog MCP server - navigate the vendor price books, do not pre-digest them.
+"""catalog MCP server - navigate the vendor price books, plus markdown baseline.
 
 This used to serve product rows out of a SQLite FTS index built by extracting
 every line of every catalog. Vendor catalogs are too irregular for that: 37.8% of
@@ -13,7 +13,18 @@ in MongoDB, with the part families on it and whether it carries prices. The tool
 answer "which page" - and the price comes off that page, read with pdf-tools
 during the run that quotes it.
 
-Nothing here returns a price. That is the design, not an omission.
+Path 2b is the intentional product-catalog path: `lookup_catalog_item` /
+`search_catalog_items` return costs and candidates from curated catalogItems
+(seedSource cites catalog.md, or hand-added rows). Both normalise the part string
+first - a schedule writes `PEMKO-275A-42` where the catalog holds `275A`, and
+matching only the raw string sent every composite part number to a PDF. Ingest
+extracts are returned by search marked `trusted: false`; pricing must re-read the
+page via find_pages before quoting one.
+
+`recall_match` is Tier 0: what an estimator already confirmed this specification
+means (FR-13). It reads `matchLearning`, which the drain fills from the
+corrections the Ops-Hub records - so the second bid knows what the first one was
+taught.
 
 READ-ONLY, and enforced rather than promised: the connection uses
 MONGODB_READONLY_URI and refuses to fall back to the writable string.
@@ -225,6 +236,108 @@ def get_special_net(vendor: str, part_number: str) -> dict[str, Any] | None:
     return reflib.get_special_net(vendor, part_number)
 
 
+def lookup_catalog_item(part: str, vendor: str | None = None) -> dict[str, Any]:
+    """Product catalog first (Path 2b): cost from catalogItems before PDF search."""
+    try:
+        row = reader.lookup_catalog_item(part, vendor)
+    except Exception as exc:
+        return _unavailable(exc)
+    if row is None:
+        return {
+            "found": False,
+            "part": part,
+            "vendor": vendor,
+            "note": (
+                "No product-catalog row for this part. Try get_special_net, "
+                "then search_blocks / find_pages on the PDF, or leave MANUAL."
+            ),
+        }
+    cost = row.get("cost")
+    list_price = row.get("listPrice")
+    seed = row.get("seedSource")
+    return {
+        "found": True,
+        "part": row.get("part"),
+        # Which of the normalised candidates hit, so a citation can say what was
+        # actually matched rather than what was asked for: a schedule says
+        # `PEMKO-275A-42` and the catalog answered on `275A`.
+        "matched_on": row.get("matchedOn"),
+        "model": row.get("model"),
+        "description": row.get("description"),
+        "vendor": row.get("vendorKey") or row.get("manufacturer"),
+        "manufacturer": row.get("manufacturer"),
+        "cost": cost,
+        "list_price": list_price,
+        "multiplier": row.get("multiplier"),
+        "default_margin": row.get("defaultMargin"),
+        "category": row.get("category"),
+        "price_basis": row.get("priceBasis"),
+        "seed_source": seed,
+        "citation": f"product catalog / {seed or 'baseline'} part {row.get('part')}",
+        "note": (
+            "Product catalog hit — use before opening PDFs. Use cost as Our Cost "
+            "when price_basis is special_net/net (cost_source SPECIAL_NET or "
+            "CATALOG_BASELINE). When list_price and multiplier are present you may "
+            "instead compute LIST_X_MULTIPLIER and cite the product catalog in "
+            "cost_source_detail."
+        ),
+    }
+
+
+def search_catalog_items(
+    query: str,
+    vendor: str | None = None,
+    limit: int = 8,
+) -> dict[str, Any]:
+    """Product-catalog candidates for matching before PDF page search."""
+    try:
+        items = reader.search_catalog_items(query, vendor, limit=_clamp(limit, 8))
+    except Exception as exc:
+        return _unavailable(exc)
+    return {
+        "query": query,
+        "vendor": vendor,
+        "count": len(items),
+        "items": items,
+        "note": (
+            "Prefer these product-catalog hits for matching before search_blocks / "
+            "find_pages. Pricing still owns cost via lookup_catalog_item."
+            if items
+            else "No product-catalog candidates — fall back to search_blocks / find_pages."
+        ),
+    }
+
+
+def recall_match(specified: str, vendor: str | None = None, limit: int = 5) -> dict[str, Any]:
+    """Tier 0: what an estimator already confirmed this specification means."""
+    try:
+        matches = reader.recall_match(specified, vendor, limit=_clamp(limit, 5))
+    except Exception as exc:
+        return _unavailable(exc)
+    if not matches:
+        return {
+            "specified": specified,
+            "count": 0,
+            "matches": [],
+            "note": (
+                "Nothing learned for this specification yet. Match it the usual "
+                "way - lookup_catalog_item, then search_catalog_items - and the "
+                "estimator's correction will teach it for the next bid."
+            ),
+        }
+    return {
+        "specified": specified,
+        "count": len(matches),
+        "matches": matches,
+        "note": (
+            "An estimator chose these before. An exact recall is Tier 0 (0.97) - "
+            "cite who confirmed it and when. Fire rating, handing and finish "
+            "still veto: a learned match on a rated opening that is not rated is "
+            "still wrong, however many times it was confirmed."
+        ),
+    }
+
+
 def is_stock_item(vendor: str, part_number: str) -> dict[str, Any]:
     """NR-6 top-10 stock list lookup."""
     return reflib.is_stock_part(vendor, part_number)
@@ -242,6 +355,9 @@ HANDLERS = {
     "get_page": get_page,
     "get_multiplier": get_multiplier,
     "get_special_net": get_special_net,
+    "lookup_catalog_item": lookup_catalog_item,
+    "search_catalog_items": search_catalog_items,
+    "recall_match": recall_match,
     "is_stock_item": is_stock_item,
 }
 
@@ -276,6 +392,24 @@ def _demo() -> None:
     assert miss["count"] == 0 and "MANUAL cut-off" in miss["note"]
 
     assert get_multiplier("acme")["multiplier"] is None
+
+    # Path 2b: the composite part string a schedule actually writes must resolve
+    # without opening a PDF. This is the $12.41-for-a-$7.16-part regression.
+    pemko = lookup_catalog_item("PEMKO-275A-42")
+    assert pemko["found"] and pemko["cost"], pemko
+    assert pemko["part"] == "275A", pemko
+
+    # A descriptive query has to reach the catalog too - the regex shape it
+    # replaced returned nothing for any phrase like this.
+    dispensers = search_catalog_items("paper towel dispenser", limit=3)
+    assert dispensers["count"] >= 1, dispensers
+
+    # A vendor the catalog does not carry is an answer, not a retry.
+    assert lookup_catalog_item("VON-DUPRIN-99EO-42-626")["found"] is False
+
+    # Tier 0 answers, with or without anything learned yet.
+    recalled = recall_match('IVES 700 83", 630')
+    assert "matches" in recalled and "note" in recalled, recalled
     print(
         f"catalog demo OK - {catalogs['count']} catalogs, {catalogs['pages']} pages, "
         f"{catalogs['stale']} stale"

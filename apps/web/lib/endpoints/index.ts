@@ -10,6 +10,10 @@ export const endpoints = {
   proposalPdf: (code: string) => `/api/proxy/projects/${code}/proposal/pdf`,
   jobTerminal: (jobId: string) => `/api/proxy/jobs/${jobId}/terminal`,
   claudeOauthCode: () => "/api/proxy/settings/claude/oauth/code",
+  parsingSettings: () => "/api/proxy/settings/parsing",
+  parsingSettingsTest: () => "/api/proxy/settings/parsing/test",
+  documentPageBlocks: (code: string, documentId: string, page: number) =>
+    `/api/proxy/projects/${encodeURIComponent(code)}/documents/${documentId}/pages/${page}/blocks`,
   jobMetrics: (hours = 24) => `/api/proxy/jobs/metrics?hours=${hours}`,
   opsSpend: (hours = 24) => `/api/proxy/ops/spend?hours=${hours}`,
 } as const;

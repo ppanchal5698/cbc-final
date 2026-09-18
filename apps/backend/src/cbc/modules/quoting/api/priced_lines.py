@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from pymongo import InsertOne, UpdateOne
+from pymongo import DeleteOne, InsertOne, UpdateOne
 
 from cbc.modules.quoting.infrastructure.collections import estimate_lines, quotes
 from cbc.shared import storage
@@ -30,13 +30,20 @@ def _lines_in(payload: dict[str, Any] | list[Any], filename: str, key: str) -> l
     not, so a full pipeline that had completed all six phases and written a whole
     quote failed on `'list' object has no attribute 'get'` at the very last step.
 
-    The wrapper carries nothing the records do not - taking either shape loses no
-    information and no check: every line still goes through validation.
+    Agents also name the array `line_items` (matching the filename). Taking either
+    shape loses no information and no check: every line still goes through
+    validation.
     """
     if isinstance(payload, list):
         return payload
     if isinstance(payload, dict):
-        return payload.get(key, [])
+        rows = payload.get(key)
+        if isinstance(rows, list) and rows:
+            return rows
+        alt = payload.get("line_items") if key == "lines" else payload.get("lines")
+        if isinstance(alt, list):
+            return alt
+        return rows if isinstance(rows, list) else []
     raise ValueError(f"{filename} must be a JSON object or an array")
 
 
@@ -89,14 +96,14 @@ async def import_quote_lines(
         from cbc.modules.ops.api.jobs import holds_lease
 
         if not await holds_lease(job):
-            return {"inserted": 0, "updated": 0, "skipped": 0, "aborted": True}
+            return {"inserted": 0, "updated": 0, "skipped": 0, "removed": 0, "aborted": True}
     slug, project_id = project["slug"], project["_id"]
     payload = read_json(storage.project_dir(slug) / "priced" / "line_items.json")
     source = storage.project_dir(slug) / "priced" / "line_items.json"
     if source.exists() and payload is None:
         raise ValueError("priced/line_items.json is missing or invalid JSON")
     if not payload:
-        return {"inserted": 0, "updated": 0, "skipped": 0}
+        return {"inserted": 0, "updated": 0, "skipped": 0, "removed": 0}
 
     existing = {
         doc.get("lineKey"): doc
@@ -107,9 +114,15 @@ async def import_quote_lines(
     # content. The previous fallback keyed on list position, so re-ordering a
     # re-priced quote gave every line a new key and duplicated the lot.
     priced_lines = _lines_in(payload, "priced/line_items.json", "lines")
+    if not priced_lines:
+        # Never wipe Mongo estimateLines with an empty agent shell.
+        return {"inserted": 0, "updated": 0, "skipped": len(existing), "removed": 0}
+
     inserted = updated = skipped = 0
-    bulk: list[InsertOne | UpdateOne] = []
+    seen_keys: set[Any] = set()
+    bulk: list[InsertOne | UpdateOne | DeleteOne] = []
     for key, line in zip(distinct_keys(priced_lines, _content_key), priced_lines):
+        seen_keys.add(key)
         cost, flags = _sane_cost(line)
         fields = {
             "lineKey": key,
@@ -175,24 +188,56 @@ async def import_quote_lines(
             bulk.append(UpdateOne({"_id": current["_id"]}, {"$set": fields}))
             updated += 1
 
+    # Lines the new pricing pass no longer produces. Without this the collection
+    # only ever grew: re-pricing a bid that dropped a line left the old row in
+    # `estimateLines` and it went on to the quote, so one re-run carried 26 rows
+    # that pricing had already discarded.
+    #
+    # A hand-added line is the estimator's own and is never removed - there is no
+    # priced row to regenerate it from, so deleting it would destroy their work.
+    # Everything else is derived, and derived rows follow their source.
+    removed = 0
+    for key, current in existing.items():
+        if key in seen_keys or current.get("addedByHand"):
+            continue
+        bulk.append(DeleteOne({"_id": current["_id"]}))
+        removed += 1
+
     if bulk:
         if job is not None:
             from cbc.modules.ops.api.jobs import holds_lease
 
             if not await holds_lease(job):
-                return {"inserted": 0, "updated": 0, "skipped": 0, "aborted": True}
+                return {"inserted": 0, "updated": 0, "skipped": 0, "removed": 0, "aborted": True}
         await estimate_lines().bulk_write(bulk, ordered=False)
 
-    return {"inserted": inserted, "updated": updated, "skipped": skipped}
+    return {
+        "inserted": inserted,
+        "updated": updated,
+        "skipped": skipped,
+        "removed": removed,
+    }
 
 
-async def export_quote_lines(project: dict[str, Any]) -> Path:
-    """Write the estimator-approved quote down for the proposal phase."""
+async def export_quote_lines(project: dict[str, Any], *, allow_empty: bool = False) -> Path:
+    """Write the estimator-approved quote down for the proposal phase.
+
+    An empty Mongo collection must not erase an unimported pricing pass.
+    Only an explicit estimator deletion may authorize an empty replacement.
+    """
     slug, project_id = project["slug"], project["_id"]
+    path = storage.project_dir(slug) / "priced" / "line_items.json"
+    existing = read_json(path)
+    if path.exists() and existing is None:
+        raise ValueError("priced/line_items.json is invalid JSON; refusing to overwrite it")
+    existing_rows = _lines_in(existing or {}, "priced/line_items.json", "lines")
+    previous = dict(zip(distinct_keys(existing_rows, _content_key), existing_rows))
     lines = []
     async for doc in estimate_lines().find({"projectId": project_id}):
         lines.append(
             {
+                # Keep source notes/evidence for surviving rows; stored edits win.
+                **previous.get(doc.get("lineKey"), {}),
                 "line_id": doc.get("lineKey") or str(doc["_id"]),
                 "group": doc.get("group") or doc.get("division") or "Other",
                 "group_type": _group_type(doc.get("division")),
@@ -217,8 +262,11 @@ async def export_quote_lines(project: dict[str, Any]) -> Path:
             }
         )
 
+    if not lines and existing_rows and not allow_empty:
+        # Keep Claude's priced file; Mongo never absorbed it.
+        return path
+
     quote = await quotes().find_one({"projectId": project_id}) or {}
-    path = storage.project_dir(slug) / "priced" / "line_items.json"
     payload = {
         "generated_by": "estimator-approved via Ops-Hub",
         "quote_number": quote.get("quoteNumber") or f"Q-{project.get('code', '')}",

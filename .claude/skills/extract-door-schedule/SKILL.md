@@ -11,6 +11,46 @@ description: >
 
 # Extract Door Schedule
 
+## Deterministic-first (mandatory)
+
+1. Read `extracted/door_schedule.json` if it exists (worker pretakeoff /
+   `parse_schedule.py` often already wrote it).
+2. If missing → **run the script or MCP** on sheetmap `door_schedule` pages.
+   Do **not** freehand-author openings:
+
+       python .claude/skills/extract-door-schedule/scripts/parse_schedule.py <pdf> \
+         --page <n> --openings --json
+
+   Prefer `mcp__pdf-tools__parse_door_openings(file_path, page_number)` when
+   available — it applies rotation-safe clustering and FR-2 field mapping.
+3. **FR-2 field checklist** (CBC 95% ladder: door schedule → Div 08 HW schedule →
+   Div 08 door/frame specs → floor plans) — fill nulls from evidence only:
+   - door number / mark, size (W×H), **qty**, handing, finish, fire rating,
+     hardware group **or** matrix hardware, alternate when marked
+   - **door_type / frame_type / materials / glass / manufacturer / series** —
+     copy every non-empty cell; put thickness, detail refs, note letters into
+     `notes`
+   - **keying:** structured object `{coreType, keyway, lockFunction, notes}`
+     when the schedule or HW group states IC / keyway / lock function — do not
+     invent; leave null when silent
+   - **Handing:** schedule column → else floor-plan swing → else flag
+     (`handing_missing`). Never default LH.
+   - **Fire rating:** schedule → door/frame type schedule → Div 08 notes → else
+     flag (`fire_rating_missing`). Mandatory to search; never invent. Accept
+     explicit `NR`.
+   - **Finish:** row, HW group, or sheet note ("ALL HARDWARE SHALL BE US32D").
+   - **Storefront / AL+AL:** flag `out_of_scope_storefront`; do not quote as CBC
+     HM/WD lines (Matrix 2.3).
+4. **PDF verify before present (mandatory).** Before emitting any `*_missing`
+   flag, filling an unsure value, or saving an opening that drops cells from
+   `raw_row`, open the **specific** PDF page(s):
+   `search_blocks` / `get_page_blocks` or `extract_tables` / `extract_text`,
+   crop with `get_page_image(region=bbox)` when ambiguous. Cite page + excerpt
+   (or "searched pages … — not found") in `evidence_note`. See
+   .claude/guides/extraction.md. Parser null ≠ sheet silent.
+5. Persist with `mcp__artifact-storage__save_artifact` only — never Write/Edit.
+6. On schema error: repair named fields (≤2 retries). Do not bypass validation.
+
 ## Why this is not just "read the table"
 
 Architectural bid sets are CAD exports. A single sheet in the Dutch Bros fixture
@@ -20,37 +60,71 @@ table detection.** Rows are recovered by clustering positioned words instead.
 
 ## Steps
 
-1. **Locate the schedule.** Use `mcp__pdf-tools__search_pdf` for `DOOR SCHEDULE`,
-   `DOOR TYPE SCHEDULE`, `DOOR FRAME TYPE SCHEDULE`, `HARDWARE GROUPS`, and
-   `WINDOW SCHEDULE`. Record every hit's `source_page`. The schedule usually sits
-   on a details/schedules sheet (A2.x), not on the spec pages that merely
-   reference it.
-2. **Pull the rows.** Run `.claude/skills/extract-door-schedule/scripts/parse_schedule.py <pdf> --page <n>`, or call
-   `mcp__pdf-tools__extract_tables` with that page. Both cluster words by
-   y-position into rows.
-3. **Parse each opening.** Map the row cells onto the fields below. The column
-   order varies by architect - identify columns from the header row, never by
-   fixed index.
-4. **Resolve sizes.** 4-digit notation: first two digits are width in
-   feet-inches, last two are height (`3070` = 3'-0" x 7'-0"). Many sets instead
-   write `3' - 0"` and `7' - 0"` in separate columns - handle both and normalise.
-5. **Capture the hardware group** (`GROUP 1`, `HW-1`, `HDW-01`) and, separately,
-   parse the **HARDWARE GROUPS** block into its component items.
-6. **Capture bid alternate designation** when the schedule or notes mark an
-   opening as Alternate 1 / ALT-1 / similar (FR-2). Write it as `alternate` on
-   the opening (sync maps it to `alternateGroup`). Leave null for base-bid rows.
-7. **Normalize finishes** via the dual nomenclature crosswalk
-   (`mcp__reference__get_finish_crosswalk` / NR-3). Prefer recording
-   the US code when known (`US26D`); import will store the canonical pair
-   `US26D (626)`. Never treat US19 as US26D. Unknown finishes stay as written
-   and get flagged — do not invent a mapping.
-8. **Flag, do not fill.** Any missing rating, handing, finish or size is recorded
-   as `null` with a review flag. Never infer an attribute from a neighbouring row.
+1. **Locate the schedule.** Prefer `_sheetmap.json` roles in order:
+   `door_schedule` → `hardware` → `div08_specs` → `floor_plan`. Else
+   `search_pdf` / `search_blocks` for `DOOR SCHEDULE`, `DOOR TYPE SCHEDULE`,
+   `HARDWARE GROUPS`. Record every hit's `source_page`.
+2. **Pull the rows.** Prefer
+   `mcp__pdf-tools__parse_door_openings` or
+   `.claude/skills/extract-door-schedule/scripts/parse_schedule.py <pdf> --page <n> --openings --json`.
+   Fallback: `mcp__pdf-tools__extract_tables` on that page (also rotation-safe).
+3. **Map cells onto the allowlist below.** Column order varies — identify from
+   the header. Unknown columns (e.g. Thickness) go into `notes`, never as new keys.
+4. **Resolve sizes.** 4-digit: `3070` = 3'-0" x 7'-0". Or explicit feet-inches.
+   Or inch-only columns (`36"` × `84"`) on retail sheets — normalise to feet-inches.
+   Materials may be `HPL` / `ALUM`; hardware group may be a bare digit.
+5. **Hardware:** `GROUP n` / `HW-n` **or** matrix X columns → expand legend into
+   `hardware` (flag `hardware_matrix_unexpanded` until expanded).
+6. **Alternate** (FR-2) when marked; else null.
+7. **Finishes** via dual nomenclature; never treat US19 as US26D.
+8. **Handing / fire rating** — follow the estimator search order in
+   `@.claude/memory/handing_codes.md` and `@.claude/memory/fire_rating_rules.md`.
+9. **PDF verify gate.** For every null FR-2 field, read the candidate pages on
+   the actual PDF before flagging. Write the search into `evidence_note`.
+10. **Flag, do not fill** only after the search order **and** the PDF check are
+    exhausted.
+
+## Opening allowlist (closed world)
+
+Emit **only** these properties on each opening (Pydantic `Opening`,
+`extra="forbid"`). Anything else fails save_artifact.
+
+**Identity / size:** `door_number`, `mark`, `description`, `raw_row`, `size`,
+`width`, `height`, `size_notation`, `qty`
+
+**Hardware / type:** `hardware_set`, `hw_set`, `hardware`, `door_type`, `type`,
+`frame_type`, `door_material`, `frame_material`, `material`, `glass`, `glazing`,
+`core`, `undercut`, `manufacturer`, `series`, `division`
+
+**Attributes:** `handing`, `finish`, `fire_rating`, `wall_type`, `frame_depth`,
+`alternate`, `alternate_group`, `location`, `room_name`, `status`, `notes`,
+`comments`, `evidence_note`, `keying`
+
+**Provenance (required for viewer):** `source_file`, `source_page`, `sheet`,
+`bbox`, `row_bbox`, `cell_boxes`, `page_size`, `row`, `confidence`, `flags`
+
+**Dedupe / human:** `is_duplicate`, `duplicate_of`, `duplicate_reason`,
+`confirmed_by`, `added_by_hand`
+
+### `page_size` contract
+
+```json
+"page_size": { "width": 2448.0, "height": 1584.0 }
+```
+
+- **Must** be an object with numeric `width` and `height`.
+- **Never** `[2448.0, 1584.0]` (MinerU array shape).
+- Prefer parser output or `mcp__pdf-tools__get_page_size`.
+
+### Unknown schedule columns
+
+If the sheet has Thickness / THK / similar: append to `notes` as
+`Thickness: 1 3/4"`. **Never** invent `thickness`, `thickness_in`, or other
+non-allowlist keys. Do not add freeform envelopes like `extraction_notes`.
 
 ## Field definitions
 
-See `references/schedule_anatomy.md` for the full anatomy, including the
-hardware-set composition and the two size notations.
+See `references/schedule_anatomy.md`.
 
 ## Reference data
 
@@ -62,13 +136,12 @@ hardware-set composition and the two size notations.
 
 ## Output schema
 
-Write to `projects/{project}/extracted/door_schedule.json`:
+Save via **`mcp__artifact-storage__save_artifact`** to
+`projects/{project}/extracted/door_schedule.json`:
 
 ```json
 {
-  "project": "dutch_bros_macarthur_2026",
   "source_file": "uploads/raw/1_Architectural.pdf",
-  "extracted_at": "2026-08-26T12:00:00Z",
   "openings": [
     {
       "door_number": "01",
@@ -97,27 +170,20 @@ Write to `projects/{project}/extracted/door_schedule.json`:
       "flags": ["fire_rating_missing", "handing_missing", "finish_missing"]
     }
   ],
-  "hardware_groups": [
-    {
-      "group": "GROUP 1",
-      "source_page": 14,
-      "items": [
-        { "category": "hinge", "manufacturer": "IVES", "part_number": "700", "size": "83\"", "finish": "630" }
-      ]
-    }
-  ],
-  "unparsed_regions": [],
-  "confidence": 0.9
+  "no_scope_reason": null
 }
 ```
+
+Top-level extras the wrapper ignores (`hardware_groups`, `confidence`) are
+optional. Opening-level extras are **forbidden**.
 
 ## Script
 
 ```bash
 python .claude/skills/extract-door-schedule/scripts/parse_schedule.py <pdf> --find
-python .claude/skills/extract-door-schedule/scripts/parse_schedule.py <pdf> --page 14 --openings --json
+python .claude/skills/extract-door-schedule/scripts/parse_schedule.py <pdf> --page 19 --openings --json
 ```
 
 `--find` locates candidate schedule pages. `--page N --openings` parses opening
-rows with bbox and page_size. `--json` emits machine-readable output; with
-`--openings` the envelope is `{"openings": [...]}` ready for door_schedule.json.
+rows with bbox and `page_size` object (rotation-safe). MCP equivalent:
+`mcp__pdf-tools__parse_door_openings`.

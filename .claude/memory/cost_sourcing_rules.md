@@ -12,7 +12,7 @@ cost screen.
 - Valid when the item was **sold within the last ~6 months and there has been no price increase**.
   This is right about **9 times out of 10**.
 - Special-priced items already carry their cost in P21.
-- Access is **READ-ONLY**, no write-back (NFR-5, see the p21-read-only rule).
+- Access is **READ-ONLY**, no write-back (NFR-5, see `.claude/guides/pricing.md`).
 
 ### Freshness rule
 | Age of cost | Status |
@@ -27,7 +27,7 @@ will not match at all. **Manual entry must always be available.**
 
 ## Path 2 — list price x multiplier
 When the item is not on special pricing: **cost = manufacturer list price x CBC tier
-multiplier**. See [[vendor_tiers]] for the live multipliers.
+multiplier**. See [vendor_tiers](vendor_tiers.md) for the live multipliers.
 Remember the **adders** that are not cleanly in the price book: electrification,
 non-removable-pin (NRP) hinges, premium / lead-time finishes.
 
@@ -53,4 +53,4 @@ When a drawing specs a function with no named manufacturer, or a specified line 
 unavailable, propose the closest of the **top 2-3 brands** (estimator judgment, usually
 Hager) and **attach a note explaining the substitution**. Then price via Path 2.
 
-See [[margin_sheet]], [[manual_cutoff]].
+See [margin_sheet](margin_sheet.md), [manual_cutoff](manual_cutoff.md).

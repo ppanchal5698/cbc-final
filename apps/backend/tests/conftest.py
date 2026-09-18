@@ -12,11 +12,13 @@ os.environ["INTERNAL_API_TOKEN"] = "cbc-local-dev-key-change-me"
 os.environ["INTERNAL_JWT_SECRET"] = "cbc-local-dev-key-change-me"
 os.environ["SERVICE_AUDIENCE"] = "platform"
 os.environ["APP_ENV"] = "development"
-# ops' worker loop (WorkerLoop) resolves CLAIMABLE_TYPES once, at import. Claim every type,
-# the way the one compose worker runs (WORKER_CLAIM_ALL=1). This was
-# WORKER_DOMAIN=catalog, which scoped `claim()` to catalog jobs for the whole
-# process, so test_recovery's backoff test could never claim the extract_bid_set
-# job it queued. tests/modules/ops/test_worker.py sets its own domain and reloads.
+# ops' worker loop (WorkerLoop) resolves CLAIMABLE_TYPES once, at import.
+# WORKER_CLAIM_ALL=1 claims every domain except `parsing` (dedicated GPU worker).
+# Parse-document tests call the handler directly rather than through claim().
+# This was WORKER_DOMAIN=catalog, which scoped `claim()` to catalog jobs for the
+# whole process, so test_recovery's backoff test could never claim the
+# extract_bid_set job it queued. tests/modules/ops/test_worker.py sets its own
+# domain and reloads.
 os.environ.setdefault("WORKER_CLAIM_ALL", "1")
 # The data directories default to the checkout layout (cbc.shared.paths). Pinned
 # here too, so a developer .env naming another directory cannot redirect the suite;

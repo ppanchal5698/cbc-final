@@ -33,7 +33,7 @@ Two modes, both of which stay:
   Kevin works templated.
 - Rick works from **his own Excel**.
 
-Workbooks are password-protected: `estimator`.
+Workbooks are password-protected (credential not stored in repo).
 
 ## Phase 2 - Spec scoping
 

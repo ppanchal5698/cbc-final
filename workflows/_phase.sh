@@ -17,7 +17,7 @@ CLAUDE_BIN="${CLAUDE_BIN:-claude}"
 # mapping exists to prevent.
 job_type_for() {
   case "$1" in
-    intake-coordinator|spec-scope-analyst|takeoff-engineer|frp-specialist)
+    intake-coordinator|spec-scope-analyst|takeoff-engineer|frp-specialist|div10-specialist)
       echo "extract_bid_set" ;;
     product-matcher|pricing-engineer)
       echo "match_and_price" ;;

@@ -233,6 +233,12 @@
   },
   "status": 401
  },
+ "GET /api/projects/{code}/documents/{document_id}/pages/{page_number}/blocks #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "GET /api/projects/{code}/feedback-events #wrong token": {
   "body": {
    "detail": "str"
@@ -431,6 +437,18 @@
   },
   "status": 401
  },
+ "GET /api/settings/parsing #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "GET /api/settings/parsing #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "GET /api/settings/pipeline #estimator": {
   "body": {
    "detail": "str"
@@ -450,6 +468,12 @@
   "status": 403
  },
  "GET /api/users #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/users/directory #wrong token": {
   "body": {
    "detail": "str"
   },
@@ -695,6 +719,12 @@
   },
   "status": 401
  },
+ "POST /api/learning/apply #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "POST /api/price-books #wrong token": {
   "body": {
    "detail": "str"
@@ -887,6 +917,18 @@
   },
   "status": 401
  },
+ "POST /api/settings/parsing/test #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "POST /api/settings/parsing/test #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "POST /api/users #estimator": {
   "body": {
    "detail": "str"
@@ -942,6 +984,18 @@
   "status": 403
  },
  "PUT /api/settings/freshness #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PUT /api/settings/parsing #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PUT /api/settings/parsing #wrong token": {
   "body": {
    "detail": "str"
   },
@@ -1127,6 +1181,11 @@
   },
   {
    "admin": false,
+   "op": "GET /api/projects/{code}/documents/{document_id}/pages/{page_number}/blocks",
+   "status": 200
+  },
+  {
+   "admin": false,
    "op": "GET /api/projects/{code}/feedback-events",
    "status": 200
   },
@@ -1277,12 +1336,22 @@
   },
   {
    "admin": true,
+   "op": "GET /api/settings/parsing",
+   "status": 200
+  },
+  {
+   "admin": true,
    "op": "GET /api/settings/pipeline",
    "status": 200
   },
   {
    "admin": true,
    "op": "GET /api/users",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/users/directory",
    "status": 200
   },
   {
@@ -1413,6 +1482,11 @@
   {
    "admin": false,
    "op": "POST /api/jobs/{job_id}/retry",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/learning/apply",
    "status": 200
   },
   {
@@ -1562,6 +1636,11 @@
   },
   {
    "admin": true,
+   "op": "POST /api/settings/parsing/test",
+   "status": 200
+  },
+  {
+   "admin": true,
    "op": "POST /api/users",
    "status": 201
   },
@@ -1583,6 +1662,11 @@
   {
    "admin": true,
    "op": "PUT /api/settings/freshness",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PUT /api/settings/parsing",
    "status": 200
   },
   {

@@ -1,0 +1,18 @@
+# CI-only overlay for the e2e job.
+#
+# The stack routes through nginx in a deployment, so `platform` and `web` only
+# `expose:` their ports to the compose network - nothing is published to the
+# host. The e2e job talks to them directly over HTTP, so publish them here
+# rather than standing up the production edge (nginx wants a Let's Encrypt
+# certificate for a real domain and refuses to start without one).
+#
+# Used via COMPOSE_FILE in .github/workflows/ci.yml. Never part of a
+# deployment: `docker compose up` on its own does not read this file.
+services:
+  platform:
+    ports:
+      - "127.0.0.1:8001:8001"
+
+  web:
+    ports:
+      - "127.0.0.1:3000:3000"

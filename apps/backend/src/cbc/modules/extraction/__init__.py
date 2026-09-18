@@ -4,6 +4,10 @@ Openings and their alternates, FRP takeoffs, the corrections an estimator makes,
 and the Claude payloads that failed the schema gate. It owns `openings`,
 `failedExtractions`, `takeoffs` and `feedbackEvents`.
 
+The corrections are drained into what the matcher knows (FR-13) by
+`api/feedback.apply_to_learning`, which writes through `catalog.api.learning` -
+the queue is ours, the learned table is catalog's.
+
 Other modules import only `cbc.modules.extraction.api`. Slices are imported inside
 `register`.
 """
@@ -26,6 +30,7 @@ def register(app) -> None:
 
     from cbc.modules.extraction.features import (
         AddLineItemByHand,
+        ApplyLearning,
         BulkLineItemAction,
         ConfirmAllLineItems,
         ConfirmLineItem,
@@ -42,6 +47,7 @@ def register(app) -> None:
     )
 
     for feature in (
+        ApplyLearning,
         ListLineItems,
         AddLineItemByHand,
         UpdateLineItem,

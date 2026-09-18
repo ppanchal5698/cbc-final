@@ -45,6 +45,34 @@ def check(payload: dict) -> int:
     except Exception as exc:  # noqa: BLE001
         print(f"hook log_audit_trail failed: {exc}", file=sys.stderr)
 
+    # Release orchestrator lock when a subagent finishes writing its outputs.
+    try:
+        tool = str(payload.get("tool_name") or "")
+        if tool in {
+            "mcp__artifact-storage__save_artifact",
+            "Write",
+            "Agent",
+        }:
+            from cbc.worker_kit import tool_session
+
+            inp = payload.get("tool_input") or {}
+            inp = inp if isinstance(inp, dict) else {}
+            if tool == "Agent":
+                # Release this subagent only. Take-off, FRP and Div 10 run
+                # concurrently; clearing every lock when the first one returns
+                # unlocked files the other two were still writing.
+                tool_session.clear_active_agent(
+                    str(inp.get("subagent_type") or inp.get("agent") or "") or None
+                )
+            else:
+                written = str(
+                    inp.get("path") or inp.get("file_path") or inp.get("rel_path") or ""
+                )
+                if written and tool_session._state_path().is_file():
+                    tool_session.clear_active_agent(rel_path=written.replace("\\", "/"))
+    except Exception as exc:  # noqa: BLE001
+        print(f"hook tool_session clear skipped: {exc}", file=sys.stderr)
+
     block = 0
     try:
         block = int(post_extraction_validate.check(payload) or 0)
