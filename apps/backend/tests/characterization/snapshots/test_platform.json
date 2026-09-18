@@ -221,9 +221,7 @@
   "body": {
    "byProject": [],
    "byType": [],
-   "dailyCapUsd": "number",
    "overDailyCap": "bool",
-   "projectCapUsd": "number",
    "recent": [],
    "runs": "number",
    "since": "datetime",
@@ -516,8 +514,7 @@
     },
     "effort": {
      "locked": "bool",
-     "source": "str",
-     "value": "null"
+     "source": "str"
     },
     "formulas": {
      "locked": "bool",
@@ -573,9 +570,6 @@
    "methods": [
     "str"
    ],
-   "mineru": {
-    "error": "str"
-   },
    "presets": {
     "high": {
      "backend": "str",
@@ -1010,11 +1004,7 @@
  },
  "POST /api/settings/parsing/test": {
   "body": {
-   "blocks": "null",
-   "error": "str",
-   "ok": "bool",
-   "seconds": "number",
-   "version": "null"
+   "ok": "bool"
   },
   "status": 200
  },
@@ -1226,8 +1216,7 @@
     },
     "effort": {
      "locked": "bool",
-     "source": "str",
-     "value": "null"
+     "source": "str"
     },
     "formulas": {
      "locked": "bool",
@@ -1283,9 +1272,6 @@
    "methods": [
     "str"
    ],
-   "mineru": {
-    "error": "str"
-   },
    "presets": {
     "high": {
      "backend": "str",
@@ -1352,8 +1338,7 @@
     },
     "effort": {
      "locked": "bool",
-     "source": "str",
-     "value": "null"
+     "source": "str"
     },
     "formulas": {
      "locked": "bool",
@@ -1409,9 +1394,6 @@
    "methods": [
     "str"
    ],
-   "mineru": {
-    "error": "str"
-   },
    "presets": {
     "high": {
      "backend": "str",

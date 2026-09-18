@@ -8,7 +8,13 @@ import pytest
 
 from cbc.modules.pricing.api import hager_list_price, list_x_backfill
 
+needs_the_book = pytest.mark.skipif(
+    not Path("data/pricebooks/hager_price_book_18.pdf").exists(),
+    reason="price book not present",
+)
 
+
+@needs_the_book
 def test_lookup_785s_list_price() -> None:
     hit = hager_list_price.lookup_ngp_list_price("785S")
     assert hit is not None
@@ -22,6 +28,7 @@ def test_ngp_crosswalk_for_zero_188s() -> None:
     assert mapped[0] == "785S"
 
 
+@needs_the_book
 def test_backfill_pemko_threshold(tmp_path, monkeypatch) -> None:
     slug = "demo_bid"
     root = tmp_path / "projects" / slug
@@ -79,10 +86,7 @@ def test_backfill_pemko_threshold(tmp_path, monkeypatch) -> None:
     assert line["cost"] > 0
 
 
-@pytest.mark.skipif(
-    not Path("data/pricebooks/hager_price_book_18.pdf").exists(),
-    reason="price book not present",
-)
+@needs_the_book
 def test_hager_book_available_for_backfill() -> None:
     assert hager_list_price.lookup_ngp_list_price("431S") is not None
 
@@ -102,6 +106,7 @@ def test_hyphenated_part_maps_to_ngp() -> None:
     assert wide is not None and wide[0] == "801S"
 
 
+@needs_the_book
 def test_backfill_live_openings_shape_hyphenated_skus(tmp_path, monkeypatch) -> None:
     """Matcher writes openings[].items with hyphenated SKUs and no nested matched."""
     slug = "live_quote"
@@ -230,6 +235,7 @@ def test_a_missing_price_book_skips_the_backfill_instead_of_failing_the_job(
         hager_list_price._book.cache_clear()
 
 
+@needs_the_book
 def test_the_book_is_found_again_once_it_is_back() -> None:
     """The miss is cached per-process, so clearing it must restore service."""
     hager_list_price._book.cache_clear()

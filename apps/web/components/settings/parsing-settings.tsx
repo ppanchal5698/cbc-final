@@ -71,6 +71,45 @@ const ENV_NAMES: Record<string, string> = {
   waitMaxSeconds: "PARSER_WAIT_MAX_SECONDS",
 };
 
+/**
+ * Declared at module scope, not inside the screen.
+ *
+ * A component created during render is a new type on every pass, so React
+ * remounts it and it loses its state. Whether a field is locked by the
+ * environment comes in as a prop rather than off a closure.
+ */
+function LockedBadge() {
+  return (
+    <span className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-panel border border-subtle text-tx-muted shadow-sm">
+      <Lock size={10} weight="bold" />
+      set by env
+    </span>
+  );
+}
+
+function FieldLabel({
+  fieldKey,
+  locked,
+  children,
+}: {
+  fieldKey: string;
+  locked?: boolean;
+  children?: ReactNode;
+}) {
+  const meta = FIELD_META[fieldKey];
+  return (
+    <span className="flex flex-wrap items-center gap-2 text-[12.5px] font-semibold text-tx-primary">
+      {meta?.label ?? fieldKey}
+      <code className="text-[11px] font-medium text-tx-muted px-1.5 py-0.5 rounded bg-panel-muted border border-subtle">
+        {ENV_NAMES[fieldKey] ?? fieldKey}
+      </code>
+      {locked && <LockedBadge />}
+      {children}
+    </span>
+  );
+}
+
+
 type Draft = {
   url: string;
   profile: Profile;
@@ -251,35 +290,7 @@ export function ParsingSettingsClient() {
     }
   }
 
-  function LockedBadge() {
-    return (
-      <span className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-panel border border-subtle text-tx-muted shadow-sm">
-        <Lock size={10} weight="bold" />
-        set by env
-      </span>
-    );
-  }
 
-  function FieldLabel({
-    fieldKey,
-    children,
-  }: {
-    fieldKey: string;
-    children?: ReactNode;
-  }) {
-    const meta = FIELD_META[fieldKey];
-    const field = settings.fields[fieldKey];
-    return (
-      <span className="flex flex-wrap items-center gap-2 text-[12.5px] font-semibold text-tx-primary">
-        {meta?.label ?? fieldKey}
-        <code className="text-[11px] font-medium text-tx-muted px-1.5 py-0.5 rounded bg-panel-muted border border-subtle">
-          {ENV_NAMES[fieldKey] ?? fieldKey}
-        </code>
-        {field?.locked && <LockedBadge />}
-        {children}
-      </span>
-    );
-  }
 
   const mineru = settings.mineru;
   const mineruError = mineru && typeof mineru.error === "string" ? mineru.error : null;
@@ -348,7 +359,7 @@ export function ParsingSettingsClient() {
 
       <section className="flex flex-col gap-4 rounded-xl p-5 bg-background border border-subtle shadow-sm">
         <label className="flex flex-col gap-1.5">
-          <FieldLabel fieldKey="url" />
+          <FieldLabel fieldKey="url" locked={Boolean(settings.fields.url?.locked)} />
           <input
             value={draft.url}
             disabled={Boolean(settings.fields.url?.locked)}
@@ -369,7 +380,7 @@ export function ParsingSettingsClient() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5">
-            <FieldLabel fieldKey="backend" />
+            <FieldLabel fieldKey="backend" locked={Boolean(settings.fields.backend?.locked)} />
             <select
               value={draft.backend}
               disabled={Boolean(settings.fields.backend?.locked)}
@@ -397,7 +408,7 @@ export function ParsingSettingsClient() {
 
           {hybrid && (
             <label className="flex flex-col gap-1.5">
-              <FieldLabel fieldKey="effort" />
+              <FieldLabel fieldKey="effort" locked={Boolean(settings.fields.effort?.locked)} />
               <select
                 value={draft.effort || "medium"}
                 disabled={Boolean(settings.fields.effort?.locked)}
@@ -421,7 +432,7 @@ export function ParsingSettingsClient() {
           )}
 
           <label className="flex flex-col gap-1.5">
-            <FieldLabel fieldKey="method" />
+            <FieldLabel fieldKey="method" locked={Boolean(settings.fields.method?.locked)} />
             <select
               value={draft.method}
               disabled={Boolean(settings.fields.method?.locked)}
@@ -442,7 +453,7 @@ export function ParsingSettingsClient() {
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <FieldLabel fieldKey="lang" />
+            <FieldLabel fieldKey="lang" locked={Boolean(settings.fields.lang?.locked)} />
             <input
               value={draft.lang}
               disabled={Boolean(settings.fields.lang?.locked)}
@@ -487,7 +498,7 @@ export function ParsingSettingsClient() {
         <div className="grid gap-4 sm:grid-cols-3">
           {INT_FIELDS.map((key) => (
             <label key={key} className="flex flex-col gap-1.5">
-              <FieldLabel fieldKey={key} />
+              <FieldLabel fieldKey={key} locked={Boolean(settings.fields[key]?.locked)} />
               <input
                 type="number"
                 value={draft[key]}

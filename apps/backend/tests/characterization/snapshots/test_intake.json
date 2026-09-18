@@ -116,10 +116,6 @@
     "id": "id",
     "kind": "str",
     "pages": "number",
-    "parse": {
-     "pages": "number",
-     "state": "str"
-    },
     "path": "str",
     "projectId": "id",
     "state": "str",
@@ -164,10 +160,6 @@
     "id": "id",
     "kind": "str",
     "pages": "number",
-    "parse": {
-     "pages": "number",
-     "state": "str"
-    },
     "path": "str",
     "projectId": "id",
     "state": "str",

@@ -35,13 +35,20 @@ def test_list_documents_on_an_empty_bid(client, bid, snapshots) -> None:
 def test_upload_a_bid_set(client, bid, snapshots) -> None:
     op = "POST /api/projects/{code}/documents"
     data = pdf_bytes(pages=2)
-    response = snapshots.pin(op, client.post(_url(DOCS, bid), files={"file": ("plans.pdf", data, "application/pdf")}))
+    response = snapshots.pin(
+        op,
+        client.post(_url(DOCS, bid), files={"file": ("plans.pdf", data, "application/pdf")}),
+        # Present only when MinerU is reachable to parse the upload.
+        drop=("body.document.parse",),
+    )
     assert response.json()["document"]["pages"] == 2
     bid["document"] = response.json()["document"]["id"]
     snapshots.pin(
         op,
         client.post(_url(DOCS, bid), files={"file": ("again.pdf", data, "application/pdf")}),
         variant="identical bytes",
+        # The de-dup response echoes the stored document, parse state and all.
+        drop=("body.document.parse",),
     )
     snapshots.pin(
         op,

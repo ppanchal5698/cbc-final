@@ -373,8 +373,29 @@ def test_lapsed_prices_are_flagged(client, project):
 # ── hand-off ────────────────────────────────────────────────────────────────
 
 
+def test_a_lapsed_price_holds_the_hand_off(client, project):
+    """data-stewardship.md: the margin on a lapsed line is not real yet.
+
+    `test_lapsed_prices_are_flagged` backdated a line on this bid, so the gate
+    is live here. It is the only thing on the proposal that blocks - flagged
+    and unpriced lines are shown and left to the estimator.
+    """
+    code = project["code"]
+    held = client.post(f"/api/projects/{code}/proposal/complete", json={})
+
+    assert held.status_code == 409
+    assert "review window" in held.json()["detail"]
+    # And nothing was handed off on the way to being refused. The key is absent
+    # until a hand-off writes it, so ask for it rather than indexing.
+    assert client.get(f"/api/projects/{code}").json().get("handedOffTo") is None
+
+
 def test_hand_off_routes_to_the_initiator_and_sends_nothing(client, project):
     code = project["code"]
+    # Clear the gate the test above proves: an override is a person taking
+    # responsibility for the lapsed cost, which is what unblocks the hand-off.
+    client.patch(f"/api/projects/{code}/proposal", json={"acknowledgeLapsed": True})
+
     result = client.post(f"/api/projects/{code}/proposal/complete", json={}).json()
 
     assert result["sent"] is False, "NFR-1: the copilot never sends"

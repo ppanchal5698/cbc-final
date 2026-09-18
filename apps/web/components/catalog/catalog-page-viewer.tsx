@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { DownloadSimple, Minus, Plus, X } from "@phosphor-icons/react/dist/ssr";
 
@@ -33,10 +33,15 @@ export function CatalogPageViewer({
   const [zoom, setZoom] = useState(1);
   const [failure, setFailure] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Follow the page the caller asked for, and forget the previous document's
+  // failure along with it.
+  const asked = `${url}#${page}`;
+  const [showing, setShowing] = useState(asked);
+  if (showing !== asked) {
+    setShowing(asked);
     setPageNumber(Math.max(1, page));
     setFailure(null);
-  }, [page, url]);
+  }
 
   function download() {
     const link = document.createElement("a");

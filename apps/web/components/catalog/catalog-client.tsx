@@ -106,9 +106,13 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
   const settledQuery = useDebounced(query.trim());
   const settledManufacturer = useDebounced(manufacturer.trim());
 
-  useEffect(() => {
+  // Back to page one whenever the filters change.
+  const filterKey = `${settledQuery}|${division}|${settledManufacturer}`;
+  const [filteredBy, setFilteredBy] = useState(filterKey);
+  if (filteredBy !== filterKey) {
+    setFilteredBy(filterKey);
     setPage(1);
-  }, [settledQuery, division, settledManufacturer]);
+  }
 
   const params = new URLSearchParams();
   if (settledQuery) params.set("q", settledQuery);
@@ -139,9 +143,8 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
   const editable = selected?.editable !== false;
   const canFetchDetail = Boolean(selected && editable && selected.id && !selected.id.startsWith("idx:"));
 
-  useEffect(() => {
-    if (page > pageCount) setPage(pageCount);
-  }, [page, pageCount]);
+  // A narrower search can leave the cursor past the end of the results.
+  if (page > pageCount) setPage(pageCount);
 
   const { data: productDetail } = useSWR<ProductDetailResponse>(
     canFetchDetail ? `/api/proxy/catalog/products/${selected!.id}` : null,
