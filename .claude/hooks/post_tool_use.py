@@ -15,6 +15,13 @@ from types import ModuleType
 
 HOOKS = Path(__file__).resolve().parent
 
+# Hooks run as standalone scripts under the system interpreter, so the backend
+# package is not importable unless it happens to be pip-installed. Without this
+# the tool_session guard below is silently skipped.
+_BACKEND_SRC = HOOKS.parent.parent / "apps" / "backend" / "src"
+if _BACKEND_SRC.is_dir() and str(_BACKEND_SRC) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_SRC))
+
 
 def _exec(name: str) -> ModuleType:
     path = HOOKS / f"{name}.py"
