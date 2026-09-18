@@ -22,7 +22,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/home/cbc/.local/bin:${PATH}"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates git libatomic1 poppler-utils \
+        ca-certificates git libatomic1 poppler-utils tesseract-ocr \
         libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libgdk-pixbuf-2.0-0 libffi8 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 1000 --shell /bin/bash cbc
@@ -78,7 +78,9 @@ COPY --chown=cbc:cbc .claude /app/.claude
 RUN cp -a /app/.claude /app/agent-runtime && chown -R cbc:cbc /app/agent-runtime
 COPY --chown=cbc:cbc docs /app/docs
 
-RUN pip install -e ./mcp-servers \
+# `[ocr]` pulls pytesseract; the tesseract binary is installed on `base` so
+# pdf-tools OCR assist works instead of always returning ocr_unavailable.
+RUN pip install -e "./mcp-servers[ocr]" \
     && chown -R cbc:cbc /app /home/cbc
 
 USER cbc

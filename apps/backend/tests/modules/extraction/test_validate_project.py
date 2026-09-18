@@ -364,6 +364,47 @@ def test_a_manual_line_with_no_cost_is_fine(validate_project):
     assert not [p for p in problems if "carries a cost" in p], problems
 
 
+def test_list_x_multiplier_without_cost_fails(validate_project):
+    _write(
+        validate_project,
+        "priced/line_items.json",
+        {
+            "lines": [
+                _priced(
+                    part_number="PEMKO-275A",
+                    cost_source="LIST_X_MULTIPLIER",
+                    cost_source_detail="data/pricebooks/hager.pdf p518",
+                    cost=None,
+                    multiplier=0.4,
+                )
+            ]
+        },
+    )
+    problems, _ = check_pricing(validate_project)
+    assert any("LIST_X_MULTIPLIER" in p and "cost" in p for p in problems), problems
+
+
+def test_manual_with_multiplier_metadata_without_cost_fails(validate_project):
+    _write(
+        validate_project,
+        "priced/line_items.json",
+        {
+            "lines": [
+                _priced(
+                    part_number="PEMKO-275A",
+                    cost_source="MANUAL",
+                    cost_source_detail="needs page lookup",
+                    cost=None,
+                    multiplier=0.4,
+                    price_book_version="Hager #18",
+                )
+            ]
+        },
+    )
+    problems, _ = check_pricing(validate_project)
+    assert any("multiplier" in p and "MANUAL" in p for p in problems), problems
+
+
 def test_a_computed_cost_must_name_the_sheet_it_was_read_from(validate_project):
     """"Price based on Pemko catalog" names no page anyone can open.
 
@@ -387,7 +428,7 @@ def test_a_computed_cost_must_name_the_sheet_it_was_read_from(validate_project):
         },
     )
     problems, _ = check_pricing(validate_project)
-    assert any("names no price-book file" in p for p in problems), problems
+    assert any("names no price-book file" in p or "catalog.md" in p for p in problems), problems
 
 
 def test_a_real_citation_passes(validate_project):
@@ -408,6 +449,86 @@ def test_a_real_citation_passes(validate_project):
     )
     problems, _ = check_pricing(validate_project)
     assert not [p for p in problems if "price-book file" in p], problems
+
+
+def test_special_net_with_citation_passes(validate_project):
+    _write(
+        validate_project,
+        "priced/line_items.json",
+        {
+            "lines": [
+                _priced(
+                    part_number="010108",
+                    cost_source="SPECIAL_NET",
+                    cost_source_detail="get_special_net hager item_code 010108",
+                    cost=42.5,
+                    source_page=14,
+                )
+            ]
+        },
+    )
+    problems, _ = check_pricing(validate_project)
+    assert not [p for p in problems if "carries a cost" in p or "SPECIAL_NET" in p], problems
+
+
+def test_special_net_without_citation_fails(validate_project):
+    _write(
+        validate_project,
+        "priced/line_items.json",
+        {
+            "lines": [
+                _priced(
+                    part_number="010108",
+                    cost_source="SPECIAL_NET",
+                    cost_source_detail="Hager net price",
+                    cost=42.5,
+                    source_page=14,
+                )
+            ]
+        },
+    )
+    problems, _ = check_pricing(validate_project)
+    assert any("SPECIAL_NET" in p and "does not cite" in p for p in problems), problems
+
+
+def test_catalog_baseline_with_catalog_md_passes(validate_project):
+    _write(
+        validate_project,
+        "priced/line_items.json",
+        {
+            "lines": [
+                _priced(
+                    part_number="3510",
+                    cost_source="CATALOG_BASELINE",
+                    cost_source_detail="catalog.md 2026 baseline part 3510",
+                    cost=74.33,
+                    source_page=14,
+                )
+            ]
+        },
+    )
+    problems, _ = check_pricing(validate_project)
+    assert not [p for p in problems if "carries a cost" in p or "CATALOG_BASELINE" in p], problems
+
+
+def test_list_x_multiplier_may_cite_catalog_md(validate_project):
+    _write(
+        validate_project,
+        "priced/line_items.json",
+        {
+            "lines": [
+                _priced(
+                    part_number="3510",
+                    cost_source="LIST_X_MULTIPLIER",
+                    cost_source_detail="catalog.md baseline list 256.31 x locks 0.29",
+                    cost=74.33,
+                    source_page=14,
+                )
+            ]
+        },
+    )
+    problems, _ = check_pricing(validate_project)
+    assert not [p for p in problems if "names no price-book" in p], problems
 
 
 def _sheet_with_text(project: str):

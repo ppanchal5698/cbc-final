@@ -60,15 +60,32 @@ class Takeoff(BaseModel):
     """
 
     bidRequestId: str
-    takeoffType: Literal["frp", "count", "linear"] = "frp"
+    takeoffType: Literal[
+        "frp", "frpArea", "count", "linear", "accessoryCount", "div10", "openingCount", "other"
+    ] = "frp"
     perimeterLf: float | None = None
     insideCorners: int | None = None
     outsideCorners: int | None = None
     wallHeightFt: float | None = None
     drawingScale: str | None = None
+    productType: str | None = None
+    manufacturer: str | None = None
+    location: str | None = None
+    drawingRef: str | None = None
+    qty: float | None = None
+    unit: str | None = None
+    specifiedModel: str | None = None
+    finish: str | None = None
+    vu360Notes: str | None = None
+    panelRequirements: str | None = None
+    trimRequirements: str | None = None
+    adhesiveRequirements: str | None = None
+    specialConditions: str | None = None
     constantsUsed: dict[str, Any] | None = None
     quantities: dict[str, Any] | None = None
-    status: Literal["measured", "converted", "pendingConstants"] = "pendingConstants"
+    status: Literal["measured", "converted", "pendingConstants", "NOT_MEASURED", "NOT_EXTRACTED"] = (
+        "pendingConstants"
+    )
     sourceRef: dict[str, Any] | None = None
     flags: list[str] = Field(default_factory=list)
     notes: str | None = None

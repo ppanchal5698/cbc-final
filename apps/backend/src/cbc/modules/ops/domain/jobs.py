@@ -23,6 +23,10 @@ JobType = Literal[
     # GPU parse of one uploaded PDF via MinerU. Not exclusive: one job per
     # document, so a second upload never gets a 409.
     "parse_document",
+    # MinerU parse of a vendor price book / multiplier PDF → catalogPages /
+    # multiplierPages. Distinct from parse_document (bid lane).
+    "parse_catalog",
+    "parse_multiplier",
     # Deprecated in cbc-copilot-final: kept so historical Mongo rows still
     # deserialise. New autopilot runs use orchestrate=true on extract_bid_set
     # and chain match_and_price → build_proposal across domain workers.

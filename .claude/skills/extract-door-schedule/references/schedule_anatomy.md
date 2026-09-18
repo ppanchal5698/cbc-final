@@ -2,27 +2,35 @@
 
 ## Where the schedule lives
 
-Not on the pages that mention it. Spec pages say "see Door Schedule"; the schedule
-itself is on a details/schedules sheet. In the Dutch Bros fixture:
+Not on the pages that merely *mention* it. Spec pages and drawing indexes say
+"see Door Schedule"; the real table sits on a schedules / details sheet (often
+A2.x, A4.0, A7.x, A9.x — **never assume a single sheet ID**).
 
-| Page | What is actually there |
+| What you find | What it usually means |
 |---|---|
-| 1, 5, 6 | Specification text referencing the schedule |
-| 6 | Hardware submittal requirements (Div 08 spec) |
-| **14** | **Sheet A2.2 - the real DOOR SCHEDULE, DOOR TYPE SCHEDULE, DOOR FRAME TYPE SCHEDULE, HARDWARE GROUPS and WINDOW SCHEDULE** |
-| 28 | Detail sheet cross-referencing the schedule |
+| Index / cover "DOOR SCHEDULE" hit | Cross-reference only — keep searching |
+| Page with tabular rows + WIDTH/HGT/GROUP or matrix X columns | The real schedule |
+| Remodel / National Accounts set with no schedule sheet | Honest empty openings + `remodel_no_schedule` |
+| Spec / project manual only | Honest empty — ask for drawings |
 
 Always search for the marker, then confirm the page actually holds tabular rows.
+Prefer ranked `door_schedule` / `door_schedule_candidate` pages from `_sheetmap.json`.
 
-## Two schedule layouts estimators see
+## Layout classes (not brand-specific)
 
-**A. GROUP-style** (Dutch Bros A2.2): mark, size, type, materials, `GROUP n`.
+**A. GROUP-style:** mark, size, type, materials, `GROUP n`.
 
-**B. Hardware-matrix** (Taco Bell Endeavor A1.1): mark, room, W×H×thick, type,
-door/frame material, then **X columns** for BUTTS / LOCKS / CLOSERS / KICK /
-THRESHOLD / STOP / MISC, plus detail refs and note numbers. There is often
-**no HANDING column and no FIRE RATING column**. That is not a parser miss —
-resolve handing from the floor plan; search type schedule/specs for rating.
+**B. Hardware-matrix:** mark, room, W×H×thick, type, door/frame material, then
+**X columns** for BUTTS / LOCKS / CLOSERS / KICK / THRESHOLD / STOP / MISC.
+Often **no HANDING / FIRE RATING column** — resolve from plans / type schedule.
+
+**C. Inch-layout:** mark, WIDTH as `36"`, HGT as `84"`, materials like `HPL` /
+`ALUM`, bare HARDWARE GROUP digit. Body text may be outlined CAD lettering —
+prefer vision / OCR when `get_text` only recovers the title.
+
+**D. Remodel / no dedicated schedule:** door tags on plans; hardware "see National
+Accounts." Parser returns empty openings with an honest reason — do not invent
+rows.
 
 ## Columns seen in practice (FR-2)
 
@@ -43,7 +51,7 @@ Column order varies by architect. Identify columns from the header row.
 | Hardware group | `GROUP 1`, `HW-1` | Or matrix X columns → expand into `hardware` |
 | Alternate | `ALT-1`, `Alternate 1` | FR-2; null = base bid (Matrix 4.1 still Pending) |
 | Notes | `8, 10, 13` | Letter/number codes into DOOR NOTES |
-| Fire rating | `90 MIN`, `45`, `NR` | Often absent — Matrix 7.3 Pending; flag, do not invent |
+| Fire rating | `90 MIN`, `45`, `NR` | Mandatory search; if absent/uncertain after PDF verify → null + `fire_rating_missing` (never invent) |
 | Handing | `LH`, `RHR` | Often only on the plan (Matrix 7.4) |
 | Finish | `US26D`, `626` | Sheet note "ALL HARDWARE SHALL BE US32D" applies to openings |
 
@@ -57,15 +65,24 @@ Column order varies by architect. Identify columns from the header row.
 | `3670` | 3'-6" (42") | 7'-0" |
 | `2868` | 2'-8" | 6'-8" |
 
-**Explicit** - separate columns, e.g. `3' - 6"` and `7' - 0"`. The Dutch Bros
-fixture uses this form. Normalise both to `width`, `height`, and `size` when the
+**Explicit feet-inches** - separate columns, e.g. `3' - 6"` and `7' - 0"`. The Dutch Bros
+fixture uses this form.
+
+**Inch-only columns** - retail / QSR schedules (often CityBlueprint-style fonts)
+print `36"` × `84"` under WIDTH / HGT. Normalise to feet-inches and a 4-digit
+`size` when derivable (`36"`/`84"` → `3'-0"` / `7'-0"` / `3070`).
+
+Also accept door materials `HPL` / `PLAM` and frame materials `ALUM` (→ `AL`),
+and hardware groups written as a bare digit under a HARDWARE GROUP header.
+
+Normalise both forms to `width`, `height`, and `size` when the
 4-digit code is derivable.
 
 ## Hardware group anatomy
 
 A group for one opening commonly contains:
 
-| Item | Example from the fixture |
+| Item | Example |
 |---|---|
 | Continuous or butt hinges | `IVES 700, 83", 630` |
 | Lock or exit device | `VON DUPRIN 99EO, 42", 626` |
@@ -87,8 +104,8 @@ the grade.
 
 Record `null` and flag. Never infer from a neighbouring row.
 
-- **Fire rating** - often absent from the door schedule (Dutch Bros; Taco Bell
-  matrix). Search type schedule + Div 08 before finishing. Interim: flag
+- **Fire rating** - often absent from the door schedule (GROUP-style and matrix
+  layouts). Search type schedule + Div 08 before finishing. Interim: flag
   `fire_rating_missing` at high severity; do **not** hard-stop or invent.
 - **Handing** - when the schedule has no HAND column, **must** try the floor-plan
   swing before leaving `handing_missing` (Matrix 7.4). Never default LH.
@@ -106,8 +123,20 @@ Record `null` and flag. Never infer from a neighbouring row.
 ## Keying (Matrix 7.6)
 
 There is **no separate keying-schedule workflow**. If the schedule or HW group
-mentions IC / keyway / keyed alike, capture it in `notes` only — do not invent a
-keying schema field.
+mentions IC / keyway / storeroom / keyed alike, capture a structured `keying`
+object:
+
+```json
+"keying": {
+  "coreType": "icSmallFormat",
+  "keyway": "Schlage C",
+  "lockFunction": "storeroom",
+  "notes": null
+}
+```
+
+`coreType` values: `icSmallFormat` | `icLargeFormat` | `conventional` | `none`.
+Leave `keying` null when the sheets are silent — do not invent.
 
 ## Out-of-scope items that appear in the same schedules
 

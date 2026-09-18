@@ -1,0 +1,9 @@
+{
+  "source_file": "Bid Set .pdf",
+  "source_page": 1,
+  "reviewed_by": null,
+  "note": "Regenerated after the header mapper was fixed and the accuracy gate was widened. The gate did not score width, height, room_name or the material columns, so it stayed green while the parser read every one of them from the wrong column - a stacked header tier has fewer cells than its data rows, and matching by index read each field one to the left. Provisional: every field in `unknown` needs a human to say whether the sheet is silent or the parser missed it.",
+  "openings": [],
+  "layout_class": "remodel_no_schedule",
+  "source_corpus": "bid_pdfs"
+}

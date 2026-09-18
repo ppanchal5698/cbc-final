@@ -19,9 +19,18 @@ from cbc.shared import manifests
 MATCHCACHE_REL = "extracted/_matchcache.json"
 HARDWARE_SETS_REL = "extracted/hardware_sets.json"
 DOOR_SCHEDULE_REL = "extracted/door_schedule.json"
-JOB_TYPES = frozenset({"match_and_price", "run_full_pipeline"})
+JOB_TYPES = frozenset(
+    {
+        "match_and_price",
+        "run_full_pipeline",
+        "extract_bid_set",
+        "rerun_extraction",
+    }
+)
 # Bump when product-matcher or match-hardware-sets changes how a match is decided.
-MATCHER_PROMPT_VERSION = "1"
+# "2": the ladder gained Tier 0 (recall_match) and the catalog lookup normalises
+# part strings, so matches decided under "1" were decided on less.
+MATCHER_PROMPT_VERSION = "2"
 
 
 def _now() -> str:
@@ -188,6 +197,30 @@ def reusable(slug: str, *, force: bool = False) -> list[dict[str, Any]]:
             continue
         kept.append(entry)
     return kept
+
+
+def learning_block() -> str:
+    """Tell the matcher the learned table exists, when it has anything in it.
+
+    Not the entries themselves: recalling them needs the specification, which the
+    matcher holds and this does not, and `recall_match` already answers that
+    per item. This is the nudge to use the tool - silent while there is nothing
+    to recall, so an empty table costs a new deployment no tokens.
+    """
+    from cbc.modules.catalog.api.pageindex import reader
+
+    try:
+        total = reader.learned_total()
+    except Exception:
+        return ""
+    if not total:
+        return ""
+    return (
+        f"**CBC has {total} specification(s) an estimator has already confirmed.**\n"
+        "Call `mcp__catalog__recall_match(specified)` before matching each item. "
+        "An `exact: true` recall is Tier 0 (0.97) - cite who confirmed it and when. "
+        "Fire rating, handing and finish still veto it.\n\n"
+    )
 
 
 def prompt_block(entries: list[dict[str, Any]] | None) -> str:

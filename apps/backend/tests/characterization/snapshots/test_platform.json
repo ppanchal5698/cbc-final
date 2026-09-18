@@ -221,9 +221,9 @@
   "body": {
    "byProject": [],
    "byType": [],
-   "dailyCapUsd": "null",
+   "dailyCapUsd": "number",
    "overDailyCap": "bool",
-   "projectCapUsd": "null",
+   "projectCapUsd": "number",
    "recent": [],
    "runs": "number",
    "since": "datetime",
@@ -488,6 +488,132 @@
    "detail": "str"
   },
   "status": 400
+ },
+ "GET /api/settings/parsing": {
+  "body": {
+   "backends": [
+    "str"
+   ],
+   "efforts": [
+    "str"
+   ],
+   "enabled": "bool",
+   "fields": {
+    "backend": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "effort": {
+     "locked": "bool",
+     "source": "str",
+     "value": "null"
+    },
+    "formulas": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "imageAnalysis": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "lang": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "method": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "profile": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "tables": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "url": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "waitMaxSeconds": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    },
+    "windowPages": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    },
+    "windowTimeoutSeconds": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    }
+   },
+   "methods": [
+    "str"
+   ],
+   "mineru": {
+    "error": "str"
+   },
+   "presets": {
+    "high": {
+     "backend": "str",
+     "effort": "str",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    },
+    "low": {
+     "backend": "str",
+     "effort": "null",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    },
+    "medium": {
+     "backend": "str",
+     "effort": "str",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    }
+   },
+   "profiles": [
+    "str"
+   ],
+   "updatedAt": "null",
+   "updatedBy": "null"
+  },
+  "status": 200
  },
  "GET /api/settings/pipeline": {
   "body": {
@@ -852,6 +978,16 @@
   },
   "status": 200
  },
+ "POST /api/settings/parsing/test": {
+  "body": {
+   "blocks": "null",
+   "error": "str",
+   "ok": "bool",
+   "seconds": "number",
+   "version": "null"
+  },
+  "status": 200
+ },
  "POST /api/users": {
   "body": {
    "createdAt": "datetime",
@@ -1038,6 +1174,258 @@
    "freshMonths": "number",
    "note": "str",
    "rule": "str",
+   "updatedAt": "datetime",
+   "updatedBy": "str"
+  },
+  "status": 200
+ },
+ "PUT /api/settings/parsing": {
+  "body": {
+   "backends": [
+    "str"
+   ],
+   "efforts": [
+    "str"
+   ],
+   "enabled": "bool",
+   "fields": {
+    "backend": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "effort": {
+     "locked": "bool",
+     "source": "str",
+     "value": "null"
+    },
+    "formulas": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "imageAnalysis": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "lang": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "method": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "profile": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "tables": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "url": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "waitMaxSeconds": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    },
+    "windowPages": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    },
+    "windowTimeoutSeconds": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    }
+   },
+   "methods": [
+    "str"
+   ],
+   "mineru": {
+    "error": "str"
+   },
+   "presets": {
+    "high": {
+     "backend": "str",
+     "effort": "str",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    },
+    "low": {
+     "backend": "str",
+     "effort": "null",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    },
+    "medium": {
+     "backend": "str",
+     "effort": "str",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    }
+   },
+   "profiles": [
+    "str"
+   ],
+   "updatedAt": "datetime",
+   "updatedBy": "str"
+  },
+  "status": 200
+ },
+ "PUT /api/settings/parsing #unknown profile": {
+  "body": {
+   "backends": [
+    "str"
+   ],
+   "efforts": [
+    "str"
+   ],
+   "enabled": "bool",
+   "fields": {
+    "backend": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "effort": {
+     "locked": "bool",
+     "source": "str",
+     "value": "null"
+    },
+    "formulas": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "imageAnalysis": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "lang": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "method": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "profile": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "tables": {
+     "locked": "bool",
+     "source": "str",
+     "value": "bool"
+    },
+    "url": {
+     "locked": "bool",
+     "source": "str",
+     "value": "str"
+    },
+    "waitMaxSeconds": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    },
+    "windowPages": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    },
+    "windowTimeoutSeconds": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    }
+   },
+   "methods": [
+    "str"
+   ],
+   "mineru": {
+    "error": "str"
+   },
+   "presets": {
+    "high": {
+     "backend": "str",
+     "effort": "str",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    },
+    "low": {
+     "backend": "str",
+     "effort": "null",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    },
+    "medium": {
+     "backend": "str",
+     "effort": "str",
+     "formulas": "bool",
+     "hardware": "str",
+     "imageAnalysis": "bool",
+     "lang": "str",
+     "method": "str",
+     "tables": "bool",
+     "waitMaxSeconds": "number",
+     "windowPages": "number",
+     "windowTimeoutSeconds": "number"
+    }
+   },
+   "profiles": [
+    "str"
+   ],
    "updatedAt": "datetime",
    "updatedBy": "str"
   },

@@ -164,3 +164,12 @@ def test_takeoffs(client, bid, snapshots) -> None:
 
 def test_feedback_events(client, bid, snapshots) -> None:
     snapshots.pin("GET /api/projects/{code}/feedback-events", client.get(_p(bid, "/feedback-events")))
+
+
+def test_apply_learning(client, snapshots) -> None:
+    """FR-13: fold the corrections recorded so far into what the matcher knows.
+
+    Idempotent and safe to call on a quiet queue - it answers with the counts it
+    drained, so an operator can tell "nothing to learn" from "it did not run".
+    """
+    snapshots.pin("POST /api/learning/apply", client.post("/api/learning/apply"))

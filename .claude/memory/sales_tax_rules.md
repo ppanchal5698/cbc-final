@@ -27,7 +27,7 @@ a job. Carry a TBD freight line on the quotation, unpriced.
 Exception: Rick occasionally includes freight one-off for customers who demand an
 all-inclusive bottom line.
 
-Hager freight reference (acct HGR 17907): prepaid freight at **$1,500** ($5,000 drop-ship);
+Hager freight reference (account id in `data/reference-library/multipliers/vendor_tiers.json`): prepaid freight at **$1,500** ($5,000 drop-ship);
 crating $50.00; itemization/tagging $175.00.
 
-See [[project_context]], [[process_flow]].
+See [project_context](project_context.md), [process_flow](process_flow.md).

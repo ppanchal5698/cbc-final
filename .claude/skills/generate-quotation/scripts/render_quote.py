@@ -45,6 +45,24 @@ def _load(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _priced_lines(data: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = data.get("lines")
+    if isinstance(rows, list) and rows:
+        return rows
+    alt = data.get("line_items")
+    return alt if isinstance(alt, list) else (rows if isinstance(rows, list) else [])
+
+
+def _project_block(data: dict[str, Any], fallback_name: str) -> dict[str, Any]:
+    """Pricing passes often set `project` to the slug string; export uses an object."""
+    raw = data.get("project")
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw.strip():
+        return {"name": raw, "state": data.get("state") or data.get("project_state")}
+    return {"name": fallback_name}
+
+
 def build_blocks(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Group lines into door / accessories / FRP blocks, each with subtotals.
 
@@ -62,7 +80,8 @@ def build_blocks(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def render(project: str) -> Path:
     project_dir = storage_root() / project
     data = _load(project_dir / "priced" / "line_items.json")
-    lines = data.get("lines", [])
+    lines = _priced_lines(data)
+    project_meta = _project_block(data, project)
 
     overlay_path = project_dir / "priced" / "margin_applied.json"
     if overlay_path.exists():
@@ -84,7 +103,7 @@ def render(project: str) -> Path:
             {"group": f"{line.get('group_type', 'door')}::{line.get('group')}", "ext_price": line.get("ext_price") or 0}
             for line in lines
         ],
-        project_state=data.get("project", {}).get("state"),
+        project_state=project_meta.get("state"),
     )
 
     env = Environment(
@@ -97,7 +116,7 @@ def render(project: str) -> Path:
         quote_number=data.get("quote_number", f"CBC-{date.today():%Y%m%d}-{project[:8].upper()}"),
         quote_date=data.get("quote_date", date.today().isoformat()),
         validity_days=data.get("validity_days", 30),
-        project=data.get("project", {"name": project}),
+        project=project_meta,
         customer=data.get("customer", {}),
         estimator=data.get("estimator", {}),
         notes=data.get("notes", []),

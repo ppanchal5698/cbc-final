@@ -13,7 +13,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Write|Edit|Bash|mcp__.*",
+        "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit|mcp__.*",
         "hooks": [
           {
             "type": "command",
@@ -37,7 +37,10 @@
       "mcp__p21-connector__check_freshness",
       "mcp__p21-connector__search_item",
       "mcp__catalog__*",
-      "mcp__reference__*"
+      "mcp__catalog-docs__*",
+      "mcp__bid-docs__*",
+      "mcp__reference__*",
+      "*"
     ],
     "deny": [
       "mcp__p21-connector__write_*",
@@ -46,8 +49,18 @@
       "mcp__p21-connector__create_*",
       "mcp__p21-connector__delete_*",
       "mcp__p21-connector__post_*",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Write(.env)",
+      "Write(.env.*)",
+      "Edit(.env)",
+      "Edit(.env.*)",
       "Bash(rm -rf *)",
+      "Bash(Remove-Item *)",
+      "Bash(ri *)",
+      "Bash(del /s *)",
       "Bash(git push *)",
+      "Bash(git push --force *)",
       "Bash(sendmail *)",
       "Bash(mailx *)",
       "Bash(curl *mail*)"

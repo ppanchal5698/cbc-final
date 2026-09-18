@@ -21,25 +21,28 @@ of the part codes carried no letter and effective dates were recorded as parts.
 
 1. **Learn the book** - `mcp__catalog__get_catalog_overview` when the vendor is
    unfamiliar. A few hundred tokens on how that publisher organises things, and it
-   saves opening the wrong pages.
-2. **Find the page** - `mcp__catalog__find_pages` with the part number, series or
-   description, and a `vendor` filter. Always pass the vendor; a library-wide
-   search is noisier. Each hit carries a two-line description, the part families
-   on the page, whether it carries prices, and why it matched.
-3. **Read the page** - `mcp__pdf-tools__extract_tables` on the `pdf_page` from the
-   hit. This is where the price comes from. If the page does not hold the part,
-   try the next hit rather than settling for the nearest row on the wrong page.
+   saves opening the wrong pages. Optionally `mcp__catalog-docs__list_catalogs_parsed`
+   to see which books have MinerU blocks.
+2. **Find the evidence** - Prefer `mcp__catalog-docs__search_blocks` with the part
+   number, series or description (and `vendor` / `catalog_id`). Hits include block
+   text/html, `bbox`, `file_path`, and `pdf_page`. Read the list price from the
+   block when clear; crop with `mcp__pdf-tools__get_page_image(..., region=bbox)`
+   only when unclear.
+3. **Fallback page index** - If parse is incomplete or search_blocks is empty,
+   `mcp__catalog__find_pages` with the part number, series or description, and a
+   `vendor` filter. Always pass the vendor; a library-wide search is noisier.
+   Then `mcp__pdf-tools__extract_tables` on the `pdf_page` from the hit.
 4. **Multiplier** - `mcp__catalog__get_multiplier`. Hager prices **by product
    category**, so pass the category (`locks`, `door_controls`, `exit_devices`,
    `architectural_hinges`, `electrified_products`, ...). Other vendors carry a
-   single tier.
+   single tier. Special-net text on a PDF sheet: catalog-docs
+   `source=multiplier`.
 5. **Give up cleanly.** No page, or a page that turns out not to hold the part,
    means MANUAL - not "close enough".
 
-**Cite the `locator` exactly as given.** It carries both the PDF page and the
-number printed on the page, and they differ on 775 of the 1,216 indexed pages
-because section numbering restarts. An estimator sent to "page 23" of a 744-page
-book cannot find the line without both.
+**Cite evidence exactly.** Prefer block `n` + `bbox` + `file_path` from
+catalog-docs; otherwise the find_pages `locator` (PDF page and printed page
+often differ).
 
 ## Applying the multiplier
 

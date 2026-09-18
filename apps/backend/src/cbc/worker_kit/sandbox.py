@@ -142,6 +142,25 @@ def prepare(job_id: str, slug: str) -> Path:
                 shutil.copy2(origin, target)
         except OSError as exc:
             log.warning("sandbox: could not copy %s: %s", name, exc)
+    # Catalog tools return repo-relative price-book paths (data/pricebooks/...).
+    # Claude's cwd is this workspace, not /app, so pdf-tools cannot open books
+    # unless we link them here.
+    pb_source = REPO_ROOT / "data" / "pricebooks"
+    if not pb_source.is_dir():
+        try:
+            from cbc.shared.paths import pricebook_dir
+
+            pb_source = pricebook_dir()
+        except Exception:
+            pb_source = None
+    if pb_source is not None and pb_source.is_dir():
+        pb_link = workspace / "data" / "pricebooks"
+        if not pb_link.exists():
+            try:
+                pb_link.parent.mkdir(parents=True, exist_ok=True)
+                os.symlink(pb_source, pb_link, target_is_directory=True)
+            except OSError as exc:
+                log.warning("sandbox: could not link pricebooks into workspace: %s", exc)
     try:
         ensure_workspace_trusted(workspace)
     except OSError as exc:
@@ -163,16 +182,89 @@ def iter_outputs(project_clone: Path) -> Iterable[tuple[Path, str]]:
         yield path, rel
 
 
+def _copy_replace(source: Path, target: Path) -> None:
+    """Copy `source` onto `target`, replacing host/root-owned files when needed.
+
+    Bind mounts and host-side writes can leave live bid files owned by root (or
+    otherwise unwritable by the worker uid). A bare shutil.copy2 then aborts the
+    whole promote and discards every sibling artifact still in scratch.
+    """
+    try:
+        shutil.copy2(source, target)
+        return
+    except PermissionError:
+        log.warning("sandbox: replace unwritable %s before promote", target)
+    try:
+        target.chmod(0o644)
+    except OSError:
+        pass
+    try:
+        target.unlink(missing_ok=True)
+    except TypeError:
+        # Python < 3.8 style; keep a narrow fallback for older runtimes.
+        if target.exists():
+            target.unlink()
+    except OSError as exc:
+        raise PermissionError(f"cannot replace unwritable promote target {target}") from exc
+    shutil.copy2(source, target)
+
+
+def _priced_line_count(path: Path) -> int | None:
+    """Number of quote lines in a priced artifact, or None when unreadable."""
+    import json
+
+    if not path.is_file():
+        return 0
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    if isinstance(payload, list):
+        return len(payload)
+    if isinstance(payload, dict):
+        rows = payload.get("lines")
+        if not isinstance(rows, list):
+            rows = payload.get("line_items")
+        return len(rows) if isinstance(rows, list) else 0
+    return 0
+
+
+class EmptyPricingPromoteError(ValueError):
+    """Scratch priced/line_items.json would erase a non-empty live quote."""
+
+    error_code = "sandbox_promote_empty_pricing"
+
+
 def promote(job_id: str, slug: str) -> list[str]:
     """Copy allowlisted files from the scratch clone back to the live bid.
 
     The audit trail and the versions index are appended to, never replaced; the
     content-addressed version copies are copied. Returns the relative paths that
     were promoted. Anything else is discarded.
+
+    Rejects promoting an empty ``priced/line_items.json`` over a live file that
+    already has lines — that was the session-to-session data-loss failure mode.
     """
     clone = workspace_dir(job_id) / "projects" / slug
     dest = storage.project_dir(slug)
     dest.mkdir(parents=True, exist_ok=True)
+
+    scratch_priced = clone / "priced" / "line_items.json"
+    live_priced = dest / "priced" / "line_items.json"
+    if scratch_priced.is_file():
+        scratch_n = _priced_line_count(scratch_priced)
+        live_n = _priced_line_count(live_priced) or 0
+        if scratch_n is None:
+            raise EmptyPricingPromoteError(
+                f"priced/line_items.json in scratch is invalid JSON; refusing to "
+                f"overwrite live quote for {slug}"
+            )
+        if scratch_n == 0 and live_n > 0:
+            raise EmptyPricingPromoteError(
+                f"scratch priced/line_items.json has 0 lines but live has {live_n}; "
+                f"refusing to erase quote for {slug}"
+            )
+
     promoted: list[str] = []
     discarded: list[str] = []
     for path, rel in iter_outputs(clone):
@@ -185,7 +277,7 @@ def promote(job_id: str, slug: str) -> list[str]:
             discarded.append(rel)
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, target)
+        _copy_replace(path, target)
         promoted.append(rel)
     if discarded:
         log.warning(

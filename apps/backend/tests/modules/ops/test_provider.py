@@ -585,6 +585,23 @@ def test_a_connection_test_uses_what_is_typed_over_the_env_file(monkeypatch):
     assert sources["bedrockApiKey"] == "env"
 
 
+def test_bedrock_drops_empty_iam_keys_when_bearer_token_is_set(monkeypatch):
+    """Compose `${AWS_ACCESS_KEY_ID:-}` injects blank IAM keys that beat the bearer."""
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "")
+    monkeypatch.setenv("AWS_BEARER_TOKEN_BEDROCK", "ABSK-bearer-onlyWT0=")
+    env, _ = provider.build_env(
+        {
+            "mode": provider.BEDROCK,
+            "awsRegion": "ap-south-1",
+            "model": "global.anthropic.claude-opus-4-5-20251101-v1:0",
+        }
+    )
+    assert env["AWS_BEARER_TOKEN_BEDROCK"] == "ABSK-bearer-onlyWT0="
+    assert "AWS_ACCESS_KEY_ID" not in env
+    assert "AWS_SECRET_ACCESS_KEY" not in env
+
+
 def test_preflight_does_not_retry_a_rejected_key_into_a_timeout(monkeypatch):
     """A 403 the CLI answers in a second became 90 silent seconds and "timed out"."""
     from cbc.modules.ops.api import claude_cli

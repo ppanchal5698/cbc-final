@@ -14,30 +14,11 @@ from cbc.modules.intake.api import documents
 from cbc.modules.ops.api import jobs as ops_jobs
 from cbc.modules.projects.api import pipeline
 from cbc.modules.quoting.api import priced_lines, proposal_artifacts, quote
-from cbc.shared import events, manifests
+from cbc.shared import events
 
 
 async def run(job: dict[str, Any]) -> None:
-    await pipeline.run_pass(job, sync=sync_results, prepare=_prepare, watch=passes.watch_progress)
-
-
-async def _prepare(job: dict[str, Any], project: dict[str, Any], payload: dict[str, Any]) -> bool:
-    if not payload.get("force"):
-        inherited = await _inherit_phase_state(job, project)
-        if inherited:
-            job["phaseState"] = inherited
-    return await passes.prepare(job, project, payload)
-
-
-async def _inherit_phase_state(job: dict, project: dict) -> dict:
-    """Copy still-valid phases from the previous job on this bid (B-15)."""
-    prev = await ops_jobs.previous_phase_state(project["_id"], job["_id"])
-    if not prev:
-        return {}
-    kept = manifests.reusable_phases(project["slug"], prev.get("phaseState") or {})
-    if kept:
-        await ops_jobs.set_fields(job["_id"], {"phaseState": kept})
-    return kept
+    await pipeline.run_pass(job, sync=sync_results, prepare=passes.prepare, watch=passes.watch_progress)
 
 
 async def sync_results(job: dict[str, Any], project: dict[str, Any] | None) -> str:

@@ -509,3 +509,65 @@ async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
         },
     )
     return blocker
+
+
+# Optional: hold match_and_price until catalog MinerU finishes. Default is off —
+# agents fall back to find_pages / pageIndex. Set CATALOG_PARSE_WAIT=1 to wait.
+_WAIT_FOR_CATALOG_PARSE = frozenset({"match_and_price"})
+
+
+async def defer_if_catalog_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
+    """Hold pricing until parse_catalog / parse_multiplier finish (opt-in).
+
+    When CATALOG_PARSE_WAIT is unset, returns None — match_and_price uses
+    catalog-docs when ready and find_pages otherwise. Never watches bid
+    parse_document.
+    """
+    import os
+
+    if (
+        job["type"] not in _WAIT_FOR_CATALOG_PARSE
+        or job.get("status") != "running"
+        or os.environ.get("CATALOG_PARSE_WAIT", "").strip().lower()
+        not in {"1", "true", "yes"}
+    ):
+        return None
+
+    from cbc.modules.ops.api import parsing_config
+
+    stored = await settings_collection().find_one({"_id": parsing_config.DOC_ID}) or {}
+    resolved, _ = parsing_config.resolve(stored)
+    if not parsing_config.enabled(resolved):
+        return None
+
+    other = await jobs_collection().find_one(
+        {
+            "type": {"$in": ["parse_catalog", "parse_multiplier"]},
+            "status": {"$in": ["queued", "running"]},
+        }
+    )
+    if other is None:
+        return None
+
+    filename = (other.get("payload") or {}).get("filename") or "price book"
+    note = f"waiting for MinerU to parse catalog {filename}"
+    await jobs_collection().update_one(
+        {
+            "_id": job["_id"],
+            "status": "running",
+            "workerId": job.get("workerId"),
+            "claimGeneration": job.get("claimGeneration"),
+        },
+        {
+            "$set": {
+                "status": "queued",
+                "startedAt": None,
+                "heartbeatAt": None,
+                "workerId": None,
+                "nextAttemptAt": _now() + timedelta(seconds=15),
+                "note": note,
+            },
+            "$inc": {"attempts": -1},
+        },
+    )
+    return other

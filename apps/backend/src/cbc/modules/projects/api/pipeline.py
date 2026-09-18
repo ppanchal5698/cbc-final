@@ -7,6 +7,7 @@ its type registered its own; the worker's composition root binds them into ops.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -14,13 +15,16 @@ from typing import Any
 from cbc.modules.ops.api import alerts, claude_pass, jobs as ops_jobs, worker as ops_worker
 from cbc.modules.projects.api import autopilot, bids, lookup, saga
 from cbc.modules.projects.infrastructure.collections import bid_requests
-from cbc.shared import storage
+from cbc.shared import manifests, storage
 from cbc.shared import logs
 
 log = logging.getLogger("cbc.worker")  # handlers are configured by the worker process
 
 # Seeds the project tree before the pass reads it; False when it has already finished the job.
 Prepare = Callable[[dict[str, Any], dict[str, Any], dict[str, Any]], Awaitable[bool]]
+
+
+WaveFor = Callable[[dict[str, Any], dict[str, Any]], list[tuple[str, str]]]
 
 
 async def run_pass(
@@ -30,6 +34,7 @@ async def run_pass(
     prepare: Prepare | None = None,
     watch: claude_pass.Watch | None = None,
     needs_catalog: bool = False,
+    wave_for: WaveFor | None = None,
 ) -> None:
     """Run a Claude pass over the job's bid: `prepare(job, project, payload)`, then claude_pass.run."""
     # Prefer top-level job.traceId (set at enqueue); payload is a fallback only.
@@ -80,6 +85,15 @@ async def run_pass(
                 waiting["_id"],
             )
             return
+        waiting_catalog = await ops_worker.defer_if_catalog_parsing(job)
+        if waiting_catalog:
+            job_log.info(
+                "job %s (%s) waiting for catalog MinerU parse job %s",
+                job["_id"],
+                job["type"],
+                waiting_catalog["_id"],
+            )
+            return
 
     payload = job.setdefault("payload", {})
     # Catalog `force` reindexes a sheet; pipeline `force` means rebuild phases.
@@ -91,9 +105,37 @@ async def run_pass(
     if project is not None and prepare is not None and not await prepare(job, project, payload):
         return
 
+    if project is not None and job["type"] in (
+        "extract_bid_set", "rerun_extraction", "match_and_price", "build_proposal", "run_full_pipeline"
+    ) and not payload.get("force"):
+        await _inherit_phase_state(job, project)
+
+    # Built here rather than at enqueue: it reads the sheet map that `prepare`
+    # has only just written.
+    wave = None
+    if wave_for is not None and project is not None:
+        legs = wave_for(job, project)
+        if legs:
+            wave = [claude_pass.WavePass(label=label, prompt=text) for label, text in legs]
+
     await claude_pass.run(
-        job, project, sync=sync, watch=watch, on_provider=_record_provider, needs_catalog=needs_catalog
+        job,
+        project,
+        sync=sync,
+        watch=watch,
+        on_provider=_record_provider,
+        needs_catalog=needs_catalog,
+        wave=wave,
     )
+
+
+async def _inherit_phase_state(job: dict, project: dict) -> None:
+    """Carry validated artifacts between the current split-phase jobs too."""
+    previous = await ops_jobs.previous_phase_state(project["_id"], job["_id"])
+    state = {**((previous or {}).get("phaseState") or {}), **(job.get("phaseState") or {})}
+    kept = await asyncio.to_thread(manifests.reusable_phases, project["slug"], state)
+    await ops_jobs.set_fields(job["_id"], {"phaseState": kept})
+    job["phaseState"] = kept
 
 
 async def _record_provider(project: dict[str, Any], described: dict[str, Any]) -> None:

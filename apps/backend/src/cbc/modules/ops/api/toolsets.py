@@ -31,6 +31,7 @@ SERVERS = {
     "catalog": "mcp-servers/catalog/server.py",
     "reference": "mcp-servers/reference/server.py",
     "bid-docs": "mcp-servers/bid-docs/server.py",
+    "catalog-docs": "mcp-servers/catalog-docs/server.py",
 }
 
 # Reading drawings and writing what was found. Reference for finishes / frame
@@ -52,7 +53,15 @@ _READING = ["pdf-tools", "artifact-storage", "reference", "bid-docs"]
 # to read it. That is exactly what happened: a run called find_pages, got its
 # page, called extract_tables, was told no such tool exists, and wrote all 32
 # lines MANUAL.
-_PRICING = ["catalog", "reference", "pdf-tools", "calc-engine", "p21-connector", "artifact-storage"]
+_PRICING = [
+    "catalog",
+    "catalog-docs",
+    "reference",
+    "pdf-tools",
+    "calc-engine",
+    "p21-connector",
+    "artifact-storage",
+]
 
 # One run that spans every phase needs every server. Per-phase scoping is a real
 # cost and quality lever when a job does one thing; here the same pass reads
@@ -119,8 +128,8 @@ def config_for(job_type: str) -> str:
             "args": [str((REPO_ROOT / SERVERS[name]).resolve())],
         }
         env: dict[str, str] = {}
-        if name in ("catalog", "p21-connector", "reference", "bid-docs"):
-            # Page index, freshness, referenceData, and parsed bid blocks use a
+        if name in ("catalog", "p21-connector", "reference", "bid-docs", "catalog-docs"):
+            # Page index, freshness, referenceData, and parsed bid/catalog blocks use a
             # read-only credential with no fallback to the writable string.
             readonly = _readonly_uri()
             if readonly:

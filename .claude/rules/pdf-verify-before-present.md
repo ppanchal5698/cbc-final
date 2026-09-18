@@ -19,7 +19,10 @@ this gate when:
 
 1. **Name the page.** Use `source_page` / sheetmap / `search_pdf` /
    `search_blocks` — never invent a page number.
-2. **Read that page.** Prefer `get_page_blocks` / `extract_tables` /
+2. **Read that page.** If the page appears in `extracted/_visual_pages.json`,
+   start with the pre-rendered image (`Read` `image_path`, or
+   `get_page_image` full page if the cache file is missing) — not bid-docs /
+   extract_text. Otherwise prefer `get_page_blocks` / `extract_tables` /
    `extract_text` on that page. Crop with
    `get_page_image(region=bbox)` when the text layer is ambiguous.
 3. **Record what you checked** in `evidence_note` (or the review flag `note`):
@@ -35,8 +38,8 @@ Every non-empty schedule cell belongs somewhere:
 
 | Cell content | Where it goes |
 |---|---|
-| Mark, size, type, materials, glass, HW group | Allowlisted Opening fields |
-| Thickness, detail refs, note numbers, keying | `notes` (never invent new keys) |
+| Mark, size, type, materials, glass, HW group, keying object | Allowlisted Opening fields |
+| Thickness, detail refs, note numbers | `notes` (never invent new keys) |
 | Door / frame type schedule callouts | Cross-read those pages; fill rating / construction when stated |
 | Floor-plan swing | `handing` (Matrix 7.4) — required search when schedule has no HAND column |
 

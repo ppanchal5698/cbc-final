@@ -131,5 +131,14 @@ def clustered_rows(
     if hit is not None:
         return list(hit.get("rows") or [])
     rows = pdfrows.rows_from_words(page, region, shift)
+    if not rows:
+        # An outlined CAD font extracts nothing, so a real schedule sheet came
+        # back with no rows and was reported as a page with no table on it.
+        # `cluster_rows` in the take-off skill has always fallen back here; the
+        # MCP path did not, which is why the same sheet read differently
+        # depending on which tool asked.
+        words = pdfrows.ocr_words(page, dpi=300)
+        if words:
+            rows = pdfrows.rows_from_words(page, region, shift, words=words)
     put(key, {"rows": rows})
     return rows

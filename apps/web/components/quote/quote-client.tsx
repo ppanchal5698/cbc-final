@@ -36,7 +36,29 @@ const TAX_OPTIONS = [
   { key: "NONE", label: "No nexus" },
 ];
 
-const COLUMNS = "140px minmax(200px,1fr) 60px 95px 85px 72px 120px 105px 30px";
+const COLUMNS = "minmax(170px,1.2fr) minmax(220px,2fr) 56px 95px 120px 72px minmax(110px,1fr) 100px 32px";
+
+function formatCostSourceLabel(source?: string | null): string {
+  if (!source) return "MANUAL";
+  switch (source) {
+    case "DISTRIBUTOR_MANUAL":
+      return "Dist. Manual";
+    case "VENDOR_RFQ":
+      return "Vendor RFQ";
+    case "P21_LAST_PO":
+      return "P21 PO";
+    case "LIST_X_MULTIPLIER":
+      return "List × Mult";
+    case "SPECIAL_NET":
+      return "Special Net";
+    case "BOOK_PRICE":
+      return "Book Price";
+    case "MANUAL":
+      return "Manual";
+    default:
+      return source.replace(/_/g, " ");
+  }
+}
 
 /** An input that only commits on blur or Enter, so totals do not thrash per keystroke. */
 function Cell({
@@ -417,7 +439,7 @@ export function QuoteClient({
           )}
 
           <div className="overflow-x-auto">
-            <div style={{ minWidth: 940 }}>
+            <div style={{ minWidth: 1040 }}>
               <div
                 className="grid gap-4 border-b border-subtle px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-tx-muted bg-panel-muted"
                 style={{ gridTemplateColumns: COLUMNS }}
@@ -491,7 +513,7 @@ export function QuoteClient({
                         className={`grid items-center gap-4 border-b border-subtle px-5 py-3.5 last:border-b-0 hover:bg-background/50 transition-colors ${line.addedByHand ? "border-l-4 border-l-status-error" : ""}`}
                         style={{ gridTemplateColumns: COLUMNS }}
                       >
-                        <span className="truncate text-[13px] font-medium text-tx-secondary">
+                        <span className="truncate text-[13px] font-medium text-tx-secondary" title={line.part ?? undefined}>
                           {line.part ?? "—"}
                         </span>
 
@@ -529,14 +551,19 @@ export function QuoteClient({
 
                         <span className="tnum text-right text-[13px] font-bold">
                           {line.sell === null ? (
-                            <span className="flex flex-col items-end gap-0.5">
-                              <span className="rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-widest bg-status-warning-soft text-status-warning shadow-sm">
-                                {line.priceStatus ?? "MANUAL"}
+                            <span className="flex flex-col items-end gap-1">
+                              <span
+                                className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-status-warning-soft text-status-warning border border-status-warning/30 shadow-xs whitespace-nowrap"
+                                title={line.costSource === "DISTRIBUTOR_MANUAL" ? "Distributor manual quote — price may be out of date" : (line.priceStatus ?? line.costSource ?? "Manual")}
+                              >
+                                {formatCostSourceLabel(line.priceStatus ?? line.costSource)}
                               </span>
-                              {(line.costSource === "DISTRIBUTOR_MANUAL" ||
-                                line.costSource === "MANUAL") && (
-                                <span className="text-[10px] font-medium text-status-warning">
-                                  Price may be out of date — refresh
+                              {line.costSource === "DISTRIBUTOR_MANUAL" && (
+                                <span
+                                  className="text-[9.5px] font-medium text-status-warning whitespace-nowrap"
+                                  title="Price may be out of date — refresh"
+                                >
+                                  Price may be stale
                                 </span>
                               )}
                             </span>

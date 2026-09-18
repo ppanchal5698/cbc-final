@@ -5,7 +5,7 @@
 > Do NOT attempt to price every option permutation. The estimator handles the long tail.
 
 ## What is automated (Phase 1)
-- The **top-10 vendors** — 90%+ of quote volume. See [[vendor_tiers]].
+- The **top-10 vendors** — 90%+ of quote volume. See [vendor_tiers](vendor_tiers.md).
 - The **top-10 stock items per product type** (locks, exits, closers, hinges, kick plates,
   thresholds, sweeps, weatherstrip, silencers). Grade variants push this to roughly 20.
 - Quoting is by **part number / series**, not by grade — e.g. Hager 3400 vs 3500 is
@@ -27,4 +27,4 @@ plain-language reason**, and let the estimator price it.
 
 There is no partial credit for a confidently wrong price.
 
-See [[cost_sourcing_rules]], the accuracy-trust rule.
+See [cost_sourcing_rules](cost_sourcing_rules.md), the accuracy-trust rule.

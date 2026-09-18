@@ -13,6 +13,7 @@ SERVERS = (
     "p21-connector",
     "reference",
     "bid-docs",
+    "catalog-docs",
 )
 
 
@@ -26,10 +27,16 @@ def _cases():
     return cases
 
 
-def test_there_are_forty_five_tools() -> None:
+def test_the_tool_count_is_what_the_toolsets_budget_for() -> None:
+    """Every tool's schema sits in context for a whole run, so the count is a cost.
+
+    catalog gained `recall_match` (FR-13, Tier 0), taking it from 9 to 10.
+    artifact-storage gained `propose_patch`, taking it from 4 to 5: whole-file
+    authorship of a seeded checkpoint is what made one bad key cost a whole run.
+    """
     total = sum(len(load_server(name).HANDLERS) for name in SERVERS)
-    # pdf-tools(7)+catalog(7)+calc(6)+artifact(4)+p21(3)+reference(14)+bid-docs(4)
-    assert total == 45
+    # pdf-tools(7)+catalog(10)+calc(6)+artifact(5)+p21(3)+reference(14)+bid-docs(4)+catalog-docs(4)
+    assert total == 53
 
 
 def test_handler_parameters_appear_in_the_schema() -> None:

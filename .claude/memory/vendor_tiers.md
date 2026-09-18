@@ -7,7 +7,7 @@ The multiplier is a **per-vendor account attribute (a tier)**, not a per-item va
 Phase 1 covers the **top-10 vendors only** — they are 90%+ of quotes.
 
 ## Hager — ~75% of volume
-Account **HGR 17907**, discount sheet effective **03/02/2026**, Price Book **#18**.
+Account id lives with purchasing (see `data/reference-library/multipliers/vendor_tiers.json`); discount sheet effective **03/02/2026**, Price Book **#18**.
 Advantage Program: prepaid freight $1,500 (drop-ship $5,000); no minimum order charge;
 crating $50.00; itemization/tagging $175.00.
 
@@ -33,9 +33,9 @@ at the 50-and-42 discount (0.290) cost is about **$74**.
 | Rockwood — accessories | **0.55** | Architectural and Lites/Louvers books also on file |
 | Bradley | **0.53** | 2026 price book (WAD) |
 | World Dryer | Level 3 = **0.339** | Vendor sheet pre-computes net |
-| PEMKO / Markar | buying program acct **4244636** | 2026 price book on file |
+| PEMKO / Markar | buying program account (see purchasing / `vendor_tiers.json`) | 2026 price book on file |
 | Bobrick / Gamco | HP 2017 program net sheets | net pricing, not list x multiplier |
-| NUDO / Midwest-East Coast | FRP + vinyl moldings sheets eff. 5-11-26 | see [[manual_cutoff]] |
+| NUDO / Midwest-East Coast | FRP + vinyl moldings sheets eff. 5-11-26 | see [manual_cutoff](manual_cutoff.md) |
 
 ## Distributor-bought lines — MANUAL price entry (NR-2)
 Not bought direct, so no multiplier applies. **Always require manual entry** with a
@@ -49,4 +49,4 @@ Electrification, non-removable-pin (NRP) hinges, premium / lead-time finishes.
 These are added **on top of** the base price — see
 reference-library/adders/manual_adders.json
 
-See [[cost_sourcing_rules]], [[margin_sheet]].
+See [cost_sourcing_rules](cost_sourcing_rules.md), [margin_sheet](margin_sheet.md).

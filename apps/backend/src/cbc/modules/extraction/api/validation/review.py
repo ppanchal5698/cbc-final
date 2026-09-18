@@ -40,6 +40,7 @@ UNFINISHED_COST_SOURCES = {
 REQUIRED_OPENING_FIELDS = {
     "fire_rating": "Missing fire rating",
     "handing": "Missing handing",
+    "finish": "Missing finish",
     "size": "Missing size",
 }
 
@@ -92,6 +93,25 @@ def _opening_flags(openings: list[dict]) -> list[dict]:
         for field, note in REQUIRED_OPENING_FIELDS.items():
             if opening.get(field) in (None, "", []):
                 flags.append(_flag(label, field, "high", note + " - estimator review", page))
+
+        keying = opening.get("keying")
+        hw = " ".join(
+            str(opening.get(k) or "")
+            for k in ("hardware", "hardware_set", "hw_set")
+        ).lower()
+        implies_keying = any(
+            token in hw for token in ("lock", "cylinder", "ic ", " ic", "storeroom", "keyway")
+        )
+        if implies_keying and not keying:
+            flags.append(
+                _flag(
+                    label,
+                    "keying",
+                    "medium",
+                    "Hardware implies keying/lock options but keying object is empty",
+                    page,
+                )
+            )
 
         confidence = opening.get("confidence")
         if isinstance(confidence, (int, float)) and confidence < CONFIDENCE_FLOOR:
@@ -157,6 +177,13 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
 
 def _scope_flags(scope: Any, metadata: Any) -> list[dict]:
     flags: list[dict] = []
+    if isinstance(metadata, dict) and metadata.get("brand_mismatch_warning"):
+        flags.append(
+            _flag("bid set", "project_identity", "critical",
+                  "Unresolved brand/project identity mismatch: "
+                  + str(metadata["brand_mismatch_warning"])
+                  + ". Confirm the correct bid and documents before sending to the customer.")
+        )
     if isinstance(scope, dict):
         for item in scope.get("out_of_scope_items") or []:
             if not isinstance(item, dict):
@@ -171,8 +198,8 @@ def _scope_flags(scope: Any, metadata: Any) -> list[dict]:
         if scope.get("fire_ratings_present") is False:
             flags.append(
                 _flag("bid set", "fire_rating", "high",
-                      "No fire ratings anywhere in the set - Matrix 7.3 is open, "
-                      "so do not assume unrated", None)
+                      "No fire ratings found in the set - fire rating is mandatory "
+                      "to extract; leave null with a review flag, never invent", None)
             )
 
     state = metadata.get("state") if isinstance(metadata, dict) else None
@@ -243,7 +270,31 @@ def derive_flags(slug: str) -> list[dict]:
             _load(project / "extracted" / "scope_metadata.json"),
         ),
         *_document_not_parsed_flags(project),
+        *_ocr_unavailable_flags(project),
     ]
+
+
+def _ocr_unavailable_flags(project: Path) -> list[dict]:
+    """Surface scanned pages where OCR assist could not run."""
+    visual = _load(project / "extracted" / "_visual_pages.json")
+    if not isinstance(visual, dict):
+        return []
+    flags: list[dict] = []
+    for page in visual.get("pages") or []:
+        if not isinstance(page, dict):
+            continue
+        status = page.get("ocr_status")
+        if status not in ("unavailable", "failed"):
+            continue
+        source_page = page.get("source_page")
+        note = (
+            f"OCR {status} on {page.get('path')} page {source_page}; "
+            "vision image is still required — text assist was empty"
+        )
+        flags.append(
+            _flag(None, "ocr_unavailable", "info", note, source_page=source_page)
+        )
+    return flags
 
 
 def _document_not_parsed_flags(project: Path) -> list[dict]:

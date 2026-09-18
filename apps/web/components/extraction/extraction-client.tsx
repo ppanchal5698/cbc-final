@@ -22,6 +22,7 @@ import { AlternateBar } from "@/components/bids/alternate-bar";
 import { BulkBar } from "@/components/extraction/bulk-bar";
 import { LineItemRow, ROW_COLUMNS } from "@/components/extraction/line-item-row";
 import { PartComposer } from "@/components/extraction/part-composer";
+import { SpecialtiesTakeoffPanel } from "@/components/extraction/specialties-takeoff-panel";
 import { JobFailedBanner } from "@/components/jobs/job-failed-banner";
 import { useRowKeys } from "@/hooks/use-row-keys";
 import { useUiState } from "@/components/shell/ui-state";
@@ -285,6 +286,8 @@ export function ExtractionClient({
           </div>
 
           <AlternateBar code={code} active={alternate} onChange={setAlternate} />
+
+          <SpecialtiesTakeoffPanel code={code} />
 
           {running && (
             <div className="anim-fadein relative overflow-hidden rounded-xl px-5 py-4 text-[13px] font-medium bg-status-warning-soft border border-status-warning/30 text-status-warning shadow-sm">

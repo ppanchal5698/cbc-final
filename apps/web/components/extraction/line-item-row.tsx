@@ -73,16 +73,22 @@ const ATTRIBUTE_FIELDS = [
     placeholder: "20 / 45 / 60 / 90",
   },
   { key: "frameDepth", label: "Frame depth", missingFlag: null, placeholder: "5-5/8\" … CUSTOM" },
+  // Both were carried all the way into Mongo and then shown nowhere: frameType
+  // was rendered by no component at all, and wallType was printed in the summary
+  // line but could not be corrected - even though frameDepth is derived from it.
+  { key: "frameType", label: "Frame type", missingFlag: null, placeholder: "HM / KD / welded" },
+  { key: "wallType", label: "Wall type", missingFlag: "wall_type_missing", placeholder: "drywall / masonry / 2x4" },
 ] as const;
 
 const FLAG_HINTS: Record<string, string> = {
   fire_rating_missing:
-    "Agent searched schedule / type schedule / Div 08 on the PDF — still absent (Matrix 7.3)",
+    "Mandatory fire rating — searched schedule / type schedule / Div 08 on the PDF; still absent or uncertain",
   handing_missing:
     "Agent searched schedule + floor-plan swing on the PDF — still unresolved",
-  finish_missing: "Agent checked HW group / sheet note on the PDF — still absent",
+  finish_missing: "Required finish — checked HW group / sheet note on the PDF; still absent",
   finish_ambiguous: "Ambiguous finish code — confirm which satin",
   finish_unrecognized: "Finish not in CBC crosswalk — confirm on sheet",
+  keying_missing: "Lock/IC hardware implies keying options — fill the keying block",
   frame_depth_needs_wall_assembly_review: "Wall type needed before throat depth",
   hardware_set_missing: "No GROUP / HW set on the schedule row",
   hardware_matrix_unexpanded: "Matrix X columns — expand hardware from legend",
@@ -91,6 +97,24 @@ const FLAG_HINTS: Record<string, string> = {
   frame_depth_underivable: "Frame depth needs wall type",
   details_dropped: "Schedule cells (glass / materials / notes) were not carried into fields",
 };
+
+const MATERIAL_FIELDS = [
+  { key: "doorType", label: "Door type" },
+  { key: "doorMaterial", label: "Door material" },
+  { key: "frameMaterial", label: "Frame material" },
+  { key: "glass", label: "Glass" },
+  { key: "manufacturer", label: "Manufacturer" },
+  { key: "series", label: "Series" },
+  { key: "location", label: "Location" },
+] as const;
+
+const KEYING_CORE_OPTIONS = [
+  { value: "", label: "—" },
+  { value: "icSmallFormat", label: "IC small format" },
+  { value: "icLargeFormat", label: "IC large format" },
+  { value: "conventional", label: "Conventional" },
+  { value: "none", label: "None" },
+] as const;
 
 export function LineItemRow({
   item,
@@ -138,6 +162,18 @@ export function LineItemRow({
     item.finish,
     item.fireRating,
     item.frameDepth,
+    item.frameType,
+    item.wallType,
+    item.doorType,
+    item.doorMaterial,
+    item.frameMaterial,
+    item.glass,
+    item.manufacturer,
+    item.series,
+    item.location,
+    item.hardware,
+    item.notes,
+    JSON.stringify(item.keying ?? null),
     item.confirmedAt,
   ].join("\u0000");
 
@@ -155,6 +191,21 @@ export function LineItemRow({
           finish: item.finish ?? "",
           fireRating: item.fireRating ?? "",
           frameDepth: item.frameDepth ?? "",
+          frameType: item.frameType ?? "",
+          wallType: item.wallType ?? "",
+          doorType: item.doorType ?? "",
+          doorMaterial: item.doorMaterial ?? "",
+          frameMaterial: item.frameMaterial ?? "",
+          glass: item.glass ?? "",
+          manufacturer: item.manufacturer ?? "",
+          series: item.series ?? "",
+          location: item.location ?? "",
+          hardware: item.hardware ?? "",
+          notes: item.notes ?? "",
+          keyingCoreType: item.keying?.coreType ?? "",
+          keyingKeyway: item.keying?.keyway ?? "",
+          keyingLockFunction: item.keying?.lockFunction ?? "",
+          keyingNotes: item.keying?.notes ?? "",
         };
 
   const dirty = edits?.from === revision;
@@ -213,6 +264,29 @@ export function LineItemRow({
           finish: draft.finish || null,
           fireRating: draft.fireRating || null,
           frameDepth: draft.frameDepth || null,
+          frameType: draft.frameType || null,
+          wallType: draft.wallType || null,
+          doorType: draft.doorType || null,
+          doorMaterial: draft.doorMaterial || null,
+          frameMaterial: draft.frameMaterial || null,
+          glass: draft.glass || null,
+          manufacturer: draft.manufacturer || null,
+          series: draft.series || null,
+          location: draft.location || null,
+          hardware: draft.hardware || null,
+          notes: draft.notes || null,
+          keying:
+            draft.keyingCoreType ||
+            draft.keyingKeyway ||
+            draft.keyingLockFunction ||
+            draft.keyingNotes
+              ? {
+                  coreType: draft.keyingCoreType || null,
+                  keyway: draft.keyingKeyway || null,
+                  lockFunction: draft.keyingLockFunction || null,
+                  notes: draft.keyingNotes || null,
+                }
+              : null,
         },
       },
       "Your changes are saved",
@@ -359,6 +433,45 @@ export function LineItemRow({
               )}
             </div>
 
+            {item.rawRow && (
+              <div className="mt-4 rounded-xl border border-subtle bg-panel-muted px-4 py-3">
+                <span className="block text-[11.5px] font-bold uppercase tracking-widest text-tx-muted">
+                  What the sheet printed
+                </span>
+                <code className="mt-1.5 block break-words font-mono text-[12px] leading-relaxed text-tx-secondary">
+                  {item.rawRow}
+                </code>
+                {(item.width || item.height) && (
+                  <span className="mt-1.5 block text-[11.5px] font-medium text-tx-muted">
+                    {item.width ?? "?"} &times; {item.height ?? "?"}
+                    {item.sizeNotation ? ` · read as ${item.sizeNotation}` : ""}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {item.inScope === false && (
+              <div className="mt-4 rounded-xl border border-status-warning/30 bg-status-warning-soft px-4 py-3">
+                <span className="block text-[11.5px] font-bold uppercase tracking-widest text-status-warning">
+                  Not quoted{item.scopeRule ? ` · ${item.scopeRule.replace(/_/g, " ")}` : ""}
+                </span>
+                <span className="mt-1 block text-[13px] font-medium text-tx-secondary leading-relaxed">
+                  {item.scopeReason ?? "Out of CBC's estimating scope."}
+                </span>
+              </div>
+            )}
+
+            {item.inScope === null && !item.addedByHand && (
+              <div className="mt-4 rounded-xl border border-subtle bg-panel-muted px-4 py-3">
+                <span className="block text-[11.5px] font-bold uppercase tracking-widest text-tx-muted">
+                  Scope not decided
+                </span>
+                <span className="mt-1 block text-[13px] font-medium text-tx-secondary leading-relaxed">
+                  {item.scopeReason ?? "The rules do not cover this row - your call."}
+                </span>
+              </div>
+            )}
+
             {item.status === "duplicate" && (
               <div className="mt-4 flex items-center gap-3 rounded-xl px-4 py-3.5 bg-status-error-soft border border-status-error/30 shadow-sm">
                 <Copy size={18} weight="fill" className="text-status-error" />
@@ -430,6 +543,101 @@ export function LineItemRow({
                 );
               })}
             </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {MATERIAL_FIELDS.map((field) => (
+                <label key={field.key} className="block">
+                  <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-widest text-tx-muted">
+                    {field.label}
+                  </span>
+                  <input
+                    value={draft[field.key] ?? ""}
+                    onChange={(event) => setField(field.key, event.target.value)}
+                    className="w-full rounded-lg px-3 py-2 text-[13px] font-medium outline-none transition-all bg-panel-muted border border-subtle text-tx-primary focus:ring-2 focus:ring-brand-border focus:border-brand-primary/30 shadow-sm"
+                  />
+                </label>
+              ))}
+            </div>
+
+            <div className="mt-4">
+              <span className="mb-1.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-tx-muted">
+                Keying
+                {flags.includes("keying_missing") && (
+                  <StatusBadge variant="caution" dashed>
+                    {FLAG_HINTS.keying_missing}
+                  </StatusBadge>
+                )}
+              </span>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <label className="block">
+                  <span className="mb-1.5 block text-[11px] font-medium text-tx-muted">Core type</span>
+                  <select
+                    value={draft.keyingCoreType ?? ""}
+                    onChange={(event) => setField("keyingCoreType", event.target.value)}
+                    className="w-full rounded-lg px-3 py-2 text-[13px] font-medium outline-none transition-all bg-panel-muted border border-subtle text-tx-primary focus:ring-2 focus:ring-brand-border focus:border-brand-primary/30 shadow-sm"
+                  >
+                    {KEYING_CORE_OPTIONS.map((opt) => (
+                      <option key={opt.value || "empty"} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-[11px] font-medium text-tx-muted">Keyway</span>
+                  <input
+                    value={draft.keyingKeyway ?? ""}
+                    placeholder="e.g. Schlage C"
+                    onChange={(event) => setField("keyingKeyway", event.target.value)}
+                    className="w-full rounded-lg px-3 py-2 text-[13px] font-medium outline-none transition-all bg-panel-muted border border-subtle text-tx-primary focus:ring-2 focus:ring-brand-border focus:border-brand-primary/30 shadow-sm"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-[11px] font-medium text-tx-muted">Lock function</span>
+                  <input
+                    value={draft.keyingLockFunction ?? ""}
+                    placeholder="e.g. storeroom"
+                    onChange={(event) => setField("keyingLockFunction", event.target.value)}
+                    className="w-full rounded-lg px-3 py-2 text-[13px] font-medium outline-none transition-all bg-panel-muted border border-subtle text-tx-primary focus:ring-2 focus:ring-brand-border focus:border-brand-primary/30 shadow-sm"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-[11px] font-medium text-tx-muted">Keying notes</span>
+                  <input
+                    value={draft.keyingNotes ?? ""}
+                    onChange={(event) => setField("keyingNotes", event.target.value)}
+                    className="w-full rounded-lg px-3 py-2 text-[13px] font-medium outline-none transition-all bg-panel-muted border border-subtle text-tx-primary focus:ring-2 focus:ring-brand-border focus:border-brand-primary/30 shadow-sm"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {(draft.hardware || draft.notes) && (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-widest text-tx-muted">
+                    Hardware
+                  </span>
+                  <textarea
+                    value={draft.hardware ?? ""}
+                    onChange={(event) => setField("hardware", event.target.value)}
+                    rows={2}
+                    className="w-full rounded-lg px-3 py-2 text-[13px] font-medium outline-none transition-all bg-panel-muted border border-subtle text-tx-primary focus:ring-2 focus:ring-brand-border focus:border-brand-primary/30 shadow-sm"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-widest text-tx-muted">
+                    Notes
+                  </span>
+                  <textarea
+                    value={draft.notes ?? ""}
+                    onChange={(event) => setField("notes", event.target.value)}
+                    rows={2}
+                    className="w-full rounded-lg px-3 py-2 text-[13px] font-medium outline-none transition-all bg-panel-muted border border-subtle text-tx-primary focus:ring-2 focus:ring-brand-border focus:border-brand-primary/30 shadow-sm"
+                  />
+                </label>
+              </div>
+            )}
 
             <div className="mt-6 flex items-center gap-3 border-t border-subtle pt-4">
               <button

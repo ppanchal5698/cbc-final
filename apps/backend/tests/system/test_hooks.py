@@ -37,6 +37,12 @@ def test_log_audit_trail_mirrors_to_claude_log() -> None:
     assert "claude.log" in source
 
 
+def test_post_quote_format_uses_a_subprocess_timeout() -> None:
+    source = (HOOKS / "post_quote_format.py").read_text(encoding="utf-8")
+    assert "timeout=15" in source
+    assert "TimeoutExpired" in source
+
+
 def test_save_artifact_rejects_placeholder_in_source() -> None:
     source = (ROOT / "mcp-servers" / "artifact-storage" / "server.py").read_text(
         encoding="utf-8"
@@ -50,17 +56,23 @@ def test_settings_json_is_valid() -> None:
     settings = json.loads(settings_path.read_text(encoding="utf-8"))
     assert "hooks" in settings
     assert "permissions" in settings
+    allow = settings["permissions"]["allow"]
+    assert "mcp__bid-docs__*" in allow
+    assert "mcp__catalog-docs__*" in allow
+    deny = settings["permissions"]["deny"]
+    assert "Bash(Remove-Item *)" in deny
+    assert "Read(.env)" in deny
 
 
 def test_settings_post_tool_use_includes_save_artifact() -> None:
     settings = json.loads((ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
-    matchers = [
-        block["matcher"]
-        for block in settings["hooks"]["PostToolUse"]
-        if "matcher" in block
-    ]
+    pre = settings["hooks"]["PreToolUse"][0]["matcher"]
+    post = settings["hooks"]["PostToolUse"][0]["matcher"]
+    assert pre == post
+    assert "MultiEdit" in post
+    assert "NotebookEdit" in post
     # mcp__.* covers save_artifact; do not require the tool name in the matcher.
-    assert any("mcp__" in matcher for matcher in matchers)
+    assert "mcp__" in post
     assert len(settings["hooks"]["PreToolUse"]) == 1
     assert len(settings["hooks"]["PostToolUse"]) == 1
     assert len(settings["hooks"]["PreToolUse"][0]["hooks"]) == 1
@@ -143,6 +155,29 @@ def test_pre_tool_use_blocks_a_delete_outside_projects() -> None:
     assert (
         _run_pre_tool_use(
             {"tool_name": "Bash", "tool_input": {"command": "rm -rf /tmp/cbc-not-a-bid"}}
+        )
+        == 2
+    )
+
+
+def test_pre_tool_use_blocks_powershell_delete_outside_projects() -> None:
+    assert (
+        _run_pre_tool_use(
+            {
+                "tool_name": "Bash",
+                "tool_input": {
+                    "command": "Remove-Item -Recurse -Force /tmp/cbc-not-a-bid"
+                },
+            }
+        )
+        == 2
+    )
+
+
+def test_pre_tool_use_blocks_cmd_del_s_q_outside_projects() -> None:
+    assert (
+        _run_pre_tool_use(
+            {"tool_name": "Bash", "tool_input": {"command": "del /s /q /tmp/cbc-not-a-bid"}}
         )
         == 2
     )

@@ -134,6 +134,7 @@ def test_extract_prompt_includes_straggler_merge_block() -> None:
     )
     assert "STRAGGLER MERGE MODE" in text
     assert "frp_in_scope = prior OR" in text
+    assert "div10_in_scope = prior OR" in text
 
     clean = prompts.build(
         {"type": "extract_bid_set", "payload": {}},

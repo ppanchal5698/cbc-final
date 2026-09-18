@@ -29,10 +29,11 @@ const STAGE_ICON = {
   proposal: FileText,
 } as const;
 
-function greeting(name: string): string {
+function greeting(name?: string | null): string {
   const hour = new Date().getHours();
   const part = hour < 12 ? "Morning" : hour < 18 ? "Afternoon" : "Evening";
-  return `${part}, ${name.split(" ")[0]}`;
+  const first = String(name ?? "there").trim().split(/\s+/)[0] || "there";
+  return `${part}, ${first}`;
 }
 
 /** What this bid is actually waiting on, in the estimator's words. */

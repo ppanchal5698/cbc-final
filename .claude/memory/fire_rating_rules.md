@@ -1,11 +1,17 @@
-# Fire Rating and Labels — **STATUS: PENDING (Matrix 7.3 / Open Item 9)**
+# Fire Rating and Labels
 
 Openings carry fire ratings — commonly **20 / 45 / 60 / 90-minute, UL-labelled**.
-The rating drives both **product selection** (rated door, frame, and hardware) and **price**.
+The rating drives **product selection** (rated door, frame, and hardware) and
+downstream pricing. It is a **mandatory extraction field**.
 
 ## Hard rule
-The rating is a **matching attribute** and must never be silently dropped.
+The rating must never be silently dropped.
 **An unrated match on a rated opening is a defect.**
+
+Exact bid-page location varies across sets (door-schedule column, frame
+schedule, notes, or Div 08 text). Always search; when absent or uncertain after
+PDF verify, leave `fire_rating: null` with a **visible** `fire_rating_missing`
+review flag — never invent and never hard-stop the pipeline solely for a null.
 
 ## How a real estimator looks for it (mandatory search order)
 
@@ -21,20 +27,15 @@ Also accept **NR / N/R / NON-RATED / UNRATED** as an explicit unrated value (`"N
 when the sheet says so — that is not the same as "column missing".
 
 ## What is confirmed
-- Rating must be carried per opening when present (FR-2 / Matrix 7.3 intent).
+- Rating must be carried per opening when present (FR-2).
 - Extracted in Phase 2 (presence) and Phase 3 (per opening).
 - Estimators review missing ratings in the Extraction UI before continue-to-quote.
+- Missing rating → high review flag; do not assume unrated for matching.
 
-## What is NOT yet answered — do not invent policy beyond this
-This item was **not covered** in the 14 Jul estimator session. Still needed:
-1. **Where** the rating most often lives in CBC bid sets.
-2. **Which product categories are rating-sensitive for price**.
-3. Should a **missing rating hard-stop** the line, or only flag?
-
-## Interim behaviour until answered
-- Extract wherever it appears; null + flag when absent.
+## Behaviour
+- Extract wherever it appears; null + flag when absent or uncertain.
 - Never fill by inference from door type, location, or neighbour.
-- Never invent a price adder from rating until Matrix 7.3 is answered.
+- Never invent a price adder from rating during extraction (pricing is Phase 4).
 - Never assume "no column on this sheet" means unrated for matching —
   leave null and flag (unless the sheet explicitly says NR).
 
@@ -42,4 +43,4 @@ Hardware-matrix schedules (butts/locks/closers X columns, no FIRE column) are
 exactly the ambiguous case — flag every opening and keep searching the type
 schedule / specs before finishing Phase 3.
 
-See the accuracy-trust rule and [[manual_cutoff]].
+See the accuracy-trust rule and [manual_cutoff](manual_cutoff.md).

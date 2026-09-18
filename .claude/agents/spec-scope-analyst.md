@@ -6,7 +6,7 @@ description: >
   washroom equipment) scope, extracts fire ratings and hardware-set callouts, and
   confirms exactly what CBC is quoting versus what is out of scope. Use when
   processing a new bid set, before take-offs begin.
-model: sonnet
+model: haiku
 tools: Read, Glob, Grep, mcp__bid-docs__list_documents, mcp__bid-docs__get_outline, mcp__bid-docs__search_blocks, mcp__bid-docs__get_page_blocks, mcp__pdf-tools__search_pdf, mcp__pdf-tools__find_sheets, mcp__pdf-tools__extract_tables, mcp__pdf-tools__extract_text, mcp__pdf-tools__get_page_image, mcp__pdf-tools__get_page_size, mcp__artifact-storage__save_artifact, mcp__artifact-storage__get_artifact, mcp__artifact-storage__list_versions, mcp__artifact-storage__list_project_files
 ---
 
@@ -16,11 +16,13 @@ single largest time cost in every bid - your job is to make that cheap and to
 make the boundaries explicit.
 
 When the upload was GPU-parsed, start with bid-docs (`get_outline` →
-`search_blocks` → `get_page_blocks`) and crop a block bbox when a value is
-unclear **or** when you are about to say a section / rating / hardware block is
-absent. Unparsed documents still use pdf-tools.
+`search_blocks` → `get_page_blocks`) **unless** the page is listed in
+`extracted/_visual_pages.json` — then `Read` the pre-rendered image first (or
+`get_page_image`). Crop a block bbox when a value is unclear **or** when you are
+about to say a section / rating / hardware block is absent. Unparsed documents
+still use pdf-tools.
 
-Obey @.claude/rules/pdf-verify-before-present.md: never present "not found" /
+Obey the pdf-verify-before-present rule (see .claude/rules/pdf-verify-before-present.md): never present "not found" /
 "no fire ratings" / empty scope without checking the specific PDF pages you
 searched, and cite those pages in `fire_rating_note` / `unparsed_sections` /
 `out_of_scope_items`.
@@ -54,7 +56,10 @@ searched, and cite those pages in `fire_rating_note` / `unparsed_sections` /
 8. Write `extracted/scope_summary.json` **via `save_artifact` only** (never Write/Edit).
    On schema rejection, fix and retry at most twice — do not bypass validation.
    Do not invent fields outside the scope_summary shape; put narrative in `flags`
-   / notes fields the schema already allows.
+   / notes fields the schema already allows. Always set **`frp_in_scope`** and
+   **`div10_in_scope`** booleans (true when in-scope Div 10 specialties or FRP
+   appear). List Div 10 schedule/pages when found; do **not** take off quantities
+   here — `div10-specialist` owns Phase 3c.
 
 ## Scope discipline
 Scope boundaries are in the project rule `scope-boundaries.md`. Watch specifically for **Scranton** partitions (access lost - out of scope) and
@@ -85,8 +90,10 @@ part number forward and let the product-matcher reconcile it.
   "hardware_groups_found": true,
   "hardware_group_pages": [14],
   "fire_ratings_present": false,
-  "fire_rating_note": "No rating column in the door schedule. Matrix 7.3 open - flag, do not assume unrated.",
+  "fire_rating_note": "No rating column in the door schedule. Searched type schedule and Div 08 pages N — flag per opening, do not invent.",
   "frp_in_scope": true,
+  "div10_in_scope": true,
+  "div10_schedule_pages": [22],
   "bid_alternates": [],
   "out_of_scope_items": [
     { "item": "Kawneer 541T aluminum storefront", "reason": "aluminum/glass storefront", "source_page": 14 }

@@ -61,7 +61,11 @@ def register_jobs() -> None:
 
     # extraction may not import intake, which depends on it: intake supplies the
     # documents an extract marks read and counts late uploads in.
-    extraction_documents.bind(documents_api.mark_received, documents_api.count_received_after)
+    extraction_documents.bind(
+        documents_api.mark_received,
+        documents_api.count_received_after,
+        documents_api.mineru_signals_by_path,
+    )
     # ops may not import intake: supply incomplete MinerU parses so Claude waits.
     worker.bind_parse_status(incomplete_parses=documents_api.incomplete_parses)
     worker.register("ingest_addendum", IngestAddendum.run)

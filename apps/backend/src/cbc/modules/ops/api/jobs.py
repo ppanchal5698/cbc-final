@@ -136,8 +136,16 @@ def coalesce_note(job: dict[str, Any] | None) -> str | None:
 # Indexing is idempotent on the file hash, so a second pass over an unchanged
 # sheet is pure waste - and two at once are a write race. Filename is the
 # fallback for jobs enqueued before fileSha existed.
-COALESCE_BY_PAYLOAD = {"index_catalog": "fileSha"}
-COALESCE_FALLBACK = {"index_catalog": "filename"}
+COALESCE_BY_PAYLOAD = {
+    "index_catalog": "fileSha",
+    "parse_catalog": "fileSha",
+    "parse_multiplier": "fileSha",
+}
+COALESCE_FALLBACK = {
+    "index_catalog": "filename",
+    "parse_catalog": "filename",
+    "parse_multiplier": "filename",
+}
 
 
 def _idempotency_key(

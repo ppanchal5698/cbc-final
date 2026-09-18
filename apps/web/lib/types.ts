@@ -128,6 +128,13 @@ export interface Evidence {
   pageSize?: { width: number; height: number } | null;
 }
 
+export interface OpeningKeying {
+  coreType?: string | null;
+  keyway?: string | null;
+  lockFunction?: string | null;
+  notes?: string | null;
+}
+
 export interface LineItem {
   id: string;
   projectId: string;
@@ -145,17 +152,64 @@ export interface LineItem {
   /** Derived from wall type against the five standard throats (Matrix 7.0). */
   frameDepth?: string | null;
   notes?: string | null;
+  doorType?: string | null;
+  doorMaterial?: string | null;
+  frameMaterial?: string | null;
+  glass?: string | null;
+  manufacturer?: string | null;
+  series?: string | null;
+  hardware?: string | null;
+  location?: string | null;
+  keying?: OpeningKeying | null;
   /** null = base bid; named group = bid alternate (Matrix 4.1 interim). */
   alternateGroup?: string | null;
   status: LineStatus;
   confidence?: number | null;
   flags: string[];
+  /** The schedule row exactly as it was printed, before any interpretation. */
+  rawRow?: string | null;
+  width?: string | null;
+  height?: string | null;
+  sizeNotation?: string | null;
+  /** Decided by `domain.scope_rules`; null means the rules do not cover this row. */
+  inScope?: boolean | null;
+  scopeRule?: string | null;
+  scopeReason?: string | null;
   evidence?: Evidence | null;
   duplicateOf?: string | null;
   duplicateReason?: string | null;
   addedByHand: boolean;
   confirmedBy?: string | null;
   confirmedAt?: string | null;
+}
+
+export interface SpecialtyTakeoff {
+  id: string;
+  takeoffType?: string | null;
+  productType?: string | null;
+  manufacturer?: string | null;
+  location?: string | null;
+  drawingRef?: string | null;
+  qty?: number | null;
+  unit?: string | null;
+  specifiedModel?: string | null;
+  finish?: string | null;
+  perimeterLf?: number | null;
+  insideCorners?: number | null;
+  outsideCorners?: number | null;
+  wallHeightFt?: number | null;
+  drawingScale?: string | null;
+  status?: string | null;
+  notes?: string | null;
+  flags?: string[];
+  sourceRef?: { sourcePage?: number | null; sourceFile?: string | null } | null;
+}
+
+export interface TakeoffsResponse {
+  takeoffs: SpecialtyTakeoff[];
+  /** From extracted/scope_summary.json — drives empty-state visibility. */
+  frpInScope?: boolean;
+  div10InScope?: boolean;
 }
 
 export interface LineItemsResponse {
@@ -312,6 +366,7 @@ export interface ProductSearchResponse {
   products: Product[];
   /** Pages of the vendor price books. Read-only, and not priced lines. */
   pages?: CatalogPage[];
+  /** Full filtered match count (not the current page length). */
   total: number;
   counts?: { manual: number; pages: number };
   divisions: { division: string; count: number }[];
@@ -319,6 +374,18 @@ export interface ProductSearchResponse {
   indexAvailable?: boolean;
   note?: string | null;
   pagesNote?: string | null;
+}
+
+/** MinerU parse progress on a price book (mirrors BidDocument.parse). */
+export interface PriceBookParse {
+  state?: string;
+  pages?: number;
+  pagesDone?: number;
+  error?: string | null;
+  sheetId?: string | null;
+  catalogId?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
 }
 
 export interface PriceBook {
@@ -334,12 +401,41 @@ export interface PriceBook {
   steward?: string | null;
   account?: string | null;
   note?: string | null;
+  /** `price_book` (default) or `multiplier_sheet`. */
   kind?: string | null;
   filename?: string | null;
+  path?: string | null;
+  bytes?: number | null;
+  uploadedAt?: string | null;
+  catalogId?: string | null;
+  /** Page-index status after `index_catalog` (e.g. ready / removed). */
+  indexStatus?: string | null;
+  parse?: PriceBookParse | null;
   partCount: number;
   ageDays: number | null;
   stale: boolean;
   undated: boolean;
+  /** Local dev: staleness follows lastReviewed when set. */
+  devFreshnessControls?: boolean;
+  staleReferenceField?: "effective" | "lastReviewed";
+  staleReferenceDate?: string | null;
+}
+
+/** `POST /api/price-books/{id}/file` — sheet attached and jobs queued. */
+export interface PriceBookUploadResponse {
+  priceBook: PriceBook;
+  job: Job;
+  parseJob?: Job | null;
+}
+
+/**
+ * `GET /api/catalog/products/{id}`.
+ * `marginBand` is the division band key from the API (e.g. "commodity").
+ */
+export interface ProductDetailResponse {
+  product: Product;
+  priceBook: PriceBook | null;
+  marginBand: string | null;
 }
 
 export interface ProposalSection {
@@ -609,6 +705,7 @@ export interface PriceBooksResponse {
   priceBooks: PriceBook[];
   counts: { total: number; stale: number; undated: number };
   stewardship: { owner: string | null; cadence: string | null; note: string };
+  devFreshnessControls?: boolean;
 }
 
 export interface PriceBookDetail {
@@ -875,11 +972,15 @@ export interface SpendSummary {
 
 /** `GET /api/projects/{code}/review-flags` - NFR-2, derived on every read. */
 export interface ReviewFlag {
-  opening: string;
-  field: string;
+  opening?: string | null;
+  opening_id?: string | null;
+  field?: string | null;
+  category?: string | null;
   severity: string;
   source_page?: number | null;
-  note: string;
+  note?: string | null;
+  issue?: string | null;
+  action_required?: string | null;
   derived?: boolean;
 }
 

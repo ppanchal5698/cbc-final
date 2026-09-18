@@ -32,7 +32,25 @@ async def sync_results(job: dict[str, Any], project: dict[str, Any] | None) -> s
     await quote.persist(project)
     await apply_to_project(project)
     await bids.set_stage(project["_id"], "quote", 67)
-    return f"{counts['inserted']} priced, {counts['updated']} updated, {counts['skipped']} kept"
+
+    from cbc.modules.pricing.api.list_x_backfill import priced_line_metrics
+    from cbc.modules.projects.api import saga as chain
+
+    metrics = priced_line_metrics(project["slug"])
+    total = metrics["total_lines"]
+    with_cost = metrics["lines_with_cost"]
+    pricing_note = (
+        f"{counts['inserted']} priced, {counts['updated']} updated, "
+        f"{counts['skipped']} kept; {with_cost}/{total} lines have cost"
+    )
+    if total and with_cost == 0:
+        await chain.set_state(
+            project["_id"],
+            "pricing",
+            detail="pricing incomplete — all manual; estimator must enter distributor costs",
+        )
+        pricing_note += " (all manual cutoff)"
+    return pricing_note
 
 
 async def apply_to_project(project: dict[str, Any], *, limit: int = 5000) -> dict[str, int]:

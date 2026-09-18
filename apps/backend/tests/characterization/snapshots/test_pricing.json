@@ -841,6 +841,7 @@
     "accessories": "number",
     "commodity": "number",
     "custom_built": "number",
+    "restroom_accessories": "number",
     "restroom_partitions": "number",
     "specialty": "number"
    },
@@ -883,6 +884,7 @@
     }
    ],
    "source": "str",
+   "source_file": "str",
    "vendor": "str"
   },
   "status": 200
@@ -953,6 +955,7 @@
    "owner": "str",
    "phase_1_scope": "str",
    "rule": "str",
+   "source": "str",
    "vendors": [
     {
      "account": "str",
@@ -964,7 +967,12 @@
       "exit_devices": "number",
       "l_dc_e_accessories": "number",
       "locks": "number",
-      "residential_hinges": "number"
+      "residential_hinges": "number",
+      "roton_geared_hinges": "number",
+      "sliding_door_hardware": "number",
+      "stainless_steel_hinges": "number",
+      "thresholds_weatherstrip": "number",
+      "trim_and_auxiliary": "number"
      },
      "discounts": {
       "architectural_hinges": "str",
@@ -972,9 +980,13 @@
       "door_controls": "str",
       "electrified_products": "str",
       "exit_devices": "str",
-      "l_dc_e_accessories": "str",
       "locks": "str",
-      "residential_hinges": "str"
+      "residential_hinges": "str",
+      "roton_geared_hinges": "str",
+      "sliding_door_hardware": "str",
+      "stainless_steel_hinges": "str",
+      "thresholds_weatherstrip": "str",
+      "trim_and_auxiliary": "str"
      },
      "effective_date": "str",
      "key": "str",
@@ -991,13 +1003,7 @@
      },
      "share_of_volume": "number",
      "source": "str",
-     "tier": "str",
-     "worked_example": {
-      "cost": "number",
-      "list_price": "number",
-      "multiplier": "number",
-      "part": "str"
-     }
+     "tier": "str"
     }
    ]
   },
@@ -1793,6 +1799,7 @@
     "accessories": "number",
     "commodity": "number",
     "custom_built": "number",
+    "restroom_accessories": "number",
     "restroom_partitions": "number",
     "specialty": "number"
    },
@@ -1853,6 +1860,7 @@
     }
    ],
    "source": "str",
+   "source_file": "str",
    "vendor": "str"
   },
   "status": 200
@@ -1918,6 +1926,7 @@
    "owner": "str",
    "phase_1_scope": "str",
    "rule": "str",
+   "source": "str",
    "vendors": [
     {
      "account": "str",
@@ -1929,7 +1938,12 @@
       "exit_devices": "number",
       "l_dc_e_accessories": "number",
       "locks": "number",
-      "residential_hinges": "number"
+      "residential_hinges": "number",
+      "roton_geared_hinges": "number",
+      "sliding_door_hardware": "number",
+      "stainless_steel_hinges": "number",
+      "thresholds_weatherstrip": "number",
+      "trim_and_auxiliary": "number"
      },
      "discounts": {
       "architectural_hinges": "str",
@@ -1937,9 +1951,13 @@
       "door_controls": "str",
       "electrified_products": "str",
       "exit_devices": "str",
-      "l_dc_e_accessories": "str",
       "locks": "str",
-      "residential_hinges": "str"
+      "residential_hinges": "str",
+      "roton_geared_hinges": "str",
+      "sliding_door_hardware": "str",
+      "stainless_steel_hinges": "str",
+      "thresholds_weatherstrip": "str",
+      "trim_and_auxiliary": "str"
      },
      "effective_date": "str",
      "key": "str",
@@ -1956,13 +1974,7 @@
      },
      "share_of_volume": "number",
      "source": "str",
-     "tier": "str",
-     "worked_example": {
-      "cost": "number",
-      "list_price": "number",
-      "multiplier": "number",
-      "part": "str"
-     }
+     "tier": "str"
     }
    ]
   },

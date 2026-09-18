@@ -14,7 +14,6 @@ import httpx
 from cbc.modules.intake.api import mineru as mineru_api
 from cbc.modules.intake.infrastructure.collections import document_pages, documents
 from cbc.modules.ops.api import parsing_config, worker
-from cbc.modules.ops.infrastructure.collections import settings_collection
 from cbc.shared import storage
 from cbc.shared.mongo import oid
 
@@ -36,9 +35,7 @@ def _now() -> datetime:
 
 
 async def _load_settings() -> dict[str, Any]:
-    stored = await settings_collection().find_one({"_id": parsing_config.DOC_ID}) or {}
-    resolved, _ = parsing_config.resolve(stored)
-    return resolved
+    return await parsing_config.load_stored()
 
 
 async def _set_parse(document_id: Any, **fields: Any) -> None:
@@ -214,6 +211,11 @@ async def parse_document(job: dict[str, Any]) -> str:
                 content_sha=doc.get("contentSha") or "",
                 parser=parser_meta,
             )
+            if not rows:
+                raise ParseRetryable(
+                    f"MinerU window {start}-{end} normalised to 0 pages — "
+                    "refusing to mark progress (likely a status stub)"
+                )
             for row in rows:
                 await document_pages().update_one(
                     {"documentId": doc["_id"], "page": row["page"]},
@@ -310,13 +312,64 @@ async def _parse_window(
             err = body.get("error") or body.get("message") or body
             raise ParseRetryable(f"MinerU task failed: {err}")
         if state in {"done", "completed", "success"}:
-            result = body.get("result") or body.get("data") or body
-            if isinstance(result, dict):
-                return result
-            return body
+            return await _completed_middle(
+                client,
+                body,
+                start_page=start_page,
+                end_page=end_page,
+            )
         # Unknown terminal — try to use body as result
         if body.get("middle_json") or body.get("pdf_info") or (
             isinstance(body.get("data"), dict) and body["data"].get("middle_json")
         ):
             return body.get("data") if isinstance(body.get("data"), dict) else body
         continue
+
+
+async def _completed_middle(
+    client: httpx.AsyncClient,
+    body: dict[str, Any],
+    *,
+    start_page: int,
+    end_page: int,
+) -> dict[str, Any]:
+    """Resolve a completed MinerU task to real middle JSON (never a status stub)."""
+    candidate: Any = body.get("result")
+    if not isinstance(candidate, dict):
+        data = body.get("data")
+        candidate = data if isinstance(data, dict) else body
+
+    candidate = mineru_api.unwrap_mineru_payload(candidate)
+    if mineru_api.looks_like_middle(candidate):
+        return candidate if isinstance(candidate, dict) else {"pdf_info": candidate}
+
+    result_url = None
+    if isinstance(candidate, dict):
+        result_url = candidate.get("result_url")
+    if not result_url:
+        result_url = body.get("result_url")
+    data = body.get("data")
+    if not result_url and isinstance(data, dict):
+        result_url = data.get("result_url")
+
+    if result_url:
+        try:
+            resp = await client.get(str(result_url))
+            resp.raise_for_status()
+            fetched = mineru_api.unwrap_mineru_payload(resp.json())
+        except Exception as exc:
+            raise ParseRetryable(
+                f"MinerU result_url fetch failed for window {start_page}-{end_page}: {exc}"
+            ) from exc
+        if isinstance(fetched, dict) and mineru_api.looks_like_middle(fetched):
+            return fetched
+        if isinstance(fetched, list) and mineru_api.looks_like_middle(fetched):
+            return {"pdf_info": fetched}
+        raise ParseRetryable(
+            f"MinerU result_url for window {start_page}-{end_page} had no page content"
+        )
+
+    raise ParseRetryable(
+        f"MinerU completed window {start_page}-{end_page} with a status stub "
+        "(no middle_json/pdf_info and no result_url)"
+    )

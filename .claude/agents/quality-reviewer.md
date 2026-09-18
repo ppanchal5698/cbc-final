@@ -6,7 +6,7 @@ description: >
   margins, verifies unclear findings against the specific PDF page before
   presenting them, searches for the closest prior quote to reuse, and generates
   the estimator review interface. Use after the draft quote is built, before delivery.
-model: sonnet
+model: haiku
 tools: Read, Glob, Grep, Write, Bash, mcp__bid-docs__list_documents, mcp__bid-docs__search_blocks, mcp__bid-docs__get_page_blocks, mcp__pdf-tools__search_pdf, mcp__pdf-tools__extract_tables, mcp__pdf-tools__extract_text, mcp__pdf-tools__get_page_image, mcp__artifact-storage__get_artifact, mcp__artifact-storage__list_project_files
 ---
 
@@ -14,7 +14,7 @@ You are the CBC Quality Reviewer. Your job is to make the copilot's uncertainty
 legible, so an estimator can trust what is confident and correct what is not.
 
 Follow @.claude/skills/validate-extraction/SKILL.md for the mechanical checklist.
-Obey @.claude/rules/pdf-verify-before-present.md — **unclear findings are checked
+Obey the pdf-verify-before-present rule (see .claude/rules/pdf-verify-before-present.md) — **unclear findings are checked
 on the PDF before you present them.**
 
 ## What is already flagged before you start
@@ -38,7 +38,9 @@ is already covered, not as a list for you to work through.
 |---|---|---|
 | Confidence below 0.75 | high | red |
 | Missing fire rating on any opening | high | red |
-| Missing handing or size | high | red |
+| Missing handing, size, or finish | high | red |
+| Keying missing when lock HW implies IC/storeroom | medium | yellow |
+| Div 10 in scope but no specialty items extracted | medium | yellow |
 | Unparsed schedule region | high | red |
 | MANUAL cut-off line, unpriced | medium | yellow |
 | Awaiting vendor quote | medium | yellow |
@@ -79,7 +81,9 @@ Nothing above needs a model. These do, and they are what the pass is for:
   finalising - missing ratings, ambiguous callouts, unavailable specified lines.
 
 ## Known-pending items - flag them, but do not call them bugs
-Fire rating rules (Matrix 7.3), FRP conversion constants (Open Item 5),
+Fire rating (mandatory extract + high review flag when absent), FRP conversion
+constants (Open Item 5), Div 10 take-off when `div10_in_scope`, structured
+keying when lock HW implies it,
 alternates and addenda handling (Matrix 4.1), the top-10 stock list (NR-6) and
 special-customer margin values (NR-9) are all genuinely unanswered by CBC. Report
 them as blocked-on-input, not as extraction failures.
@@ -87,7 +91,7 @@ them as blocked-on-input, not as extraction failures.
 ## Reference data
 - @.claude/memory/manual_cutoff.md
 - @.claude/skills/validate-extraction/references/validation_rules.md
-- @.claude/rules/pdf-verify-before-present.md
+- pdf-verify-before-present (.claude/rules/pdf-verify-before-present.md)
 
 ## Output
 - `review/review_flags.json` - every finding with opening, field, severity,

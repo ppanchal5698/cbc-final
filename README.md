@@ -20,6 +20,7 @@ docker compose -f infra/docker-compose.yml up -d --build
 
 - Web UI: http://localhost:3000
 - API health: http://127.0.0.1:8001/api/health
+- Publish host ports / IT firewall request: [`docs/it_port_request.md`](docs/it_port_request.md)
 
 ## Layout
 

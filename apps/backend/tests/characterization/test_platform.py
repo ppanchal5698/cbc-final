@@ -262,3 +262,20 @@ def test_delete_a_project(client, state, snapshots) -> None:
     op = "DELETE /api/projects/{code}"
     snapshots.pin(op, client.delete(f"/api/projects/{state['code']}"))
     snapshots.pin(op, client.delete(f"/api/projects/{state['code']}"), variant="already deleted")
+
+
+def test_parsing_settings(client, snapshots) -> None:
+    """The MinerU parser's runtime knobs. `PARSER_URL` empty means parsing is off."""
+    snapshots.pin("GET /api/settings/parsing", client.get("/api/settings/parsing"))
+    op = "PUT /api/settings/parsing"
+    snapshots.pin(op, client.put("/api/settings/parsing", json={"profile": "medium"}))
+    snapshots.pin(
+        op,
+        client.put("/api/settings/parsing", json={"profile": "not-a-profile"}),
+        variant="unknown profile",
+    )
+
+
+def test_parsing_connection_test(client, snapshots) -> None:
+    """With no parser configured this must answer, not hang or 500."""
+    snapshots.pin("POST /api/settings/parsing/test", client.post("/api/settings/parsing/test"))

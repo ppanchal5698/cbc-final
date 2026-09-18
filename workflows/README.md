@@ -47,6 +47,7 @@ bash workflows/phase3_takeoff.sh dutch_bros_macarthur_2026
 | `phase2_spec_scope.sh` | 2 - Spec scoping | spec-scope-analyst |
 | `phase3_takeoff.sh` | 3 - Drawing take-offs | takeoff-engineer |
 | `phase3b_frp.sh` | 3b - FRP take-off | frp-specialist |
+| `phase3c_div10.sh` | 3c - Div 10 specialty take-off | div10-specialist |
 | `phase4_pricing.sh` | 4 - Pricing | pricing-engineer |
 | `phase5_review.sh` | 5 - Judgment and review | quality-reviewer |
 | `phase6_deliver.sh` | 6 - Deliver | delivery-agent |

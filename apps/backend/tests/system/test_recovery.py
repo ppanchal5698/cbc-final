@@ -763,3 +763,128 @@ def test_a_reap_that_exhausts_attempts_reaches_the_dead_letter_hook(database, mo
     )
     run(reap_abandoned())
     assert dead == ["worker stopped while this job was running"]
+
+
+def test_the_three_takeoffs_run_at_the_same_time(database, monkeypatch, tmp_path) -> None:
+    """They read different pages and write different files, so nothing waits.
+
+    The prompt said so and asked the orchestrator to launch all three in one
+    message. A measured run launched them in three separate messages, one after
+    another, and spent 11 of its 17 minutes waiting. An instruction to a model is
+    not a mechanism: the worker starts them itself, and this is what proves it.
+    """
+    import threading
+    import time
+
+    from bson import ObjectId
+
+    from cbc.modules.ops.api.claude_cli import RunResult
+    from cbc.modules.ops.api import claude_pass, worker
+    from cbc.modules.projects.api import pipeline
+    from cbc.worker_kit import sandbox
+
+    monkeypatch.setattr(settings, "storage_root", tmp_path / "projects")
+    monkeypatch.setattr(claude_pass, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sandbox, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sandbox, "ensure_workspace_trusted", lambda workspace: True)
+    monkeypatch.setattr(sandbox, "mode", lambda: "process")
+
+    spans: list[tuple[str, float, float]] = []
+    lock = threading.Lock()
+
+    def fake_claude(**kwargs):
+        started = time.monotonic()
+        time.sleep(0.25)
+        with lock:
+            spans.append((kwargs["recording"].name, started, time.monotonic()))
+        return RunResult(ok=True, output="ran", error=None, returncode=0)
+
+    monkeypatch.setattr(claude_pass.runner, "run_claude", fake_claude)
+
+    project_id = ObjectId()
+    database[names.BID_REQUESTS].insert_one(
+        {"_id": project_id, "code": "CBC-WAVE", "slug": "wave_smoke", "name": "Wave smoke"}
+    )
+    job = {
+        "_id": ObjectId(),
+        "type": "extract_bid_set",
+        "projectId": project_id,
+        "status": "running",
+        "attempts": 1,
+        "workerId": worker.WORKER_ID,
+        "claimGeneration": 1,
+        "payload": {},
+        "createdAt": _now(),
+    }
+    database["jobs"].insert_one(job)
+
+    async def sync(job, project):
+        return "synced"
+
+    legs = [("takeoff", "brief one"), ("frp", "brief two"), ("div10", "brief three")]
+    wall_start = time.monotonic()
+    run(pipeline.run_pass(job, sync=sync, wave_for=lambda _job, _project: legs))
+    wall = time.monotonic() - wall_start
+
+    assert len(spans) == 3, spans
+    # Every leg had started before any leg had finished.
+    assert max(s for _n, s, _e in spans) < min(e for _n, _s, e in spans), spans
+    # And the wall clock is one leg, not three.
+    assert wall < 0.6, f"{wall:.2f}s for three 0.25s legs - they queued"
+
+    stored = database["jobs"].find_one({"_id": job["_id"]})
+    assert stored["status"] == "done", stored.get("error")
+    # One recording per leg, so three sessions are not interleaved into one log.
+    assert {entry["label"] for entry in stored["recordings"]} == {"takeoff", "frp", "div10"}
+    assert len({name for name, _s, _e in spans}) == 3, spans
+
+
+def test_a_wave_is_a_failure_when_any_leg_is(database, monkeypatch, tmp_path) -> None:
+    """Each leg has already written what it finished, but the job is not done."""
+    from bson import ObjectId
+
+    from cbc.modules.ops.api.claude_cli import RunResult
+    from cbc.modules.ops.api import claude_pass, worker
+    from cbc.modules.projects.api import pipeline
+    from cbc.worker_kit import sandbox
+
+    monkeypatch.setattr(settings, "storage_root", tmp_path / "projects")
+    monkeypatch.setattr(claude_pass, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sandbox, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sandbox, "ensure_workspace_trusted", lambda workspace: True)
+    monkeypatch.setattr(sandbox, "mode", lambda: "process")
+
+    def fake_claude(**kwargs):
+        if "frp" in kwargs["recording"].name:
+            return RunResult(ok=False, output="", error="frp blew up", returncode=1)
+        return RunResult(ok=True, output="ran", error=None, returncode=0)
+
+    monkeypatch.setattr(claude_pass.runner, "run_claude", fake_claude)
+
+    project_id = ObjectId()
+    database[names.BID_REQUESTS].insert_one(
+        {"_id": project_id, "code": "CBC-WAVE2", "slug": "wave_fail", "name": "Wave fail"}
+    )
+    job = {
+        "_id": ObjectId(),
+        "type": "extract_bid_set",
+        "projectId": project_id,
+        "status": "running",
+        "attempts": 1,
+        "workerId": worker.WORKER_ID,
+        "claimGeneration": 1,
+        "payload": {},
+        "createdAt": _now(),
+    }
+    database["jobs"].insert_one(job)
+
+    async def sync(job, project):  # pragma: no cover - must not be reached
+        raise AssertionError("sync ran despite a failed leg")
+
+    legs = [("takeoff", "one"), ("frp", "two")]
+    run(pipeline.run_pass(job, sync=sync, wave_for=lambda _job, _project: legs))
+
+    stored = database["jobs"].find_one({"_id": job["_id"]})
+    assert stored["status"] != "done"
+    # The failure names which leg, not just that something failed.
+    assert "frp" in (stored.get("error") or ""), stored.get("error")

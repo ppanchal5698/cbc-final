@@ -49,6 +49,13 @@ DEFAULT_SHEET_TERMS = [
     "toilet",
     "restroom",
     "accessor",
+    "hand dryer",
+    "washroom",
+    "division 08",
+    "division 10",
+    "floor plan",
+    "enlarged plan",
+    "hollow metal",
     "frp",
     "wall type",
 ]
@@ -59,10 +66,7 @@ DEFAULT_SHEET_TERMS = [
 
 
 def _open(file_path: str) -> fitz.Document:
-    path = Path(file_path)
-    if not path.exists():
-        raise FileNotFoundError(f"PDF not found: {file_path}")
-    return fitz.open(path)
+    return pdfpages._open(file_path)
 
 
 def _parse_pages(doc: fitz.Document, spec: str | None) -> list[int]:
@@ -179,6 +183,24 @@ def extract_tables(
             if not include_cell_boxes:
                 for row in rows:
                     row.pop("cell_boxes", None)
+            if not rows:
+                # A page that yielded nothing used to be left out of the result
+                # altogether, which reads as "no table on that sheet". On an
+                # outlined CAD export that is exactly the sheet the schedule is
+                # on. Say the page was read and came back empty.
+                out.append(
+                    {
+                        "source_page": index + 1,
+                        "row_count": 0,
+                        "rows": [],
+                        "rows_note": (
+                            "no rows on this page, from its text layer or from OCR - "
+                            "read it as an image with get_page_image before "
+                            "concluding there is no schedule here"
+                        ),
+                    }
+                )
+                continue
             if rows:
                 out.append(
                     {
@@ -230,7 +252,16 @@ def find_sheets(file_path: str, queries: list[str] | None = None) -> dict[str, A
     This returns counts rather than surrounding text: enough to choose the two or
     three sheets worth reading properly, and not enough to be tempted to read the
     set from here.
+
+    Each page also carries ``sheet_ids`` (title-block labels like ``A4.0``) and
+    ``char_count`` so CAD sheets with a nearly empty text layer can still be
+    promoted by sheet-number heuristics upstream.
     """
+    import re
+
+    sheet_id_re = re.compile(
+        r"\b([A-Z]{1,3}\d{0,2}\.\d{1,2}|[A-Z]{2,6}-\d{1,2}|TAS-\d)\b"
+    )
     terms = [q for q in (queries or DEFAULT_SHEET_TERMS) if q and q.strip()]
     doc = _open(file_path)
     try:
@@ -239,10 +270,13 @@ def find_sheets(file_path: str, queries: list[str] | None = None) -> dict[str, A
         totals: dict[str, int] = {t: 0 for t in terms}
 
         for index in range(doc.page_count):
-            text = pdftext.shifted_page_text(file_path, index, doc[index], shift).lower()
+            raw_text = pdftext.shifted_page_text(file_path, index, doc[index], shift)
+            text = raw_text.lower()
+            char_count = len(raw_text.strip())
+            sheet_ids = list(dict.fromkeys(sheet_id_re.findall(raw_text.upper())))
             hits = {t: text.count(t.lower()) for t in terms}
             hits = {t: n for t, n in hits.items() if n}
-            if not hits:
+            if not hits and not sheet_ids:
                 continue
             for term, count in hits.items():
                 totals[term] += count
@@ -251,10 +285,12 @@ def find_sheets(file_path: str, queries: list[str] | None = None) -> dict[str, A
                     "source_page": index + 1,
                     "terms": dict(sorted(hits.items(), key=lambda kv: -kv[1])),
                     "score": sum(hits.values()),
+                    "sheet_ids": sheet_ids,
+                    "char_count": char_count,
                 }
             )
 
-        pages.sort(key=lambda p: -p["score"])
+        pages.sort(key=lambda p: (-p["score"], p["source_page"]))
         return {
             "file": file_path,
             "page_count": doc.page_count,
@@ -264,7 +300,8 @@ def find_sheets(file_path: str, queries: list[str] | None = None) -> dict[str, A
             "pages": pages,
             "note": (
                 "Ranked by how many of the queried terms each sheet carries. Read the "
-                "top sheets with extract_tables; do not read them all."
+                "top sheets with extract_tables; do not read them all. Text-poor "
+                "A-series sheets may still appear via sheet_ids for image review."
             ),
         }
     finally:

@@ -13,6 +13,7 @@ import asyncio
 import json
 import os
 import shutil
+from datetime import datetime, timezone
 
 import pytest
 from bson import ObjectId
@@ -489,3 +490,36 @@ def test_numeric_price_string_is_coerced(project) -> None:
         ],
     )
     raise_if_invalid("match_and_price", _record["slug"])
+
+
+def test_a_reimport_over_a_confirmed_row_refreshes_its_evidence(project) -> None:
+    """The estimator's values stay; the provenance is brought up to date.
+
+    That branch reached for a variable the import loop no longer held, so the
+    path every confirmed bid takes on its next run raised NameError. The suite
+    never noticed, because nothing imported over a confirmed row.
+    """
+    from cbc.modules.extraction.api import door_schedule
+
+    record, database, directory = project
+    _write(directory, "extracted/door_schedule.json", {"openings": [_opening("101")]})
+    run(door_schedule.import_extraction(record))
+
+    database[names.OPENINGS].update_one(
+        {"projectId": record["_id"]},
+        {"$set": {
+            "confirmedAt": datetime.now(timezone.utc),
+            "confirmedBy": "kevin@cbc.com",
+            "finish": "US10B",
+        }},
+    )
+
+    moved = _opening("101")
+    moved["source_page"] = 44
+    moved["raw_row"] = "101 | re-read from a later sheet"
+    _write(directory, "extracted/door_schedule.json", {"openings": [moved]})
+    run(door_schedule.import_extraction(record))
+
+    stored = database[names.OPENINGS].find_one({"projectId": record["_id"]})
+    assert stored["finish"] == "US10B", "a confirmed value is the estimator's"
+    assert stored["evidence"]["sourcePage"] == 44, "but its provenance follows the re-read"

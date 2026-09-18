@@ -33,8 +33,8 @@ const KINDS = [
 const LEGACY_RFI = { key: "rfi", label: "RFI", Icon: Question } as const;
 
 /** Which stage the note was logged from, so it carries its own context. */
-function stageFromPath(pathname: string): string {
-  const stage = pathname.split("/").pop() ?? "";
+function stageFromPath(pathname: string | null): string {
+  const stage = pathname?.split("/").pop() ?? "";
   const labels: Record<string, string> = {
     intake: "Intake",
     extraction: "Extraction & entry",

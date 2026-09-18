@@ -90,17 +90,30 @@ def _vendor_tiers_payload() -> dict[str, Any]:
 
 
 def _vendors_with_a_multiplier() -> frozenset[str]:
-    """Vendor keys whose sheets are list-priced, i.e. a multiplier exists to apply."""
+    """Vendor keys whose sheets are list-priced, i.e. a multiplier exists to apply.
+
+    A multiplier of exactly 1.0 is not one. It is how the tier sheet writes a flat
+    net program - Bobrick reads "Priced from 2020 Distributor Net Price List
+    (x1.000). Not list x discount." Treating that as list-priced sent a net sheet
+    down the list x multiplier path, so changing the book's multiplier to 0.25
+    repriced a $40.00 net part to $10.00.
+    """
     payload = _vendor_tiers_payload()
     keys = set()
     for record in payload.get("vendors", []):
-        has_flat = isinstance(record.get("multiplier"), (int, float))
+        multiplier = record.get("multiplier")
+        has_flat = isinstance(multiplier, (int, float)) and not _is_identity(multiplier)
         has_categories = bool(record.get("categories"))
         if has_flat or has_categories:
             for name in (record.get("key"), record.get("name")):
                 if name:
                     keys.add(str(name).strip().lower())
     return frozenset(keys)
+
+
+def _is_identity(multiplier: float) -> bool:
+    """x1.000 - the sheet is already the cost, whatever column it is printed in."""
+    return abs(float(multiplier) - 1.0) < 1e-9
 
 
 def _net_program_vendors() -> frozenset[str]:
@@ -116,7 +129,10 @@ def _net_program_vendors() -> frozenset[str]:
         else:
             wording = f"{record.get('tier') or ''} {record.get('note') or ''}"
             stated = "net" in wording.lower().split() or "net program" in wording.lower()
-        if stated and not isinstance(record.get("multiplier"), (int, float)):
+        multiplier = record.get("multiplier")
+        # No multiplier at all, or the identity one a net program is written with.
+        priced_net = not isinstance(multiplier, (int, float)) or _is_identity(multiplier)
+        if stated and priced_net:
             for name in (record.get("key"), record.get("name")):
                 if name:
                     keys.add(str(name).strip().lower())
@@ -151,8 +167,8 @@ def _demo() -> None:
     # Bought on a flat net program - vendor_tiers records no multiplier and says so.
     assert price_basis("bobrick_hp_program_net.xlsx", "bobrick") == NET
     assert price_basis("gamco_hp_program_net.xlsx", "gamco") == NET
-    # Pemko's tier was never transcribed; that is not the same as a net program.
-    assert price_basis("pemko_markar_price_book_2026.pdf", "pemko") == UNKNOWN
+    # An untranscribed tier is not a net program. Pemko's categories have since
+    # been transcribed, so the unit test supplies its own payload for that rule.
     assert price_basis("nonexistent.pdf", "acme") == UNKNOWN
     assert "do not apply a multiplier" in describe(NET)
     print("cbc.modules.catalog.api.pageindex.basis OK")

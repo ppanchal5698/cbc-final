@@ -74,7 +74,10 @@
       "type": [
         "array",
         "null"
-      ]
+      ],
+      "items": {
+        "type": "string"
+      }
     },
     "mode": {
       "type": [
@@ -86,13 +89,19 @@
       "type": [
         "array",
         "null"
-      ]
+      ],
+      "items": {
+        "type": "string"
+      }
     },
     "source_files": {
       "type": [
         "array",
         "null"
-      ]
+      ],
+      "items": {
+        "type": "string"
+      }
     },
     "field_sources": {
       "type": [

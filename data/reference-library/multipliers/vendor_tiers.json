@@ -1,8 +1,9 @@
 {
-  "description": "CBC / Hamilton Parker vendor multiplier tiers. cost = list price x multiplier.",
+  "description": "CBC / Hamilton Parker vendor multiplier tiers from data/pricebooks/multipliers.md (Operating Baseline 2026).",
   "rule": "The multiplier is a per-vendor account attribute (a tier), not a per-item value. MAP is not cost.",
-  "phase_1_scope": "Top-10 vendors only - about 90% of quote volume.",
+  "phase_1_scope": "Top vendors covering ~90% of quote volume (catalog.md Phase 1 lines).",
   "owner": "UNASSIGNED - see .claude/rules/data-stewardship.md (NFR-10, OPEN)",
+  "source": "pricebooks/multipliers.md",
   "vendors": [
     {
       "key": "hager",
@@ -12,27 +13,36 @@
       "tier": "Hager Advantage Program",
       "multiplier": null,
       "effective_date": "2026-03-02",
-      "source": "pricebooks/hager_multipliers.pdf",
+      "source": "pricebooks/multipliers.md",
       "price_book": "Price Book #18, effective 2026-02-02",
-      "note": "Priced by product category - use the categories map, not a single multiplier.",
+      "note": "Priced by product category \u2014 use the categories map, not a single multiplier.",
       "categories": {
         "locks": 0.29,
         "door_controls": 0.3,
-        "exit_devices": 0.3,
-        "l_dc_e_accessories": 0.3,
+        "exit_devices": 0.3005,
         "electrified_products": 0.41,
         "auto_operators": 0.4,
         "architectural_hinges": 0.21,
-        "residential_hinges": 0.375
+        "roton_geared_hinges": 0.325,
+        "stainless_steel_hinges": 0.325,
+        "trim_and_auxiliary": 0.425,
+        "thresholds_weatherstrip": 0.4,
+        "sliding_door_hardware": 0.43,
+        "residential_hinges": 0.375,
+        "l_dc_e_accessories": 0.3
       },
       "discounts": {
         "locks": "50/42%",
         "door_controls": "50/40%",
         "exit_devices": "50/40%",
-        "l_dc_e_accessories": "50/40%",
-        "electrified_products": "50/18% (excludes HS4)",
+        "electrified_products": "50/18%",
         "auto_operators": "50/20%",
         "architectural_hinges": "50/58%",
+        "roton_geared_hinges": "50/35%",
+        "stainless_steel_hinges": "50/35%",
+        "trim_and_auxiliary": "50/15%",
+        "thresholds_weatherstrip": "50/20%",
+        "sliding_door_hardware": "50/14%",
         "residential_hinges": "50/25%"
       },
       "program_terms": {
@@ -41,12 +51,6 @@
         "minimum_order_charge": null,
         "crating_charge": 50.0,
         "itemization_tagging_charge": 175.0
-      },
-      "worked_example": {
-        "part": "3500-series storeroom lock",
-        "list_price": 256.31,
-        "multiplier": 0.29,
-        "cost": 74.33
       }
     },
     {
@@ -54,9 +58,12 @@
       "name": "Allegion (Von Duprin, LCN, Schlage, Ives)",
       "multiplier": null,
       "tier": null,
-      "note": "NOT bought direct. Purchased through Banner Solutions or SecLock - MANUAL price entry required with a 'price may be out of date - refresh' prompt (NR-2).",
-      "distributors": ["Banner Solutions", "SecLock"],
-      "source": null
+      "note": "NOT bought direct. Purchased through Banner Solutions or SecLock \u2014 MANUAL price entry required with a 'price may be out of date' prompt.",
+      "distributors": [
+        "Banner Solutions",
+        "SecLock"
+      ],
+      "source": "pricebooks/multipliers.md"
     },
     {
       "key": "national_guard",
@@ -64,44 +71,39 @@
       "multiplier": 0.45,
       "tier": ".45 multiplier",
       "effective_date": "2026-06-08",
-      "source": "pricebooks/national_guard_price_list.pdf",
-      "note": "Threshold catalog also on file."
+      "source": "pricebooks/multipliers.md",
+      "note": "Universal .450 across standard catalog products."
     },
     {
       "key": "pemko",
       "name": "PEMKO / Markar",
       "multiplier": null,
-      "tier": "Buying program account 4244636",
-      "effective_date": "2020-01-01",
-      "source": "pricebooks/pemko_buying_program.pdf",
-      "note": "Buying-program sheet on file; per-category multipliers not yet transcribed."
+      "tier": "Buying program account 4244636 / J03",
+      "effective_date": "2026-02-02",
+      "account": "4244636",
+      "source": "pricebooks/multipliers.md",
+      "note": "Per-category buying-program multipliers.",
+      "categories": {
+        "standard": 0.48,
+        "continuous_hinges": 0.33,
+        "nylon_brush": 0.38,
+        "adhesive_gasketing": 0.34
+      },
+      "discounts": {
+        "standard": "52.0%",
+        "continuous_hinges": "67.0%",
+        "nylon_brush": "62.0%",
+        "adhesive_gasketing": "66.0%"
+      }
     },
     {
       "key": "rockwood",
       "name": "Rockwood",
       "multiplier": 0.55,
-      "tier": ".55 multiplier (accessories)",
-      "effective_date": "2025-03-03",
-      "source": "pricebooks/rockwood_accessories_price_book.pdf",
-      "note": "Accessories tier confirmed. Architectural, lites/louvers and glass-solutions books are separate."
-    },
-    {
-      "key": "bobrick",
-      "name": "Bobrick",
-      "multiplier": null,
-      "tier": "HP 2017 program NET",
-      "effective_date": "2017-01-01",
-      "source": "pricebooks/bobrick_hp_program_net.xlsx",
-      "note": "Priced from a NET program sheet, not list x multiplier. Sheet is old - verify before quoting."
-    },
-    {
-      "key": "bradley",
-      "name": "Bradley Corp",
-      "multiplier": 0.53,
-      "tier": "WAD .53",
-      "effective_date": "2026-01-01",
-      "source": "pricebooks/bradley_price_book_2026.pdf",
-      "note": null
+      "tier": ".55 accessories",
+      "effective_date": "2022-08-15",
+      "source": "pricebooks/multipliers.md",
+      "note": "Accessories book .550. Architectural / lites books use catalog net or size tables."
     },
     {
       "key": "asi",
@@ -109,42 +111,63 @@
       "multiplier": 0.375,
       "tier": ".375 multiplier",
       "effective_date": "2026-01-12",
-      "source": "pricebooks/asi_price_list.pdf",
+      "source": "pricebooks/multipliers.md",
       "note": null
+    },
+    {
+      "key": "bobrick",
+      "name": "Bobrick",
+      "multiplier": 1.0,
+      "tier": "2020 Distributor Net",
+      "effective_date": "2020-01-01",
+      "source": "pricebooks/multipliers.md",
+      "note": "Priced from 2020 Distributor Net Price List (\u00d71.000). Not list \u00d7 discount."
+    },
+    {
+      "key": "gamco",
+      "name": "Gamco",
+      "multiplier": 1.0,
+      "tier": "2020 Distributor Net (Bobrick Div.)",
+      "effective_date": "2020-01-01",
+      "source": "pricebooks/multipliers.md",
+      "note": "Distributor net \u00d71.000. Cross-reference to Bobrick equivalents in catalog.md."
+    },
+    {
+      "key": "bradley",
+      "name": "Bradley Corp",
+      "multiplier": 0.53,
+      "tier": "WAD .53",
+      "effective_date": "2026-01-12",
+      "source": "pricebooks/multipliers.md",
+      "note": "Washroom Accessories Division."
     },
     {
       "key": "world_dryer",
       "name": "World Dryer",
       "multiplier": 0.339,
       "tier": "Level 3 (L3)",
-      "effective_date": "2022-09-12",
-      "source": "pricebooks/world_dryer_l3_pricing.xlsx",
-      "note": "Vendor sheet pre-computes net. Excel XLERATOR is the other approved hand dryer."
-    },
-    {
-      "key": "gamco",
-      "name": "Gamco",
-      "multiplier": null,
-      "tier": "HP 2017 program NET",
-      "effective_date": "2017-01-01",
-      "source": "pricebooks/gamco_hp_program_net.xlsx",
-      "note": "NET program sheet. Some accessories come via distributor J2 - manual entry."
+      "effective_date": "2022-09-19",
+      "source": "pricebooks/multipliers.md",
+      "note": "Confirmed L3 multiplier via Pricing Memo 2022-09-12."
     },
     {
       "key": "nudo",
       "name": "NUDO / Marlite / Midwest-East Coast FRP",
-      "multiplier": null,
-      "tier": null,
+      "multiplier": 1.0,
+      "tier": "Distributor Direct Net",
       "effective_date": "2026-05-11",
-      "source": "pricebooks/nudo_frp_pricing.pdf",
-      "note": "FRP panels and vinyl moldings. Quantity conversion constants still PENDING from CBC."
+      "source": "pricebooks/multipliers.md",
+      "note": "FRP panels and vinyl moldings priced from net sheet (\u00d71.000)."
     }
   ],
   "excluded": [
     {
       "name": "Scranton Products",
-      "reason": "Access lost - would have to go through a costlier distributor. OUT OF SCOPE."
+      "reason": "Access lost \u2014 would have to go through a costlier distributor. OUT OF SCOPE."
     },
-    { "name": "American Dryer", "reason": "No longer used. OUT OF SCOPE." }
+    {
+      "name": "American Dryer",
+      "reason": "No longer used. OUT OF SCOPE."
+    }
   ]
 }

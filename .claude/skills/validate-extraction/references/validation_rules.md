@@ -18,7 +18,8 @@
 | source_page present | error | NFR-3 - an unauditable line is not a line |
 | fire_rating present on a rated bid | **high** | An unrated match on a rated opening is a defect |
 | handing present | high | Handed hardware cannot be matched without it |
-| finish present | medium | Usually stated per hardware item, not per door |
+| finish present | **high** | Required FR-2 attribute — flag when absent after PDF verify |
+| keying when lock HW implies | medium | Structured `keying` object when IC/keyway/storeroom stated |
 | hardware_set callout present | high | Without it there is nothing to match |
 | wall_type resolvable | medium | Needed to derive frame depth |
 | confidence present, 0.0-1.0 | error | NFR-2 - every match carries a score |
@@ -58,7 +59,7 @@ strictly better.
 
 These are flagged but expected, and must not be treated as extraction bugs:
 
-- **Fire rating rules** - Matrix 7.3 / Open Item 9 still unanswered.
+- **Fire rating** - mandatory extract; high review flag when absent/uncertain after PDF verify.
 - **FRP conversion constants** - Open Item 5 still unanswered.
 - **Alternates and addenda handling** - Matrix 4.1 / Open Item 11 still unanswered.
 - **Top-10 stock list** - NR-6, CBC still owes the authoritative list.

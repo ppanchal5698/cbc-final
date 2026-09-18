@@ -10,14 +10,27 @@ import asyncio
 from typing import Any
 
 from cbc.modules.extraction.api import passes
+from cbc.modules.extraction.api.validation.artifacts import check_delivery_readiness
 from cbc.modules.ops.api import jobs as ops_jobs
+from cbc.modules.ops.api import worker as ops_worker
 from cbc.modules.projects.api import pipeline
 from cbc.modules.quoting.api import proposal_artifacts
 from cbc.shared import events
 
 
 async def run(job: dict[str, Any]) -> None:
-    await pipeline.run_pass(job, sync=sync_results)
+    await pipeline.run_pass(job, sync=sync_results, prepare=_prepare)
+
+
+async def _prepare(job: dict[str, Any], project: dict[str, Any], payload: dict[str, Any]) -> bool:
+    problems, _ = await asyncio.to_thread(check_delivery_readiness, project["slug"])
+    if not problems:
+        return True
+    await ops_worker.finish(
+        job, False, "Delivery blocked: " + "; ".join(problems), "",
+        permanent=True, error_code="artifact_validation",
+    )
+    return False
 
 
 async def sync_results(job: dict[str, Any], project: dict[str, Any] | None) -> str:

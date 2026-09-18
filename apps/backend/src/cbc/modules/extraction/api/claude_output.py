@@ -12,9 +12,11 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from cbc.modules.extraction.api.normalize_artifacts import (
+    normalize_div10_takeoff_payload,
     normalize_door_schedule_payload,
     normalize_opening_dict,
     normalize_page_size,
+    normalize_priced_quote_payload,
 )
 
 
@@ -28,6 +30,50 @@ def _coerce_number(value: Any) -> float | None:
     if isinstance(value, str):
         return float(value.replace(",", "").strip())
     raise ValueError(f"expected a number, got {type(value).__name__}")
+
+
+class Keying(BaseModel):
+    """Structured lock/keying options from the schedule or HW group (Matrix 7.6)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    coreType: str | None = None
+    keyway: str | None = None
+    lockFunction: str | None = None
+    notes: str | None = None
+
+    @field_validator("coreType", mode="before")
+    @classmethod
+    def _core_type(cls, value: Any) -> str | None:
+        if value is None or value == "":
+            return None
+        text = str(value).strip()
+        aliases = {
+            "ic_small": "icSmallFormat",
+            "ic-small": "icSmallFormat",
+            "small format": "icSmallFormat",
+            "sfic": "icSmallFormat",
+            "ic_large": "icLargeFormat",
+            "ic-large": "icLargeFormat",
+            "large format": "icLargeFormat",
+            "lfic": "icLargeFormat",
+            "conventional": "conventional",
+            "none": "none",
+            "nr": "none",
+            "n/a": "none",
+        }
+        lower = text.lower()
+        if lower in aliases:
+            return aliases[lower]
+        # Accept already-canonical camelCase.
+        if text in {
+            "icSmallFormat",
+            "icLargeFormat",
+            "conventional",
+            "none",
+        }:
+            return text
+        return text
 
 
 class Opening(BaseModel):
@@ -56,6 +102,15 @@ class Opening(BaseModel):
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     flags: list[str] | None = None
     evidence_note: str | None = None
+
+    # Decided in code by `domain.scope_rules`, not by a pass reading the rule
+    # file. `None` means the rules do not cover this row and a human must say -
+    # it is never a quiet "no". The model is `extra="forbid"`, so a seeded
+    # schedule carrying these was rejected by its own schema gate until they
+    # were declared here.
+    in_scope: bool | None = None
+    scope_rule: str | None = None
+    scope_reason: str | None = None
     sheet: str | None = None
     row: int | float | None = None
     source_file: str | None = None
@@ -89,6 +144,7 @@ class Opening(BaseModel):
     door_material: str | None = None
     frame_material: str | None = None
     glass: str | None = None
+    keying: Keying | None = None
     # export_line_items writes the estimator's own decisions back into the
     # schedule so a rerun can carry them across untouched.
     confirmed_by: str | None = None
@@ -115,6 +171,15 @@ class Opening(BaseModel):
             return None
         return _coerce_number(value)
 
+    @field_validator("keying", mode="before")
+    @classmethod
+    def _keying(cls, value: Any) -> Any:
+        if value is None or value == "":
+            return None
+        if isinstance(value, str):
+            return {"notes": value}
+        return value
+
     @field_validator("page_size", mode="before")
     @classmethod
     def _page_size(cls, value: Any) -> dict[str, float] | None:
@@ -132,6 +197,17 @@ class Opening(BaseModel):
         return {"width": width, "height": height}
 
 
+class VisualPageChecked(BaseModel):
+    """One mandatory vision page the takeoff agent opened."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    path: str | None = None
+    source_page: int | float | None = None
+    image_path: str | None = None
+    finding: str | None = None
+
+
 class DoorSchedule(BaseModel):
     """extracted/door_schedule.json — object wrapper or a bare openings array."""
 
@@ -143,6 +219,7 @@ class DoorSchedule(BaseModel):
     sheet: str | None = None
     source_file: str | None = None
     door_schedule_found: bool | None = None
+    visual_pages_checked: list[VisualPageChecked] | None = None
 
     @classmethod
     def parse_payload(cls, raw: Any) -> DoorSchedule:
@@ -183,6 +260,7 @@ class ScopeSummary(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     frp_in_scope: bool
+    div10_in_scope: bool | None = None
     divisions: list[Any] | None = None
     out_of_scope_items: list[Any] | None = None
     flags: list[str] | None = None
@@ -190,6 +268,8 @@ class ScopeSummary(BaseModel):
     schedule_found: bool | None = None
     has_division_08_scope: bool | None = None
     door_schedule_pages: list[Any] | None = None
+    hardware_group_pages: list[Any] | None = None
+    div10_schedule_pages: list[Any] | None = None
 
 
 class HardwareSetEntry(BaseModel):
@@ -209,13 +289,128 @@ class HardwareSets(BaseModel):
     hardware_sets: list[HardwareSetEntry] | None = None
 
 
+class FrpArea(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    room: str | None = None
+    location: str | None = None
+    product_type: str | None = None
+    manufacturer: str | None = None
+    perimeter_lf: float | None = None
+    wall_height_ft: float | None = None
+    inside_corners: int | None = None
+    outside_corners: int | None = None
+    openings_deducted: list[Any] | None = None
+    drawing_scale: str | None = None
+    vu360_notes: str | None = None
+    geometry_notes: str | None = None
+    panel_requirements: str | None = None
+    trim_requirements: str | None = None
+    adhesive_requirements: str | None = None
+    special_conditions: str | None = None
+    source_page: int | float | None = None
+    flags: list[str] | None = None
+
+
 class FrpTakeoff(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
+    frp_in_scope: bool | None = None
     status: str | None = None
+    product_type: str | None = None
+    manufacturer: str | None = None
+    drawing_scale: str | None = None
+    vu360_notes: str | None = None
+    geometry_notes: str | None = None
+    panel_requirements: str | None = None
+    trim_requirements: str | None = None
+    adhesive_requirements: str | None = None
+    special_conditions: str | None = None
+    areas: list[FrpArea] | None = None
     panels: list[Any] | None = None
+    quantities: dict[str, Any] | None = None
     quantity: float | None = None
+    blocked_on: str | list[str] | None = None
     flags: list[str] | None = None
+    confidence: float | None = None
+
+
+class Div10Item(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product_type: str | None = None
+    manufacturer: str | None = None
+    location: str | None = None
+    room: str | None = None
+    drawing_ref: str | None = None
+    qty: float | None = None
+    unit: str | None = None
+    specified_model: str | None = None
+    finish: str | None = None
+    notes: str | None = None
+    alternate: str | None = None
+    source_page: int | float | None = None
+    source_file: str | None = None
+    evidence_note: str | None = None
+    flags: list[str] | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @field_validator("qty", mode="before")
+    @classmethod
+    def _qty(cls, value: Any) -> float | None:
+        # A stated quantity is read; an absent one stays absent. This used to
+        # default to 1, which quoted one grab bar for a building and left
+        # nothing on the line to say the count had never been read. Counting
+        # accessories means reading interior elevations, not a schedule row
+        # (.claude/rules/accuracy-trust.md #3).
+        if value is None or value == "":
+            return None
+        return _coerce_number(value)
+
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def _confidence(cls, value: Any) -> float | None:
+        if value is None or value == "":
+            return None
+        return _coerce_number(value)
+
+
+class Div10Mention(BaseModel):
+    """A sheet that names an accessory without identifying one.
+
+    "CONTRACTOR MAKING FINAL HOOK-UPS" names a hook and is not a coat hook. A row
+    with no manufacturer and model is not a line to price, but dropping it says
+    "I could not read this" by staying silent, which the accuracy rule forbids
+    (#4). It is carried here so the estimator can see what the schedule missed.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    product_type: str | None = None
+    source_page: int | float | None = None
+    excerpt: str | None = None
+    why_not_an_item: str | None = None
+
+
+class Div10Takeoff(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    div10_in_scope: bool | None = None
+    status: str | None = None
+    items: list[Div10Item] = Field(default_factory=list)
+    # `extra="ignore"` drops what it is not told about, so an undeclared field is
+    # a review signal that reaches no one.
+    mentions: list[Div10Mention] = Field(default_factory=list)
+    pages_read: list[int] | None = None
+    source_file: str | None = None
+    flags: list[str] | None = None
+    confidence: float | None = None
+    no_scope_reason: str | None = None
+
+    @classmethod
+    def parse_payload(cls, raw: Any) -> Div10Takeoff:
+        """Accept line_items / object flags from agents, then validate."""
+        return cls.model_validate(normalize_div10_takeoff_payload(raw))
 
 
 class PricedLine(BaseModel):
@@ -281,8 +476,10 @@ class PricedQuote(BaseModel):
 
     @classmethod
     def parse_payload(cls, raw: Any) -> PricedQuote:
-        if isinstance(raw, list):
-            return cls(lines=[PricedLine.model_validate(item) for item in raw])
-        if not isinstance(raw, dict):
+        """Accept line_items alias and agent extras, then validate."""
+        normalized = normalize_priced_quote_payload(raw)
+        if isinstance(normalized, list):
+            return cls(lines=[PricedLine.model_validate(item) for item in normalized])
+        if not isinstance(normalized, dict):
             raise ValueError("priced/line_items.json must be an object or an array")
-        return cls.model_validate(raw)
+        return cls.model_validate(normalized)

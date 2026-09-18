@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cbc.extracted.frp_takeoff",
+  "title": "frp_takeoff",
+  "type": "object",
+  "properties": {
+    "frp_in_scope": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "product_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "manufacturer": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "drawing_scale": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "vu360_notes": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "geometry_notes": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "panel_requirements": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "trim_requirements": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "adhesive_requirements": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "special_conditions": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "areas": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "room": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "product_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "manufacturer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "perimeter_lf": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "wall_height_ft": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "inside_corners": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "outside_corners": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "openings_deducted": {
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "drawing_scale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vu360_notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "geometry_notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "panel_requirements": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "trim_requirements": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "adhesive_requirements": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "special_conditions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_page": {
+            "type": [
+              "integer",
+              "number",
+              "null"
+            ]
+          },
+          "flags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "panels": {
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "quantities": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "quantity": {
+      "type": [
+        "number",
+        "string",
+        "null"
+      ]
+    },
+    "blocked_on": {
+      "type": [
+        "string",
+        "array",
+        "null"
+      ]
+    },
+    "flags": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "confidence": {
+      "type": [
+        "number",
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

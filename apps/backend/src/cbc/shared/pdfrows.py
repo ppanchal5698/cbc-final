@@ -33,7 +33,7 @@ _MAX_SHIFT = 64
 _SHIFT_CACHE: dict[tuple[str, float], int] = {}
 
 # Bump when clustering, glyph repair, or OCR fallback changes so C-02 misses.
-EXTRACTOR_VERSION = "1"
+EXTRACTOR_VERSION = "2"
 
 # Words a set of architectural drawings or a vendor price book is near-certain to
 # contain. Scoring on letter count alone picks a shift that turns everything into
@@ -141,16 +141,27 @@ def to_display_space(page: fitz.Page, words: list[tuple]) -> list[tuple]:
 
 
 def rows_from_words(
-    page: fitz.Page, region: list[float] | None = None, shift: int = 0
+    page: fitz.Page,
+    region: list[float] | None = None,
+    shift: int = 0,
+    *,
+    words: list[tuple] | None = None,
 ) -> list[dict[str, Any]]:
     """Cluster positioned words into rows of cells.
 
     Coordinates in and out are display-space: the same frame as `page_size` and
     the rendered image, so `region` is expressed the way the viewer shows it and
     every bbox returned can be drawn straight onto the page.
+
+    `words` lets a caller supply its own word boxes - OCR output for a sheet
+    whose text layer is outlined - in the same shape `get_text("words")` returns.
+    They are already in display space, so they skip that conversion.
     """
-    words = page.get_text("words")  # (x0, y0, x1, y1, word, block, line, word_no)
-    words = to_display_space(page, words)
+    if words is not None:
+        supplied = list(words)
+    else:
+        supplied = to_display_space(page, page.get_text("words"))
+    words = supplied
     if shift:
         words = [(*w[:4], shift_text(w[4], shift), *w[5:]) for w in words]
     if region:
@@ -184,7 +195,29 @@ def rows_from_words(
     return rows
 
 
-def ocr_page(page: fitz.Page, dpi: int = 300) -> str:
+def _prepare_ocr_image(image: Any, *, thicken: bool = True) -> Any:
+    """Boost thin architectural / CAD hand-lettering before Tesseract.
+
+    CityBlueprint-style schedule fonts are monoline and under-inked. At 200–300
+    DPI the strokes drop out under Tesseract's binarizer. Upscale + mild dilation
+    recovers WIDTH / HGT / MAT'L cells that otherwise OCR as noise or blanks.
+    """
+    from PIL import Image, ImageFilter, ImageOps
+
+    work = image.convert("L")
+    # 2× upscale when the render is short of ~2500 px on the long edge.
+    long_edge = max(work.size)
+    if long_edge < 2500:
+        work = work.resize((work.width * 2, work.height * 2), Image.Resampling.LANCZOS)
+    work = ImageOps.autocontrast(work, cutoff=1)
+    if thicken:
+        # MaxFilter expands dark strokes without needing OpenCV.
+        work = work.filter(ImageFilter.MaxFilter(3))
+        work = work.point(lambda p: 0 if p < 180 else 255)
+    return work
+
+
+def ocr_page(page: fitz.Page, dpi: int = 300, *, thicken: bool = True) -> str:
     """OCR fallback. Optional: returns a clear marker when pytesseract is unavailable."""
     try:
         import io
@@ -198,15 +231,89 @@ def ocr_page(page: fitz.Page, dpi: int = 300) -> str:
         )
     pixmap = page.get_pixmap(dpi=dpi)
     image = Image.open(io.BytesIO(pixmap.tobytes("png")))
+    prepared = _prepare_ocr_image(image, thicken=thicken)
     try:
-        return str(pytesseract.image_to_string(image))
+        # --psm 6: assume a single uniform block of text (schedule tables).
+        return str(pytesseract.image_to_string(prepared, config="--psm 6"))
     except Exception as exc:  # tesseract binary missing or failed
         return f"[OCR FAILED: {exc}]"
+
+
+def ocr_words(
+    page: fitz.Page, dpi: int = 300, *, thicken: bool = True
+) -> list[tuple]:
+    """Positioned OCR words in page display space, same shape as get_text('words').
+
+    Used when the PDF text layer is missing, outlined, or only carries the title
+    ("DOOR SCHEDULE") while the architectural body font never extracts.
+    """
+    try:
+        import io
+
+        import pytesseract
+        from PIL import Image
+    except ImportError:
+        return []
+
+    pixmap = page.get_pixmap(dpi=dpi)
+    image = Image.open(io.BytesIO(pixmap.tobytes("png")))
+    prepared = _prepare_ocr_image(image, thicken=thicken)
+    # Scale from prepared-image pixels back to PDF points (page.rect).
+    scale_x = page.rect.width / prepared.width
+    scale_y = page.rect.height / prepared.height
+    try:
+        data = pytesseract.image_to_data(
+            prepared, config="--psm 6", output_type=pytesseract.Output.DICT
+        )
+    except Exception:
+        return []
+
+    words: list[tuple] = []
+    n = len(data.get("text") or [])
+    for i in range(n):
+        text = str(data["text"][i] or "").strip()
+        if not text:
+            continue
+        try:
+            conf = float(data["conf"][i])
+        except (TypeError, ValueError):
+            conf = -1.0
+        if conf >= 0 and conf < 35:
+            continue
+        left = float(data["left"][i])
+        top = float(data["top"][i])
+        width = float(data["width"][i])
+        height = float(data["height"][i])
+        x0 = left * scale_x
+        y0 = top * scale_y
+        x1 = (left + width) * scale_x
+        y1 = (top + height) * scale_y
+        block = int(data.get("block_num", [0])[i] if data.get("block_num") else 0)
+        line = int(data.get("line_num", [0])[i] if data.get("line_num") else 0)
+        word_no = int(data.get("word_num", [i])[i] if data.get("word_num") else i)
+        words.append((x0, y0, x1, y1, text, block, line, word_no))
+    return words
 
 
 def has_text_layer(page: fitz.Page, minimum_chars: int = 40) -> bool:
     """Is there real text here, or is this a scan that will need OCR?"""
     return len(page.get_text().strip()) >= minimum_chars
+
+
+def text_looks_like_schedule_title_only(text: str, word_count: int) -> bool:
+    """True when extractable text is mostly a schedule title / index, not rows.
+
+    CAD sheets often keep "DOOR SCHEDULE" as a real font while body cells are
+    outlined architectural lettering invisible to get_text.
+    """
+    upper = (text or "").upper()
+    if "DOOR SCHEDULE" not in upper and "OPENING SCHEDULE" not in upper:
+        return False
+    # A real schedule body usually yields dozens of positioned words.
+    if word_count >= 40:
+        return False
+    # Title + a few index lines, but almost no tabular body.
+    return word_count < 25
 
 
 # Fields that corroborate a door number when matching an opening back to its row.

@@ -67,6 +67,20 @@ def test_page_size(client, bid, snapshots) -> None:
     snapshots.pin("GET /api/projects/{code}/documents/{document_id}/page/{page_number}/size", client.get(url))
 
 
+def test_page_blocks(client, bid, snapshots) -> None:
+    """MinerU blocks for one page. Empty until a parse has run, which is the
+    normal state on a freshly uploaded bid - and the answer must still be a
+    shaped 200, because extraction falls back to pdf-tools on an empty read."""
+    op = "GET /api/projects/{code}/documents/{document_id}/pages/{page_number}/blocks"
+    url = _url(DOCS + "/{document_id}/pages/1/blocks", bid, document_id=bid["document"])
+    snapshots.pin(op, client.get(url))
+    snapshots.pin(
+        op,
+        client.get(_url(DOCS + "/{document_id}/pages/99/blocks", bid, document_id=bid["document"])),
+        variant="no such page",
+    )
+
+
 def test_list_versions_before_any_snapshot(client, bid, snapshots) -> None:
     snapshots.pin("GET /api/projects/{code}/versions", client.get(_url(VERSIONS, bid)))
 

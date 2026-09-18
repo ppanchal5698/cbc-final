@@ -70,7 +70,7 @@ def test_the_prompt_delegates_to_every_phase_subagent() -> None:
     prompt = prompts.pipeline_for("projects/demo", code="CBC-260001")
     for subagent in (
         "intake-coordinator", "spec-scope-analyst", "takeoff-engineer",
-        "frp-specialist", "product-matcher", "pricing-engineer",
+        "frp-specialist", "div10-specialist", "product-matcher", "pricing-engineer",
         "quality-reviewer", "delivery-agent",
     ):
         assert subagent in prompt, f"{subagent} is never invoked"

@@ -58,6 +58,7 @@ def test_pricing_can_read_the_page_it_is_sent_to():
 
     servers = json.loads(toolsets.config_for("match_and_price"))["mcpServers"]
     assert "catalog" in servers, "pricing needs the page index"
+    assert "catalog-docs" in servers, "pricing needs MinerU catalog blocks"
     assert "pdf-tools" in servers, "and the means to read the page it names"
 
 

@@ -23,15 +23,21 @@ description: >
 
    Prefer `mcp__pdf-tools__parse_door_openings(file_path, page_number)` when
    available — it applies rotation-safe clustering and FR-2 field mapping.
-3. **FR-2 field checklist** (estimator order) — fill nulls from evidence only:
-   - door number / mark, size (W×H), handing, finish, fire rating, hardware
-     group **or** matrix hardware, alternate when marked
-   - **door_type / frame_type / materials / glass** — copy every non-empty cell;
-     put thickness, detail refs, note letters into `notes`
+3. **FR-2 field checklist** (CBC 95% ladder: door schedule → Div 08 HW schedule →
+   Div 08 door/frame specs → floor plans) — fill nulls from evidence only:
+   - door number / mark, size (W×H), **qty**, handing, finish, fire rating,
+     hardware group **or** matrix hardware, alternate when marked
+   - **door_type / frame_type / materials / glass / manufacturer / series** —
+     copy every non-empty cell; put thickness, detail refs, note letters into
+     `notes`
+   - **keying:** structured object `{coreType, keyway, lockFunction, notes}`
+     when the schedule or HW group states IC / keyway / lock function — do not
+     invent; leave null when silent
    - **Handing:** schedule column → else floor-plan swing → else flag
      (`handing_missing`). Never default LH.
    - **Fire rating:** schedule → door/frame type schedule → Div 08 notes → else
-     flag (`fire_rating_missing`). Never invent. Accept explicit `NR`.
+     flag (`fire_rating_missing`). Mandatory to search; never invent. Accept
+     explicit `NR`.
    - **Finish:** row, HW group, or sheet note ("ALL HARDWARE SHALL BE US32D").
    - **Storefront / AL+AL:** flag `out_of_scope_storefront`; do not quote as CBC
      HM/WD lines (Matrix 2.3).
@@ -41,7 +47,7 @@ description: >
    `search_blocks` / `get_page_blocks` or `extract_tables` / `extract_text`,
    crop with `get_page_image(region=bbox)` when ambiguous. Cite page + excerpt
    (or "searched pages … — not found") in `evidence_note`. See
-   @.claude/rules/pdf-verify-before-present.md. Parser null ≠ sheet silent.
+   .claude/rules/pdf-verify-before-present.md. Parser null ≠ sheet silent.
 5. Persist with `mcp__artifact-storage__save_artifact` only — never Write/Edit.
 6. On schema error: repair named fields (≤2 retries). Do not bypass validation.
 
@@ -54,9 +60,10 @@ table detection.** Rows are recovered by clustering positioned words instead.
 
 ## Steps
 
-1. **Locate the schedule.** Prefer `_sheetmap.json` roles `door_schedule` /
-   `hardware`. Else `search_pdf` / `search_blocks` for `DOOR SCHEDULE`,
-   `DOOR TYPE SCHEDULE`, `HARDWARE GROUPS`. Record every hit's `source_page`.
+1. **Locate the schedule.** Prefer `_sheetmap.json` roles in order:
+   `door_schedule` → `hardware` → `div08_specs` → `floor_plan`. Else
+   `search_pdf` / `search_blocks` for `DOOR SCHEDULE`, `DOOR TYPE SCHEDULE`,
+   `HARDWARE GROUPS`. Record every hit's `source_page`.
 2. **Pull the rows.** Prefer
    `mcp__pdf-tools__parse_door_openings` or
    `.claude/skills/extract-door-schedule/scripts/parse_schedule.py <pdf> --page <n> --openings --json`.
@@ -64,6 +71,8 @@ table detection.** Rows are recovered by clustering positioned words instead.
 3. **Map cells onto the allowlist below.** Column order varies — identify from
    the header. Unknown columns (e.g. Thickness) go into `notes`, never as new keys.
 4. **Resolve sizes.** 4-digit: `3070` = 3'-0" x 7'-0". Or explicit feet-inches.
+   Or inch-only columns (`36"` × `84"`) on retail sheets — normalise to feet-inches.
+   Materials may be `HPL` / `ALUM`; hardware group may be a bare digit.
 5. **Hardware:** `GROUP n` / `HW-n` **or** matrix X columns → expand legend into
    `hardware` (flag `hardware_matrix_unexpanded` until expanded).
 6. **Alternate** (FR-2) when marked; else null.
@@ -89,7 +98,7 @@ Emit **only** these properties on each opening (Pydantic `Opening`,
 
 **Attributes:** `handing`, `finish`, `fire_rating`, `wall_type`, `frame_depth`,
 `alternate`, `alternate_group`, `location`, `room_name`, `status`, `notes`,
-`comments`, `evidence_note`
+`comments`, `evidence_note`, `keying`
 
 **Provenance (required for viewer):** `source_file`, `source_page`, `sheet`,
 `bbox`, `row_bbox`, `cell_boxes`, `page_size`, `row`, `confidence`, `flags`

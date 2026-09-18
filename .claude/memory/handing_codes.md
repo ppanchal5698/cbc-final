@@ -30,4 +30,4 @@ session 14 Jul). Absence of a column is not permission to skip the floor-plan st
 Swing angle matters for clearance notes (90 degree vs full swing) but not for
 hardware matching.
 
-See [[door_notation]], [[fire_rating_rules]].
+See [door_notation](door_notation.md), [fire_rating_rules](fire_rating_rules.md).

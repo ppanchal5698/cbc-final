@@ -384,6 +384,14 @@ def build_env(
         main_model = env.get("ANTHROPIC_MODEL")
         if main_model and not _is_model_alias(main_model):
             _pin_model_aliases(env)
+        # Compose injects AWS_ACCESS_KEY_ID=/AWS_SECRET_ACCESS_KEY= via
+        # `${VAR:-}` when unset. Boto still prefers those vars when present —
+        # even empty — over AWS_BEARER_TOKEN_BEDROCK, and Claude Code then
+        # reports a generic "failed to authenticate".
+        if str(env.get("AWS_BEARER_TOKEN_BEDROCK") or "").strip():
+            for key in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):
+                if key in env and not str(env.get(key) or "").strip():
+                    del env[key]
 
     if mode == OLLAMA:
         # Ollama speaks the Anthropic Messages API. The bearer value is ignored

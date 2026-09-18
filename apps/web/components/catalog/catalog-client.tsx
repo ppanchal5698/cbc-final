@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import {
   Package,
@@ -9,14 +9,23 @@ import {
   FloppyDisk,
   MagnifyingGlass,
   Lock,
+  FilePdf,
 } from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
 
 import { AddToBid } from "@/components/catalog/add-to-bid";
+import { CatalogPageViewer } from "@/components/catalog/catalog-page-viewer";
 import { useDebounced } from "@/hooks/use-debounced";
 import { formatMoney } from "@/lib/format";
-import { errorMessage, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
-import type { Product, ProductSearchResponse } from "@/lib/types";
+import { errorMessage, proxyFetch, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
+import type {
+  CatalogPage,
+  PriceBook,
+  PriceBooksResponse,
+  Product,
+  ProductDetailResponse,
+  ProductSearchResponse,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const EDIT_FIELDS = [
@@ -30,13 +39,8 @@ const EDIT_FIELDS = [
 ] as const;
 
 const COLUMNS = "190px minmax(220px,1fr) 130px 90px 100px 110px";
+const PAGE_SIZE = 50;
 
-/**
- * A price means nothing without its basis. Every indexed price used to be shown as
- * "list $X"; on a vendor bought at a flat net that is the cost already, and reading
- * it as list invites multiplying it down a second time. Say which one it is, and
- * say so plainly when the sheet does not tell us.
- */
 function priceLabel(product: Product): string {
   if (product.priceBasis === "net" && product.netPrice !== null && product.netPrice !== undefined) {
     return `net $${formatMoney(product.netPrice)}`;
@@ -60,20 +64,58 @@ function draftFor(product: Product): Record<string, string> {
   };
 }
 
+function formatBandKey(key: string | null | undefined): string {
+  if (!key) return "—";
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function matchPriceBookForPage(
+  books: PriceBook[],
+  page: CatalogPage,
+): PriceBook | undefined {
+  const byCatalog = books.find((b) => b.catalogId && b.catalogId === page.catalog_id);
+  if (byCatalog) return byCatalog;
+  const file = page.file;
+  return books.find((b) => {
+    if (!b.filename && !b.path) return false;
+    const name = b.filename ?? "";
+    const path = b.path ?? "";
+    return name === file || path.endsWith(`/${file}`) || path.endsWith(file);
+  });
+}
+
+type OpenSheet = {
+  url: string;
+  page: number;
+  title: string;
+  downloadName: string;
+};
+
 export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) {
   const [query, setQuery] = useState(initialQuery);
   const [division, setDivision] = useState("");
+  const [manufacturer, setManufacturer] = useState("");
+  const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [openingPage, setOpeningPage] = useState<string | null>(null);
+  const [openSheet, setOpenSheet] = useState<OpenSheet | null>(null);
   const [edits, setEdits] = useState<{ id: string; values: Record<string, string> } | null>(null);
 
-  // One request once typing settles, not one per keystroke.
   const settledQuery = useDebounced(query.trim());
+  const settledManufacturer = useDebounced(manufacturer.trim());
+
+  useEffect(() => {
+    setPage(1);
+  }, [settledQuery, division, settledManufacturer]);
 
   const params = new URLSearchParams();
   if (settledQuery) params.set("q", settledQuery);
   if (division) params.set("division", division);
+  if (settledManufacturer) params.set("manufacturer", settledManufacturer);
+  params.set("limit", String(PAGE_SIZE));
+  params.set("offset", String((page - 1) * PAGE_SIZE));
 
   const { data, error, isLoading, mutate } = useSWR<ProductSearchResponse>(
     `/api/proxy/catalog/products?${params.toString()}`,
@@ -81,28 +123,93 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
     { keepPreviousData: true },
   );
 
-  const products = data?.products ?? [];
-  // Pages of the vendor price books. Deliberately not merged into the product
-  // list: a page is somewhere to look, not a priced line, and showing the two as
-  // one list is what let page furniture pass for a product.
-  const pages = data?.pages ?? [];
-  const selected = products.find((product) => product.id === selectedId) ?? null;
-  // Indexed rows are rebuilt from the vendor PDF on every reindex and carry an
-  // `idx:` id the API cannot resolve, so they are shown read-only rather than
-  // offering a Save that returns 400.
-  const editable = selected?.editable !== false;
+  const { data: booksData } = useSWR<PriceBooksResponse>(
+    "/api/proxy/price-books",
+    proxyFetcher,
+  );
 
-  // The panel follows the selected row without an effect: a different part is a
-  // different draft, so the identity of the row is what resets it.
+  const products = data?.products ?? [];
+  const pages = data?.pages ?? [];
+  const books = booksData?.priceBooks ?? [];
+  const total = data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const rangeFrom = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeTo = Math.min(page * PAGE_SIZE, total);
+  const selected = products.find((product) => product.id === selectedId) ?? null;
+  const editable = selected?.editable !== false;
+  const canFetchDetail = Boolean(selected && editable && selected.id && !selected.id.startsWith("idx:"));
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
+
+  const { data: productDetail } = useSWR<ProductDetailResponse>(
+    canFetchDetail ? `/api/proxy/catalog/products/${selected!.id}` : null,
+    proxyFetcher,
+  );
+
   const draft = selected
     ? edits?.id === selected.id
       ? edits.values
       : draftFor(selected)
     : {};
 
+  useEffect(() => {
+    return () => {
+      if (openSheet?.url) URL.revokeObjectURL(openSheet.url);
+    };
+  }, [openSheet?.url]);
+
   function setField(key: string, value: string) {
     if (!selected) return;
     setEdits({ id: selected.id, values: { ...draft, [key]: value } });
+  }
+
+  async function openCatalogPage(page: CatalogPage) {
+    const book = matchPriceBookForPage(books, page);
+    if (!book) {
+      toast.error("Sheet not attached to a program", {
+        description: `${page.file} is indexed, but no price book owns that file yet.`,
+      });
+      return;
+    }
+
+    const key = `${page.catalog_id}-${page.pdf_page}`;
+    setOpeningPage(key);
+    try {
+      const response = await proxyFetch(`/api/proxy/price-books/${book.id}/file`);
+      if (!response.ok) {
+        toast.error("Could not open the sheet", {
+          description:
+            response.status === 404
+              ? "No PDF is on file for that program — upload the sheet first."
+              : response.statusText,
+        });
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setOpenSheet((prev) => {
+        if (prev?.url) URL.revokeObjectURL(prev.url);
+        return {
+          url,
+          page: page.pdf_page,
+          title: `${page.title} · ${page.locator}`,
+          downloadName: book.filename ?? page.file,
+        };
+      });
+    } catch (problem) {
+      toast.error("Could not open the sheet", { description: errorMessage(problem) });
+    } finally {
+      setOpeningPage(null);
+    }
+  }
+
+  function closeSheet() {
+    setOpenSheet((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return null;
+    });
   }
 
   async function save() {
@@ -182,13 +289,25 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
 
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto p-8 bg-background lg:flex-row lg:overflow-hidden">
+      {openSheet && (
+        <CatalogPageViewer
+          url={openSheet.url}
+          page={openSheet.page}
+          title={openSheet.title}
+          downloadName={openSheet.downloadName}
+          onClose={closeSheet}
+        />
+      )}
+
       <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-[26px] font-bold tracking-tight text-tx-primary">Product catalog</h1>
             <p className="mt-1.5 text-[14px] font-medium text-tx-secondary">
-              {data?.total ?? 0} of your own parts
-              {pages.length > 0 ? ` · ${pages.length} price-book page${pages.length === 1 ? "" : "s"} match` : ""}
+              {total} of your own parts
+              {pages.length > 0
+                ? ` · ${pages.length} price-book page${pages.length === 1 ? "" : "s"} match`
+                : ""}
             </p>
           </div>
           <button
@@ -233,18 +352,27 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
           </form>
         )}
 
-        <div className="flex items-center gap-2 rounded-xl px-4 py-2.5 bg-panel border border-subtle shadow-sm transition-colors focus-within:border-brand-border focus-within:ring-1 focus-within:ring-brand-border/30">
-          <MagnifyingGlass size={16} weight="duotone" className="text-tx-muted" />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex flex-1 items-center gap-2 rounded-xl px-4 py-2.5 bg-panel border border-subtle shadow-sm transition-colors focus-within:border-brand-border focus-within:ring-1 focus-within:ring-brand-border/30">
+            <MagnifyingGlass size={16} weight="duotone" className="text-tx-muted" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Part number, description, manufacturer"
+              aria-label="Search the catalog"
+              className="min-w-0 flex-1 bg-transparent text-[13px] text-tx-primary outline-none placeholder:text-tx-muted"
+            />
+            <span className="tnum shrink-0 text-[12px] font-medium text-tx-muted">
+              {total === 0 ? "0 of 0" : `${rangeFrom}–${rangeTo} of ${total}`}
+            </span>
+          </div>
           <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Part number, description, manufacturer"
-            aria-label="Search the catalog"
-            className="min-w-0 flex-1 bg-transparent text-[13px] text-tx-primary outline-none placeholder:text-tx-muted"
+            value={manufacturer}
+            onChange={(event) => setManufacturer(event.target.value)}
+            placeholder="Manufacturer filter"
+            aria-label="Filter by manufacturer"
+            className="w-full sm:w-[200px] rounded-xl px-4 py-2.5 text-[13px] outline-none border border-subtle bg-panel text-tx-primary placeholder:text-tx-muted shadow-sm focus:ring-1 focus:ring-brand-border focus:border-brand-border"
           />
-          <span className="tnum shrink-0 text-[12px] font-medium text-tx-muted">
-            {products.length} of {data?.total ?? 0}
-          </span>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -252,12 +380,12 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
             onClick={() => setDivision("")}
             className={cn(
               "rounded-md px-3.5 py-1.5 text-[12.5px] font-medium transition-colors shadow-sm",
-              division === "" 
-                ? "bg-brand-soft border border-brand-border text-brand-primary" 
-                : "bg-panel border border-subtle text-tx-secondary hover:text-tx-primary hover:bg-panel-muted"
+              division === ""
+                ? "bg-brand-soft border border-brand-border text-brand-primary"
+                : "bg-panel border border-subtle text-tx-secondary hover:text-tx-primary hover:bg-panel-muted",
             )}
           >
-            All divisions {data?.total ?? 0}
+            All divisions {total}
           </button>
           {(data?.divisions ?? []).map((entry) => (
             <button
@@ -265,9 +393,9 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
               onClick={() => setDivision(entry.division)}
               className={cn(
                 "rounded-md px-3.5 py-1.5 text-[12.5px] font-medium transition-colors shadow-sm",
-                division === entry.division 
-                  ? "bg-brand-soft border border-brand-border text-brand-primary" 
-                  : "bg-panel border border-subtle text-tx-secondary hover:text-tx-primary hover:bg-panel-muted"
+                division === entry.division
+                  ? "bg-brand-soft border border-brand-border text-brand-primary"
+                  : "bg-panel border border-subtle text-tx-secondary hover:text-tx-primary hover:bg-panel-muted",
               )}
             >
               {entry.division} {entry.count}
@@ -275,7 +403,8 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
           ))}
         </div>
 
-        <div className="min-h-[240px] flex-1 overflow-auto rounded-xl bg-panel border border-subtle shadow-sm lg:min-h-0">
+        <div className="flex min-h-[240px] flex-1 flex-col overflow-hidden rounded-xl bg-panel border border-subtle shadow-sm lg:min-h-0">
+          <div className="min-h-0 flex-1 overflow-auto">
           <div style={{ minWidth: 840 }}>
             <div
               className="sticky top-0 z-10 grid gap-3 border-b border-subtle px-4 py-2.5 text-[10.5px] font-bold uppercase tracking-widest text-tx-muted bg-panel/80 backdrop-blur-md"
@@ -318,12 +447,10 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
                     : "No parts match"}
                 </span>
                 <span className="max-w-[460px] text-[12.5px] text-tx-secondary">
-                  {/* The API says exactly why it is empty. Showing "no matches"
-                      for an unbuilt index sent people looking for the wrong problem. */}
                   {data?.note ??
                     (pages.length > 0
                       ? "None of your own parts match, but the price books have pages that do — see below."
-                      : settledQuery || division
+                      : settledQuery || division || settledManufacturer
                         ? "Nothing here matches that search. Clear the filters, or add the part by hand."
                         : "Search for a part number or description to find the page it is on.")}
                 </span>
@@ -336,12 +463,14 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
                   aria-current={selectedId === product.id}
                   className={cn(
                     "grid w-full items-center gap-3 border-b border-subtle px-4 py-3 text-left last:border-b-0 transition-colors hover:bg-panel-muted",
-                    selectedId === product.id && "bg-brand-soft/30"
+                    selectedId === product.id && "bg-brand-soft/30",
                   )}
                   style={{ gridTemplateColumns: COLUMNS }}
                 >
                   <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate text-[13px] font-semibold text-tx-primary">{product.part}</span>
+                    <span className="truncate text-[13px] font-semibold text-tx-primary">
+                      {product.part}
+                    </span>
                     {product.editable === false && (
                       <Lock size={12} weight="bold" className="text-tx-muted shrink-0" />
                     )}
@@ -366,7 +495,7 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
                       product.availability?.toLowerCase().includes("long") ||
                         product.availability?.toLowerCase().includes("custom")
                         ? "text-status-error"
-                        : "text-tx-secondary"
+                        : "text-tx-secondary",
                     )}
                   >
                     {product.availability ?? "—"}
@@ -375,6 +504,32 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
               ))
             )}
           </div>
+          </div>
+          {total > PAGE_SIZE && (
+            <div className="flex items-center gap-3 border-t border-subtle bg-panel px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="rounded-lg px-3 py-1.5 text-[12px] font-bold disabled:opacity-40 border border-subtle bg-background text-tx-secondary hover:bg-panel-muted hover:text-tx-primary transition-colors shadow-sm"
+              >
+                Previous
+              </button>
+              <span className="tnum flex-1 text-center text-[12.5px] font-medium text-tx-muted">
+                Page {page} of {pageCount}
+                <span className="mx-2 text-tx-muted/60">·</span>
+                Showing {rangeFrom}–{rangeTo} of {total}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                disabled={page >= pageCount}
+                className="rounded-lg px-3 py-1.5 text-[12px] font-bold disabled:opacity-40 border border-subtle bg-background text-tx-secondary hover:bg-panel-muted hover:text-tx-primary transition-colors shadow-sm"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -387,40 +542,52 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
             </p>
           </div>
           <ul className="flex min-h-0 flex-col gap-2 overflow-auto pr-1">
-            {pages.map((page) => (
-              <li
-                key={`${page.catalog_id}-${page.pdf_page}`}
-                className="flex flex-col gap-1.5 rounded-lg p-3.5 bg-panel border border-subtle shadow-sm transition-colors hover:border-brand-border/40"
-              >
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="truncate text-[13px] font-semibold text-tx-primary">{page.title}</span>
-                  <span className="tnum shrink-0 text-[11.5px] font-medium text-tx-muted">
-                    {page.locator}
-                  </span>
-                </div>
-                <span className="text-[12.5px] font-medium text-tx-secondary">
-                  {page.description}
-                </span>
-                <div className="flex flex-wrap items-center gap-2 text-[11.5px] font-medium mt-1">
-                  <span className="text-tx-muted">{page.vendor}</span>
-                  {page.has_prices && (
-                    <span className="rounded bg-panel-muted border border-subtle px-1.5 py-0.5 text-tx-secondary">
-                      {page.price_basis === "net" ? "net prices" : "list prices"}
+            {pages.map((page) => {
+              const key = `${page.catalog_id}-${page.pdf_page}`;
+              const opening = openingPage === key;
+              return (
+                <li key={key}>
+                  <button
+                    type="button"
+                    onClick={() => openCatalogPage(page)}
+                    disabled={opening}
+                    className="flex w-full flex-col gap-1.5 rounded-lg p-3.5 text-left bg-panel border border-subtle shadow-sm transition-colors hover:border-brand-border/40 disabled:opacity-60"
+                  >
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="truncate text-[13px] font-semibold text-tx-primary">
+                        {page.title}
+                      </span>
+                      <span className="tnum shrink-0 text-[11.5px] font-medium text-tx-muted">
+                        {page.locator}
+                      </span>
+                    </div>
+                    <span className="text-[12.5px] font-medium text-tx-secondary">
+                      {page.description}
                     </span>
-                  )}
-                  {page.code_prefixes.slice(0, 3).map((code) => (
-                    <span key={code} className="tnum text-tx-muted">
-                      {code}
+                    <div className="flex flex-wrap items-center gap-2 text-[11.5px] font-medium mt-1">
+                      <span className="text-tx-muted">{page.vendor}</span>
+                      {page.has_prices && (
+                        <span className="rounded bg-panel-muted border border-subtle px-1.5 py-0.5 text-tx-secondary">
+                          {page.price_basis === "net" ? "net prices" : "list prices"}
+                        </span>
+                      )}
+                      {page.code_prefixes.slice(0, 3).map((code) => (
+                        <span key={code} className="tnum text-tx-muted">
+                          {code}
+                        </span>
+                      ))}
+                    </div>
+                    <span className="text-[11px] font-medium text-tx-muted mt-0.5">
+                      {page.why.join(" · ")}
                     </span>
-                  ))}
-                </div>
-                {/* Why it matched, so a page that is not what you wanted is
-                    legible rather than mysterious. */}
-                <span className="text-[11px] font-medium text-tx-muted mt-0.5">
-                  {page.why.join(" · ")}
-                </span>
-              </li>
-            ))}
+                    <span className="mt-1 flex items-center gap-1.5 text-[12px] font-semibold text-brand-primary">
+                      <FilePdf size={14} weight="duotone" />
+                      {opening ? "Opening…" : "Open at this page"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
@@ -438,7 +605,9 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
             <span className="block text-[11px] font-bold uppercase tracking-widest text-tx-muted">
               {selected.manufacturer ?? "—"} · {selected.division ?? "—"}
             </span>
-            <h2 className="mt-1 text-[18px] font-semibold text-tx-primary leading-tight">{selected.part}</h2>
+            <h2 className="mt-1 text-[18px] font-semibold text-tx-primary leading-tight">
+              {selected.part}
+            </h2>
             <p className="mt-1.5 text-[13px] font-medium text-tx-secondary">
               {selected.description}
             </p>
@@ -483,7 +652,9 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
                       <span className="shrink-0 text-[11.5px] font-medium text-tx-muted">
                         {label}
                       </span>
-                      <span className="truncate text-right text-[12.5px] font-medium text-tx-primary">{value}</span>
+                      <span className="truncate text-right text-[12.5px] font-medium text-tx-primary">
+                        {value}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -508,13 +679,33 @@ export function CatalogClient({ initialQuery = "" }: { initialQuery?: string }) 
             )}
 
             <div className="mt-6 flex items-center justify-between rounded-md px-3.5 py-3 bg-panel-muted border border-subtle shadow-sm">
-              <span className="text-[12px] font-semibold text-tx-muted">
-                Sell at
-              </span>
+              <span className="text-[12px] font-semibold text-tx-muted">Sell at</span>
               <span className="tnum text-[16px] font-bold text-brand-primary">
-                {selected.sellAt == null ? "—" : `$${formatMoney(selected.sellAt)}`}
+                {(productDetail?.product.sellAt ?? selected.sellAt) == null
+                  ? "—"
+                  : `$${formatMoney(productDetail?.product.sellAt ?? selected.sellAt)}`}
               </span>
             </div>
+            {canFetchDetail && (
+              <div className="mt-2 flex flex-col gap-1 rounded-md px-3.5 py-2.5 border border-subtle bg-background">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[11.5px] font-medium text-tx-muted">Margin band</span>
+                  <span className="text-[12.5px] font-semibold text-tx-primary">
+                    {formatBandKey(productDetail?.marginBand)}
+                  </span>
+                </div>
+                {productDetail?.priceBook && (
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-[11.5px] font-medium text-tx-muted">Price book</span>
+                    <span className="truncate text-right text-[12.5px] font-medium text-tx-primary">
+                      {productDetail.priceBook.displayName ??
+                        productDetail.priceBook.vendor ??
+                        "—"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
             <p className="mt-2 text-[11.5px] font-medium text-tx-muted leading-relaxed">
               Sell follows the division&apos;s margin divisor. Overriding it on a quote line is
               logged against your name.

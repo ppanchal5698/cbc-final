@@ -241,6 +241,15 @@ def enabled(resolved: dict[str, Any] | None = None) -> bool:
     return bool(str(resolved.get("url") or "").strip())
 
 
+async def load_stored() -> dict[str, Any]:
+    """Resolve parsing settings from the settings collection (ops-owned)."""
+    from cbc.modules.ops.infrastructure.collections import settings_collection
+
+    stored = await settings_collection().find_one({"_id": DOC_ID}) or {}
+    resolved, _ = resolve(stored)
+    return resolved
+
+
 def public_config(
     config: dict[str, Any] | None,
 ) -> dict[str, Any]:

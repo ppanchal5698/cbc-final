@@ -127,6 +127,39 @@ def test_an_empty_take_off_over_a_set_that_has_a_schedule_fails(project_root) ->
     assert any("14" in p for p in problems), problems
 
 
+def test_empty_takeoff_over_door_schedule_candidate_fails(project_root) -> None:
+    """A4.0 CAD sheets with title-block-only text must not pass as no-scope."""
+    _project(project_root, "cad_miss", {"openings": [], "no_scope_reason": "none found"})
+    (project_root / "projects" / "cad_miss" / "extracted" / "_sheetmap.json").write_text(
+        json.dumps(
+            {
+                "files": [
+                    {
+                        "path": "projects/cad_miss/uploads/raw/set.pdf",
+                        "schedule_pages": [],
+                        "has_schedule_markers": False,
+                        "door_schedule_candidate_pages": [16],
+                        "pages": [
+                            {
+                                "source_page": 16,
+                                "kind": "ranked",
+                                "roles": ["door_schedule_candidate", "text_poor"],
+                                "sheet_ids": ["A4.0"],
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    problems, _ = artifacts.check_extraction("cad_miss")
+
+    assert any("candidate" in p.lower() or "missed read" in p for p in problems), problems
+    assert any("16" in p for p in problems), problems
+
+
 def test_an_older_sheetmap_never_turns_a_correct_run_into_a_failure(project_root) -> None:
     """A map written before `schedule_pages` existed claims nothing either way."""
     _project(project_root, "legacy", {"openings": [], "door_schedule_found": False})

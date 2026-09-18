@@ -31,7 +31,7 @@ def _mapped_agents() -> dict[str, str]:
     assert block, "job_type_for is gone from _phase.sh"
     mapping: dict[str, str] = {}
     for names, job_type in re.findall(
-        r"^\s*([a-z|-]+)\)\s*\n?\s*echo \"([a-z_]+)\"", block.group(1), re.MULTILINE
+        r"^\s*([a-z0-9|-]+)\)\s*\n?\s*echo \"([a-z_]+)\"", block.group(1), re.MULTILINE
     ):
         for name in names.split("|"):
             mapping[name] = job_type

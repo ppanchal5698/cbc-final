@@ -5,6 +5,7 @@ import { Rail } from "@/components/shell/rail";
 import { ShellOverlays } from "@/components/shell/shell-overlays";
 import { UiStateProvider } from "@/components/shell/ui-state";
 import { api } from "@/lib/api";
+import { userInitials } from "@/lib/initials";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -12,14 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const user = {
     name: session.user.name ?? "Estimator",
-    initials:
-      session.user.initials ??
-      (session.user.name ?? "E")
-        .split(" ")
-        .map((part) => part[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase(),
+    initials: userInitials(session.user.name, session.user.initials),
     role: session.user.role ?? "estimator",
   };
 

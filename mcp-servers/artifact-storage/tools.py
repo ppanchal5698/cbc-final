@@ -26,6 +26,57 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "propose_patch",
+        "description": (
+            "Change named fields of an artifact that already exists. Prefer this over "
+            "save_artifact for extracted/* checkpoints: the deterministic seed is the "
+            "base, each patch is validated on its own, and a patch that fails costs "
+            "that one field and leaves a review flag instead of failing the whole write. "
+            "Every patch that fills a value must cite the page it was read from "
+            "(.claude/rules/pdf-verify-before-present.md)."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string"},
+                "path": {
+                    "type": "string",
+                    "description": "e.g. extracted/door_schedule.json - must already exist",
+                },
+                "patches": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "op": {"type": "string", "enum": ["set", "append"]},
+                            "path": {
+                                "type": "string",
+                                "description": (
+                                    "openings/<door number>/<field>, e.g. openings/05/handing. "
+                                    "The door number, never a list index."
+                                ),
+                            },
+                            "value": {},
+                            "evidence": {
+                                "type": "object",
+                                "properties": {
+                                    "source_page": {"type": "integer"},
+                                    "excerpt": {"type": "string"},
+                                    "bbox": {"type": "array", "items": {"type": "number"}},
+                                },
+                                "required": ["source_page", "excerpt"],
+                            },
+                        },
+                        "required": ["path", "value"],
+                    },
+                },
+                "version_note": {"type": "string"},
+            },
+            "required": ["project", "path", "patches"],
+        },
+    },
+    {
         "name": "get_artifact",
         "description": "Read an artifact, either the live file or a specific stored version hash.",
         "inputSchema": {

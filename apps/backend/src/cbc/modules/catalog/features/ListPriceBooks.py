@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from cbc.modules.catalog.infrastructure.collections import price_books
-from cbc.modules.catalog.infrastructure.price_book_view import decorate
+from cbc.modules.catalog.infrastructure.price_book_view import decorate, dev_freshness_controls
 
 router = APIRouter(prefix="/api/price-books", tags=["price-books"])
 
@@ -28,4 +28,5 @@ async def list_price_books() -> dict[str, Any]:
             "cadence": None,
             "note": "NFR-10 is open - no owner or refresh cadence has been assigned.",
         },
+        "devFreshnessControls": dev_freshness_controls(),
     }

@@ -471,10 +471,11 @@ def get_special_net(vendor: str, part_number: str) -> dict[str, Any] | None:
     keys = {upper, upper.split("-")[0].split()[0]} if upper else set()
     for row in payload.get("items", []):
         part = str(row.get("part_number", "")).strip().upper()
-        if part in keys:
+        item_code = str(row.get("item_code", "")).strip().upper()
+        if part in keys or item_code in keys:
             return {
                 "vendor": vendor_key,
-                "part_number": part,
+                "part_number": part or item_code,
                 "net_price": row["net_price"],
                 "item_code": row.get("item_code"),
                 "section": row.get("section"),

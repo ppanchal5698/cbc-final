@@ -44,6 +44,18 @@
   },
   "status": 200
  },
+ "GET /api/projects/{code}/documents/{document_id}/pages/{page_number}/blocks": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "GET /api/projects/{code}/documents/{document_id}/pages/{page_number}/blocks #no such page": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
  "GET /api/projects/{code}/versions": {
   "body": {
    "current": "number",
@@ -104,6 +116,10 @@
     "id": "id",
     "kind": "str",
     "pages": "number",
+    "parse": {
+     "pages": "number",
+     "state": "str"
+    },
     "path": "str",
     "projectId": "id",
     "state": "str",
@@ -148,6 +164,10 @@
     "id": "id",
     "kind": "str",
     "pages": "number",
+    "parse": {
+     "pages": "number",
+     "state": "str"
+    },
     "path": "str",
     "projectId": "id",
     "state": "str",

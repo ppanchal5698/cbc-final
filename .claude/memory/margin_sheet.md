@@ -32,4 +32,4 @@ Margin-approval routing is **out of scope for now** (NFR-8 / Matrix 6.7). There 
 deviation today — estimators hold to standard margins. Below-band lines are still *flagged*
 (FR-15) but nothing is routed for approval. Revisit when the team grows.
 
-See [[cost_sourcing_rules]], [[manual_cutoff]].
+See [cost_sourcing_rules](cost_sourcing_rules.md), [manual_cutoff](manual_cutoff.md).

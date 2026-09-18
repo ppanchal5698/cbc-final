@@ -319,6 +319,40 @@ def test_bash_deletion_guard_still_applies() -> None:
     assert result.returncode == 2
 
 
+def test_powershell_recursive_force_delete_outside_projects_is_blocked() -> None:
+    result = _run_guard(
+        {
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": "Remove-Item -Recurse -Force /tmp/cbc-not-a-bid"
+            },
+        }
+    )
+    assert result.returncode == 2, result.stderr
+
+
+def test_powershell_remove_item_on_claude_hooks_is_blocked() -> None:
+    result = _run_guard(
+        {
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": "Remove-Item -Force .claude/hooks/pre_delete_guard.py"
+            },
+        }
+    )
+    assert result.returncode == 2, result.stderr
+
+
+def test_cmd_del_s_q_outside_projects_is_blocked() -> None:
+    result = _run_guard(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": "del /s /q /tmp/cbc-not-a-bid"},
+        }
+    )
+    assert result.returncode == 2, result.stderr
+
+
 def test_plain_rm_on_claude_hooks_is_blocked() -> None:
     result = _run_guard(
         {

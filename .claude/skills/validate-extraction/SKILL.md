@@ -20,8 +20,9 @@ This skill exists to make the losses visible.
 | `size` / `width` + `height` | yes | **hard error** - nothing can be priced without it |
 | `source_page` | yes | **hard error** - the line would be unauditable (NFR-3) |
 | `handing` | yes | flag `handing_missing` — **only after** schedule + floor-plan swing search **on the PDF** (Matrix 7.4), with pages cited in `evidence_note` |
-| `finish` | yes | flag `finish_missing` — check HW group / sheet note **on the PDF** first |
+| `finish` | yes | flag `finish_missing` (high) — check HW group / sheet note **on the PDF** first |
 | `fire_rating` | yes | flag `fire_rating_missing`, severity **high** — search type schedule + Div 08 **on the PDF** first |
+| `keying` | when HW implies | structured object or null + `keying_missing` if lock/IC/storeroom stated but object empty |
 | `hardware_set` | yes* | flag `hardware_set_missing` **or** `hardware_matrix_unexpanded` when X-column schedule |
 | `frame_type` / `wall_type` | preferred | flag `frame_depth_underivable` |
 
@@ -33,14 +34,15 @@ This skill exists to make the losses visible.
    **severity high** - an unrated match on a rated opening is a defect.
 
 Whether a missing rating should hard-stop the line is still an open question
-(Matrix 7.3). Until CBC answers, **flag, do not stop**.
+Fire rating is a **mandatory** extract field. Exact page location varies across
+bid sets. After PDF verify, **flag, do not stop** (and never invent).
 
 ## Other checks
 
 - **PDF verify before present.** A `*_missing` flag without an `evidence_note`
   (or review note) naming the page(s) searched is a **process error** — the
   agent must open the specific PDF before presenting. See
-  `@.claude/rules/pdf-verify-before-present.md`.
+  `.claude/rules/pdf-verify-before-present.md`.
 - **Minute details present.** If `raw_row` / cell text carries glass, materials,
   frame type, or note codes and the allowlisted fields + `notes` omit them,
   flag `details_dropped` (or fold them in before accepting the take-off).
@@ -102,7 +104,7 @@ Findings are merged into `projects/{project}/review/review_flags.json`:
       "flag": "fire_rating_missing",
       "severity": "high",
       "source_page": 14,
-      "note": "Door schedule carries no rating column. Matrix 7.3 is still open."
+      "note": "Door schedule carries no rating column. Searched type schedule and Div 08 — still absent."
     }
   ],
   "summary": { "openings": 4, "errors": 0, "flags": 12 }

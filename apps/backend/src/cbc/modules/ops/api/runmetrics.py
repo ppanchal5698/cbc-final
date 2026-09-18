@@ -396,6 +396,10 @@ def document_for(
             "rerunScope": None,
             "validationFailures": [],
             "reviewFlagCount": 0,
+            # Filled by `record` from the corrections this bid has drawn (FR-13).
+            # It was a placeholder here from the day the collection was written,
+            # and an unfilled one is the difference between a matcher that is
+            # said to be improving and one that can be shown to be.
             "estimatorCorrections": None,
         },
     }
@@ -426,3 +430,26 @@ async def record(
     )
     await run_metrics_collection().replace_one({"_id": document["_id"]}, document, upsert=True)
     return document
+
+
+async def set_estimator_corrections(job: dict[str, Any], counts: dict[str, Any]) -> None:
+    """Record how much of this bid the estimator corrected, and how much CBC knows.
+
+    Takes the numbers rather than gathering them: `feedbackEvents` belongs to
+    extraction, extraction already imports ops, and a metric is not a good enough
+    reason to put a cycle in the module graph. The caller that owns the queue
+    counts it and hands the result here.
+
+    The point of the learning loop is that these numbers fall. Recording them on
+    every pass is what turns "it gets smarter" from a claim into something an
+    operator can read - and what would show it plateauing, which is the signal to
+    reach for a better recall than string similarity.
+    """
+    job_id = str(job.get("_id") or "")
+    if not job_id or not counts:
+        return
+    attempt = max(int(job.get("attempts") or 1), 1)  # same key document_for builds
+    await run_metrics_collection().update_one(
+        {"_id": f"{job_id}:{attempt}"},
+        {"$set": {"outcome.estimatorCorrections": counts}},
+    )

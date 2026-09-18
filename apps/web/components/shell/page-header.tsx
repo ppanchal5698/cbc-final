@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { Header, type Crumb } from "@/components/shell/header";
+import { userInitials } from "@/lib/initials";
 
 /** Server wrapper that feeds the signed-in user into the client header. */
 export async function PageHeader({
@@ -16,14 +17,7 @@ export async function PageHeader({
   const session = await auth();
   const user = {
     name: session?.user?.name ?? "Estimator",
-    initials:
-      (session?.user as { initials?: string } | undefined)?.initials ??
-      (session?.user?.name ?? "E")
-        .split(" ")
-        .map((part) => part[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase(),
+    initials: userInitials(session?.user?.name, session?.user?.initials),
     role: session?.user?.role ?? "estimator",
   };
 

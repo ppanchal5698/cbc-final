@@ -18,9 +18,9 @@ rather than out of a table nobody checked.
 """
 from __future__ import annotations
 
-import re
 from typing import Any
 
+from cbc.modules.catalog.domain import partquery
 from cbc.modules.catalog.infrastructure.collections import products
 from cbc.shared.mongo import serialise
 from cbc.modules.catalog.api.pageindex import basis, query as page_query, store as page_store
@@ -47,30 +47,66 @@ async def search_pages(
     return found.get("pages", [])
 
 
+def _manual_filter(
+    query: str | None,
+    *,
+    division: str | None = None,
+    manufacturer: str | None = None,
+    text: bool = True,
+) -> dict[str, Any]:
+    """The estimator's own parts, matching `query`.
+
+    `text=True` uses the `product_search` index; `text=False` is the regex shape,
+    for the fallback when a query has no whole-word the index can see.
+    """
+    mongo: dict[str, Any] = {"seedSource": {"$ne": partquery.INGEST_SEED}}
+    if division:
+        mongo["division"] = division
+    if manufacturer:
+        mongo["manufacturer"] = manufacturer
+    if not query:
+        return mongo
+    build = partquery.text_filter if text else partquery.regex_filter
+    # `include_ingest` because the seedSource rule above is this screen's own and
+    # is stricter about nothing: it already excludes the same rows.
+    return {"$and": [mongo, build(query, include_ingest=True)]}
+
+
 async def search_manual(
     query: str | None,
     *,
     division: str | None = None,
     manufacturer: str | None = None,
     limit: int = 50,
-) -> list[dict[str, Any]]:
-    """The estimator's own parts. Editable, and independent of any catalog."""
-    mongo: dict[str, Any] = {"seedSource": {"$ne": "price book ingest"}}
-    if division:
-        mongo["division"] = division
-    if manufacturer:
-        mongo["manufacturer"] = manufacturer
-    if query:
-        needle = re.escape(query)  # user input, not a pattern
-        mongo["$or"] = [
-            {"part": {"$regex": f"^{needle}", "$options": "i"}},
-            {"description": {"$regex": needle, "$options": "i"}},
-            {"manufacturer": {"$regex": needle, "$options": "i"}},
-        ]
-    rows = await products().find(mongo).sort("part", 1).to_list(limit)
+    offset: int = 0,
+) -> tuple[list[dict[str, Any]], int]:
+    """The estimator's own parts. Editable, and independent of any catalog.
+
+    Returns `(page_rows, total_matching)` so callers can paginate without
+    treating the page length as the catalog size.
+    """
+    # Precise first. An estimator searching this screen usually types a part
+    # number, and `$text` tokenises `TEST-NET-1` into TEST / NET / 1 - which
+    # matches every neighbouring part, and since the page is ordered by `part`
+    # rather than by relevance the top row stops being the one asked for.
+    # `$text` earns its place on a descriptive query, where the anchored regex
+    # finds nothing at all.
+    mongo = _manual_filter(query, division=division, manufacturer=manufacturer, text=False)
+    total = await products().count_documents(mongo)
+    if query and not total:
+        mongo = _manual_filter(query, division=division, manufacturer=manufacturer, text=True)
+        total = await products().count_documents(mongo)
+    rows = (
+        await products()
+        .find(mongo)
+        .sort("part", 1)
+        .skip(max(0, offset))
+        .limit(limit)
+        .to_list(limit)
+    )
     # A hand-added part keeps cost and list in separate columns the estimator filled
     # in, so there is nothing to disambiguate: its listPrice is a list price.
-    return [
+    page = [
         {
             **serialise(row),
             "priceBasis": basis.LIST,
@@ -81,6 +117,7 @@ async def search_manual(
         }
         for row in rows
     ]
+    return page, total
 
 
 async def search(
@@ -89,20 +126,27 @@ async def search(
     division: str | None = None,
     manufacturer: str | None = None,
     limit: int = 50,
+    offset: int = 0,
 ) -> dict[str, Any]:
     """Both halves, each as what it actually is."""
     import asyncio
 
-    manual, pages = await asyncio.gather(
-        search_manual(query, division=division, manufacturer=manufacturer, limit=limit),
+    (manual, total), pages = await asyncio.gather(
+        search_manual(
+            query,
+            division=division,
+            manufacturer=manufacturer,
+            limit=limit,
+            offset=offset,
+        ),
         search_pages(query or "", vendor=manufacturer, limit=12),
     )
     indexed = await index_available()
     return {
         "products": manual,
         "pages": pages,
-        "total": len(manual),
-        "counts": {"manual": len(manual), "pages": len(pages)},
+        "total": total,
+        "counts": {"manual": total, "pages": len(pages)},
         "indexAvailable": indexed,
         "note": (
             None

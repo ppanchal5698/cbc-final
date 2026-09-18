@@ -177,9 +177,30 @@
           "type": [
             "array",
             "null"
-          ]
+          ],
+          "items": {
+            "type": "string"
+          }
         },
         "evidence_note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "in_scope": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "scope_rule": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scope_reason": {
           "type": [
             "string",
             "null"
@@ -379,6 +400,39 @@
             "string",
             "null"
           ]
+        },
+        "keying": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "coreType": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "keyway": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lockFunction": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "notes": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
         },
         "confirmed_by": {
           "type": [

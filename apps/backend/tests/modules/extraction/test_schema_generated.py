@@ -77,3 +77,67 @@ def test_page_size_in_schema_requires_width_and_height() -> None:
     assert opening.get("required") == ["width", "height"]
     assert "width" in (opening.get("properties") or {})
     assert "height" in (opening.get("properties") or {})
+
+
+def test_every_field_the_deterministic_seeds_write_is_declared() -> None:
+    """The seeds write artifacts that must survive their own schema gate.
+
+    `scope_rules.apply_to` began stamping `in_scope` / `scope_rule` /
+    `scope_reason` on every opening, and `Opening` is `extra="forbid"`. The
+    seeds write with `atomic_write_json`, which runs no validation, so the file
+    on disk looked fine and only failed when something tried to `save_artifact`
+    it - with `Extra inputs are not permitted`, the exact failure this whole
+    contract exists to prevent.
+
+    Checking the writer against the model catches the class, not one instance.
+    """
+    from cbc.modules.extraction.api.claude_output import Div10Item, Opening
+    from cbc.modules.extraction.domain import scope_rules
+
+    rows = [{"door_number": "01", "door_material": "HM"}]
+    scope_rules.apply_to(rows)
+    undeclared = set(rows[0]) - set(Opening.model_fields)
+    assert not undeclared, f"scope_rules writes {undeclared}, which Opening forbids"
+
+    from cbc.modules.extraction.infrastructure import specialty_parser
+
+    item = {
+        "product_type": "grab_bar", "manufacturer": "Bobrick",
+        "specified_model": "B-6806", "qty": None, "unit": None, "location": None,
+        "room": None, "drawing_ref": None, "finish": None, "notes": "x",
+        "alternate": None, "source_page": 19, "evidence_note": "p19",
+        "flags": [], "confidence": 0.85,
+    }
+    assert set(item) <= set(Div10Item.model_fields), (
+        f"specialty_parser writes {set(item) - set(Div10Item.model_fields)}, "
+        "which Div10Item forbids"
+    )
+    assert specialty_parser.div10_items_on_page  # the writer this mirrors exists
+
+
+def test_a_seeded_schedule_passes_the_gate_it_will_be_saved_through() -> None:
+    """End to end on the shape the seed actually produces."""
+    from cbc.modules.extraction.api.artifact_schema import prepare_artifact_text
+    from cbc.modules.extraction.api.claude_output import DoorSchedule
+    from cbc.modules.extraction.domain import scope_rules
+
+    openings = [
+        {"door_number": "02", "door_material": "AL", "size": "3070",
+         "room_name": "VESTIBULE", "source_file": "uploads/raw/a.pdf",
+         "source_page": 16, "bbox": [1.0, 2.0, 3.0, 4.0],
+         "page_size": {"width": 100.0, "height": 200.0}},
+        {"door_number": "05", "door_material": "PL", "size": "3068",
+         "room_name": "UNISEX WRM", "source_file": "uploads/raw/a.pdf",
+         "source_page": 16, "bbox": [1.0, 2.0, 3.0, 4.0],
+         "page_size": {"width": 100.0, "height": 200.0}},
+    ]
+    scope_rules.apply_to(openings)
+    payload = {"source_page": 16, "openings": openings}
+
+    cleaned, problems = prepare_artifact_text(
+        "extracted/door_schedule.json", json.dumps(payload)
+    )
+    assert problems == [], problems
+    parsed = DoorSchedule.model_validate(json.loads(cleaned))
+    assert [o.in_scope for o in parsed.openings] == [False, True]
+    assert parsed.openings[0].scope_rule == "storefront"

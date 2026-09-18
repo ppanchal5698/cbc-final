@@ -67,8 +67,18 @@ DOMAIN_JOB_TYPES: dict[str, frozenset[str]] = {
     "extraction": frozenset({"extract_bid_set", "rerun_extraction"}),
     "pricing": frozenset({"match_and_price"}),
     "quoting": frozenset({"build_proposal"}),
-    "catalog": frozenset({"index_catalog", "delete_catalog", "ingest_pricebook"}),
+    "catalog": frozenset(
+        {
+            "index_catalog",
+            "delete_catalog",
+            "ingest_pricebook",
+            "parse_catalog",
+            "parse_multiplier",
+        }
+    ),
     # GPU parse waits must not hold the Claude worker's single concurrency slot.
+    # Bid parse only — catalog MinerU jobs stay on the catalog claim set so a
+    # 700-page book cannot starve bid parse_document on the GPU worker.
     "parsing": frozenset({"parse_document"}),
 }
 

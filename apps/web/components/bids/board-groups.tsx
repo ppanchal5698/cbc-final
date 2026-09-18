@@ -6,6 +6,7 @@ import { CaretDown, CaretRight } from "@phosphor-icons/react/dist/ssr";
 
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatMoneyShort } from "@/lib/format";
+import { brandInitials } from "@/lib/initials";
 import type { Project } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -16,21 +17,12 @@ const STAGE_LABEL: Record<string, string> = {
   proposal: "Proposal",
 };
 
-function initials(brand: string): string {
-  return brand
-    .split(/\s+/)
-    .map((word) => word[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
-
 function statusOf(project: Project): { label: string; variant: "progress" | "review" | "ok" | "neutral" } {
   if (project.activeJob) return { label: "Claude is reading", variant: "progress" };
-  if (project.counts.needsLook > 0)
-    return { label: `${project.counts.needsLook} to check`, variant: "review" };
-  if (project.counts.total > 0) return { label: "All clear", variant: "ok" };
+  const needsLook = project.counts?.needsLook ?? 0;
+  const total = project.counts?.total ?? 0;
+  if (needsLook > 0) return { label: `${needsLook} to check`, variant: "review" };
+  if (total > 0) return { label: "All clear", variant: "ok" };
   return { label: "No lines yet", variant: "neutral" };
 }
 
@@ -68,7 +60,7 @@ export function BoardGroups({ projects }: { projects: Project[] }) {
         .map(([brand, rows]) => {
           const open = !closed.has(brand);
           const value = rows.reduce((sum, row) => sum + (row.quoteTotal ?? 0), 0);
-          const flags = rows.reduce((sum, row) => sum + row.counts.needsLook, 0);
+          const flags = rows.reduce((sum, row) => sum + (row.counts?.needsLook ?? 0), 0);
 
           return (
             <div
@@ -95,7 +87,7 @@ export function BoardGroups({ projects }: { projects: Project[] }) {
                   <CaretRight size={14} weight="bold" className="text-tx-muted" />
                 )}
                 <span className="grid h-8 w-8 place-items-center rounded-md bg-brand-soft text-[11px] font-bold text-brand-primary shadow-sm border border-brand-border/20">
-                  {initials(brand)}
+                  {brandInitials(brand)}
                 </span>
                 <span className="flex flex-col leading-tight">
                   <span className="text-[14px] font-semibold text-tx-primary">{brand}</span>

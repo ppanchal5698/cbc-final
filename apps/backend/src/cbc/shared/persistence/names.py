@@ -38,6 +38,7 @@ ESTIMATES = "estimates"
 ESTIMATE_VERSIONS = "estimateVersions"
 ESTIMATE_LINES = "estimateLines"      # was: quoteLines
 CATALOG_ITEMS = "catalogItems"        # was: products
+MATCH_LEARNING = "matchLearning"      # FR-13: what an estimator confirmed a spec means
 HARDWARE_SETS = "hardwareSets"
 PRICE_BOOKS = "priceBooks"
 PRICE_BOOK_ENTRIES = "priceBookEntries"
@@ -60,6 +61,8 @@ FAILED_EXTRACTIONS = "failedExtractions"
 REFERENCE_DATA = "referenceData"
 PAGE_INDEX = "pageIndex"
 DOCUMENT_PAGES = "documentPages"
+CATALOG_PAGES = "catalogPages"
+MULTIPLIER_PAGES = "multiplierPages"
 SCHEMA_MIGRATIONS = "schemaMigrations"
 
 # What migration 1 renames, old -> new. Kept beside the constants so the two

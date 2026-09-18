@@ -129,6 +129,8 @@ export function jobTypeLabel(type: string): string {
     delete_catalog: "Remove catalog index",
     run_full_pipeline: "Autopilot",
     parse_document: "Parse document",
+    parse_catalog: "Parse price book",
+    parse_multiplier: "Parse multiplier sheet",
   };
   return labels[type] ?? type.replace(/_/g, " ");
 }

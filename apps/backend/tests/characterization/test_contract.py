@@ -41,7 +41,9 @@ def _request(client, op: str, **kwargs):
 
 
 def test_the_route_table(snapshots) -> None:
-    assert len(ROUTES) == 130
+    # 131: FR-13 added POST /api/learning/apply, which drains the estimator
+    # corrections into what the matcher knows.
+    assert len(ROUTES) == 131
     snapshots.pin_value("routes", ROUTES)
 
 

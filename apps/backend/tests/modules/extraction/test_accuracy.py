@@ -26,8 +26,37 @@ GOLDEN_DIR = FIXTURES / "golden"
 FIXTURE_DIR = FIXTURES / "pdfs"
 
 
+def _resolve_golden_pdf(golden: dict) -> Path | None:
+    """Prefer fixtures/pdfs, then bid_pdfs/ for layout-class corpus goldens."""
+    name = golden.get("source_file")
+    if not name:
+        return None
+    candidates = [
+        FIXTURE_DIR / name,
+        ROOT / "bid_pdfs" / name,
+    ]
+    corpus = golden.get("source_corpus")
+    if corpus == "bid_pdfs":
+        candidates.insert(0, ROOT / "bid_pdfs" / name)
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
+
+
 def _references() -> list[Path]:
-    return sorted(GOLDEN_DIR.glob("*.json")) if GOLDEN_DIR.exists() else []
+    """Door-schedule goldens only (pricing expectations share the golden/ folder)."""
+    if not GOLDEN_DIR.exists():
+        return []
+    out: list[Path] = []
+    for path in sorted(GOLDEN_DIR.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(payload, dict) and "openings" in payload and "source_page" in payload:
+            out.append(path)
+    return out
 
 
 def _ids(paths: list[Path]) -> list[str]:
@@ -52,9 +81,9 @@ def test_the_parser_is_never_silently_wrong(reference: Path) -> None:
     from scripts.score_extraction import score
 
     golden = json.loads(reference.read_text(encoding="utf-8"))
-    pdf = FIXTURE_DIR / golden["source_file"]
-    if not pdf.exists():
-        pytest.skip(f"fixture not present: {pdf.name}")
+    pdf = _resolve_golden_pdf(golden)
+    if pdf is None:
+        pytest.skip(f"fixture not present: {golden.get('source_file')}")
 
     rows = parse_schedule.schedule_rows(str(pdf), golden["source_page"])
     result = score(rows, golden)
@@ -74,9 +103,9 @@ def test_every_opening_is_found(reference: Path) -> None:
     from scripts.score_extraction import score
 
     golden = json.loads(reference.read_text(encoding="utf-8"))
-    pdf = FIXTURE_DIR / golden["source_file"]
-    if not pdf.exists():
-        pytest.skip(f"fixture not present: {pdf.name}")
+    pdf = _resolve_golden_pdf(golden)
+    if pdf is None:
+        pytest.skip(f"fixture not present: {golden.get('source_file')}")
 
     result = score(parse_schedule.schedule_rows(str(pdf), golden["source_page"]), golden)
 
@@ -259,3 +288,104 @@ def test_a_manual_line_with_no_reason_is_refused(tmp_path, monkeypatch) -> None:
     problems, _ = vp.check_pricing(slug, require_hardware_sets=True)
 
     assert any("records no reason" in p for p in problems)
+
+
+# ── the take-offs the door schedule gate never covered ──────────────────────
+#
+# `hardware_sets.json` and `div10_takeoff.json` are parsed deterministically now,
+# and nothing was checking them. The same contract applies: a field is either
+# right, or blank. These assert the properties that make a take-off safe to
+# price, rather than pinning exact values a redraw would change.
+
+HARDWARE_PAGE = (ROOT / "bid_pdfs" / "17037_Wendys_Acheson_A_DWG_IFT.pdf", 16)
+DIV10_PAGES = (ROOT / "bid_pdfs" / "17037_Wendys_Acheson_A_DWG_IFT.pdf", [19, 18, 17])
+
+
+def _skip_unless(pdf: Path):
+    if not pdf.is_file():
+        pytest.skip(f"fixture not present: {pdf.name}")
+
+
+def test_the_hardware_legend_yields_parts_not_blank_manual_lines() -> None:
+    """Two bid sets reached pricing with no manufacturer parts at all.
+
+    The legend was never read, so every hardware line priced MANUAL at zero.
+    """
+    from cbc.modules.extraction.infrastructure import hardware_groups
+
+    pdf, page = HARDWARE_PAGE
+    _skip_unless(pdf)
+    found = hardware_groups.groups_on_page(pdf, page)
+    sets = found.get("sets") or []
+    items = [i for s in sets for i in (s.get("items") or [])]
+    assert len(sets) >= 10, f"only {len(sets)} hardware sets off a legend of 11"
+    assert len(items) >= 70, f"only {len(items)} items"
+
+    with_part = [i for i in items if i.get("part")]
+    assert len(with_part) / len(items) >= 0.80, (
+        f"only {len(with_part)}/{len(items)} items carry a part number"
+    )
+    # The parts that started this: they must survive to the artifact.
+    parts = {str(i.get("part") or "").upper() for i in items}
+    for expected in ("3580", "BB1279", "4501", "5100", "431S", "810S", "190S"):
+        assert any(expected in p for p in parts), f"{expected} is not in the legend output"
+
+
+def test_every_hardware_item_says_which_set_and_page_it_came_from() -> None:
+    """NFR-3: a part with no set is unquotable, one with no page unauditable."""
+    from cbc.modules.extraction.infrastructure import hardware_groups
+
+    pdf, page = HARDWARE_PAGE
+    _skip_unless(pdf)
+    for entry in hardware_groups.groups_on_page(pdf, page).get("sets") or []:
+        assert entry.get("hardware_set"), entry
+        assert entry.get("source_page") == page, entry
+
+
+def test_a_division_10_item_is_identified_or_it_is_only_a_mention() -> None:
+    """Eighteen rows of which six were real read as data, and priced as data."""
+    from cbc.modules.extraction.infrastructure import specialty_parser
+
+    pdf, pages = DIV10_PAGES
+    _skip_unless(pdf)
+    envelope = specialty_parser.div10_envelope(pdf, pages)
+
+    for item in envelope["items"]:
+        assert item["manufacturer"] and item["specified_model"], item
+        assert item["source_page"] in pages, item
+    for mention in envelope["mentions"]:
+        assert mention["why_not_an_item"], mention
+    if envelope["mentions"]:
+        assert "div10_mentions_need_review" in envelope["flags"]
+
+
+def test_a_division_10_count_is_never_defaulted() -> None:
+    """Counting accessories means reading elevations, not a schedule row.
+
+    A default of 1 quotes one grab bar for a building, with nothing on the line
+    to say the count was never read.
+    """
+    from cbc.modules.extraction.infrastructure import specialty_parser
+
+    pdf, pages = DIV10_PAGES
+    _skip_unless(pdf)
+    for item in specialty_parser.div10_envelope(pdf, pages)["items"]:
+        if item["qty"] is None:
+            assert "qty_not_stated" in item["flags"], item
+        else:
+            assert item["qty"] > 0, item
+
+
+def test_frp_geometry_is_blocked_rather_than_estimated() -> None:
+    from cbc.modules.extraction.infrastructure import specialty_parser
+
+    pdf, _ = DIV10_PAGES
+    _skip_unless(pdf)
+    found = specialty_parser.frp_findings(pdf, [23, 19, 18])
+    if not found["frp_in_scope"]:
+        pytest.skip("no FRP on this set")
+    assert found["status"] == "NOT_MEASURED"
+    assert found["quantity"] is None and found["areas"] == []
+    assert found["blocked_on"]
+    # A vendor named elsewhere on the sheet is not the FRP vendor.
+    assert found["manufacturer"] != "Bobrick", "Bobrick do not make FRP"
