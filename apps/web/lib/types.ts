@@ -53,6 +53,17 @@ export interface IntakeFieldSource {
   excerpt?: string | null;
 }
 
+export type BidStatus = "bid" | "not_bid";
+/** "" means open - the board cycles open -> won -> lost -> open. */
+export type Outcome = "" | "won" | "lost";
+export type EnteredByRole = "Sales" | "Estimating" | "Purchasing" | "Operations";
+
+export interface Person {
+  email: string;
+  name: string;
+  initials: string;
+}
+
 export interface Project {
   id: string;
   code: string;
@@ -88,6 +99,21 @@ export interface Project {
   autopilot?: boolean;
   version?: number;
   handedOffTo?: string | null;
+  /** The team `initiator` sits on - a per-bid label, not an auth role. */
+  enteredByRole?: EnteredByRole | null;
+  /** The assigned estimator's email, "" when unassigned. */
+  assignedEstimator?: string;
+  /** Resolved from `users` by the API; null when the address is unknown. */
+  estimator?: Person | null;
+  /** Whether CBC is quoting this job at all. Defaults to "bid". */
+  bidStatus?: BidStatus;
+  /**
+   * How the bid ended, entered by hand. "" is still open. Held apart from
+   * `not_bid` so an unworked job is never counted as a loss.
+   */
+  outcome?: Outcome;
+  /** The P21 order raised against a won bid. */
+  p21OrderNo?: string | null;
   counts: Counts;
   documentCount: number;
   quoteTotal?: number | null;
@@ -284,7 +310,12 @@ export interface QuoteTotals {
 
 export interface QuoteResponse {
   quote: Record<string, unknown> | null;
-  groups: { division: string; lines: QuoteLine[]; subtotal: number }[];
+  /**
+   * One entry per opening (the hardware group the pass assigned), with the
+   * division carried alongside and used as the key for a line that has no
+   * opening.
+   */
+  groups: { group: string; division: string; lines: QuoteLine[]; subtotal: number }[];
   totals: QuoteTotals;
   lineCount: number;
   edited?: { count: number; firstId: string | null };
@@ -415,6 +446,16 @@ export interface PriceBook {
   ageDays: number | null;
   stale: boolean;
   undated: boolean;
+  /** Sheets this book has carried before, newest supersession last. */
+  sheetHistory?: {
+    filename?: string | null;
+    path?: string | null;
+    bytes?: number | null;
+    effective?: string | null;
+    uploadedAt?: string | null;
+    supersededAt?: string | null;
+    supersededBy?: string | null;
+  }[];
   /** Local dev: staleness follows lastReviewed when set. */
   devFreshnessControls?: boolean;
   staleReferenceField?: "effective" | "lastReviewed";
@@ -472,6 +513,11 @@ export interface ProposalResponse {
   readiness: {
     flaggedLineItems: number;
     unpricedQuoteLines: number;
+    /** Lines priced off a sheet past its review window. */
+    lapsedLines: number;
+    /** Who took responsibility for those lines, if anyone has. */
+    lapsedAcknowledgedBy?: string | null;
+    /** True only for lapsed lines: the one gate that stops a hand-off. */
     blocking: boolean;
     note: string;
   };

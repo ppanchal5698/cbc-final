@@ -12,12 +12,12 @@
 export default function AppLoading() {
   return (
     <>
-      <div className="flex h-[56px] shrink-0 items-center gap-4 border-b border-subtle px-5 bg-background">
+      <header className="flex h-[54px] shrink-0 items-center gap-4 border-b border-subtle px-5 bg-panel-raised">
         <span className="skeleton h-3 w-40" />
         <span className="flex-1" />
         <span className="skeleton h-[34px] w-[200px] rounded-lg" />
         <span className="skeleton h-8 w-8 rounded-full" />
-      </div>
+      </header>
 
       <main className="min-h-0 flex-1 overflow-hidden p-6" aria-busy="true" aria-live="polite">
         <span className="sr-only">Loading…</span>

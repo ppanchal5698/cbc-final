@@ -79,7 +79,7 @@ export function Header({
         : "bg-status-success";
 
   return (
-    <header className="flex h-[54px] shrink-0 items-center gap-3 border-b border-subtle bg-background px-5 min-w-0 overflow-hidden">
+    <header className="flex h-[54px] shrink-0 items-center gap-3 border-b border-subtle bg-panel-raised px-5 min-w-0 overflow-hidden">
       <div className="flex items-center gap-2 text-[13px] font-medium min-w-0 flex-shrink">
         <button
           type="button"

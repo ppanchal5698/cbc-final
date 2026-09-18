@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api import bids
@@ -12,7 +12,12 @@ from cbc.modules.projects.api.lookup import load
 from cbc.modules.quoting.api import quote as quote_service
 from cbc.modules.quoting.domain.quotes import HandOff
 from cbc.modules.quoting.infrastructure.collections import proposals
-from cbc.modules.quoting.infrastructure.proposal_view import DEFAULT_EXCLUSIONS, VALIDITY_DAYS, write_email_draft
+from cbc.modules.quoting.infrastructure.proposal_view import (
+    DEFAULT_EXCLUSIONS,
+    VALIDITY_DAYS,
+    proposal_payload,
+    write_email_draft,
+)
 from cbc.modules.quoting.domain import proposals as proposal_rules
 from cbc.shared.auth import Actor
 
@@ -33,6 +38,13 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
     """
     project = await load(code)
     recipient = (body.recipient if body else None) or project.get("initiator")
+
+    # The one gate on this screen. A lapsed sheet means the margin on those
+    # lines is not real (data-stewardship.md), so the hand-off waits for
+    # purchasing or for a recorded override - the screen offers both.
+    readiness = (await proposal_payload(project))["readiness"]
+    if readiness.get("blocking"):
+        raise HTTPException(status_code=409, detail=readiness["note"])
 
     # This call *is* the estimator's approval, so it is where §3.30's required
     # `approvedBy` gets its value - a named person, never a system actor. Before

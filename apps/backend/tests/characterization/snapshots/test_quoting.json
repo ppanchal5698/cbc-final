@@ -103,6 +103,8 @@
     "degraded": "bool",
     "degradedNote": "null",
     "flaggedLineItems": "number",
+    "lapsedAcknowledgedBy": "null",
+    "lapsedLines": "number",
     "note": "str",
     "producedBy": "null",
     "unpricedQuoteLines": "number"
@@ -217,6 +219,7 @@
    "groups": [
     {
      "division": "str",
+     "group": "str",
      "lines": [
       {
        "addedByHand": "bool",
@@ -380,6 +383,8 @@
     "degraded": "bool",
     "degradedNote": "null",
     "flaggedLineItems": "number",
+    "lapsedAcknowledgedBy": "null",
+    "lapsedLines": "number",
     "note": "str",
     "producedBy": "null",
     "unpricedQuoteLines": "number"

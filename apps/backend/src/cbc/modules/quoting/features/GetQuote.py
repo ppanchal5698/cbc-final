@@ -2,7 +2,6 @@
 """
 from __future__ import annotations
 
-from datetime import date
 from typing import Any
 
 from fastapi import APIRouter
@@ -10,24 +9,11 @@ from fastapi import APIRouter
 from cbc.modules.ops.api import freshness as freshness_settings
 from cbc.modules.projects.api.lookup import load
 from cbc.modules.quoting.api import quote as quote_service
+from cbc.modules.quoting.domain.freshness import is_lapsed
 from cbc.modules.quoting.infrastructure.collections import quotes
 from cbc.shared.mongo import serialise
 
 router = APIRouter(prefix="/api/projects/{code}/quote", tags=["quote"])
-
-
-def _lapsed(line: dict[str, Any], stale_days: int) -> bool:
-    """True when the sheet this cost came from is past the review window.
-
-    A lapsed price is not wrong, but it is unverified - the estimator decides.
-    """
-    effective = line.get("multiplierEffectiveDate")
-    if not effective:
-        return False
-    try:
-        return (date.today() - date.fromisoformat(str(effective))).days > stale_days
-    except ValueError:
-        return False
 
 
 @router.get("")
@@ -38,14 +24,22 @@ async def get_quote(code: str) -> dict[str, Any]:
     totals, raw = await quote_service.totals_for(project)
     bands = await freshness_settings.load()
     lines = [
-        {**serialise(line), "lapsed": _lapsed(line, bands.catalog_stale_days)}
+        {**serialise(line), "lapsed": is_lapsed(line, bands.catalog_stale_days)}
         for line in raw
     ]
 
+    # Grouped by opening (the hardware group the pass assigned), not by
+    # division: an estimator prices and checks a door at a time, and the
+    # proposal is already laid out that way. `division` stays on the group for
+    # readers that key off it, and is the fallback for a line with no opening.
     groups: dict[str, dict[str, Any]] = {}
     for line in lines:
-        key = line.get("division") or "Other"
-        group = groups.setdefault(key, {"division": key, "lines": [], "subtotal": 0.0})
+        division = line.get("division") or "Other"
+        key = line.get("group") or division
+        group = groups.setdefault(
+            key,
+            {"group": key, "division": division, "lines": [], "subtotal": 0.0},
+        )
         group["lines"].append(line)
         group["subtotal"] = round(group["subtotal"] + (line.get("extended") or 0), 2)
 
@@ -54,7 +48,7 @@ async def get_quote(code: str) -> dict[str, Any]:
 
     return {
         "quote": serialise(quote),
-        "groups": sorted(groups.values(), key=lambda g: g["division"]),
+        "groups": sorted(groups.values(), key=lambda g: str(g["group"])),
         "totals": totals,
         "lineCount": len(lines),
         "edited": {

@@ -237,9 +237,11 @@
    "projects": [
     {
      "activeJob": "null",
+     "assignedEstimator": "str",
      "autopilot": "bool",
      "bidAlternates": [],
      "bidDue": "null",
+     "bidStatus": "str",
      "brand": "str",
      "callCount": "number",
      "code": "str",
@@ -252,6 +254,7 @@
      },
      "createdAt": "datetime",
      "documentCount": "number",
+     "estimator": "null",
      "gc": "str",
      "id": "id",
      "initiator": "str",
@@ -259,6 +262,7 @@
      "mode": "str",
      "name": "str",
      "orgId": "id",
+     "outcome": "str",
      "progress": "number",
      "quoteTotal": "null",
      "slug": "str",
@@ -274,9 +278,11 @@
  "GET /api/projects/{code}": {
   "body": {
    "activeJob": "null",
+   "assignedEstimator": "str",
    "autopilot": "bool",
    "bidAlternates": [],
    "bidDue": "null",
+   "bidStatus": "str",
    "brand": "str",
    "callCount": "number",
    "code": "str",
@@ -289,6 +295,7 @@
    },
    "createdAt": "datetime",
    "documentCount": "number",
+   "estimator": "null",
    "gc": "str",
    "id": "id",
    "initiator": "str",
@@ -296,6 +303,7 @@
    "mode": "str",
    "name": "str",
    "orgId": "id",
+   "outcome": "str",
    "progress": "number",
    "quoteTotal": "null",
    "slug": "str",
@@ -330,7 +338,9 @@
      "code": "str",
      "gc": "str",
      "id": "id",
-     "name": "str"
+     "lineCount": "null",
+     "name": "str",
+     "quoteTotal": "null"
     }
    ]
   },
@@ -640,13 +650,27 @@
   },
   "status": 200
  },
+ "GET /api/users/directory": {
+  "body": {
+   "users": [
+    {
+     "email": "str",
+     "initials": "str",
+     "name": "str"
+    }
+   ]
+  },
+  "status": 200
+ },
  "PATCH /api/projects/{code}": {
   "body": {
    "activeJob": "null",
    "architect": "str",
+   "assignedEstimator": "str",
    "autopilot": "bool",
    "bidAlternates": [],
    "bidDue": "null",
+   "bidStatus": "str",
    "brand": "str",
    "callCount": "number",
    "code": "str",
@@ -659,6 +683,7 @@
    },
    "createdAt": "datetime",
    "documentCount": "number",
+   "estimator": "null",
    "gc": "str",
    "id": "id",
    "initiator": "str",
@@ -666,6 +691,7 @@
    "mode": "str",
    "name": "str",
    "orgId": "id",
+   "outcome": "str",
    "progress": "number",
    "quoteTotal": "null",
    "slug": "str",
@@ -795,9 +821,11 @@
  "POST /api/projects": {
   "body": {
    "activeJob": "null",
+   "assignedEstimator": "str",
    "autopilot": "bool",
    "bidAlternates": [],
    "bidDue": "null",
+   "bidStatus": "str",
    "brand": "str",
    "callCount": "number",
    "code": "str",
@@ -810,6 +838,7 @@
    },
    "createdAt": "datetime",
    "documentCount": "number",
+   "estimator": "null",
    "gc": "str",
    "id": "id",
    "initiator": "str",
@@ -817,6 +846,7 @@
    "mode": "str",
    "name": "str",
    "orgId": "id",
+   "outcome": "str",
    "progress": "number",
    "quoteTotal": "null",
    "slug": "str",

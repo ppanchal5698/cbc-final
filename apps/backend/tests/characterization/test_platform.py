@@ -53,6 +53,11 @@ def test_list_users(client, state, snapshots) -> None:
     state["me"] = next(u["id"] for u in response.json()["users"] if u["email"] == TEST_ACTOR)
 
 
+def test_list_assignable_users(client, snapshots) -> None:
+    """Names only, and readable without the admin role, unlike GET /api/users."""
+    snapshots.pin("GET /api/users/directory", client.get("/api/users/directory"))
+
+
 def test_verify_a_password(client, snapshots) -> None:
     op = "POST /api/auth/verify"
     body = {"email": ESTIMATOR["email"], "password": ESTIMATOR["password"]}

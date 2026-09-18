@@ -28,6 +28,7 @@
   /* Premium Design System Colors */
   --color-panel: var(--panel);
   --color-panel-muted: var(--panel-muted);
+  --color-panel-raised: var(--panel-raised);
   --color-subtle: var(--subtle);
   
   --color-tx-primary: var(--tx-primary);
@@ -40,16 +41,23 @@
 
   --color-status-success: var(--status-success);
   --color-status-success-soft: var(--status-success-soft);
+  --color-status-success-border: var(--status-success-border);
   --color-status-warning: var(--status-warning);
   --color-status-warning-soft: var(--status-warning-soft);
   --color-status-error: var(--status-error);
   --color-status-error-soft: var(--status-error-soft);
+  --color-status-error-border: var(--status-error-border);
   --color-status-info: var(--status-info);
   --color-status-info-soft: var(--status-info-soft);
 
-  --font-sans: var(--font-inter), system-ui, sans-serif;
-  --font-heading: var(--font-inter), system-ui, sans-serif;
+  --font-sans: var(--font-manrope), system-ui, sans-serif;
+  --font-heading: var(--font-manrope), system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+
+  /* Three-step elevation scale, per theme. */
+  --shadow-1: var(--sh-1);
+  --shadow-2: var(--sh-2);
+  --shadow-3: var(--sh-3);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -58,37 +66,48 @@
 }
 
 :root {
-  --font-inter: "Inter", system-ui, sans-serif;
+  --font-manrope: "Manrope", system-ui, sans-serif;
   --radius: 0.5rem;
 }
 
 [data-theme="dark"] {
-  /* Core UI */
-  --background: #09090b; /* Zinc 950 */
-  --foreground: #fafafa;
-  --panel: #111113; /* Slightly lighter for cards */
-  --panel-muted: #18181b; /* Zinc 900 */
-  --subtle: #27272a; /* Zinc 800 - for borders */
-  
-  /* Text */
-  --tx-primary: #ffffff;
-  --tx-secondary: #a1a1aa; /* Zinc 400 */
-  --tx-muted: #71717a; /* Zinc 500 */
+  /* Core UI - the prototype's violet-tinted near-black, not neutral zinc. */
+  --background: #0a0a12;
+  --foreground: #f3f3f8;
+  --panel: #15151f;
+  --panel-muted: #1b1b28;
+  /* Topbar, rail, and the selected-row surface: one step up from --background. */
+  --panel-raised: #0e0e18;
+  /* A translucent hairline, so it reads correctly over every surface above. */
+  --subtle: rgba(255, 255, 255, 0.075);
 
-  /* Brand / Accent (Glowing Violet/Indigo) */
-  --brand-primary: #818cf8; /* Indigo 400 */
-  --brand-soft: rgba(129, 140, 248, 0.1);
-  --brand-border: rgba(129, 140, 248, 0.25);
+  /* Text */
+  --tx-primary: #f3f3f8;
+  --tx-secondary: #a2a2b8;
+  --tx-muted: #8b8ba3;
+
+  /* Brand / Accent (Indigo 400) */
+  --brand-primary: #818cf8;
+  --brand-soft: rgba(129, 140, 248, 0.14);
+  --brand-border: rgba(129, 140, 248, 0.28);
 
   /* Status */
-  --status-success: #10b981;
-  --status-success-soft: rgba(16, 185, 129, 0.1);
-  --status-warning: #f59e0b;
-  --status-warning-soft: rgba(245, 158, 11, 0.1);
-  --status-error: #ef4444;
-  --status-error-soft: rgba(239, 68, 68, 0.1);
-  --status-info: #3b82f6;
-  --status-info-soft: rgba(59, 130, 246, 0.1);
+  --status-success: #34d399;
+  --status-success-soft: rgba(52, 211, 153, 0.14);
+  --status-success-border: rgba(52, 211, 153, 0.3);
+  --status-warning: #fbbf24;
+  --status-warning-soft: rgba(251, 191, 36, 0.14);
+  --status-error: #fb7185;
+  --status-error-soft: rgba(251, 113, 133, 0.14);
+  --status-error-border: rgba(251, 113, 133, 0.3);
+  /* The prototype's second accent - the cyan in the logo and progress gradients. */
+  --status-info: #22d3ee;
+  --status-info-soft: rgba(34, 211, 238, 0.14);
+
+  /* Elevation */
+  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sh-2: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --sh-3: 0 24px 60px rgba(0, 0, 0, 0.6);
 
   /* Shadcn Overrides */
   --card: var(--panel);
@@ -112,31 +131,39 @@
 
 [data-theme="light"] {
   /* Core UI */
-  --background: #fafafa; /* Zinc 50 */
-  --foreground: #09090b;
+  --background: #f6f6fa;
+  --foreground: #15151f;
   --panel: #ffffff;
-  --panel-muted: #f4f4f5; /* Zinc 100 */
-  --subtle: #e4e4e7; /* Zinc 200 */
-  
-  /* Text */
-  --tx-primary: #09090b;
-  --tx-secondary: #52525b; /* Zinc 600 */
-  --tx-muted: #a1a1aa; /* Zinc 400 */
+  --panel-muted: #f1f1f7;
+  --panel-raised: #ffffff;
+  --subtle: #e7e7f0;
 
-  /* Brand / Accent */
-  --brand-primary: #4f46e5; /* Indigo 600 */
-  --brand-soft: rgba(79, 70, 229, 0.08);
-  --brand-border: rgba(79, 70, 229, 0.2);
+  /* Text */
+  --tx-primary: #15151f;
+  --tx-secondary: #55556b;
+  --tx-muted: #8b8ba3;
+
+  /* Brand / Accent (Indigo 600-ish) */
+  --brand-primary: #5b5bd6;
+  --brand-soft: rgba(91, 91, 214, 0.08);
+  --brand-border: rgba(91, 91, 214, 0.22);
 
   /* Status */
   --status-success: #059669;
   --status-success-soft: rgba(5, 150, 105, 0.08);
-  --status-warning: #d97706;
-  --status-warning-soft: rgba(217, 119, 6, 0.08);
-  --status-error: #dc2626;
-  --status-error-soft: rgba(220, 38, 38, 0.08);
-  --status-info: #2563eb;
-  --status-info-soft: rgba(37, 99, 235, 0.08);
+  --status-success-border: rgba(5, 150, 105, 0.24);
+  --status-warning: #b45309;
+  --status-warning-soft: rgba(180, 83, 9, 0.08);
+  --status-error: #e11d48;
+  --status-error-soft: rgba(225, 29, 72, 0.07);
+  --status-error-border: rgba(225, 29, 72, 0.22);
+  --status-info: #0891b2;
+  --status-info-soft: rgba(8, 145, 178, 0.08);
+
+  /* Elevation */
+  --sh-1: 0 1px 2px rgba(20, 20, 40, 0.06);
+  --sh-2: 0 8px 24px rgba(20, 20, 40, 0.08);
+  --sh-3: 0 24px 60px rgba(20, 20, 40, 0.14);
 
   /* Shadcn Overrides */
   --card: var(--panel);
@@ -171,7 +198,7 @@
     height: 100%;
     background: var(--background);
     color: var(--foreground);
-    font-family: var(--font-inter);
+    font-family: var(--font-sans);
     font-size: 13.5px;
     line-height: 1.5;
     font-feature-settings: "tnum" 1, "cv11" 1; /* cv11 for inter readability */
@@ -211,6 +238,52 @@
   }
 }
 
+/* ── Application shell ──
+   The topbar spans the full width above the rail, so the breadcrumbs start at
+   the left edge rather than after the navigation. Each page returns a fragment
+   of <header>, an optional stage bar and <main>, and those land directly in
+   this grid - no page has to know about the layout, and the header stays
+   server-rendered with its crumbs in the first paint. The rail sizes its own
+   column, so collapsing it needs no state up here. */
+.app-shell {
+  display: grid;
+  height: 100vh;
+  overflow: hidden;
+  grid-template-columns: auto minmax(0, 1fr);
+  /* topbar · stage bar · content · action bar. The two auto rows
+     collapse to nothing on pages that have neither. */
+  grid-template-rows: 54px auto minmax(0, 1fr) auto;
+}
+
+/* Everything a page renders sits beside the rail. The stage bar has no rule of
+   its own: it auto-places into the one free cell left, between header and main. */
+.app-shell > * {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.app-shell > header {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.app-shell > nav {
+  grid-column: 1;
+  grid-row: 2 / -1;
+}
+
+/* No header on this page - the 404 and the error boundary - so take the lot. */
+.app-shell > main {
+  grid-row: 1 / -1;
+  min-height: 0;
+}
+
+/* With a header, main is the content row only; an action bar, where a page has
+   one, falls into the row below it. */
+.app-shell > header ~ main {
+  grid-row: 3;
+}
+
 /* Animations */
 @keyframes fade-in {
   from {
@@ -243,6 +316,28 @@
   animation: pop-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* A left-to-right shine over a running row. Applied by the extraction and
+   quote screens while a pass is live. */
+@keyframes sweep {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.anim-sweep {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--brand-soft) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: sweep 1.6s linear infinite;
+}
+
 @keyframes skeleton-pulse {
   0%,
   100% {
@@ -262,7 +357,8 @@
   .skeleton,
   .animate-fade-in,
   .anim-fadein,
-  .anim-popin {
+  .anim-popin,
+  .anim-sweep {
     animation: none;
   }
   .terminal-log-scroll {

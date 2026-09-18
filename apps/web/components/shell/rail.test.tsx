@@ -55,7 +55,7 @@ describe("Rail (Collapsible Sidebar)", () => {
     expect(screen.getByText("2")).toBeInTheDocument();
 
     const nav = screen.getByRole("navigation", { name: "Main Navigation" });
-    expect(nav.className).toContain("w-[212px]");
+    expect(nav.className).toContain("w-[216px]");
   });
 
   it("collapses when clicking the collapse button", () => {
@@ -98,7 +98,7 @@ describe("Rail (Collapsible Sidebar)", () => {
     fireEvent.click(expandBtns[0]);
 
     const nav = screen.getByRole("navigation", { name: "Main Navigation" });
-    expect(nav.className).toContain("w-[212px]");
+    expect(nav.className).toContain("w-[216px]");
     expect(screen.getByText("OPS·HUB")).toBeInTheDocument();
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
   });
@@ -111,13 +111,13 @@ describe("Rail (Collapsible Sidebar)", () => {
     );
 
     const nav = screen.getByRole("navigation", { name: "Main Navigation" });
-    expect(nav.className).toContain("w-[212px]");
+    expect(nav.className).toContain("w-[216px]");
 
     fireEvent.keyDown(window, { key: "b", ctrlKey: true });
     expect(nav.className).toContain("w-[64px]");
 
     fireEvent.keyDown(window, { key: "b", ctrlKey: true });
-    expect(nav.className).toContain("w-[212px]");
+    expect(nav.className).toContain("w-[216px]");
   });
 
   it("persists collapsed preference in localStorage", () => {

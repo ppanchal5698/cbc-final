@@ -69,6 +69,10 @@ class ProposalSettings(BaseModel):
     salesRep: dict[str, Any] | None = None
     estimator: dict[str, Any] | None = None
     exclusions: list[str] | None = None
+    # Take responsibility for lines priced off a sheet past its review window,
+    # instead of waiting for purchasing to confirm the cost. Stamped with the
+    # actor's name, never a bare boolean - the point is who decided.
+    acknowledgeLapsed: bool | None = None
 
 
 class HandOff(BaseModel):

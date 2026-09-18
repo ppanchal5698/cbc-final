@@ -13,6 +13,8 @@ from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.quoting.api import quote as quote_service
 from cbc.modules.quoting.infrastructure.collections import estimate_lines, proposals
 from cbc.shared.config import settings
+from cbc.modules.ops.api import freshness as freshness_settings
+from cbc.modules.quoting.domain.freshness import is_lapsed
 from cbc.shared.mongo import serialise
 
 
@@ -139,6 +141,17 @@ async def proposal_payload(project: dict[str, Any]) -> dict[str, Any]:
         {"projectId": project["_id"], "cost": None}
     )
 
+    # data-stewardship.md: a lapsed sheet means the margin on those lines is not
+    # real, and purchasing has to confirm the cost before the proposal leaves
+    # the building. Unlike a flagged line, this one blocks - and it is the one
+    # gate on this screen that does, which is why the override is recorded.
+    bands = await freshness_settings.load()
+    priced = await estimate_lines().find(
+        {"projectId": project["_id"]}, {"multiplierEffectiveDate": 1}
+    ).to_list(length=None)
+    lapsed = sum(1 for line in priced if is_lapsed(line, bands.catalog_stale_days))
+    acknowledged = bool(stored.get("lapsedAcknowledgedBy"))
+
     return {
         "proposal": {
             "proposalNo": stored.get("proposalNo") or f"Q-{project['code'].split('-')[-1]}",
@@ -159,8 +172,16 @@ async def proposal_payload(project: dict[str, Any]) -> dict[str, Any]:
         "readiness": {
             "flaggedLineItems": flagged,
             "unpricedQuoteLines": unpriced,
-            "blocking": False,
-            "note": "Flagged and unpriced lines are shown, not blocked - the estimator decides.",
+            "lapsedLines": lapsed,
+            "lapsedAcknowledgedBy": stored.get("lapsedAcknowledgedBy"),
+            "blocking": bool(lapsed) and not acknowledged,
+            "note": (
+                f"{lapsed} line(s) are priced from a sheet past its review window. "
+                "Purchasing has to confirm the cost, or an override has to be recorded, "
+                "before this is handed off."
+                if lapsed and not acknowledged
+                else "Flagged and unpriced lines are shown, not blocked - the estimator decides."
+            ),
             # A draft produced on a provider Claude Code warns about can be wrong
             # as a whole document, not just in one field - and it will not look it.
             "degraded": bool(project.get("degraded")),

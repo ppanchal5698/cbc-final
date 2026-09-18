@@ -8,7 +8,7 @@ test.describe("Review flags", () => {
 
     await page.goto("/bids");
     await openNewBid(page);
-    await page.getByLabel(/job name|name/i).fill(`E2E review flags ${Date.now()}`);
+    await page.getByLabel(/^job name/i).fill(`E2E review flags ${Date.now()}`);
     await page.getByRole("button", { name: /create/i }).click();
     await page.waitForURL(/\/bids\/([^/]+)\/intake/);
     const code = page.url().match(/\/bids\/([^/]+)\/intake/)?.[1];
@@ -23,6 +23,6 @@ test.describe("Review flags", () => {
     // No drawings and no project state yet: the empty take-off and the
     // unresolved sales tax are both flagged, never silently passed.
     await expect(panel.getByText("no scope")).toBeVisible();
-    await expect(panel.getByText("sales tax")).toBeVisible();
+    await expect(panel.getByText("sales tax", { exact: true })).toBeVisible();
   });
 });

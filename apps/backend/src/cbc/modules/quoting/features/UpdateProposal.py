@@ -25,6 +25,12 @@ async def update_proposal(code: str, body: ProposalSettings, actor: Actor) -> di
     project = await load(code)
     changes = body.model_dump(exclude_unset=True)
 
+    # An override is a person, not a flag: store who, so the trail answers
+    # "who said this lapsed price was fine" months later (auditability.md).
+    if changes.pop("acknowledgeLapsed", None) is not None:
+        changes["lapsedAcknowledgedBy"] = actor
+        changes["lapsedAcknowledgedAt"] = _now()
+
     await proposals().update_one(
         {"projectId": project["_id"]},
         {

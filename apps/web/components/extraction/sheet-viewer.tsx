@@ -57,11 +57,18 @@ export function SheetViewer({
   code,
   documents,
   selected,
+  focus,
   onClose,
 }: {
   code: string;
   documents: BidDocument[];
   selected: LineItem | null;
+  /**
+   * A page to open that no line item points at - a review flag citing a sheet
+   * the pass could not read. `token` changes on every request, so clicking the
+   * same flag twice re-opens the page after the estimator has navigated away.
+   */
+  focus?: { page: number; token: string } | null;
   onClose: () => void;
 }) {
   const [activeDocId, setActiveDocId] = useState(documents[0]?.id ?? "");
@@ -106,6 +113,15 @@ export function SheetViewer({
       }
     }
     if (!bbox || !pageSize) setZoom(1);
+  }
+
+  // Same derived-during-render shape as the selection above, for a page asked
+  // for directly rather than through a line item.
+  const [focused, setFocused] = useState<string | null>(null);
+  if (focus && focused !== focus.token) {
+    setFocused(focus.token);
+    setPageNumber(focus.page);
+    setZoom(1);
   }
 
   // Zoom in on the linked region whenever a line item with a bbox is selected.

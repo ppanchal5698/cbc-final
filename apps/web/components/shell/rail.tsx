@@ -45,8 +45,8 @@ export function Rail({
     <nav
       aria-label="Main Navigation"
       className={cn(
-        "relative flex h-full shrink-0 flex-col border-r border-subtle bg-background transition-[width] duration-300 ease-in-out select-none",
-        sidebarCollapsed ? "w-[64px]" : "w-[212px]"
+        "relative flex h-full shrink-0 flex-col border-r border-subtle bg-panel-raised transition-[width] duration-300 ease-in-out select-none",
+        sidebarCollapsed ? "w-[64px]" : "w-[216px]"
       )}
     >
       {/* Sidebar Header */}
@@ -166,7 +166,7 @@ export function Rail({
       <div className="flex-1" />
 
       {/* Bottom User & Focus Section */}
-      <div className="border-t border-subtle bg-background">
+      <div className="border-t border-subtle bg-panel-raised">
         <FocusCard user={user} collapsed={sidebarCollapsed} />
 
         {/* Bottom Toggle Bar */}

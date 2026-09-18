@@ -8,7 +8,7 @@ test.describe("Vendor quote requests", () => {
 
     await page.goto("/bids");
     await openNewBid(page);
-    await page.getByLabel(/job name|name/i).fill(`E2E vendor RFQ ${Date.now()}`);
+    await page.getByLabel(/^job name/i).fill(`E2E vendor RFQ ${Date.now()}`);
     await page.getByRole("button", { name: /create/i }).click();
     await page.waitForURL(/\/bids\/([^/]+)\/intake/);
     const code = page.url().match(/\/bids\/([^/]+)\/intake/)?.[1];

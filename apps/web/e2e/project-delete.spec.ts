@@ -9,7 +9,7 @@ test.describe("Project delete", () => {
     const jobName = `E2E delete ${Date.now()}`;
     await page.goto("/bids");
     await openNewBid(page);
-    await page.getByLabel(/job name|name/i).fill(jobName);
+    await page.getByLabel(/^job name/i).fill(jobName);
     await page.getByRole("button", { name: /create/i }).click();
     await page.waitForURL(/\/bids\/([^/]+)\/intake/);
 

@@ -14,6 +14,10 @@ import {
   PencilLine,
   Clock,
   PhoneCall,
+  CaretDown,
+  CaretRight,
+  ArrowsInLineVertical,
+  ArrowsOutLineVertical,
 } from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
 
@@ -23,6 +27,8 @@ import { JobFailedBanner } from "@/components/jobs/job-failed-banner";
 import { useUiState } from "@/components/shell/ui-state";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { belowBandTitle, isBelowBand } from "@/lib/margin";
+import { Nomenclature } from "@/components/quote/nomenclature";
+import { slotOf, slotRank } from "@/lib/slot";
 import { errorMessage, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
 import { endpoints } from "@/lib/endpoints";
 import { isAdminRole } from "@/lib/job-error";
@@ -36,7 +42,9 @@ const TAX_OPTIONS = [
   { key: "NONE", label: "No nexus" },
 ];
 
-const COLUMNS = "minmax(170px,1.2fr) minmax(220px,2fr) 56px 95px 120px 72px minmax(110px,1fr) 100px 32px";
+// Component first: an estimator checks a set in the order it is written.
+const COLUMNS =
+  "96px minmax(150px,1.1fr) minmax(200px,2fr) 56px 95px 120px 72px minmax(110px,1fr) 100px 32px";
 
 function formatCostSourceLabel(source?: string | null): string {
   if (!source) return "MANUAL";
@@ -156,6 +164,17 @@ export function QuoteClient({
   // NFR-8 is "below-band lines are flagged". The API flags them; until this
   // existed nothing showed the flag, so the guardrail ended at the API boundary.
   const [belowBandOnly, setBelowBandOnly] = useState(false);
+  // Collapsed openings, by group key. Nothing is collapsed until asked.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  const toggleGroup = useCallback((key: string) => {
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   const { job, running } = usePipelineJob(code, initialJob);
 
@@ -429,6 +448,21 @@ export function QuoteClient({
               <Plus size={14} weight="bold" />
               Add line
             </button>
+            <button
+              onClick={() =>
+                setCollapsed((current) =>
+                  current.size ? new Set() : new Set(groups.map((group) => group.group)),
+                )
+              }
+              className="flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-bold border border-subtle bg-background text-tx-secondary hover:bg-panel-muted hover:text-tx-primary transition-colors shadow-sm"
+            >
+              {collapsed.size ? (
+                <ArrowsOutLineVertical size={14} weight="bold" />
+              ) : (
+                <ArrowsInLineVertical size={14} weight="bold" />
+              )}
+              {collapsed.size ? "Expand all" : "Collapse all"}
+            </button>
           </div>
 
           {running && (
@@ -439,11 +473,12 @@ export function QuoteClient({
           )}
 
           <div className="overflow-x-auto">
-            <div style={{ minWidth: 1040 }}>
+            <div style={{ minWidth: 1140 }}>
               <div
                 className="grid gap-4 border-b border-subtle px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-tx-muted bg-panel-muted"
                 style={{ gridTemplateColumns: COLUMNS }}
               >
+                <span>Component</span>
                 <span>Part</span>
                 <span>Description</span>
                 <span className="text-right">Qty</span>
@@ -494,12 +529,36 @@ export function QuoteClient({
                   </span>
                 </div>
               ) : (
-                groups.map((group) => (
-                  <div key={group.division}>
+                groups.map((group) => {
+                  const isOpening = group.group !== group.division;
+                  const expanded = !collapsed.has(group.group);
+                  // Slot order is a display rule, so it is applied here rather
+                  // than asking the API to sort on something it does not store.
+                  const lines = [...group.lines].sort(
+                    (a, b) => slotRank(slotOf(a.description)) - slotRank(slotOf(b.description)),
+                  );
+                  return (
+                  <div key={group.group}>
                     <div className="flex items-center gap-3 px-5 py-3.5 bg-panel-muted border-b border-subtle/50">
-                      <span className="text-[14px] font-bold text-tx-primary tracking-tight">{group.division}</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(group.group)}
+                        aria-expanded={expanded}
+                        aria-label={`${expanded ? "Collapse" : "Expand"} ${isOpening ? `opening ${group.group}` : group.division}`}
+                        className="text-tx-muted transition-colors hover:text-tx-primary"
+                      >
+                        {expanded ? (
+                          <CaretDown size={14} weight="bold" />
+                        ) : (
+                          <CaretRight size={14} weight="bold" />
+                        )}
+                      </button>
+                      <span className="text-[14px] font-bold text-tx-primary tracking-tight">
+                        {isOpening ? `Opening ${group.group}` : group.division}
+                      </span>
                       <span className="text-[12px] font-medium text-tx-muted">
-                        {group.lines.length} line{group.lines.length === 1 ? "" : "s"}
+                        {isOpening ? `${group.division} · ` : ""}
+                        {group.lines.length} component{group.lines.length === 1 ? "" : "s"}
                       </span>
                       <span className="flex-1" />
                       <span className="tnum text-[14px] font-bold text-brand-primary">
@@ -507,12 +566,27 @@ export function QuoteClient({
                       </span>
                     </div>
 
-                    {group.lines.map((line) => (
+                    {expanded && isOpening && (
+                      <Nomenclature opening={group.group} division={group.division} />
+                    )}
+
+                    {expanded && lines.map((line) => (
                       <div
                         key={line.id}
                         className={`grid items-center gap-4 border-b border-subtle px-5 py-3.5 last:border-b-0 hover:bg-background/50 transition-colors ${line.addedByHand ? "border-l-4 border-l-status-error" : ""}`}
                         style={{ gridTemplateColumns: COLUMNS }}
                       >
+                        <span
+                          className={`truncate text-[11.5px] font-bold uppercase tracking-wider ${
+                            slotOf(line.description) === "DOOR" ||
+                            slotOf(line.description) === "FRAME"
+                              ? "text-tx-primary"
+                              : "text-tx-muted"
+                          }`}
+                        >
+                          {slotOf(line.description)}
+                        </span>
+
                         <span className="truncate text-[13px] font-medium text-tx-secondary" title={line.part ?? undefined}>
                           {line.part ?? "—"}
                         </span>
@@ -622,7 +696,8 @@ export function QuoteClient({
                       </div>
                     ))}
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

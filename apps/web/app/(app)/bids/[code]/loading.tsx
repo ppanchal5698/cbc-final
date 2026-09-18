@@ -7,14 +7,14 @@
 export default function BidStageLoading() {
   return (
     <>
-      <div className="flex h-[54px] shrink-0 items-center gap-4 border-b border-subtle px-5 bg-background">
+      <header className="flex h-[54px] shrink-0 items-center gap-4 border-b border-subtle px-5 bg-panel-raised">
         <span className="skeleton h-3 w-52" />
         <span className="flex-1" />
         <span className="skeleton h-[34px] w-[200px] rounded-lg" />
         <span className="skeleton h-8 w-8 rounded-full" />
-      </div>
+      </header>
 
-      <div className="flex shrink-0 items-center gap-4 border-b border-subtle px-5 py-3 bg-background">
+      <div className="flex shrink-0 items-center gap-4 border-b border-subtle px-5 py-3 bg-panel-raised">
         <span className="flex w-[230px] shrink-0 flex-col gap-1.5">
           <span className="skeleton h-3 w-40" />
           <span className="skeleton h-2.5 w-28" />

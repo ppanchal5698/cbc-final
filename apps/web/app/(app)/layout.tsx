@@ -41,9 +41,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       >
         Skip to main content
       </a>
-      <div className="flex h-screen overflow-hidden">
+      {/* The page's own <header>, stage bar and <main> are direct children of
+          the shell grid - see .app-shell in globals.css. */}
+      <div className="app-shell">
         <Rail staleBooks={staleBooks} deadJobs={deadJobs} user={user} />
-        <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+        {children}
       </div>
       <ShellOverlays />
     </UiStateProvider>

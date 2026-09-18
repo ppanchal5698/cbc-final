@@ -902,6 +902,65 @@ export function PriceBooksClient() {
                 </div>
               )}
             </div>
+
+            <div className="mt-10">
+              <span className="mb-3 block text-[11px] font-bold uppercase tracking-widest text-tx-muted">
+                Version history
+              </span>
+              <div className="overflow-x-auto rounded-xl border border-subtle bg-background shadow-sm">
+                <div
+                  className="grid gap-4 border-b border-subtle bg-panel/50 px-4 py-2.5 text-[10.5px] font-bold uppercase tracking-widest text-tx-muted"
+                  style={{ minWidth: 620, gridTemplateColumns: "minmax(160px,1fr) 170px 210px 96px" }}
+                >
+                  <span>Sheet</span>
+                  <span>Effective</span>
+                  <span>Uploaded</span>
+                  <span className="text-right">State</span>
+                </div>
+                <div className="divide-y divide-subtle">
+                  {/* Newest first: the sheet in force, then whatever it replaced. */}
+                  {[
+                    {
+                      filename: selected.filename,
+                      effective: selected.effective,
+                      uploadedAt: selected.uploadedAt,
+                      state: "In force",
+                      tone: "text-status-success",
+                    },
+                    ...[...(selected.sheetHistory ?? [])].reverse().map((sheet, index) => ({
+                      filename: sheet.filename,
+                      effective: sheet.effective,
+                      uploadedAt: sheet.uploadedAt,
+                      state: index === 0 ? "Superseded" : "Archived",
+                      tone: "text-tx-muted",
+                    })),
+                  ].map((row, index) => (
+                    <div
+                      key={`${row.filename ?? "none"}-${index}`}
+                      className="grid items-center gap-4 px-4 py-3"
+                      style={{ minWidth: 620, gridTemplateColumns: "minmax(160px,1fr) 170px 210px 96px" }}
+                    >
+                      <span className="truncate text-[12.5px] font-semibold text-tx-primary">
+                        {row.filename ?? "No file uploaded"}
+                      </span>
+                      <span className="tnum text-[12.5px] font-medium text-tx-secondary">
+                        {row.effective ?? "—"}
+                      </span>
+                      <span className="tnum text-[12.5px] font-medium text-tx-muted">
+                        {row.uploadedAt ? new Date(row.uploadedAt).toLocaleString() : "—"}
+                      </span>
+                      <span className={cn("text-right text-[12px] font-bold", row.tone)}>
+                        {row.state}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <p className="mt-2 text-[11.5px] font-medium leading-relaxed text-tx-muted">
+                A new sheet supersedes the one in force; the file it replaced stays on disk so any
+                quote priced from it can still be reconstructed.
+              </p>
+            </div>
           </div>
         )}
       </section>

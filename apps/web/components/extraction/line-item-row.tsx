@@ -9,12 +9,14 @@ import {
   Trash,
   FloppyDisk,
   Eye,
+  Warning,
 } from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
 
 import { StatusBadge } from "@/components/ui/status-badge";
 import { errorMessage, proxyMutate } from "@/lib/proxy-fetcher";
-import type { LineItem, LineStatus } from "@/lib/types";
+import type { LineItem, LineStatus, ReviewFlag } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 const STATUS: Record<
   LineStatus,
@@ -122,6 +124,8 @@ export function LineItemRow({
   selected,
   focused = false,
   picked = false,
+  twin = null,
+  reviewFlags = [],
   onPick,
   onSelect,
   onChanged,
@@ -133,6 +137,10 @@ export function LineItemRow({
   focused?: boolean;
   /** Ticked for a bulk action. */
   picked?: boolean;
+  /** The other reading of a duplicate, so Keep one / Keep both is an informed choice. */
+  twin?: LineItem | null;
+  /** This opening's review flags, so the weak fields are named on the row. */
+  reviewFlags?: ReviewFlag[];
   onPick?: () => void;
   onSelect: (item: LineItem | null) => void;
   onChanged: () => void;
@@ -473,10 +481,19 @@ export function LineItemRow({
             )}
 
             {item.status === "duplicate" && (
-              <div className="mt-4 flex items-center gap-3 rounded-xl px-4 py-3.5 bg-status-error-soft border border-status-error/30 shadow-sm">
+              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl px-4 py-3.5 bg-status-error-soft border border-status-error/30 shadow-sm">
                 <Copy size={18} weight="fill" className="text-status-error" />
-                <span className="flex-1 text-[13px] font-medium text-status-error leading-relaxed">
+                <span className="flex-1 min-w-[220px] text-[13px] font-medium text-status-error leading-relaxed">
                   {item.duplicateReason ?? "This line was read from more than one document."}
+                  {/* Keep one drops a reading, so say which one is on the other side. */}
+                  {twin && (
+                    <span className="mt-1 block text-[12px] font-medium text-tx-secondary">
+                      The other reading:{" "}
+                      {twin.evidence?.sourcePage ? `page ${twin.evidence.sourcePage}` : "no page recorded"}
+                      {twin.evidence?.row ? ` · row ${twin.evidence.row}` : ""} · {twin.qty} ×{" "}
+                      {twin.description}
+                    </span>
+                  )}
                 </span>
                 <button
                   onClick={() => resolveDuplicate("one")}
@@ -492,6 +509,39 @@ export function LineItemRow({
                 >
                   Keep both
                 </button>
+              </div>
+            )}
+
+            {reviewFlags.length > 0 && (
+              <div className="mt-4 rounded-xl border border-subtle bg-panel-muted px-4 py-3">
+                <span className="block text-[11.5px] font-bold uppercase tracking-widest text-tx-muted">
+                  Fields to check on this opening
+                </span>
+                {/* Extraction records one confidence for the row, not one per
+                    field, so this names the fields the reviewer actually
+                    flagged rather than inventing a number for each. */}
+                <ul className="mt-2 flex flex-wrap gap-1.5">
+                  {reviewFlags.map((flag, index) => (
+                    <li
+                      key={`${flag.field}-${index}`}
+                      title={flag.note ?? flag.issue ?? undefined}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11.5px] font-semibold",
+                        flag.severity === "high" || flag.severity === "critical"
+                          ? "border-status-error/30 bg-status-error-soft text-status-error"
+                          : flag.severity === "medium"
+                            ? "border-status-warning/30 bg-status-warning-soft text-status-warning"
+                            : "border-subtle bg-panel text-tx-secondary",
+                      )}
+                    >
+                      <Warning size={12} weight="duotone" />
+                      {(flag.field ?? "review").replaceAll("_", " ")}
+                    </li>
+                  ))}
+                </ul>
+                <span className="mt-2 block text-[12px] font-medium leading-relaxed text-tx-secondary">
+                  {reviewFlags[0].note ?? reviewFlags[0].issue ?? reviewFlags[0].action_required}
+                </span>
               </div>
             )}
 

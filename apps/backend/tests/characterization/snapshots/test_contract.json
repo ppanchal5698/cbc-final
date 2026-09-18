@@ -473,6 +473,12 @@
   },
   "status": 401
  },
+ "GET /api/users/directory #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "PATCH /api/catalog/products/{product_id} #estimator": {
   "body": {
    "detail": "str"
@@ -1341,6 +1347,11 @@
   {
    "admin": true,
    "op": "GET /api/users",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/users/directory",
    "status": 200
   },
   {

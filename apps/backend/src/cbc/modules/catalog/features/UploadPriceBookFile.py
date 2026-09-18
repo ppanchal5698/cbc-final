@@ -56,6 +56,27 @@ async def upload_price_book_file(
             status = 415
         raise HTTPException(status, detail) from exc
 
+    # A new sheet supersedes the one in force, and purchasing needs to see what
+    # it replaced and when (auditability.md: a stale sheet must be visible as
+    # stale, not silently gone). Push the outgoing one onto the book's own
+    # history rather than inventing a collection for it - the file itself is
+    # still on disk at the recorded path.
+    superseded = (
+        [
+            {
+                "filename": book.get("filename"),
+                "path": book.get("path"),
+                "bytes": book.get("bytes"),
+                "effective": book.get("effective"),
+                "uploadedAt": book.get("uploadedAt"),
+                "supersededAt": _now(),
+                "supersededBy": actor,
+            }
+        ]
+        if book.get("filename")
+        else []
+    )
+
     await price_books().update_one(
         {"_id": book["_id"]},
         {
@@ -65,7 +86,8 @@ async def upload_price_book_file(
                 "bytes": size,
                 "uploadedAt": _now(),
                 "updatedAt": _now(),
-            }
+            },
+            **({"$push": {"sheetHistory": {"$each": superseded}}} if superseded else {}),
         },
     )
 

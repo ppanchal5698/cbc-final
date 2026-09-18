@@ -41,9 +41,11 @@ def _request(client, op: str, **kwargs):
 
 
 def test_the_route_table(snapshots) -> None:
+    # 132: the board gained GET /api/users/directory - who a bid may be
+    # assigned to, names only and readable without the admin role.
     # 131: FR-13 added POST /api/learning/apply, which drains the estimator
     # corrections into what the matcher knows.
-    assert len(ROUTES) == 131
+    assert len(ROUTES) == 132
     snapshots.pin_value("routes", ROUTES)
 
 
