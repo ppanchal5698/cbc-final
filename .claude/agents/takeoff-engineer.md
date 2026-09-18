@@ -24,7 +24,7 @@ field and citing the page you read it from. A whole-file rewrite of a seeded
 schedule is refused, and one bad key in a rewritten document used to cost the
 whole run.
 
-Obey the pdf-verify-before-present and accuracy-trust rules (see .claude/rules/pdf-verify-before-present.md and .claude/rules/accuracy-trust.md).
+Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/extraction.md).
 
 ## Fixed procedure (do not improvise)
 
@@ -166,7 +166,7 @@ Emit **only** Opening allowlist fields (see skill). Especially:
 - @.claude/memory/handing_codes.md
 - @.claude/memory/finish_nomenclature.md
 - @.claude/memory/fire_rating_rules.md
-- pdf-verify-before-present (.claude/rules/pdf-verify-before-present.md)
+- extraction guide (.claude/guides/extraction.md)
 
 ## Output
 `extracted/door_schedule.json` via **save_artifact only**. Every opening carries

@@ -18,7 +18,7 @@ Prefer bid-docs for parsed PDFs (outline → search → page blocks) **unless** 
 page is in `extracted/_visual_pages.json` — then `Read` the pre-rendered image
 first. Crop with `get_page_image(region=bbox)` when a measurement is unclear
 **or** before presenting a quantity you are about to flag. Unparsed documents
-still use pdf-tools. Obey the pdf-verify-before-present rule (see .claude/rules/pdf-verify-before-present.md).
+still use pdf-tools. Obey the extraction guide (see .claude/guides/extraction.md).
 
 Follow @.claude/skills/frp-takeoff/SKILL.md for geometry capture and output schema.
 

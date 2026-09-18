@@ -42,7 +42,7 @@ bid sets. After PDF verify, **flag, do not stop** (and never invent).
 - **PDF verify before present.** A `*_missing` flag without an `evidence_note`
   (or review note) naming the page(s) searched is a **process error** — the
   agent must open the specific PDF before presenting. See
-  `.claude/rules/pdf-verify-before-present.md`.
+  `.claude/guides/extraction.md`.
 - **Minute details present.** If `raw_row` / cell text carries glass, materials,
   frame type, or note codes and the allowlisted fields + `notes` omit them,
   flag `details_dropped` (or fold them in before accepting the take-off).

@@ -12,7 +12,7 @@ cost screen.
 - Valid when the item was **sold within the last ~6 months and there has been no price increase**.
   This is right about **9 times out of 10**.
 - Special-priced items already carry their cost in P21.
-- Access is **READ-ONLY**, no write-back (NFR-5, see the p21-read-only rule).
+- Access is **READ-ONLY**, no write-back (NFR-5, see `.claude/guides/pricing.md`).
 
 ### Freshness rule
 | Age of cost | Status |

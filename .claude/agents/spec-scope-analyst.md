@@ -22,7 +22,7 @@ When the upload was GPU-parsed, start with bid-docs (`get_outline` →
 about to say a section / rating / hardware block is absent. Unparsed documents
 still use pdf-tools.
 
-Obey the pdf-verify-before-present rule (see .claude/rules/pdf-verify-before-present.md): never present "not found" /
+Obey the extraction guide (see .claude/guides/extraction.md): never present "not found" /
 "no fire ratings" / empty scope without checking the specific PDF pages you
 searched, and cite those pages in `fire_rating_note` / `unparsed_sections` /
 `out_of_scope_items`.
@@ -62,7 +62,7 @@ searched, and cite those pages in `fire_rating_note` / `unparsed_sections` /
    here — `div10-specialist` owns Phase 3c.
 
 ## Scope discipline
-Scope boundaries are in the project rule `scope-boundaries.md`. Watch specifically for **Scranton** partitions (access lost - out of scope) and
+Scope boundaries are in the take-off guide `.claude/guides/takeoff.md`. Watch specifically for **Scranton** partitions (access lost - out of scope) and
 **American Dryer** (no longer used - substitute World Dryer or Excel XLERATOR and
 note it).
 

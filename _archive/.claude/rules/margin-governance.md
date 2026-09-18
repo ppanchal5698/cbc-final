@@ -1,3 +1,7 @@
+<!-- ARCHIVED 2026-09-18T12:31:10Z by the agent-config audit.
+     Original location: .claude/rules/margin-governance.md
+     See CLEANUP_CHANGELOG.md for where its content went. -->
+
 # Margin Governance (NFR-8 / Matrix 6.7) — **DEFERRED**
 
 A margin floor per product type exists so that below-band pricing is visible.

@@ -27,4 +27,4 @@ plain-language reason**, and let the estimator price it.
 
 There is no partial credit for a confidently wrong price.
 
-See [cost_sourcing_rules](cost_sourcing_rules.md), the accuracy-trust rule.
+See [cost_sourcing_rules](cost_sourcing_rules.md), `.claude/guides/extraction.md`.

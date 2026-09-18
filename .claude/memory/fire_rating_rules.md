@@ -43,4 +43,4 @@ Hardware-matrix schedules (butts/locks/closers X columns, no FIRE column) are
 exactly the ambiguous case — flag every opening and keep searching the type
 schedule / specs before finishing Phase 3.
 
-See the accuracy-trust rule and [manual_cutoff](manual_cutoff.md).
+See `.claude/guides/extraction.md` and [manual_cutoff](manual_cutoff.md).

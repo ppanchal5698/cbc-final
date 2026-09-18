@@ -22,7 +22,7 @@ CBC extracts Div 10 quantities from bid PDFs for quoting later. This skill does
 | `other` | Only when clearly Div 10 and none of the above fit |
 
 Out of scope (do not quote): Scranton partitions, American Dryer (note only),
-corner guards, signage, lockers — see .claude/rules/scope-boundaries.md.
+corner guards, signage, lockers — see .claude/guides/takeoff.md.
 
 ## Steps
 

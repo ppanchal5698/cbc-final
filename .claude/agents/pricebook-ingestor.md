@@ -43,7 +43,7 @@ beats a padded one - the estimator quotes from what you write.
   read fully is a row you leave out, and mention in your summary.
 - Do **not** record a `cost` without both a list price and a multiplier.
 - Do **not** write to `pricebooks/` or `reference-library/` - they are read-only
-  during a run (`.claude/rules/file-safety.md`).
+  during a run (`.claude/rules/00-core-constraints.md`).
 - Do **not** include adders in a part's price. Electrification, non-removable-pin
   hinges and premium finishes are added deliberately, per line, from
   `mcp__reference__get_manual_adders` (NR-4).

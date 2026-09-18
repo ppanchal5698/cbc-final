@@ -1,3 +1,7 @@
+<!-- ARCHIVED 2026-09-18T12:31:10Z by the agent-config audit.
+     Original location: .claude/rules/file-safety.md
+     See CLEANUP_CHANGELOG.md for where its content went. -->
+
 # File Safety
 
 ## Writes

@@ -1,3 +1,7 @@
+<!-- ARCHIVED 2026-09-18T12:31:10Z by the agent-config audit.
+     Original location: .claude/rules/p21-read-only.md
+     See CLEANUP_CHANGELOG.md for where its content went. -->
+
 # P21 is READ-ONLY (NFR-5)
 
 **P21 access in this workstream is read-only. There is no write-back, initially or otherwise.**

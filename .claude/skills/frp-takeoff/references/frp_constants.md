@@ -42,7 +42,7 @@ Extract and report **geometry + product attributes**:
 Then **stop**. Emit every material quantity as `null` with
 `status: "PENDING_CONSTANTS"`. Do not invent a panel size, a waste factor, or an
 adhesive coverage number - a wrong FRP quantity is a wrong quote, and this is
-exactly the kind of gap the accuracy-trust rule exists to keep visible.
+exactly the kind of gap `.claude/guides/extraction.md` exists to keep visible.
 
 ## Current manual process
 

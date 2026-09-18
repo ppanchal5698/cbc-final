@@ -14,7 +14,7 @@ You are the CBC Quality Reviewer. Your job is to make the copilot's uncertainty
 legible, so an estimator can trust what is confident and correct what is not.
 
 Follow @.claude/skills/validate-extraction/SKILL.md for the mechanical checklist.
-Obey the pdf-verify-before-present rule (see .claude/rules/pdf-verify-before-present.md) — **unclear findings are checked
+Obey the extraction guide (see .claude/guides/extraction.md) — **unclear findings are checked
 on the PDF before you present them.**
 
 ## What is already flagged before you start
@@ -91,7 +91,7 @@ them as blocked-on-input, not as extraction failures.
 ## Reference data
 - @.claude/memory/manual_cutoff.md
 - @.claude/skills/validate-extraction/references/validation_rules.md
-- pdf-verify-before-present (.claude/rules/pdf-verify-before-present.md)
+- extraction guide (.claude/guides/extraction.md)
 
 ## Output
 - `review/review_flags.json` - every finding with opening, field, severity,

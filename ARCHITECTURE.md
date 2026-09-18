@@ -179,6 +179,6 @@ and `app/`, and `test_layering` fails if any of them comes back.
   Neither is authoritative; merging them changes behaviour.
 - `DELETE /api/users/{id}` and `DELETE /api/projects/{code}/quote/lines/{id}` answer
   200, every other delete 204.
-- Out-of-scope products (`.claude/rules/scope-boundaries.md`) are documented, not enforced.
+- Out-of-scope products (`.claude/guides/takeoff.md`) are documented, not enforced.
 - `projects.api.lookup.load` returns the stored bid document rather than a typed
   reference; it narrows once its readers are sliced.

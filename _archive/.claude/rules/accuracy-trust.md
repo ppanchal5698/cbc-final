@@ -1,3 +1,7 @@
+<!-- ARCHIVED 2026-09-18T12:31:10Z by the agent-config audit.
+     Original location: .claude/rules/accuracy-trust.md
+     See CLEANUP_CHANGELOG.md for where its content went. -->
+
 # Accuracy and Trust (NFR-2)
 
 **Confidence scoring and review flags are visible from day one. Unmatched or low-confidence

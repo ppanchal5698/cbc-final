@@ -142,4 +142,4 @@ Leave `keying` null when the sheets are silent — do not invent.
 
 The fixture's WINDOW SCHEDULE specifies `KAWNEER 541T` aluminum storefront. Read
 it, record it under `out_of_scope_items`, and do not quote it
-(scope-boundaries project rule).
+(`.claude/guides/takeoff.md`).

@@ -1,3 +1,7 @@
+<!-- ARCHIVED 2026-09-18T12:31:10Z by the agent-config audit.
+     Original location: .claude/rules/human-in-the-loop.md
+     See CLEANUP_CHANGELOG.md for where its content went. -->
+
 # Human-in-the-Loop (NFR-1)
 
 **No estimate or quotation is ever sent to a customer without explicit estimator approval.**

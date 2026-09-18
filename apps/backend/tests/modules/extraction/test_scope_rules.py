@@ -146,19 +146,19 @@ def test_the_out_of_scope_list_names_what_is_excluded_and_why() -> None:
 
 
 def test_the_rules_match_the_written_rule_file() -> None:
-    """`scope-boundaries.md` stays the human-readable owner of this list.
+    """`guides/takeoff.md` stays the human-readable owner of this list.
 
     If someone adds a category there and not here, the take-off silently keeps
     quoting it.
     """
     from tests.shared import ROOT
 
-    rule_text = (ROOT / ".claude" / "rules" / "scope-boundaries.md").read_text(
+    rule_text = (ROOT / ".claude" / "guides" / "takeoff.md").read_text(
         encoding="utf-8"
     ).lower()
     for phrase in ("storefront", "coiling", "engineered wood", "metal siding",
                    "thin brick", "jl industries", "scranton", "american dryer"):
-        assert phrase in rule_text, f"{phrase} left scope-boundaries.md"
+        assert phrase in rule_text, f"{phrase} left guides/takeoff.md"
         assert any(
             phrase.split()[0] in rule.key or phrase.split()[0] in rule.reason.lower()
             for rule in scope_rules.OUT_OF_SCOPE

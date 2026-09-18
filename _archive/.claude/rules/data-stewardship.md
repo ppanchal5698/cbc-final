@@ -1,3 +1,7 @@
+<!-- ARCHIVED 2026-09-18T12:31:10Z by the agent-config audit.
+     Original location: .claude/rules/data-stewardship.md
+     See CLEANUP_CHANGELOG.md for where its content went. -->
+
 # Data Stewardship (NFR-10) — **STATUS: OPEN**
 
 Each pricing source needs a **named owner and a refresh cadence** so automated quotes never

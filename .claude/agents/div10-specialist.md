@@ -16,7 +16,7 @@ Prefer bid-docs for parsed PDFs (outline → search → page blocks) **unless** 
 page is in `extracted/_visual_pages.json` — then `Read` the pre-rendered image
 first. Crop with `get_page_image(region=bbox)` when a count or model is unclear
 **or** before flagging something missing. Unparsed documents still use
-pdf-tools. Obey the pdf-verify-before-present rule (see .claude/rules/pdf-verify-before-present.md).
+pdf-tools. Obey the extraction guide (see .claude/guides/extraction.md).
 
 Follow @.claude/skills/extract-div10-takeoff/SKILL.md for the closed-world schema
 and save rules.
@@ -41,7 +41,7 @@ one stays null with `qty_not_stated`, never a default of 1.
    location/room or drawing reference, quantity/count, specified model/series,
    finish when stated, alternate tag when marked, and notes for special
    conditions.
-4. Respect the scope-boundaries rule (see .claude/rules/scope-boundaries.md) — Scranton partitions and American
+4. Respect the take-off guide (see .claude/guides/takeoff.md) — Scranton partitions and American
    Dryer are out of scope (record under notes/flags; do not invent substitutes
    as quote lines here).
 5. Never invent prices, list prices, or margins. This phase is take-off only.

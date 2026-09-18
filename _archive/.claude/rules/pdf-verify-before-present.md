@@ -1,3 +1,7 @@
+<!-- ARCHIVED 2026-09-18T12:31:10Z by the agent-config audit.
+     Original location: .claude/rules/pdf-verify-before-present.md
+     See CLEANUP_CHANGELOG.md for where its content went. -->
+
 # PDF verify before present (NFR-2 / NFR-3)
 
 **If a value is unclear, incomplete, or about to be flagged missing — open the

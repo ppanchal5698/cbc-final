@@ -47,7 +47,7 @@ description: >
    `search_blocks` / `get_page_blocks` or `extract_tables` / `extract_text`,
    crop with `get_page_image(region=bbox)` when ambiguous. Cite page + excerpt
    (or "searched pages … — not found") in `evidence_note`. See
-   .claude/rules/pdf-verify-before-present.md. Parser null ≠ sheet silent.
+   .claude/guides/extraction.md. Parser null ≠ sheet silent.
 5. Persist with `mcp__artifact-storage__save_artifact` only — never Write/Edit.
 6. On schema error: repair named fields (≤2 retries). Do not bypass validation.
 

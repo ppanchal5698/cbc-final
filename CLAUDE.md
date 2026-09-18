@@ -1,51 +1,67 @@
 # CBC Estimating Copilot (modular monolith)
 
-Live API + workers: [`apps/backend`](apps/backend). Compose service name
-remains `platform` on port 8001. Compose runs one `worker` with
-`WORKER_CLAIM_ALL=1` (local runs may still set `WORKER_DOMAIN`).
+Bid documents in, priced proposal out. Live API and workers:
+[`apps/backend`](apps/backend) — the compose service is still named `platform`,
+on port 8001. Compose runs one `worker` with `WORKER_CLAIM_ALL=1` (a local run
+may set `WORKER_DOMAIN` instead). Web: [`apps/web`](apps/web).
 
-Web: [`apps/web`](apps/web). Data model: [`docs/collections.mongodb.md`](docs/collections.mongodb.md).
-Runtime: [`docs/app_lifecycle.md`](docs/app_lifecycle.md). Architecture:
-[`docs/architecture.md`](docs/architecture.md). Process:
-[`docs/cbc_process_flow.md`](docs/cbc_process_flow.md).
+```bash
+docker compose -f infra/docker-compose.yml up -d --build
+```
 
-Run: `docker compose -f infra/docker-compose.yml up -d --build`
+## Where things are
 
-Rules under `.claude/rules/` load automatically. Do not `@`-inline them (or
-memory/skills) into this file — cite paths in plain text.
+| | |
+|---|---|
+| Architecture, modules, dependency rule | [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`docs/architecture.md`](docs/architecture.md) |
+| Data model | [`docs/collections.mongodb.md`](docs/collections.mongodb.md) (spec) · [`docs/data_model.md`](docs/data_model.md) (implemented) |
+| Runtime and lifecycle | [`docs/app_lifecycle.md`](docs/app_lifecycle.md) |
+| Estimating process | [`docs/cbc_process_flow.md`](docs/cbc_process_flow.md) |
+| Open items | [`docs/data_stewardship.md`](docs/data_stewardship.md) |
 
-## Bid pipeline agents (`.claude/agents/`)
+## Agent configuration
 
-Orchestrator `DELEGATION_RULE` (in `apps/backend/src/cbc/worker_kit/prompts.py`):
-`intake-coordinator` → `spec-scope-analyst` → `takeoff-engineer` +
-`frp-specialist` / `div10-specialist` when in scope → `product-matcher` →
-`pricing-engineer` → `quality-reviewer` → `delivery-agent`. Side spine:
-`pricebook-ingestor`. `quote-builder` exists for interactive/headless use;
-the worker renders quotation HTML, so it is not in the orchestrator list.
+Four directories, each loaded differently. **Read
+[`.claude/rules/README.md`](.claude/rules/README.md) before adding to any of
+them** — it says which is which and why it matters.
 
-Judgment agents (`takeoff-engineer`, `product-matcher`, `pricing-engineer`)
-use Sonnet. Mechanical agents use Haiku.
+| Directory | Loaded |
+|---|---|
+| `.claude/rules/` | **every session** — core constraints and auditability only |
+| `.claude/guides/` | on demand — one per phase (extraction, pricing, take-off) |
+| `.claude/memory/` | on demand — reference data (door notation, finishes, tiers, margins) |
+| `.claude/skills/` | when a skill's trigger matches |
+| `.claude/agents/` | when that subagent is dispatched |
+| `.claude/commands/` | `/intake` `/takeoff` `/price` `/review` |
 
-## Skills, rules, memory
+Do not `@`-inline a guide, memory file or skill from a rule — that drags it into
+every session and defeats the point of it being on demand.
 
-Skills in `.claude/skills/`: `extract-door-schedule`, `extract-div10-takeoff`,
-`frp-takeoff`, `scan-product-catalog`, `match-hardware-sets`, `price-line-item`,
-`apply-margin`, `generate-quotation`, `validate-extraction`, `reuse-prior-quote`.
+## Bid pipeline
 
-Rules in `.claude/rules/`: `accuracy-trust`, `auditability`, `data-stewardship`,
-`file-safety`, `human-in-the-loop`, `margin-governance`, `p21-read-only`,
-`pdf-verify-before-present`, `scope-boundaries`.
+`DELEGATION_RULE` lives in
+[`apps/backend/src/cbc/worker_kit/prompts.py`](apps/backend/src/cbc/worker_kit/prompts.py)
+and is the source of truth for the order:
 
-Memory in `.claude/memory/`: `cost_sourcing_rules`, `door_notation`,
-`estimator_profiles`, `finish_nomenclature`, `fire_rating_rules`, `frame_depths`,
-`handing_codes`, `manual_cutoff`, `margin_sheet`, `process_flow`,
-`project_context`, `sales_tax_rules`, `vendor_tiers`.
+```
+intake-coordinator → spec-scope-analyst → takeoff-engineer
+  → frp-specialist / div10-specialist   (when in scope)
+  → product-matcher → pricing-engineer → quality-reviewer → delivery-agent
+```
 
-Slash commands in `.claude/commands/`: `/intake`, `/takeoff`, `/price`, `/review`.
+Side spine: `pricebook-ingestor`. `quote-builder` exists for interactive and
+headless use — the worker renders the quotation HTML itself, so it is not in the
+orchestrator list.
 
-## MCP servers (`.mcp.json`)
+Judgment agents (`takeoff-engineer`, `product-matcher`, `pricing-engineer`) run
+on Sonnet. Mechanical agents run on Haiku.
 
-`bid-docs`, `catalog`, `catalog-docs`, `pdf-tools`, `reference`, `calc-engine`,
-`p21-connector` (read-only), `artifact-storage` (only writer, under
-`CBC_PROJECTS_ROOT`). Interactive allow-list lives in `.claude/settings.json`.
-Workers skip permission prompts; PreToolUse hooks still fire.
+## MCP servers
+
+Configured in [`.mcp.json`](.mcp.json); what each one is for is in
+[`.claude/mcp/README.md`](.claude/mcp/README.md). `p21-connector` is read-only,
+`catalog` is read-only, and `artifact-storage` is the only writer — it writes
+under `CBC_PROJECTS_ROOT`.
+
+The interactive allow-list is in `.claude/settings.json`. Workers skip
+permission prompts; PreToolUse hooks still fire.

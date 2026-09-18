@@ -59,5 +59,5 @@ Writing it to disk and reporting the path **is** the delivery.
 ## Reference data
 - @.claude/memory/sales_tax_rules.md
 - @.claude/memory/project_context.md
-- human-in-the-loop (.claude/rules/human-in-the-loop.md)
-- file-safety (.claude/rules/file-safety.md)
+- core constraints (.claude/rules/00-core-constraints.md)
+- core constraints (.claude/rules/00-core-constraints.md)
