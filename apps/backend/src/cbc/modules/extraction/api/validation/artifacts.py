@@ -4,7 +4,8 @@ These checks were in `scripts/validate_project.py`, which made the worker import
 a script to find out whether a job had produced valid artifacts - `apps` reaching
 sideways into `scripts/` for a rule that is neither a script's business nor the
 application's. The rule is about the domain's own files, so it lives in the
-domain, and `scripts/validate_project.py` is the command-line front for it.
+domain, and `apps/backend/scripts/validate_project.py` is the command-line
+front for it.
 
 `check_extraction`, `check_pricing` and `check_proposal` each return
 `(problems, warnings)`. Problems reject the job; warnings are reported and let it

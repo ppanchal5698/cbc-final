@@ -79,7 +79,7 @@ bid sets. After PDF verify, **flag, do not stop** (and never invent).
 ## Invocation
 
 ```bash
-python scripts/validate_project.py --check-extraction dutch_bros_macarthur_2026
+python apps/backend/scripts/validate_project.py --check-extraction dutch_bros_macarthur_2026
 ```
 
 This also runs as a PostToolUse hook on writes under

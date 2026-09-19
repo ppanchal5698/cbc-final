@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Scaffold a new CBC bid project directory.
 #
-#   bash scripts/init_project.sh <project_name> [source_pdf ...]
+#   bash apps/backend/scripts/init_project.sh <project_name> [source_pdf ...]
 #
 # Project names are lowercase with underscores: {brand}_{location}_{year}
 # e.g. dutch_bros_macarthur_2026
@@ -10,8 +10,13 @@ set -euo pipefail
 PROJECT_NAME="${1:?Usage: init_project.sh <project_name> [source_pdf ...]}"
 shift || true
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PROJECT_DIR="${ROOT}/projects/${PROJECT_NAME}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+
+# Same precedence as cbc.shared.paths.storage_root(), which owns this rule.
+# Resolved in bash rather than asked of Python: this script has to work before
+# the package is installed, which is the whole point of it.
+PROJECTS_ROOT="${CBC_PROJECTS_ROOT:-${STORAGE_ROOT:-${ROOT}/data/projects}}"
+PROJECT_DIR="${PROJECTS_ROOT}/${PROJECT_NAME}"
 
 if [[ ! "${PROJECT_NAME}" =~ ^[a-z0-9_]+$ ]]; then
   echo "Project name must be lowercase letters, digits and underscores: ${PROJECT_NAME}" >&2
@@ -33,7 +38,7 @@ done
 
 cat <<EOF
 
-Project scaffolded: projects/${PROJECT_NAME}
+Project scaffolded: ${PROJECT_DIR}
   uploads/raw/        bid-set PDFs as received (immutable)
   uploads/processed/  extraction artifacts
   uploads/final/      approved quotation (version controlled)

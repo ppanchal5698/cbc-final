@@ -27,7 +27,7 @@ being real and the highlight landing nowhere near its row.
 ## Audit trail
 Every tool call is appended to projects/{project}/audit_trail.jsonl by the
 log_audit_trail.py PostToolUse hook. The trail is **append-only** and is version controlled.
-Read it directly - one JSON object per tool call.
+Render it with apps/backend/scripts/export_audit_report.py, or read it directly - one JSON object per tool call.
 
 ## Why
 An estimator must be able to answer "where did this number come from?" months later, and

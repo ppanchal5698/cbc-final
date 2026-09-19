@@ -8,14 +8,17 @@ set -euo pipefail
 
 PROJECT_NAME="${1:?Usage: run_full_pipeline.sh <project_name>}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PROJECT_DIR="projects/${PROJECT_NAME}"
+
+# Same precedence as cbc.shared.paths.storage_root(), which owns this rule.
+PROJECTS_ROOT="${CBC_PROJECTS_ROOT:-${STORAGE_ROOT:-${ROOT}/data/projects}}"
+PROJECT_DIR="${PROJECTS_ROOT}/${PROJECT_NAME}"
 CLAUDE_BIN="${CLAUDE_BIN:-claude}"
 
 cd "${ROOT}"
 
 if [[ ! -d "${PROJECT_DIR}" ]]; then
   echo "Project not found: ${PROJECT_DIR}" >&2
-  echo "Create it first: bash scripts/init_project.sh ${PROJECT_NAME} <bid-set.pdf>" >&2
+  echo "Create it first: bash apps/backend/scripts/init_project.sh ${PROJECT_NAME} <bid-set.pdf>" >&2
   exit 1
 fi
 
@@ -25,7 +28,7 @@ if ! compgen -G "${PROJECT_DIR}/uploads/raw/*" > /dev/null; then
 fi
 
 echo "[$(date -Iseconds)] Pre-flight..."
-python scripts/validate_project.py --all || {
+PYTHONPATH="${ROOT}:${ROOT}/apps/backend/src" python apps/backend/scripts/validate_project.py --all || {
   echo "Pre-flight failed. Fix the errors above before running the pipeline." >&2
   exit 1
 }

@@ -68,11 +68,6 @@ KNOWN_ABSENT = {
     # Gitignored by design - a developer copies the .example beside it. Absent
     # from a clean checkout on purpose, so this is not a defect.
     ".claude/settings.local.json",
-    # Three scripts the repository lost. Referenced from agent definitions and
-    # workflows, and recorded under "Known defects" in docs/data_stewardship.md.
-    "scripts/init_project.sh",
-    "scripts/validate_project.py",
-    "scripts/export_audit_report.py",
 }
 
 BACKTICK = re.compile(r"`([^`\n]+)`")
