@@ -77,7 +77,7 @@ claude mcp add p21-connector -- python mcp-servers/p21-connector/server.py
 | `P21_BASE_URL` | `p21-connector` | unset - every lookup returns "manual entry required" |
 | `P21_API_KEY` | `p21-connector` | unset |
 
-Put credentials in `.claude/settings.local.json`, which is gitignored. Never commit them.
+Put credentials in `.claude/settings.local.json` (from `.claude/settings.local.json.example`), which is gitignored. Never commit them.
 
 ## Design notes
 

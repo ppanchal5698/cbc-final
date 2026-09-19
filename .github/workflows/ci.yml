@@ -133,7 +133,7 @@ jobs:
       #
       # Docker Desktop hides this locally by not enforcing bind-mount ownership.
       # A Linux host enforces it, and so does a real deployment - see the
-      # ownership note in docs/opshub_setup.md.
+      # ownership note in docs/operations/running.md.
       - name: Give the writable bind mounts to the container user
         run: |
           mkdir -p data/projects data/pricebooks

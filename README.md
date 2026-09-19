@@ -5,11 +5,9 @@ Live runtime is a single FastAPI process under [`apps/backend`](apps/backend)
 all Mongo jobs via `WORKER_CLAIM_ALL=1`.
 
 See [`docs/collections.mongodb.md`](docs/collections.mongodb.md),
-[`docs/app_lifecycle.md`](docs/app_lifecycle.md), and
-[`docs/architecture.md`](docs/architecture.md). The module map and its rules are in
-[`ARCHITECTURE.md`](ARCHITECTURE.md); decision records
-[`ADR-004`](docs/adr/004-modular-monolith-apps-backend.md) and
-[`ADR-005`](docs/adr/005-modules-own-their-data.md).
+[`docs/system-design.md`](docs/system-design.md),
+[`docs/data-flow-diagrams.md`](docs/data-flow-diagrams.md), and the phase-by-phase
+pipeline docs under [`docs/pipeline/`](docs/pipeline/README.md).
 
 ## Quick start
 
@@ -20,15 +18,21 @@ docker compose -f infra/docker-compose.yml up -d --build
 
 - Web UI: http://localhost:3000
 - API health: http://127.0.0.1:8001/api/health
-- Publish host ports / IT firewall request: [`docs/it_port_request.md`](docs/it_port_request.md)
 
 ## Layout
 
-- `apps/backend` — modular monolith: seven modules under `cbc.modules` ([`ARCHITECTURE.md`](ARCHITECTURE.md)), one API and one worker process
+- `apps/backend` — modular monolith: seven modules under `cbc.modules` (see [`docs/system-design.md`](docs/system-design.md)), one API and one worker process
 - `apps/web` — Next.js Ops-Hub (proxies `/api` to `PLATFORM_URL`, audience `platform`)
 - `infra/docker-compose.yml` — mongo, clamav, platform, worker, web
 - `mcp-servers` / `.claude` — Claude Code tools and agents
 - `data/projects`, `data/pricebooks`, `data/reference-library` — runtime volumes
+
+## Documentation
+
+- [`docs/system-design.md`](docs/system-design.md) — high-level system structure, services, storage, guardrails, and deployment shape
+- [`docs/data-flow-diagrams.md`](docs/data-flow-diagrams.md) — mermaid diagrams for the end-to-end bid flow and artifact handoffs
+- [`docs/pipeline/README.md`](docs/pipeline/README.md) — index for the phase-specific pipeline documents
+- [`docs/collections.mongodb.md`](docs/collections.mongodb.md) — database schema and provenance model
 
 ## Native API (local)
 

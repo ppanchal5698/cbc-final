@@ -1,7 +1,7 @@
 # CBC Backend (modular monolith)
 
 **Modules:** ops, projects, catalog, intake, extraction, pricing, quoting - see
-[ARCHITECTURE.md](../../ARCHITECTURE.md).
+[docs/backend/modules.md](../../docs/backend/modules.md).
 **Worker:** `python -m cbc.app.worker` - ops' claim loop with the Claude pipeline bound in
 (`WORKER_CLAIM_ALL=1` in compose; `WORKER_DOMAIN` for filtered local runs).
 
