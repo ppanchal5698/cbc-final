@@ -72,10 +72,17 @@ def context_hashes(prompt: str | None = None) -> dict[str, Any]:
     skills: dict[str, str | None] = {}
     for skill_md in sorted((ROOT / ".claude" / "skills").glob("*/SKILL.md")):
         skills[skill_md.parent.name] = _sha256_file(skill_md)
+    # The process flow used to be one file. It is a directory now - an index
+    # plus one document per phase - so hash the set the way rules are hashed.
+    flow_blob = b"".join(
+        path.read_bytes()
+        for path in sorted((ROOT / "docs" / "pipeline").glob("*.md"))
+        if path.is_file()
+    )
     return {
         "prompt": _sha256_text(prompt or ""),
         "claudeMd": _sha256_file(ROOT / "CLAUDE.md"),
-        "processFlow": _sha256_file(ROOT / "docs" / "cbc_process_flow.md"),
+        "processFlow": _sha256_bytes(flow_blob) if flow_blob else None,
         "rules": _sha256_bytes(rules_blob) if rules_blob else None,
         "agents": agents,
         "skills": skills,

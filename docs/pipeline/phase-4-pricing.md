@@ -120,9 +120,15 @@ below-band margin with no recorded reason is what the flag is for.
 
 Every calculation goes through `calc-engine`, never by hand.
 `calculate_line` → `apply_margin` → `compute_totals`. Rounding happens **once,
-at the extension**: `calculate_line(cost=74.33, margin=0.27, quantity=3)` gives
-`sale_ea = 101.82` and `ext_price = 305.47`, and the server's `_demo()` pins
-exactly that.
+at the extension**, and the server's `_demo()` pins the contract: a $74.33 cost
+at the commodity band gives `sale_ea = 101.82` and `ext_price = 305.47` across a
+quantity of three.
+
+The band rate itself is deliberately not written here. It lives in
+`referenceData`, seeded from `data/reference-library/margins/margin_framework.json`
+and served by `mcp__reference__get_margin_bands` — prose that restates it is
+prose that goes stale, which is what `tests/modules/pricing/test_margin_pointers.py`
+checks for.
 
 ### Provenance on every line
 
