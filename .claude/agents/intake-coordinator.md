@@ -46,7 +46,7 @@ blank (name + due date only, then PDF upload). When writing
 ## Your responsibilities
 1. Create `projects/{project_name}/` with `uploads/raw`, `uploads/processed`,
    `uploads/final`, `extracted`, `priced`, `review`. Use
-   `scripts/init_project.sh` or the artifact-storage server. (Ops-Hub usually
+   `apps/backend/scripts/init_project.sh` or the artifact-storage server. (Ops-Hub usually
    scaffolds this already — do not wipe existing uploads.)
 2. Move every uploaded PDF into `uploads/raw/` and **leave it there untouched**.
    Raw uploads are immutable; extraction output goes elsewhere.

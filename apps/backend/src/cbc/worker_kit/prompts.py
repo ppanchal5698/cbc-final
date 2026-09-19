@@ -517,7 +517,7 @@ pass from priced/line_items.json. Do not write HTML and do not run
 writes judgment prose only: RFI notes and review flags the deterministic checks
 cannot produce.
 
-Before delegating delivery, run `python scripts/validate_project.py --check-delivery
+Before delegating delivery, run `python apps/backend/scripts/validate_project.py --check-delivery
 {project_dir}`. If it fails, stop with the listed blockers; do not create an email
 draft or report ready. Never erase flags or invent missing values to pass it.
 The worker renders and verifies the PDF and refreshes `uploads/final/` after this
@@ -655,7 +655,7 @@ cost_source "MANUAL", a plain-language reason, and - just as important - the
 specified item in `part_number`/`description`, copied from hardware_sets.json. A
 manual line an estimator cannot read is worse than no line.
 
-Before Phase 6, run `python scripts/validate_project.py --check-delivery
+Before Phase 6, run `python apps/backend/scripts/validate_project.py --check-delivery
 {project_dir}`. If blocked by identity, pricing, required fields or confidence,
 stop and report those blockers for estimator action. Do not generate client-facing
 deliverables or say the draft is ready merely because files exist.

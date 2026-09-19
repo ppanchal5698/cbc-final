@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Pre-flight and artifact checks for the CBC Estimating Copilot.
 
-    python scripts/validate_project.py --all
-    python scripts/validate_project.py --check-extraction <project>
-    python scripts/validate_project.py --check-pricing <project>
-    python scripts/validate_project.py --check-proposal <project>
-    python scripts/validate_project.py --check-delivery <project>
-    python scripts/validate_project.py --demo
+    python apps/backend/scripts/validate_project.py --all
+    python apps/backend/scripts/validate_project.py --check-extraction <project>
+    python apps/backend/scripts/validate_project.py --check-pricing <project>
+    python apps/backend/scripts/validate_project.py --check-proposal <project>
+    python apps/backend/scripts/validate_project.py --check-delivery <project>
+    python apps/backend/scripts/validate_project.py --demo
 
 --all runs the pre-flight: reference-library JSON valid, price books present and
 not stale, MCP servers importable, hooks present.

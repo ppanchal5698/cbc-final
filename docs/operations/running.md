@@ -187,12 +187,19 @@ path and the Ops-Hub worker read from one source. Both had hand-copied
 duplicates once, and they drifted.
 `apps/backend/tests/system/test_headless_parity.py` asserts they stay in step.
 
-> **`run_full_pipeline.sh` is currently broken.** Line 28 runs
-> `python scripts/validate_project.py --all` as a pre-flight gate and that
-> script does not exist, so the script exits 1 before doing anything.
-> `_phase.sh:44` and `run_full_pipeline.sh:18` likewise point at a missing
-> `scripts/init_project.sh`. Use the Ops-Hub, or the individual phase scripts,
-> until those are restored.
+Create a project first, if the Ops-Hub has not:
+
+```bash
+bash apps/backend/scripts/init_project.sh <project-name> <bid-set.pdf>
+```
+
+It scaffolds under the same root `storage_root()` resolves —
+`CBC_PROJECTS_ROOT`, else `STORAGE_ROOT`, else `data/projects` — so a run and a
+scaffold always agree about where a project lives.
+
+`run_full_pipeline.sh` gates on `apps/backend/scripts/validate_project.py --all`
+before spending a token: reference-library JSON parses, price books are present
+and not stale, the MCP servers import, the hooks are in place.
 
 ## See also
 

@@ -116,11 +116,9 @@ because each is separate work.
 
 | What | Where |
 |---|---|
-| `run_full_pipeline.sh` calls a `scripts/validate_project.py` that does not exist, so its pre-flight gate exits 1 before anything runs | `workflows/run_full_pipeline.sh:28` |
-| `scripts/init_project.sh` is named as the way to create a project and does not exist | `workflows/_phase.sh:44`, `workflows/run_full_pipeline.sh:18` |
-| An always-loaded rule cites a missing `scripts/export_audit_report.py` | `.claude/rules/auditability.md:30` |
 | `MONGODB_READONLY_URI` is in neither compose nor `.env.example`, yet three MCP servers refuse to start without it — it works only because the worker derives it at runtime | `infra/docker-compose.yml`, `.env.example` |
 | `permissions.allow` ends with `"*"`, making every preceding entry decorative; only `deny` and the hooks bite | `.claude/settings.json` |
+| The `rm -rf` allow-rule matches `projects/` but projects live at `data/projects/`, so cleaning up inside a real project directory is blocked | `.claude/hooks/pre_delete_guard.py` |
 | `_check_inline_python` resolves only **literal** paths, so a write through a variable (`p = Path(rel); p.write_text(...)`) reaches a protected directory that the same write as a `Write` tool call would be blocked from | `.claude/hooks/pre_delete_guard.py` |
 | The workflow tells `delivery-agent` to export the PDF; the agent definition says not to, and the agent definition won | `workflows/phase6_deliver.sh` |
 | "Five stdio MCP servers" — there are eight, and the table omits two | `mcp-servers/README.md` |

@@ -38,10 +38,12 @@ run_phase() {
   shift 3
   local instructions="$*"
 
-  local project_dir="projects/${project}"
-  if [[ ! -d "${ROOT}/${project_dir}" ]]; then
+  # Same precedence as cbc.shared.paths.storage_root(), which owns this rule.
+  local projects_root="${CBC_PROJECTS_ROOT:-${STORAGE_ROOT:-${ROOT}/data/projects}}"
+  local project_dir="${projects_root}/${project}"
+  if [[ ! -d "${project_dir}" ]]; then
     echo "Project not found: ${project_dir}" >&2
-    echo "Create it first: bash scripts/init_project.sh ${project}" >&2
+    echo "Create it first: bash apps/backend/scripts/init_project.sh ${project}" >&2
     return 1
   fi
 

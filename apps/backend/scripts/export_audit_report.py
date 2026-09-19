@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Render an audit report from a project's append-only tool log (NFR-3).
 
-    python scripts/export_audit_report.py <project>
-    python scripts/export_audit_report.py <project> --out report.html
-    python scripts/export_audit_report.py --demo
+    python apps/backend/scripts/export_audit_report.py <project>
+    python apps/backend/scripts/export_audit_report.py <project> --out report.html
+    python apps/backend/scripts/export_audit_report.py --demo
 
 Reads  projects/{project}/audit_trail.jsonl
 Also folds in cost-source provenance from priced/line_items.json when present, so

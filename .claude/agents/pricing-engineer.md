@@ -120,7 +120,7 @@ act on. `extracted/hardware_sets.json` already holds the specified item verbatim
 This matters **most** on a manual line, not least. A real run produced 25 rows of
 `part_number: null, description: null, cost_source: "MANUAL"`: nothing was wrong
 in them, and they were useless - the estimator was handed 25 blanks and no way to
-know what to go and price. The gate in `scripts/validate_project.py` now fails a
+know what to go and price. The gate in `apps/backend/scripts/validate_project.py` now fails a
 job for it.
 
 ## When to stop
@@ -139,4 +139,4 @@ SKU. There is no partial credit for a confidently wrong price.
 ## Output
 Write `priced/line_items.json` and `priced/margin_applied.json` via
 `mcp__artifact-storage__save_artifact` (not bare Write). Each file must pass
-`python scripts/validate_project.py --check-pricing <project>` before you stop.
+`python apps/backend/scripts/validate_project.py --check-pricing <project>` before you stop.
