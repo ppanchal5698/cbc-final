@@ -95,9 +95,10 @@ over. With `jwt`, the web tier mints a 60-second HS256 token with
 `aud: "platform"`; `INTERNAL_JWT_SECRET_PREVIOUS` exists so the secret can be
 rotated without downtime.
 
-> `MONGODB_READONLY_URI` appears in neither the compose file nor
-> `.env.example`, but three MCP servers refuse to start without it. See
-> [`../mcp/servers.md`](../mcp/servers.md#how-they-are-launched).
+`MONGODB_READONLY_URI` is passed through by compose and empty by default, in
+which case it is derived from `MONGODB_URI`. Set it when the cluster owner
+provisions the read-only user instead — an explicit value always wins. See
+[`../mcp/servers.md`](../mcp/servers.md#the-read-only-credential).
 
 ## The project directory
 

@@ -7,6 +7,12 @@
 x-app-env: &app-env
   MONGODB_URI: mongodb://cbc:${MONGO_ROOT_PASSWORD:-cbc_local_dev}@mongo:27017/cbc_opshub?authSource=admin&replicaSet=rs0
   MONGODB_DB: cbc_opshub
+  # The credential the read-only MCP servers connect with - catalog, bid-docs,
+  # catalog-docs. Leave it empty and it is derived from MONGODB_URI by
+  # cbc.shared.mongo.readonly_uri(), against the user ensure_readonly_user()
+  # creates at API start-up. Set it when the cluster owner provisions the user
+  # instead, which is what production does: an explicit value always wins.
+  MONGODB_READONLY_URI: ${MONGODB_READONLY_URI:-}
   # Single-node RS in compose enables multi-doc transactions; pytest stays off.
   MONGODB_TRANSACTIONS: ${MONGODB_TRANSACTIONS:-1}
   STORAGE_ROOT: /app/data/projects
