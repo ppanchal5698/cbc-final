@@ -85,3 +85,6 @@ pytest_results.xml
 # credential in history permanently. Generate one with:
 #   openssl rand -base64 756 > infra/docker/mongo-keyfile && chmod 400 infra/docker/mongo-keyfile
 infra/docker/mongo-keyfile
+
+# Orchestrator/subagent lock state written by cbc.worker_kit.tool_session.
+.cbc_tool_session.json

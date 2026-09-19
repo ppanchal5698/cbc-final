@@ -24,8 +24,8 @@ how they start.
 bands, the finish crosswalk, frame depths, vendor tiers and tax rates are all
 editable in the app at `/settings` and served here. The matching memory files
 are copies that nothing keeps in step. Where they disagree, this server is
-newer. See `AUDIT_FINDINGS.md` §5.1 — which should be authoritative is an open
-question.
+newer. Which copy should be authoritative is an open question - see
+`docs/data_stewardship.md`.
 
 **Checkpoint artifacts must go through `artifact-storage`.** A bare `Write` to
 `extracted/` or `priced/line_items.json` is blocked by PreToolUse, rule

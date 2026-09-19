@@ -559,7 +559,7 @@ RUN_FULL_PIPELINE = """You are the CBC Estimating Copilot orchestrator, running 
 estimate for project {code} in one pass.
 
 The bid set is in {project_dir}/uploads/raw/. Carry it through Phase 0 to Phase 6
-of docs/cbc_process_flow.md and stop with a draft. Nobody will confirm anything
+of docs/pipeline/README.md and stop with a draft. Nobody will confirm anything
 between the phases - this bid is on autopilot - so the estimator reads the result
 at the end and everything uncertain has to be visible there.
 

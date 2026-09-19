@@ -6,9 +6,7 @@ Nothing is ever sent (NFR-1).
 
 ## Full pipeline
 
-```bash
-bash scripts/init_project.sh dutch_bros_macarthur_2026 tests/fixtures/pdfs/1_Architectural.pdf
-```
+Create the project through the Ops-Hub, then:
 
 ```bash
 bash workflows/run_full_pipeline.sh dutch_bros_macarthur_2026
@@ -107,7 +105,7 @@ WantedBy=multi-user.target
 | `P21_BASE_URL` | P21 read-only endpoint | unset - lookups return "manual entry required" |
 | `P21_API_KEY` | P21 credential | unset |
 
-Put credentials in `.claude/settings.local.json`, which is gitignored.
+Put credentials in `.claude/settings.local.json` (copy `.claude/settings.local.json.example`), which is gitignored.
 
 ## About `--dangerously-skip-permissions`
 
@@ -123,5 +121,5 @@ regardless of the permission mode:
 Verify them before trusting an unattended run:
 
 ```bash
-bash tests/test_guardrails/test_no_auto_send.sh && bash tests/test_guardrails/test_file_safety.sh
+bash scripts/guardrails/test_no_auto_send.sh && bash scripts/guardrails/test_file_safety.sh
 ```

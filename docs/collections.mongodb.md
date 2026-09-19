@@ -60,7 +60,7 @@ The guiding constraint from the workbook governs the whole design: *the estimato
 
 **32 collections.** Eight entities from the Phase 1 map are deliberately embedded rather than given their own collection; each is justified in §2.3.
 
-**Infrastructure (implemented, not in the workbook):** [`documentPages`](#documentpages-implemented) — one Mongo document per MinerU-parsed PDF page (blocks + bbox). See also `jobs`, `settings`, `pageIndex`, and related runtime collections in [data_model.md](data_model.md).
+**Infrastructure (implemented, not in the workbook):** [`documentPages`](#documentpages-implemented) — one Mongo document per MinerU-parsed PDF page (blocks + bbox). See also `jobs`, `settings` and `pageIndex`, and [`backend/modules.md`](backend/modules.md) for which module owns each one.
 
 ---
 

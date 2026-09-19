@@ -1,4 +1,4 @@
-"""Module boundaries, checked on every run - the rules ARCHITECTURE.md states.
+"""Module boundaries, checked on every run - the rules docs/backend/modules.md states.
 
 1. A module reaches another module only through its `api` package.
 2. Nothing outside a module imports its `features`, `domain` or `infrastructure`:

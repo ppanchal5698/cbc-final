@@ -24,3 +24,9 @@ include = ["cbc*"]
 
 [tool.setuptools.package-data]
 cbc = ["modules/extraction/api/artifacts/*.json"]
+
+# Pyrefly (VS Code extension) otherwise infers the repo root as the only import
+# root, which holds neither package: `cbc` lives under apps/backend/src, and the
+# hooks import their siblings by bare name via a runtime loader.
+[tool.pyrefly]
+search-path = ["apps/backend/src", ".claude/hooks"]

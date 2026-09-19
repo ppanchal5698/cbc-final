@@ -71,8 +71,8 @@ estimators.
 
 > The bands are also served live by `mcp__reference__get_margin_bands` and are
 > editable in the app at `/settings`. Where the two disagree, the server is
-> newer. See `AUDIT_FINDINGS.md` §5.1 — which copy should be authoritative is an
-> open question.
+> newer. Which copy should be authoritative is an open question - see
+> `docs/data_stewardship.md`.
 
 ### Legitimate override reasons (not defects)
 

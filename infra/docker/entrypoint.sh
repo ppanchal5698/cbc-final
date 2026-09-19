@@ -43,7 +43,7 @@ PY
 # macOS and Windows and appears only on a Linux host. Left unchecked it surfaces
 # minutes later as "POST /api/projects 500" with a PermissionError buried in a
 # traceback. Checking it here turns that into one line at start-up, naming the
-# fix. See the ownership note in docs/opshub_setup.md.
+# fix. See the ownership note in docs/operations/running.md.
 # Only data/projects. `pricebooks` is deliberately asymmetric - writable on the
 # api, because uploading a sheet is the human-initiated act the file-safety rule
 # permits, and `:ro` on the worker, because a pipeline run must never write

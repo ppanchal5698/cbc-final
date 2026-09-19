@@ -30,4 +30,4 @@ for the phase you are in:
 State a constant **once** and point at its owner from elsewhere. A duplicated
 threshold is a threshold that will disagree with itself.
 
-History and reasoning: `AUDIT_FINDINGS.md`. Originals: `_archive/`.
+Open items and known defects: `docs/data_stewardship.md`.

@@ -11,12 +11,17 @@ docker compose -f infra/docker-compose.yml up -d --build
 
 ## Where things are
 
+Index and reading order: [`docs/README.md`](docs/README.md).
+
 | | |
 |---|---|
-| Architecture, modules, dependency rule | [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`docs/architecture.md`](docs/architecture.md) |
-| Data model | [`docs/collections.mongodb.md`](docs/collections.mongodb.md) (spec) · [`docs/data_model.md`](docs/data_model.md) (implemented) |
-| Runtime and lifecycle | [`docs/app_lifecycle.md`](docs/app_lifecycle.md) |
-| Estimating process | [`docs/cbc_process_flow.md`](docs/cbc_process_flow.md) |
+| The system in one sitting | [`docs/system-design.md`](docs/system-design.md) |
+| Modules, layering rule, dependency graph | [`docs/backend/modules.md`](docs/backend/modules.md) |
+| Routes, startup, middleware | [`docs/backend/api.md`](docs/backend/api.md) |
+| Job lifecycle and Claude passes | [`docs/backend/worker.md`](docs/backend/worker.md) |
+| Data model | [`docs/collections.mongodb.md`](docs/collections.mongodb.md) |
+| Estimating process | [`docs/pipeline/README.md`](docs/pipeline/README.md) |
+| Running it | [`docs/operations/running.md`](docs/operations/running.md) |
 | Open items | [`docs/data_stewardship.md`](docs/data_stewardship.md) |
 
 ## Agent configuration
