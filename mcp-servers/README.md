@@ -1,6 +1,6 @@
 # CBC MCP Servers
 
-Five stdio MCP servers backing the estimating pipeline.
+Eight stdio MCP servers backing the estimating pipeline.
 
 | Server | Tools | Purpose |
 |---|---|---|
@@ -10,6 +10,8 @@ Five stdio MCP servers backing the estimating pipeline.
 | `calc-engine` | `cost_from_list`, `lookup_lite_kit_list_price`, `calculate_line`, `apply_margin`, `compute_totals`, `validate_margin` | The only quote arithmetic in the system |
 | `artifact-storage` | `save_artifact`, `get_artifact`, `list_versions`, `list_project_files` | Project writes with SHA-256 version history |
 | `p21-connector` | `lookup_last_po`, `check_freshness`, `search_item` | Cost path 1, **READ-ONLY** |
+| `bid-docs` | `list_documents`, `get_outline`, `search_blocks`, `get_page_blocks` | **READ-ONLY** MinerU-parsed blocks for uploaded bid PDFs - the cheap way to find a page before `pdf-tools` reads it |
+| `catalog-docs` | `list_catalogs_parsed`, `get_outline`, `search_blocks`, `get_page_blocks` | **READ-ONLY** the same four tools over parsed vendor price books |
 
 ## Install
 
@@ -35,8 +37,19 @@ python -m pip install pytesseract
 python mcp-servers/main.py --selftest
 ```
 
-This lists each server's tools and runs the three self-check demos
-(`calc-engine`, `artifact-storage`, `p21-connector`).
+This lists each server's tools and runs every `_demo()`.
+
+`catalog`, `bid-docs` and `catalog-docs` read MongoDB with a credential that
+cannot write, and skip their demo without one. The summary says so rather than
+counting a skip as a pass, so read the last line: "All 8 MCP servers OK" and
+"8 MCP servers start; 3 demo(s) not run" mean different things.
+
+To exercise those three, either start the stack - `cbc.shared.mongo.readonly_uri()`
+derives the credential from `MONGODB_URI`, against the user
+`ensure_readonly_user()` creates at API start-up - or export an explicit
+`MONGODB_READONLY_URI`, which always wins. A worker does this for itself in
+`WorkerLoop.loop()`; an interactive session launching servers from `.mcp.json`
+does not, which is why the variable has to be in the environment there.
 
 ## Registration
 

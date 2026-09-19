@@ -45,15 +45,29 @@ not consulted at all. See [`../backend/worker.md`](../backend/worker.md#tool-sco
 for which job type gets which servers. `toolsets` also injects
 `MONGODB_READONLY_URI`, `MONGODB_DB` and (for `reference`) `REFERENCE_DIR`.
 
-> **`MONGODB_READONLY_URI` is in neither `infra/docker-compose.yml` nor
-> `.env.example`**, yet `bid-docs`, `catalog-docs` and `catalog` refuse to start
-> without it. It works at runtime only because `WorkerLoop.loop()` derives it
-> from `MONGODB_URI` via `cbc.shared.mongo.readonly_uri()` and puts it in
-> `os.environ` before `toolsets.config_for` reads it. Anyone launching a server
-> straight from `.mcp.json` — interactive Claude Code, or
-> `python mcp-servers/main.py --selftest` — gets
-> `RuntimeError: MONGODB_READONLY_URI is required`, which is why those servers'
-> `_demo()` print `SKIPPED`.
+### The read-only credential
+
+`bid-docs`, `catalog-docs` and `catalog` refuse to start without
+`MONGODB_READONLY_URI`. It is resolved in two steps, and the order matters:
+
+1. **An explicit value always wins.** In production the read-only user is
+   provisioned by whoever owns the cluster and handed over as a secret.
+   `infra/docker-compose.yml` passes `MONGODB_READONLY_URI` through so it can be
+   set without editing the file; left empty, which is the default, it is
+   indistinguishable from unset.
+2. **Otherwise it is derived** by `cbc.shared.mongo.readonly_uri()` from
+   `MONGODB_URI`, against the user `ensure_readonly_user()` creates during the
+   API lifespan. `WorkerLoop.loop()` performs that derivation and puts the result
+   in `os.environ` before `toolsets.config_for` reads it — deliberately, so
+   `toolsets` stays free of the Mongo client and callers pass a resolved string
+   in via `READONLY_URI_OVERRIDE`.
+
+**A worker does this for itself. An interactive session does not.** Claude Code
+launches servers from `.mcp.json`, which passes only `PYTHONPATH`, so those three
+servers get the variable only if it is already exported. Without it they raise
+`RuntimeError: MONGODB_READONLY_URI is required` and their `_demo()` prints
+`SKIPPED` — which `mcp-servers/main.py --selftest` now reports rather than
+counting as a pass.
 
 ## The servers
 

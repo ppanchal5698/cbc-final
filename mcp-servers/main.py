@@ -39,14 +39,16 @@ def _has_demo(name: str) -> bool:
     return script.exists() and "def _demo(" in script.read_text(encoding="utf-8")
 
 
-def _run(name: str, flag: str) -> bool:
+def _run(name: str, flag: str) -> tuple[bool, bool]:
+    """(ok, skipped). A server that skips its demo exits 0 and proves nothing."""
     result = subprocess.run(
         [sys.executable, str(_server_script(name)), flag],
         capture_output=True,
         text=True,
     )
-    print((result.stdout or result.stderr).strip())
-    return result.returncode == 0
+    output = (result.stdout or result.stderr).strip()
+    print(output)
+    return result.returncode == 0, "SKIPPED" in output
 
 
 def selftest() -> int:
@@ -56,12 +58,38 @@ def selftest() -> int:
         print(f"FAILED: registered in .mcp.json but no server.py: {missing}")
         return 1
 
-    failures = [n for n in servers if not _run(n, "--selftest")]
-    failures += [f"{n} (demo)" for n in servers if _has_demo(n) and not _run(n, "--demo")]
+    failures = [n for n in servers if not _run(n, "--selftest")[0]]
+
+    skipped: list[str] = []
+    for name in servers:
+        if not _has_demo(name):
+            continue
+        ok, was_skipped = _run(name, "--demo")
+        if not ok:
+            failures.append(f"{name} (demo)")
+        elif was_skipped:
+            skipped.append(name)
 
     if failures:
         print(f"\nFAILED: {failures}")
         return 1
+
+    # A skipped demo exits 0, so it used to be counted as a pass and the summary
+    # claimed every server was checked. bid-docs, catalog and catalog-docs skip
+    # without a read-only credential, which is most of the time - so the line
+    # said "All 8 OK" while three of them had touched no data at all.
+    if skipped:
+        print(
+            f"\n{len(servers)} MCP servers start; {len(skipped)} demo(s) not run: "
+            f"{', '.join(skipped)}."
+        )
+        print(
+            "  Those read MongoDB with a credential that cannot write. Set "
+            "MONGODB_READONLY_URI, or start the stack so one can be derived, to "
+            "exercise them."
+        )
+        return 0
+
     print(f"\nAll {len(servers)} MCP servers OK.")
     return 0
 
