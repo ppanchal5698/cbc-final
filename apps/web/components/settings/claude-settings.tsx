@@ -10,7 +10,6 @@ import {
   HardDrives,
   Key,
   Lock,
-  Plugs,
   UserCircle,
   Warning,
 } from "@phosphor-icons/react/dist/ssr";
@@ -73,12 +72,6 @@ const MODES: {
     Icon: Cloud,
   },
   {
-    key: "gateway",
-    label: "Gateway / self-hosted",
-    blurb: "Any endpoint that speaks the Anthropic Messages API.",
-    Icon: Plugs,
-  },
-  {
     key: "ollama",
     label: "Ollama (local dev)",
     blurb: "Host-installed Ollama — local or :cloud models.",
@@ -93,11 +86,6 @@ const FIELD_LABELS: Record<string, { label: string; hint?: string; placeholder?:
     placeholder: "sk-ant-oat…",
   },
   apiKey: { label: "API key", placeholder: "sk-ant-api03-…" },
-  authToken: {
-    label: "Bearer token",
-    hint: "Sent as Authorization: Bearer — not as x-api-key.",
-    placeholder: "sk-…",
-  },
   bedrockApiKey: {
     label: "Bedrock API key",
     hint: "Optional. Leave empty on Fargate — the task role is used instead.",
@@ -466,18 +454,6 @@ export function ClaudeSettingsClient() {
                 configured model automatically.
               </p>
             </>
-          }
-        />
-      )}
-
-      {mode === "gateway" && (
-        <ModeNotice
-          summary="A gateway can front Ollama, NVIDIA NIM, or OpenRouter. Non-Claude models may degrade tool-call fidelity — verify extraction output against the drawing."
-          advanced={
-            <p>
-              Start the bundled gateway with{" "}
-              <code>docker compose --profile oss up -d litellm</code>.
-            </p>
           }
         />
       )}

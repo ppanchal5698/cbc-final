@@ -289,18 +289,29 @@ async def oauth_code(body: OAuthCode, actor: Actor) -> dict[str, Any]:
     await oauth_sessions().delete_one({"_id": body.session})
 
     token = match
+    document = {
+        "mode": provider.SUBSCRIPTION,
+        "oauthToken": secrets.encrypt(token),
+        "updatedAt": _now(),
+        "updatedBy": actor,
+    }
+    # Signing in is a provider switch, so it has to clear the provider being
+    # left. `$set` merges: without the `$unset` a Bedrock key and region stayed
+    # on the document, and without persist_env_file the .env file still said
+    # CLAUDE_CODE_USE_BEDROCK=1 afterwards. The saved-settings path does both;
+    # this one did neither, so a sign-in left the two disagreeing.
+    stale = {
+        field
+        for mode in provider.MODES
+        for field in provider.FIELDS[mode]
+        if field not in provider.FIELDS[provider.SUBSCRIPTION]
+    }
     await settings_collection().update_one(
         {"_id": DOC_ID},
-        {
-            "$set": {
-                "mode": provider.SUBSCRIPTION,
-                "oauthToken": secrets.encrypt(token),
-                "updatedAt": _now(),
-                "updatedBy": actor,
-            }
-        },
+        {"$set": document, "$unset": {field: "" for field in sorted(stale)}},
         upsert=True,
     )
+    await asyncio.to_thread(provider.persist_env_file, document)
     await audit.record(
         "settings.claude.oauth",
         actor,

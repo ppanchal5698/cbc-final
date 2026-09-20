@@ -25,10 +25,9 @@ from cbc.modules.ops.infrastructure import secrets
 SUBSCRIPTION = "subscription"
 ANTHROPIC_API = "anthropic_api"
 BEDROCK = "bedrock"
-GATEWAY = "gateway"
 OLLAMA = "ollama"
 
-MODES = (SUBSCRIPTION, ANTHROPIC_API, BEDROCK, GATEWAY, OLLAMA)
+MODES = (SUBSCRIPTION, ANTHROPIC_API, BEDROCK, OLLAMA)
 
 # Which stored field feeds which variable, and whether it holds a credential.
 FIELDS: dict[str, dict[str, tuple[str, bool]]] = {
@@ -45,11 +44,6 @@ FIELDS: dict[str, dict[str, tuple[str, bool]]] = {
         "bedrockApiKey": ("AWS_BEARER_TOKEN_BEDROCK", True),
         "model": ("ANTHROPIC_MODEL", False),
         "smallFastModel": ("ANTHROPIC_DEFAULT_HAIKU_MODEL", False),
-    },
-    GATEWAY: {
-        "baseUrl": ("ANTHROPIC_BASE_URL", False),
-        "authToken": ("ANTHROPIC_AUTH_TOKEN", True),
-        "model": ("ANTHROPIC_MODEL", False),
     },
     OLLAMA: {
         "baseUrl": ("ANTHROPIC_BASE_URL", False),
@@ -109,6 +103,38 @@ _INDIA_REGIONS = frozenset({"ap-south-1", "ap-south-2"})
 # config instead (see cbc_core/toolsets.py).
 WITHHELD = {"MONGODB_URI", "MONGODB_READONLY_URI", "MONGODB_READONLY_PASSWORD"}
 
+# What a mode cannot work without, named by the variable rather than the field
+# so the check sees a value wherever it came from - the form, `.env`, or the
+# process environment.
+#
+# Deliberately short. Bedrock is absent because the Fargate task role supplies
+# the credential and an empty key is the normal production case, and
+# subscription is absent because picking it is how you get to the sign-in
+# button - requiring the token first would make the mode unreachable.
+REQUIRED_ENV: dict[str, tuple[str, str]] = {
+    ANTHROPIC_API: ("ANTHROPIC_API_KEY", "an API key"),
+    OLLAMA: ("ANTHROPIC_MODEL", "a model"),
+}
+
+
+def missing_requirement(config: dict[str, Any] | None) -> str | None:
+    """The human-readable thing this provider still needs, or None.
+
+    Saving a provider that cannot run is worse than refusing the save: it
+    reports success and then fails on the first job, a long way from the screen
+    where it was set. `ollama` with no model was the live case - no model means
+    no alias pins, so every `model: sonnet` subagent resolved to an Anthropic
+    catalog id that Ollama cannot serve.
+    """
+    mode = resolve_mode(config)
+    requirement = REQUIRED_ENV.get(mode)
+    if requirement is None:
+        return None
+    variable, described = requirement
+    env, _ = build_env(config)
+    return None if env.get(variable) else described
+
+
 DEFAULT: dict[str, Any] = {"mode": SUBSCRIPTION}
 
 # Where a provider base URL may point.
@@ -165,10 +191,15 @@ def default_config() -> dict[str, Any]:
     return dict(DEFAULT)
 
 
+# Modes that no longer exist. A stored value naming one is treated as unset
+# rather than as a corrupt document: the operator picks again from the four that
+# remain, and nothing runs against a provider the code can no longer configure.
+RETIRED_MODES = frozenset({"cloudflare", "gateway"})
+
+
 def resolve_mode(config: dict[str, Any] | None) -> str:
     mode = (config or {}).get("mode") or SUBSCRIPTION
-    # Cloudflare was removed; treat any leftover settings as unset.
-    if mode == "cloudflare":
+    if mode in RETIRED_MODES:
         return SUBSCRIPTION
     return mode if mode in MODES else SUBSCRIPTION
 

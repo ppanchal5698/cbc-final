@@ -17,7 +17,6 @@ class ClaudeSettings(BaseModel):
     mode: str = Field(default=provider.SUBSCRIPTION)
     oauthToken: str | None = None
     apiKey: str | None = None
-    authToken: str | None = None
     bedrockApiKey: str | None = None
     baseUrl: str | None = None
     awsRegion: str | None = None

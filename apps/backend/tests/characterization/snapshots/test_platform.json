@@ -415,29 +415,6 @@
       "variable": "str"
      }
     },
-    "gateway": {
-     "authToken": {
-      "configured": "bool",
-      "locked": "bool",
-      "secret": "bool",
-      "value": "null",
-      "variable": "str"
-     },
-     "baseUrl": {
-      "configured": "bool",
-      "locked": "bool",
-      "secret": "bool",
-      "value": "null",
-      "variable": "str"
-     },
-     "model": {
-      "configured": "bool",
-      "locked": "bool",
-      "secret": "bool",
-      "value": "null",
-      "variable": "str"
-     }
-    },
     "ollama": {
      "baseUrl": {
       "configured": "bool",
@@ -1089,29 +1066,6 @@
       "variable": "str"
      },
      "smallFastModel": {
-      "configured": "bool",
-      "locked": "bool",
-      "secret": "bool",
-      "value": "null",
-      "variable": "str"
-     }
-    },
-    "gateway": {
-     "authToken": {
-      "configured": "bool",
-      "locked": "bool",
-      "secret": "bool",
-      "value": "null",
-      "variable": "str"
-     },
-     "baseUrl": {
-      "configured": "bool",
-      "locked": "bool",
-      "secret": "bool",
-      "value": "null",
-      "variable": "str"
-     },
-     "model": {
       "configured": "bool",
       "locked": "bool",
       "secret": "bool",

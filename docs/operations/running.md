@@ -30,7 +30,7 @@ keep the API and worker environments identical.
 | `web` | `apps/web` | `expose: 3000` | Next.js standalone |
 | `nginx` | `nginx:1.27-alpine` | **`80:80`, `443:443`** | the only published ports |
 | `certbot` | `certbot/certbot:v3.1.0` | — | renew loop |
-| `litellm` | `ghcr.io/berriai/litellm` | `expose: 4000` | profile `oss` |
+| `litellm` | `ghcr.io/berriai/litellm` | `expose: 4000` | profile `oss` — **no provider mode uses it since `gateway` was retired** |
 | `mineru` | `infra/mineru` | — | profile `gpu`, needs an NVIDIA device |
 | `parser` | worker image | none | profile `gpu`, `WORKER_DOMAIN=parsing` |
 | `tunnel` | `cloudflared` | — | optional public URL |
@@ -103,7 +103,8 @@ docker compose -p cbc-final -f infra/docker-compose.yml ps
 CI sets `COMPOSE_PROJECT_NAME=cbc-final` for the same reason.
 
 Two profiles keep optional weight out of a default `up`: `oss` (the LiteLLM
-gateway, for running against Ollama or OpenRouter) and `gpu` (MinerU plus a
+gateway — reachable, but nothing routes to it now that the `gateway` provider
+mode is gone; Ollama talks to its own daemon directly) and `gpu` (MinerU plus a
 dedicated parsing worker).
 
 Networks: `default` (named `cbc-final`) and `llm` (named `cbc-final-llm`,

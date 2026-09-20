@@ -533,7 +533,7 @@ export interface ProviderField {
 }
 
 export interface ClaudeSettings {
-  mode: "subscription" | "anthropic_api" | "bedrock" | "gateway" | "ollama";
+  mode: "subscription" | "anthropic_api" | "bedrock" | "ollama";
   modes: string[];
   fields: Record<string, ProviderField>;
   /** Field shape for every mode, so an unsaved provider still renders a form. */

@@ -145,8 +145,8 @@ on_provider, needs_catalog, wave)`, for the reasoning jobs:
    deploy.
 2. `provider.build_env(config)` and `provider.describe(config)`;
    `provider.supports_subagents(config)` decides whether the prompt gets the
-   delegation rule. Five provider modes: `subscription`, `anthropic_api`,
-   `bedrock`, `gateway`, `ollama`.
+   delegation rule. Four provider modes: `subscription`, `anthropic_api`,
+   `bedrock`, `ollama` — see [provider switching](#provider-switching).
 3. `prompts.build(job, project, delegates=delegates)`.
 4. If `needs_catalog` and `readonly_uri()` is falsy, the job finishes
    immediately with `error_code="catalog_unavailable"` rather than running and
@@ -168,6 +168,45 @@ on_provider, needs_catalog, wave)`, for the reasoning jobs:
 `claude_cli._interpret` classifies stderr into permanent versus retryable — a
 missing CLI binary or a Bedrock foundation-id refusal is permanent and must not
 burn three attempts.
+
+### Provider switching
+
+Four modes, and `apps/backend/src/cbc/modules/ops/api/provider.py` is the only
+place a stored choice becomes an environment. The variables are not
+interchangeable — the wrong one fails as a 401 rather than as anything
+descriptive:
+
+| Mode | Credential | Notes |
+|---|---|---|
+| `subscription` | `CLAUDE_CODE_OAUTH_TOKEN` | browser sign-in, local development |
+| `anthropic_api` | `ANTHROPIC_API_KEY` (`x-api-key`) | requires a key |
+| `bedrock` | `AWS_BEARER_TOKEN_BEDROCK`, or the task role | no key needed on Fargate |
+| `ollama` | none — a dummy bearer only | requires a model; no subagents |
+
+Three rules make a switch clean, and each exists because it once did not:
+
+- **`build_env` starts from the process environment minus `MANAGED`**, so a
+  credential from the mode you left cannot survive into the one you picked.
+- **Saving scopes the document to the chosen mode.** `model`, `smallFastModel`
+  and `baseUrl` appear in more than one mode, so a blank field is only carried
+  forward when the mode is unchanged — otherwise a Bedrock inference-profile id
+  arrived as an Ollama model name. Fields belonging to the mode being left are
+  `$unset` rather than left to accumulate.
+- **Signing in is a switch too.** The OAuth path clears the previous mode's
+  fields and rewrites `.env`, which it previously did not — so a sign-in used to
+  leave the document saying `subscription` while `.env` still said
+  `CLAUDE_CODE_USE_BEDROCK=1`.
+
+A mode that cannot run is refused at save time by
+`provider.missing_requirement`, rather than reporting success and failing on the
+first job. Only two things are required: an API key for `anthropic_api`, and a
+model for `ollama`. Bedrock is exempt because the Fargate task role is the
+normal production path, and subscription is exempt because choosing it is how
+you reach the sign-in button.
+
+`gateway` and `cloudflare` are retired. `provider.RETIRED_MODES` resolves a
+stored value naming either to `subscription`, and `claude_config.load_config`
+rewrites the document so the dead credential does not sit encrypted for ever.
 
 ### Waves
 

@@ -212,7 +212,7 @@ def test_claude_settings(client, snapshots) -> None:
     snapshots.pin("GET /api/settings/claude", client.get("/api/settings/claude"))
     op = "PUT /api/settings/claude"
     snapshots.pin(op, client.put("/api/settings/claude", json={"mode": "subscription"}))
-    snapshots.pin(op, client.put("/api/settings/claude", json={"mode": "gateway", "baseUrl": "http://example.com"}), variant="placeholder base url")
+    snapshots.pin(op, client.put("/api/settings/claude", json={"mode": "anthropic_api", "baseUrl": "http://example.com"}), variant="placeholder base url")
 
 
 def test_claude_connection_test(client, snapshots, monkeypatch) -> None:

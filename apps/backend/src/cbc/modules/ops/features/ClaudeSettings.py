@@ -70,24 +70,52 @@ async def save_claude_settings(
     document: dict[str, Any] = {"mode": body.mode}
     changed: list[str] = []
 
+    # Several modes name a field the same thing - `model`, `smallFastModel` and
+    # `baseUrl` all appear in more than one - so "keep what is stored" is only
+    # meaningful while the mode is unchanged. Across a switch the stored value
+    # belongs to a different provider, and carrying it over put a Bedrock
+    # inference-profile id in as an Ollama model name: a switch that looked
+    # clean and then failed on the first job.
+    same_mode = body.mode == current.get("mode")
+
     for field, (_, is_secret) in provider.FIELDS[body.mode].items():
         value = incoming.get(field)
         if value is None or (is_secret and is_masked(value)):
             # The screen sent its own mask back, which means "leave this alone".
-            document[field] = current.get(field)
+            document[field] = current.get(field) if same_mode else None
             continue
         document[field] = secrets.encrypt(value) if is_secret else value
         if document[field] != current.get(field):
             changed.append(field)
 
+    # Fields belonging to the mode being left. $set merges, so without this they
+    # stay on the document for ever - the doc accumulated awsRegion and
+    # bedrockApiKey long after Bedrock had been switched away from.
+    stale = {
+        field
+        for mode in provider.MODES
+        for field in provider.FIELDS[mode]
+        if field not in provider.FIELDS[body.mode]
+    }
+
     _validate_provider_urls(body)
+
+    if (needed := provider.missing_requirement(document)) is not None:
+        raise HTTPException(
+            400,
+            f"{body.mode} needs {needed}. Saving it without one reports success "
+            "and then fails on the first job.",
+        )
 
     if body.mode != current.get("mode"):
         changed.append("mode")
 
     document["updatedAt"] = _now()
     document["updatedBy"] = actor
-    await settings_collection().update_one({"_id": DOC_ID}, {"$set": document}, upsert=True)
+    update: dict[str, Any] = {"$set": document}
+    if stale:
+        update["$unset"] = {field: "" for field in sorted(stale)}
+    await settings_collection().update_one({"_id": DOC_ID}, update, upsert=True)
     await asyncio.to_thread(provider.persist_env_file, document)
 
     # Field names only. The values are exactly what must never reach the trail.
