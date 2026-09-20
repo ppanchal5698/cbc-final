@@ -346,9 +346,19 @@ export function ClaudeSettingsClient() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ session: session.session, code: code.trim() }),
     });
+    // Whether the body was JSON at all. A proxy between the browser and the API
+    // can answer for it: a Cloudflare tunnel replaces a 5xx body with its own
+    // HTML page, so `.json()` throws, `detail` is empty, and every distinct
+    // failure collapsed into the generic message below. The real error was
+    // invisible - the API had said exactly what was wrong and nothing survived
+    // to show it.
+    let parsed = true;
     const body: { detail?: string | OauthCodeError } = await response
       .json()
-      .catch(() => ({}) as { detail?: string | OauthCodeError });
+      .catch(() => {
+        parsed = false;
+        return {} as { detail?: string | OauthCodeError };
+      });
     if (!response.ok) {
       // A rejected code makes the CLI start a fresh authorization, so the link
       // on screen is already dead. Swap it for the new one rather than leaving
@@ -359,8 +369,15 @@ export function ClaudeSettingsClient() {
         setSignIn({ session: session.session, url: structured.url });
         setCode("");
       }
-      toast.error(structured.message || "That code was not accepted", {
-        description: structured.hint,
+      const fallback = parsed
+        ? "That code was not accepted"
+        : `The sign-in failed with ${response.status}, and something between this page and the API replaced the explanation.`;
+      toast.error(structured.message || fallback, {
+        description:
+          structured.hint ??
+          (parsed
+            ? undefined
+            : "Try again over the local address rather than a tunnel - the API's own message will come through."),
       });
       return;
     }
