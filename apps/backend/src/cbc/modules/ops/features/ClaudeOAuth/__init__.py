@@ -27,8 +27,8 @@ from cbc.modules.ops.features.ClaudeOAuth.terminal import (
     _DONE_PATTERN,
     _OAUTH_ERROR,
     _PROMPT_PATTERN,
-    _TOKEN_PATTERN,
     _clean,
+    _token_candidates,
     _read_until,
 )
 from cbc.modules.ops.infrastructure.claude_config import DOC_ID, load_config
@@ -233,7 +233,11 @@ async def oauth_code(body: OAuthCode, actor: Actor) -> dict[str, Any]:
     # character short and rejected as an invalid bearer token, with nothing in the
     # UI to suggest anything but a bad credential. The complete rendering is the
     # longest one, and the only way to be sure is to make Claude Code use it.
-    candidates = sorted(set(_TOKEN_PATTERN.findall(readable)), key=len, reverse=True)
+    # Read from the raw output, not from `readable`. Stripping escapes is what
+    # damages a token: a bare `ESC [` in front of a letter takes the letter with
+    # it, which is how a 108-character sk-ant-oat01-… arrived as a
+    # 107-character sk-ant-at01-… and was refused as "not logged in".
+    candidates = _token_candidates(output)
     match = await _first_working_token(candidates)
     if not match:
         failure = _OAUTH_ERROR.search(readable)

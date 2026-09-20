@@ -151,3 +151,36 @@ def test_the_complete_rendering_of_the_token_is_the_one_chosen():
 
     chosen = sorted(set(found), key=len, reverse=True)[0]
     assert chosen == TOKEN
+
+
+def test_a_lone_damaged_rendering_is_repaired_not_trusted():
+    """The test above assumes a clean rendering is also on the buffer. Often it isn't.
+
+    A real sign-in reported `Tried 1 reading(s): 107 chars sk-ant-at01-…`, and
+    Claude Code answered "Not logged in - Please run /login". One reading, and it
+    was the damaged one: sorting by length has nothing better to choose. A token
+    whose prefix has been mangled is not recognised as a credential at all, which
+    is why the CLI said no credential rather than a bad one - and why this looked
+    for so long like a rejected authorization code.
+
+    The damage is `_ANSI`'s CSI branch: the parameters are optional, so a bare
+    `ESC [` in front of a letter claims that letter as its terminator and leaves
+    with it. Here it eats the `o` of `oat01`.
+    """
+    raw = f"Your OAuth token: sk-ant-\x1b[{TOKEN.removeprefix('sk-ant-')}\r\n"
+
+    damaged = settings_router._clean(raw)
+    assert "sk-ant-at01-" in damaged, "the lenient pass really does eat the character"
+    assert TOKEN not in damaged
+
+    candidates = settings_router._token_candidates(raw)
+    assert candidates, "something has to come back"
+    assert candidates[0] == TOKEN, f"expected the repaired token, got {candidates[0]!r}"
+
+
+def test_a_complete_rendering_still_wins_over_a_partial_one():
+    """Repairing must not cost the behaviour the older test pins."""
+    partial = TOKEN[:40]
+    raw = f"\x1b[2K{partial}\x1b[1G{TOKEN}\r\n"
+
+    assert settings_router._token_candidates(raw)[0] == TOKEN
