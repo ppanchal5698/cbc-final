@@ -210,6 +210,18 @@ services:
       INTERNAL_AUTH: ${INTERNAL_AUTH:-jwt}
       INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET:-cbc-local-dev-key-change-me}
       APP_ENV: ${APP_ENV:-development}
+      # NextAuth v5 builds every redirect from this. Without it the standalone
+      # server falls back to its own bind address and signing out lands on
+      # http://0.0.0.0:3000 - a dead page. `trustHost: true` is set in auth.ts
+      # and nginx forwards Host and X-Forwarded-Host, but neither is consulted
+      # for the base: verified by posting a signout with a valid CSRF token and
+      # an explicit callbackUrl, which came back as 0.0.0.0:3000 until this was
+      # set.
+      #
+      # It pins ONE origin. Reaching the app by LAN address or Cloudflare
+      # tunnel still works, but a sign-out from there redirects here, so set
+      # this to whichever origin people actually use.
+      AUTH_URL: ${AUTH_URL:-http://localhost}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-}
       AUTH_SECRET: ${AUTH_SECRET:-cbc-opshub-local-dev-secret-change-in-production}
       AUTH_TRUST_HOST: "true"

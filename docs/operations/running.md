@@ -153,6 +153,7 @@ credentials:
 | `MALWARE_SCAN` | `clamd` | upload scanning |
 | `STORAGE_BACKEND` | `local` | or `s3` |
 | `MAX_UPLOAD_MB` | 200 | matched by nginx `client_max_body_size` and Next's `proxyClientMaxBodySize` |
+| `AUTH_URL` | `http://localhost` | the origin NextAuth builds redirects from — **pins one origin**, see below |
 
 `INTERNAL_AUTH` differing by layer is intentional — `token` is for local pytest,
 `jwt` for anything with a network between the tiers — but it is easy to trip
@@ -164,6 +165,25 @@ rotated without downtime.
 which case it is derived from `MONGODB_URI`. Set it when the cluster owner
 provisions the read-only user instead — an explicit value always wins. See
 [`../mcp/servers.md`](../mcp/servers.md#the-read-only-credential).
+
+### Signing out redirects to `AUTH_URL`
+
+NextAuth v5 builds every redirect from a single base URL. Without `AUTH_URL` the
+standalone server falls back to its own bind address, and signing out lands on
+`http://0.0.0.0:3000` — a dead page. `trustHost: true` is set in
+`apps/web/auth.ts` and nginx forwards both `Host` and `X-Forwarded-Host`, but
+neither is consulted for the base: posting a sign-out with a valid CSRF token
+and an explicit `callbackUrl` still came back as `0.0.0.0:3000` until `AUTH_URL`
+was set.
+
+It pins **one** origin. The app is reachable on all three paths regardless —
+localhost, the LAN address and the tunnel all serve and sign in — but a
+*sign-out* redirects to whatever `AUTH_URL` says. Set it to the origin people
+actually use:
+
+```
+AUTH_URL=https://<your-tunnel-or-domain>
+```
 
 ## The project directory
 
