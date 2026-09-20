@@ -100,13 +100,36 @@ def _ocr_assist(
     return clipped or None, True, None
 
 
-def _rel_image_path(image_path: str) -> str:
-    """Prefer a repo-relative path for prompts when the file is under the repo."""
+def _visual_image_dir(slug: str) -> Path:
+    """Where a pre-rendered vision page is written: inside the project.
+
+    It used to go to the shared render cache and be recorded relative to the
+    repository root. Claude never runs there. Each job clones the project into
+    `_scratch/{job}/workspace` and runs with its cwd on that clone, so a
+    repo-relative `.cache/pdf-pages/x.png` resolves under the workspace, where
+    nothing was ever copied - every mandatory visual `Read` failed and the agent
+    fell back to re-rendering, which is the escape hatch, not the path. In
+    docker-sandbox mode it is worse: the cache is not mounted at all and the
+    container is read-only, so the fallback cannot work either.
+
+    `extracted/` is where extraction output belongs and it is cloned with the
+    project, so the same path resolves in both modes.
+    """
+    return storage_root() / slug / "extracted" / "_visual_pages"
+
+
+def _project_image_path(image_path: str) -> str:
+    """The rendered page as Claude addresses it: `projects/{slug}/...`.
+
+    The same spelling `path` already uses on every row, and the one
+    `_resolve_pdf` reverses.
+    """
     path = Path(image_path)
     try:
-        return str(path.resolve().relative_to(ROOT.resolve())).replace("\\", "/")
+        inside = path.resolve().relative_to(storage_root().resolve())
     except ValueError:
         return str(path).replace("\\", "/")
+    return f"projects/{inside.as_posix()}"
 
 
 def apply_mineru_signals(
@@ -208,8 +231,10 @@ def build_visual_pages(
             rendered.append(entry)
             continue
         try:
-            hit = pdfpages.page_image(pdf, source_page, dpi=VISUAL_DPI)
-            entry["image_path"] = _rel_image_path(hit["image_path"])
+            hit = pdfpages.page_image(
+                pdf, source_page, dpi=VISUAL_DPI, out_dir=_visual_image_dir(slug)
+            )
+            entry["image_path"] = _project_image_path(hit["image_path"])
             entry["dpi"] = hit.get("dpi")
         except Exception as exc:
             log.warning("visual page render failed %s p%s: %s", path, source_page, exc)
@@ -286,7 +311,15 @@ def load_visual_pages(slug: str) -> dict[str, Any] | None:
 # Roles / reasons that gate door_schedule.json visual_pages_checked.
 # Bare "hardware" / "frp" / "finish" are specialist pages — not this checklist.
 DOOR_SCHEDULE_VISUAL_ROLES = frozenset({"door_schedule", "door_schedule_candidate"})
-DOOR_SCHEDULE_VISUAL_REASONS = frozenset({"door_schedule_candidate", "pretakeoff_empty"})
+# `pretakeoff_empty` is not on this list, though it reads like it belongs. It is
+# stamped on *every* forced page when the take-off seeded nothing, so it says the
+# run found no openings - not that this sheet is door-schedule work. With it in,
+# an FRP / finish sheet joined the door-schedule checklist on the strength of an
+# empty take-off, and the block handed to Claude listed a page directly under the
+# sentence telling it FRP and finish pages are not on the checklist. A genuine
+# schedule page never needs it: `_schedule_force_pages` only forces pages that
+# already carry a door-schedule role or the candidate reason.
+DOOR_SCHEDULE_VISUAL_REASONS = frozenset({"door_schedule_candidate"})
 
 
 def is_door_schedule_visual_page(page: dict[str, Any]) -> bool:

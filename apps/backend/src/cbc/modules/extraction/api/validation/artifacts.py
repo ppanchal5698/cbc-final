@@ -494,7 +494,7 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
                 f"{project}: door_schedule.json is missing visual_pages_checked "
                 f"coverage for mandatory vision page(s) {missing}. Read each "
                 "`_visual_pages.json` image and record "
-                "{{path, source_page, image_path, finding}} before save / no_scope."
+                "{path, source_page, image_path, finding} before save / no_scope."
             )
 
     for opening in openings:

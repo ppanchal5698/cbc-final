@@ -430,3 +430,100 @@ def test_bbox_falls_back_to_row_bbox(project_root) -> None:
     )
     problems, _ = artifacts.check_extraction(slug)
     assert not any("no valid bbox" in p for p in problems), problems
+
+
+def test_the_rendered_page_resolves_from_the_workspace_claude_runs_in(
+    project_root, monkeypatch
+) -> None:
+    """`image_path` is read by an agent whose cwd is a clone, not the repo root.
+
+    Each job copies `projects/{slug}` into `_scratch/{job}/workspace` and runs
+    Claude with its cwd there. The manifest used to record the render cache
+    relative to the repository root - `.cache/pdf-pages/x.png` - which from that
+    cwd points inside the workspace, where nothing was ever copied. A real run
+    failed the `Read` on every mandatory vision page, fell back to re-rendering
+    each one, and the take-off it eventually saved recorded no coverage at all.
+
+    Asserting the string is non-empty is what let that through, so this resolves
+    it the way the agent does.
+    """
+    slug = "vis_workspace"
+    raw = project_root / "projects" / slug / "uploads" / "raw"
+    _tiny_pdf(raw / "set.pdf", text="title")
+    extracted = project_root / "projects" / slug / "extracted"
+    extracted.mkdir(parents=True, exist_ok=True)
+    path = f"projects/{slug}/uploads/raw/set.pdf"
+    (extracted / "_sheetmap.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "t0",
+                "files": [
+                    {
+                        "path": path,
+                        "file_sha": "x",
+                        "page_count": 1,
+                        "schedule_pages": [],
+                        "door_schedule_candidate_pages": [1],
+                        "needs_visual_read_pages": [1],
+                        "pages": [
+                            {
+                                "source_page": 1,
+                                "roles": ["door_schedule_candidate", "text_poor"],
+                                "char_count": 10,
+                                "text_poor": True,
+                                "has_text_layer": False,
+                                "needs_visual_read": True,
+                                "visual_reasons": ["text_poor", "door_schedule_candidate"],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        sheetmap,
+        "build_sheetmap",
+        lambda s, force=False: json.loads(
+            (project_root / "projects" / s / "extracted" / "_sheetmap.json").read_text(
+                encoding="utf-8"
+            )
+        ),
+    )
+
+    payload = visual_pages.build_visual_pages(slug, openings_seeded=0)
+    image_path = payload["pages"][0]["image_path"]
+    assert image_path, "a page that rendered must say where it landed"
+
+    # What the worker does before Claude starts: clone the project into a
+    # workspace and run with the cwd on it.
+    import shutil
+
+    workspace = project_root / "_scratch" / "job1" / "workspace"
+    (workspace / "projects").mkdir(parents=True)
+    shutil.copytree(project_root / "projects" / slug, workspace / "projects" / slug)
+
+    assert (workspace / image_path).is_file(), (
+        f"{image_path!r} does not resolve from the workspace Claude runs in"
+    )
+
+
+def test_an_empty_takeoff_does_not_put_frp_sheets_on_the_door_checklist() -> None:
+    """`pretakeoff_empty` says the run found nothing, not that this is door work.
+
+    It is stamped on every forced page when the take-off seeded zero openings,
+    so gating on it pulled FRP and finish sheets onto the door-schedule
+    checklist. The block handed to Claude then listed such a page immediately
+    below the sentence saying FRP and finish pages are not on the checklist, and
+    the validator failed the artifact for not covering it.
+    """
+    frp_sheet = {"roles": ["finish", "frp"], "reasons": ["pretakeoff_empty", "frp"]}
+    assert not visual_pages.is_door_schedule_visual_page(frp_sheet)
+
+    # A real schedule page never rests on that reason - it is forced by its own
+    # role or by the candidate reason, both of which still gate.
+    by_role = {"roles": ["door_schedule"], "reasons": ["pretakeoff_empty"]}
+    by_reason = {"roles": ["hardware"], "reasons": ["door_schedule_candidate"]}
+    assert visual_pages.is_door_schedule_visual_page(by_role)
+    assert visual_pages.is_door_schedule_visual_page(by_reason)
