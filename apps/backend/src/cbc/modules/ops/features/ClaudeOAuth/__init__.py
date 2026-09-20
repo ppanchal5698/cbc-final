@@ -239,13 +239,23 @@ async def oauth_code(body: OAuthCode, actor: Actor) -> dict[str, Any]:
         failure = _OAUTH_ERROR.search(readable)
         if candidates and not failure:
             _close(body.session)
+            # Say what was extracted. A token is scraped out of a redrawing
+            # terminal, and a rendering split or overwritten mid-token yields a
+            # truncated candidate that is rejected for being wrong rather than
+            # for being unauthorised - indistinguishable from a bad credential
+            # unless the shapes are shown. Lengths and ends only; never the body.
+            shapes = ", ".join(
+                f"{len(c)} chars {c[:12]}…{c[-4:]}" for c in candidates[:4]
+            )
             raise HTTPException(
                 502,
                 {
                     "message": "The CLI issued a token but Claude Code would not "
                     "accept it. It has to be generated again - the CLI shows it only "
                     "once.",
-                    "hint": "Start the sign-in again.",
+                    "hint": f"Tried {len(candidates)} reading(s): {shapes}. "
+                    f"Claude Code said: {_LAST_VERIFY_ERROR['reason']!r}. "
+                    "Start the sign-in again.",
                 },
             )
 
@@ -324,6 +334,12 @@ async def oauth_code(body: OAuthCode, actor: Actor) -> dict[str, Any]:
     return {**provider.public_config(saved), "signedIn": True}
 
 
+# Why the last candidate was refused. Set by `_first_working_token` so the
+# failure can say whether the token was rejected as unauthorised - meaning it
+# was scraped wrong - or whether the check itself never got an answer.
+_LAST_VERIFY_ERROR: dict[str, str | None] = {"reason": None}
+
+
 async def _first_working_token(candidates: list[str]) -> str | None:
     """Return the first candidate Claude Code actually accepts, or None.
 
@@ -333,8 +349,11 @@ async def _first_working_token(candidates: list[str]) -> str | None:
     """
     from cbc.modules.ops.api import claude_cli as runner
 
+    _LAST_VERIFY_ERROR["reason"] = None
     for candidate in candidates:
         env, _ = provider.build_env({"mode": provider.SUBSCRIPTION, "oauthToken": candidate})
-        if await asyncio.to_thread(runner.preflight, env, [candidate]) is None:
+        problem = await asyncio.to_thread(runner.preflight, env, [candidate])
+        if problem is None:
             return candidate
+        _LAST_VERIFY_ERROR["reason"] = problem
     return None
