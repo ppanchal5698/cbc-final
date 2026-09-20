@@ -116,11 +116,8 @@ because each is separate work.
 
 | What | Where |
 |---|---|
-| `.env.example` does not mention `MONGODB_READONLY_URI`; compose, the MCP README and the docs now do | `.env.example` |
 | `test_the_read_only_uri_authenticates_where_the_user_was_made` passes alone and fails after the ops suite — something there leaves `settings.mongodb_db` pointing at its own database. Order-dependent, so the full suite happens to pass | `apps/backend/tests/modules/catalog/test_pageindex_describe.py:187` |
 | `permissions.allow` ends with `"*"`, making every preceding entry decorative; only `deny` and the hooks bite | `.claude/settings.json` |
-| The `rm -rf` allow-rule matches `projects/` but projects live at `data/projects/`, so cleaning up inside a real project directory is blocked | `.claude/hooks/pre_delete_guard.py` |
-| `_check_inline_python` resolves only **literal** paths, so a write through a variable (`p = Path(rel); p.write_text(...)`) reaches a protected directory that the same write as a `Write` tool call would be blocked from | `.claude/hooks/pre_delete_guard.py` |
 | The workflow tells `delivery-agent` to export the PDF; the agent definition says not to, and the agent definition won | `workflows/phase6_deliver.sh` |
 | `components/shell/stage-panel.tsx` has no importers; 13 of 22 `components/ui/*` are unused | `apps/web` |
 | Board status is derived in three places that can disagree | `lib/board.ts`, `components/bids/board-groups.tsx:40`, `app/(app)/dashboard/page.tsx:39` |

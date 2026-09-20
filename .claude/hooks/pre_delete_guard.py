@@ -131,7 +131,18 @@ def _python_tokens(command: str) -> list[str]:
 
 
 def _is_inline_python_prefix(prefix: str) -> bool:
-    """True when this is `python`/`python3` with no .py script argument."""
+    """True when this is `python`/`python3` with no .py script argument.
+
+    Only the last command in the prefix counts. In `cd repo && python - <<'PY'`
+    the heredoc belongs to `python`, not to `cd` - but this read the whole prefix
+    as one command, saw `cd`, and returned False. Every chained invocation
+    therefore skipped the inline-python checks completely, which is how a write
+    into `.claude/` got through: not because the path sat in a variable, but
+    because the body was never examined at all. A bare `python - <<'PY'` was
+    blocked the whole time, so the hole only opened once someone wrote the `cd`
+    that nearly everyone writes.
+    """
+    prefix = _SEGMENT_SPLIT.split(prefix)[-1]
     tokens = _python_tokens(prefix)
     if not tokens or Path(tokens[0]).name not in _PYTHON:
         return False
@@ -410,14 +421,44 @@ def _is_recursive_force_rm(segment: str) -> tuple[bool, str]:
     return recursive and force, (name + " " + " ".join(flags)).strip()
 
 
+def _projects_roots() -> tuple[Path, ...]:
+    """Where a bid's working files may live, same precedence as storage_root().
+
+    This asked only about `<repo>/projects`, which has not existed since projects
+    moved under `data/`. So `rm -rf data/projects/<bid>/uploads/processed` - a
+    delete the file-safety rule explicitly permits - came back as "outside
+    project scope", and the only way to tidy a project directory was to turn the
+    guard off.
+
+    `<repo>/projects` stays in the list: a sandboxed run is handed its own clone
+    through CBC_PROJECTS_ROOT and may still use that name.
+    """
+    roots = []
+    for var in ("CBC_PROJECTS_ROOT", "STORAGE_ROOT"):
+        value = os.environ.get(var)
+        if value:
+            roots.append(Path(value))
+    roots.append(PROJECT_ROOT / "data" / "projects")
+    roots.append(PROJECT_ROOT / "projects")
+    resolved = []
+    for root in roots:
+        try:
+            resolved.append(root.resolve())
+        except (OSError, ValueError):
+            continue
+    return tuple(resolved)
+
+
 def _under_projects(path: str) -> bool:
-    """True when the path resolves inside this project's own projects/ tree."""
+    """True when the path resolves inside a projects tree this run owns."""
     try:
         resolved = Path(path).resolve()
     except (OSError, ValueError):
         return False
-    workspaces = (PROJECT_ROOT / "projects").resolve()
-    return resolved == workspaces or workspaces in resolved.parents
+    return any(
+        resolved == workspaces or workspaces in resolved.parents
+        for workspaces in _projects_roots()
+    )
 
 
 # Checkpoint artifacts must go through save_artifact (schema + versioning).
