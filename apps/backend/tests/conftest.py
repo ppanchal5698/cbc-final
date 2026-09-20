@@ -60,6 +60,35 @@ def isolate_dotenv(tmp_path, monkeypatch):
     monkeypatch.setenv("CBC_ENV_FILE", str(tmp_path / ".env"))
 
 
+@pytest.fixture(autouse=True)
+def isolate_mongo_target():
+    """Put the database name and the read-only URI back after every test.
+
+    Both are process-global and both are written by ordinary code paths, not
+    only by fixtures: `WorkerLoop.loop` assigns `MONGODB_READONLY_URI` into
+    `os.environ` so `toolsets.config_for` can read it, and every suite that
+    wants its own database assigns `settings.mongodb_db`. A single escape
+    reaches every later test in the process.
+
+    It had already produced one: `test_the_read_only_uri_authenticates_where_
+    the_user_was_made` passed alone and failed after the ops suite, comparing a
+    database name leaked by one module against a URI derived under another.
+    Ordering decided the result, so the full suite happened to stay green.
+    """
+    from cbc.shared.config import settings
+
+    previous_db = settings.mongodb_db
+    previous_uri = os.environ.get("MONGODB_READONLY_URI")
+    try:
+        yield
+    finally:
+        settings.mongodb_db = previous_db
+        if previous_uri is None:
+            os.environ.pop("MONGODB_READONLY_URI", None)
+        else:
+            os.environ["MONGODB_READONLY_URI"] = previous_uri
+
+
 @pytest.fixture(scope="session")
 def root() -> Path:
     return ROOT

@@ -109,17 +109,19 @@ from a guessed constant is a wrong number that looks right.
 
 ---
 
-## Known defects
+## Decisions, not defects
 
-Found during the September 2026 documentation pass. Recorded rather than fixed,
-because each is separate work.
+The September 2026 pass recorded a list of defects here. They have been worked
+through; what remains are deliberate choices, kept written down so the next
+person does not re-file them as bugs.
 
-| What | Where |
+| What | Why it stays |
 |---|---|
-| `test_the_read_only_uri_authenticates_where_the_user_was_made` passes alone and fails after the ops suite — something there leaves `settings.mongodb_db` pointing at its own database. Order-dependent, so the full suite happens to pass | `apps/backend/tests/modules/catalog/test_pageindex_describe.py:187` |
-| `permissions.allow` ends with `"*"`, making every preceding entry decorative; only `deny` and the hooks bite | `.claude/settings.json` |
-| The workflow tells `delivery-agent` to export the PDF; the agent definition says not to, and the agent definition won | `workflows/phase6_deliver.sh` |
-| `components/shell/stage-panel.tsx` has no importers; 13 of 22 `components/ui/*` are unused | `apps/web` |
-| Board status is derived in three places that can disagree | `lib/board.ts`, `components/bids/board-groups.tsx:40`, `app/(app)/dashboard/page.tsx:39` |
-| `intake` imports `quoting`, putting it at the top of the dependency graph; the edge may be vestigial via a retired job type | `intake/features/RunFullPipeline.py:16` |
-| ~40 leftover `e2e_*` fixture projects from CI runs | `data/projects/` |
+| `permissions.allow` ends with `"*"`, which makes the 15 entries above it decorative — the deny list and the hooks are the real control | Reviewed 2026-09-20 and kept. Removing the wildcard makes every unlisted tool prompt, which is a workflow choice rather than a safety one: workers skip prompts entirely and the hooks fire either way |
+| 13 of the 22 files in `apps/web/components/ui/` have no importers | They are a primitive kit hand-adapted to `@base-ui/react`, not stock shadcn, so `npx shadcn add` would not bring them back. Unused files are not bundled, so the cost is reading them, not shipping them |
+
+Two entries that were on this list turned out not to be defects at all:
+`intake` importing `quoting` is deliberate and documented in the code (see
+[`backend/modules.md`](backend/modules.md#the-dependency-graph)), and the three
+board-status functions answer three different questions rather than duplicating
+one (see [`frontend/routes.md`](frontend/routes.md#domain-logic-in-the-client)).
