@@ -195,8 +195,14 @@ export function LogEntryRow({ entry }: { entry: LogEntry }) {
         ) : null}
 
         {entry.kind === "rate_limit" ? (
-          <div className="text-[13px] font-bold text-status-warning">
-            rate limit: {entry.subtype}
+          <div
+            className={
+              entry.status === "allowed"
+                ? "text-[13px] text-tx-muted"
+                : "text-[13px] font-bold text-status-warning"
+            }
+          >
+            {entry.text}
           </div>
         ) : null}
 

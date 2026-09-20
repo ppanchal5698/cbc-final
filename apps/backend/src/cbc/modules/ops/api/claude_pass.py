@@ -396,6 +396,7 @@ async def run(
             result.output,
             permanent=result.permanent,
             error_code=result.error_code,
+            retry_at=result.retry_at,
         )
         await _record_runmetrics(
             job, recording, prompt, project, described, result.error_code

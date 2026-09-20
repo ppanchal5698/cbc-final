@@ -13,6 +13,7 @@ import shutil
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 import threading
@@ -89,6 +90,67 @@ class RunResult:
     # budget on them only delays the error the estimator needs to read.
     permanent: bool = False
     error_code: str | None = None
+    # When the provider said capacity comes back. A usage limit is a clock, not a
+    # defect: retrying on the queue's 30s/60s ladder just burns the attempt
+    # budget against a window that has hours left on it.
+    retry_at: datetime | None = None
+
+
+# `claude --output-format stream-json` emits one of these whenever the rate-limit
+# picture changes - most of them say `allowed` and are ordinary telemetry. The
+# shape is `{"type":"rate_limit_event","rate_limit_info":{...}}`, where the info
+# carries `status`, `rateLimitType` (five_hour, seven_day, ...), `utilization`
+# and `resetsAt`.
+
+# What the CLI prints when it actually stops for one. Every phrase here has to be
+# a stop, not a warning: the CLI also says "Approaching your 5-hour usage limit"
+# while it is working perfectly well, and matching that would fail healthy runs.
+_USAGE_LIMIT_MARKERS = (
+    "usage limit reached",
+    "reached your weekly usage limit",
+    "rate limit exceeded",
+    "rate_limit_error",
+)
+
+
+def _as_datetime(value: Any) -> datetime | None:
+    """`resetsAt` as a UTC datetime. Seconds or milliseconds, both seen."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0:
+        return None
+    seconds = float(value)
+    if seconds > 1e11:  # milliseconds
+        seconds /= 1000.0
+    try:
+        return datetime.fromtimestamp(seconds, tz=timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def rate_limit_reset(stdout: str) -> datetime | None:
+    """When the provider says capacity returns, from the last refusal it reported.
+
+    Only a `rejected` event counts. `allowed` and `allowed_warning` carry a
+    `resetsAt` too - it is when the *current* window rolls over, which says
+    nothing about whether this run was refused.
+    """
+    latest: datetime | None = None
+    for line in stdout.splitlines():
+        if '"rate_limit_event"' not in line:
+            continue
+        start, end = line.find("{"), line.rfind("}")
+        if start < 0 or end < start:
+            continue
+        try:
+            event = json.loads(line[start : end + 1])
+        except ValueError:
+            continue
+        info = event.get("rate_limit_info")
+        if not isinstance(info, dict) or info.get("status") != "rejected":
+            continue
+        when = _as_datetime(info.get("resetsAt"))
+        if when and (latest is None or when > latest):
+            latest = when
+    return latest
 
 
 def _settings_argv(settings: dict[str, Any] | None) -> list[str]:
@@ -388,6 +450,30 @@ def _interpret(
                 permanent=True,
                 error_code="auth_failed",
             )
+
+    # A usage limit is a clock, not a defect. The queue retries on 30s then 60s
+    # and dead-letters on the third attempt - under two minutes, against a
+    # five-hour subscription window. The provider already said when capacity
+    # comes back, so carry that up and let the queue wait for it.
+    #
+    # Ordinary `rate_limit_event`s say `allowed` and are just telemetry; only a
+    # `rejected` one yields a reset, so healthy runs never land here.
+    reset_at = rate_limit_reset(stdout)
+    stopped_for_a_limit = any(marker in lowered for marker in _USAGE_LIMIT_MARKERS)
+    if stopped_for_a_limit or (returncode != 0 and reset_at):
+        when = (
+            f" It resets at {reset_at.isoformat(timespec='minutes')}."
+            if reset_at
+            else ""
+        )
+        return RunResult(
+            ok=False,
+            output=output,
+            error=f"The provider's usage limit stopped this run.{when}",
+            returncode=returncode,
+            error_code="rate_limited",
+            retry_at=reset_at,
+        )
 
     if returncode != 0:
         detail = errors.strip() or output.strip() or f"claude exited {returncode}"

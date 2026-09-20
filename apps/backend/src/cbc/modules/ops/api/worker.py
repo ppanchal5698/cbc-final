@@ -44,6 +44,12 @@ HEARTBEAT_SECONDS = int(os.environ.get("WORKER_HEARTBEAT_SECONDS", "30"))
 # seconds burns its whole attempt budget in six.
 RETRY_BASE_SECONDS = int(os.environ.get("WORKER_RETRY_BASE_SECONDS", "30"))
 
+# How far out a provider's usage-limit reset may be and still be worth waiting
+# for. A five-hour subscription window fits; a weekly one does not. Past this the
+# job fails so the estimator sees it, rather than sitting queued for days with
+# nothing on screen - which is what the CLI does with its own waiting mode.
+RATE_LIMIT_MAX_WAIT_HOURS = int(os.environ.get("WORKER_RATE_LIMIT_MAX_WAIT_HOURS", "24"))
+
 
 # Identifies this process when claiming jobs. A stale reaper can hand the same
 # job to another worker; finish() only writes when workerId and claimGeneration
@@ -207,6 +213,27 @@ async def job_cancelled(job_id) -> bool:
     return bool(doc and doc.get("status") == "cancelled")
 
 
+def rate_limit_wait(retry_at: datetime | None) -> datetime | None:
+    """When to come back after a provider usage limit, or None to not wait.
+
+    A usage limit is a clock, not a defect, and the provider says exactly when
+    capacity returns - so this replaces the backoff ladder rather than adding to
+    it. The ladder runs 30s, then 60s, then dead-letters: under two minutes,
+    against a five-hour window.
+
+    Past `RATE_LIMIT_MAX_WAIT_HOURS` it is a weekly limit rather than a pause,
+    and the job fails instead. A bid sitting queued for days with nothing on
+    screen is worse than one that failed and said why - and it is what the CLI
+    does with its own waiting mode.
+    """
+    if retry_at is None:
+        return None
+    now = _now()
+    if retry_at - now > timedelta(hours=RATE_LIMIT_MAX_WAIT_HOURS):
+        return None
+    return max(retry_at, now)
+
+
 async def finish(
     job: dict,
     ok: bool,
@@ -215,6 +242,7 @@ async def finish(
     note: str = "",
     permanent: bool = False,
     error_code: str | None = None,
+    retry_at: datetime | None = None,
 ) -> None:
     current = await jobs_collection().find_one(
         {"_id": job["_id"]},
@@ -270,12 +298,19 @@ async def finish(
 
     attempts = job.get("attempts", 1)
     retryable = not ok and not permanent and attempts < MAX_ATTEMPTS
+    wait_until = rate_limit_wait(retry_at)
+    if retry_at and wait_until is None:
+        retryable = False  # the window reopens too far out to sit on the queue for
     if ok:
         status = "done"
     elif retryable:
         status = "queued"
     else:
         status = "dead"
+    backoff = RETRY_BASE_SECONDS * 2 ** max(attempts - 1, 0)
+    next_attempt = None
+    if retryable:
+        next_attempt = wait_until or _now() + timedelta(seconds=backoff)
 
     await jobs_collection().update_one(
         {
@@ -291,11 +326,7 @@ async def finish(
                     "log": (output or "")[-8000:],
                 "note": note or None,
                 "heartbeatAt": None,
-                "nextAttemptAt": (
-                    _now() + timedelta(seconds=RETRY_BASE_SECONDS * 2 ** max(attempts - 1, 0))
-                    if retryable
-                    else None
-                ),
+                "nextAttemptAt": next_attempt,
                 "finishedAt": None if retryable else _now(),
             }
         },
@@ -320,9 +351,13 @@ async def finish(
     )
     if retryable:
         entry.warning(
-            "job %s failed, retrying in %ss (attempt %s): %s",
+            "job %s failed, retrying %s (attempt %s): %s",
             job["type"],
-            RETRY_BASE_SECONDS * 2 ** max(attempts - 1, 0),
+            (
+                f"at {next_attempt.isoformat(timespec='minutes')} (provider usage limit)"
+                if wait_until
+                else f"in {backoff}s"
+            ),
             attempts,
             error,
         )
