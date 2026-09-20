@@ -354,7 +354,23 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: cbc-final-tunnel
     restart: unless-stopped
-    command: tunnel --no-autoupdate --url http://nginx:80
+    # Default is a *quick* tunnel: no account, a random trycloudflare.com
+    # hostname, and - in cloudflared's own words on the first line of its log -
+    # "no uptime guarantee". The URL changes on every start, and when Cloudflare
+    # drops the tunnel the process does not exit. It retries the same tunnel id
+    # forever, logging `Unauthorized: Tunnel not found`, so `restart:
+    # unless-stopped` never fires and the container sits there looking healthy
+    # while the URL is dead. One ran 262 consecutive failed retries before anyone
+    # noticed.
+    #
+    # For a hostname that survives a restart, create a named tunnel in the
+    # Cloudflare dashboard and put its token in .env:
+    #
+    #     CLOUDFLARED_ARGS=run --token eyJhIjoi...
+    #
+    # The image is distroless - no shell - so this cannot branch at runtime; the
+    # argument list is chosen here instead.
+    command: tunnel --no-autoupdate ${CLOUDFLARED_ARGS:---url http://nginx:80}
 
 volumes:
   mongo_data:

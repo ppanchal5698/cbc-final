@@ -43,6 +43,52 @@ standing up nginx — which would crash-loop anyway, because
 `infra/nginx/default.conf` references
 `/etc/letsencrypt/live/<MY_DOMAIN>/` as a literal unsubstituted placeholder.
 
+### Reaching it from another device
+
+Three ways in, and all of them are port 80 - never 3000.
+
+| From | URL |
+|---|---|
+| this machine | `http://localhost/` |
+| another device on the same network | `http://<this-host-lan-ip>/` |
+| anywhere | the Cloudflare tunnel hostname |
+
+nginx binds `0.0.0.0:80`, so a device on the same network needs only the host's
+LAN address and the firewall to allow inbound 80. On Windows, Docker Desktop
+installs its own inbound rules for `com.docker.backend.exe`, but **scoped to one
+network profile** - check that the profile of the active adapter matches:
+
+```powershell
+Get-NetConnectionProfile | Select-Object InterfaceAlias,NetworkCategory
+```
+
+If the connection is Private and Docker's rules are Public, the port is open on
+the host and closed to the network, which looks identical to the app being down.
+Guest and corporate Wi-Fi also commonly isolate clients from each other, in which
+case no firewall change helps and the tunnel is the way in.
+
+**The tunnel is a quick tunnel by default** and comes with two properties worth
+knowing before relying on it: the hostname is random and changes on every start,
+and it has no uptime guarantee. When Cloudflare drops it the process does not
+exit - it retries the same tunnel id forever with `Unauthorized: Tunnel not
+found`, so the container stays "Up" and `restart: unless-stopped` never fires.
+Read the log rather than the container status:
+
+```bash
+docker logs cbc-final-tunnel --tail 5
+```
+
+`Registered tunnel connection` means it is live; a wall of `Unauthorized` means
+the URL is dead and only `docker restart cbc-final-tunnel` will get a new one -
+which is a different URL again.
+
+For a hostname that survives restarts, create a named tunnel in the Cloudflare
+dashboard and put its token in `.env`:
+
+```
+CLOUDFLARED_ARGS=run --token eyJhIjoi...
+```
+
 ### Talking to the running stack
 
 Pass `-p cbc-final`. Compose derives the project name from the directory of the
