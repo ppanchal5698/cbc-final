@@ -111,10 +111,17 @@ WITHHELD = {"MONGODB_URI", "MONGODB_READONLY_URI", "MONGODB_READONLY_PASSWORD"}
 # the credential and an empty key is the normal production case, and
 # subscription is absent because picking it is how you get to the sign-in
 # button - requiring the token first would make the mode unreachable.
-REQUIRED_ENV: dict[str, tuple[str, str]] = {
-    ANTHROPIC_API: ("ANTHROPIC_API_KEY", "an API key"),
-    OLLAMA: ("ANTHROPIC_MODEL", "a model"),
+REQUIRED_FIELDS: dict[str, tuple[str, str]] = {
+    ANTHROPIC_API: ("apiKey", "an API key"),
+    OLLAMA: ("model", "a model"),
 }
+
+# `.env` does not count towards a requirement. `persist_env_file` owns these
+# keys and rewrites them on every save, so a value there was written by the
+# provider being replaced and is about to be overwritten - it says nothing about
+# whether the incoming one can run. A process-environment value does count: that
+# is the Fargate / Secrets Manager path, and it is what `locked` marks in the UI.
+_STALE_SOURCE = "dotenv"
 
 
 def missing_requirement(config: dict[str, Any] | None) -> str | None:
@@ -125,13 +132,23 @@ def missing_requirement(config: dict[str, Any] | None) -> str | None:
     where it was set. `ollama` with no model was the live case - no model means
     no alias pins, so every `model: sonnet` subagent resolved to an Anthropic
     catalog id that Ollama cannot serve.
+
+    The first version of this asked `build_env` for the resolved variable, which
+    let a Bedrock inference-profile id still sitting in `.env` satisfy Ollama's
+    need for a model - the very cross-provider bleed the check exists to stop.
     """
     mode = resolve_mode(config)
-    requirement = REQUIRED_ENV.get(mode)
+    requirement = REQUIRED_FIELDS.get(mode)
     if requirement is None:
         return None
-    variable, described = requirement
-    env, _ = build_env(config)
+    field, described = requirement
+    variable, _ = FIELDS[mode][field]
+    # prefer_config, so a value in the config being saved outranks `.env`.
+    # Without it the check went the other way and rejected a model that had
+    # just been typed in, because the file still shadowed it.
+    env, sources = build_env(config, prefer_config=True)
+    if sources.get(field) == _STALE_SOURCE:
+        return described
     return None if env.get(variable) else described
 
 
