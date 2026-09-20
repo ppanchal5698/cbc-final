@@ -5,8 +5,13 @@ cp .env.example .env
 docker compose -f infra/docker-compose.yml up -d --build
 ```
 
-- Web UI — http://localhost:3000
-- API health — http://127.0.0.1:8001/api/health
+- Web UI — **http://localhost/**
+- API health — http://localhost/api/health
+
+Both go through nginx, which publishes 80 and 443. `web` and `platform`
+are `expose:` only, so `localhost:3000` and `localhost:8001` refuse the
+connection — that is the design, not a fault. Only CI publishes them, through
+`infra/docker-compose.ci.yml`, so Playwright can reach them without nginx.
 
 The root `docker-compose.yml` is a three-line shim that includes
 `infra/docker-compose.yml`. Everything real is in the latter, which uses YAML
@@ -37,6 +42,19 @@ only from inside the compose network. That is why CI needs
 standing up nginx — which would crash-loop anyway, because
 `infra/nginx/default.conf` references
 `/etc/letsencrypt/live/<MY_DOMAIN>/` as a literal unsubstituted placeholder.
+
+### Talking to the running stack
+
+Pass `-p cbc-final`. Compose derives the project name from the directory of the
+`-f` file, so `docker compose -f infra/docker-compose.yml ps` reports an **empty
+table** while ten containers are running, and an `up` under that name builds a
+second, parallel stack rather than replacing the one you have.
+
+```bash
+docker compose -p cbc-final -f infra/docker-compose.yml ps
+```
+
+CI sets `COMPOSE_PROJECT_NAME=cbc-final` for the same reason.
 
 Two profiles keep optional weight out of a default `up`: `oss` (the LiteLLM
 gateway, for running against Ollama or OpenRouter) and `gpu` (MinerU plus a

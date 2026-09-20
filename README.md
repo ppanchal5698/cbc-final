@@ -16,7 +16,7 @@ cp .env.example .env
 docker compose -f infra/docker-compose.yml up -d --build
 ```
 
-- Web UI: http://localhost:3000
+- Web UI: http://localhost/ (nginx publishes 80/443; `web` is not published on 3000)
 - API health: http://127.0.0.1:8001/api/health
 
 ## Layout
