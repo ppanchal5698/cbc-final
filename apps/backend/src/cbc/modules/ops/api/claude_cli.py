@@ -108,7 +108,6 @@ def run_claude(
     cancel_check: Callable[[], bool] | None = None,
     settings: dict[str, Any] | None = None,
     *,
-    bare: bool = False,
     system_prompt: str | None = None,
     on_heartbeat: Callable[[], None] | None = None,
     heartbeat_seconds: float = 30,
@@ -128,7 +127,6 @@ def run_claude(
     `settings` is merged via `claude --settings` (user/managed-scope keys such as
     modelPicker.behavesAs). Project `.claude/settings.json` cannot carry those.
 
-    `bare` skips CLAUDE.md / hooks / plugins — used for connectivity preflight
     so a short round-trip is not crushed by this repo's full system prompt.
     """
     binary = resolve_binary()
@@ -160,7 +158,6 @@ def run_claude(
             max_turns=max_turns,
             cancel_check=cancel_check,
             settings=settings,
-            bare=bare,
             system_prompt=system_prompt,
             workdir=workdir,
         )
@@ -180,13 +177,10 @@ def _execute_claude(
     max_turns: int | None,
     cancel_check: Callable[[], bool] | None,
     settings: dict[str, Any] | None,
-    bare: bool,
     system_prompt: str | None,
     workdir: Path,
 ) -> RunResult:
     scope: list[str] = []
-    if bare:
-        scope.append("--bare")
     if system_prompt:
         scope += ["--system-prompt", system_prompt]
     if job_type:
@@ -446,6 +440,14 @@ def preflight(
 
     Uses the empty-MCP `preflight` toolset so connectivity checks do not load
     every server schema just to answer one line.
+
+    This used to pass `--bare` as well, to skip CLAUDE.md, hooks and plugins.
+    That flag also makes the CLI ignore CLAUDE_CODE_OAUTH_TOKEN: the same bad
+    token reports "401 OAuth access token is invalid" without it and "Not logged
+    in - Please run /login" with it. Since this function is what verifies a
+    freshly minted subscription token, every browser sign-in failed here with
+    "the CLI issued a token but Claude Code would not accept it" - the token was
+    always fine. Do not reintroduce it without checking subscription mode.
     """
     # An operator who set CLAUDE_CODE_MAX_RETRIES deliberately keeps theirs.
     run_env = dict(os.environ if env is None else env)
@@ -458,7 +460,6 @@ def preflight(
         settings=settings,
         job_type="preflight",
         max_turns=2,
-        bare=True,
         system_prompt=(
             "You are a connectivity check. Reply to the user message with the "
             "exact text they request and nothing else."
