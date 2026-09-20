@@ -85,6 +85,98 @@ def _clean_keeping_text(text: str) -> str:
     return _CONTROL.sub("", text)            # only now, the leftover control bytes
 
 
+# A screen, not a stream.
+#
+# The CLI redraws with absolute cursor moves. A real sign-in emitted
+#
+#     sk-ant-\x1b[10Gat01-...
+#
+# - write `sk-ant-`, jump to column 10, carry on with `at01-`. The `o` belongs to
+# an earlier pass of the redraw and is sitting at column 9 on the screen. It is
+# never adjacent to the rest in the byte stream, so deleting escapes welds
+# `sk-ant-` to `at01-` and loses it: a 108-character token arrives as 107 with a
+# prefix Claude Code does not recognise, and reports as "not logged in" rather
+# than as invalid.
+#
+# No amount of regex recovers that, because the information is positional. This
+# replays the moves onto a buffer and reads back what the terminal would show.
+_CSI = re.compile(r"\x1b\[([0-9;?]*)([A-Za-z])")
+
+
+def render_screen(raw: str) -> str:
+    """What the terminal would be showing, after replaying the writes."""
+    rows: list[list[str]] = [[]]
+    row = col = 0
+
+    def put(ch: str) -> None:
+        nonlocal row, col
+        while len(rows) <= row:
+            rows.append([])
+        line = rows[row]
+        while len(line) <= col:
+            line.append(" ")
+        line[col] = ch
+        col += 1
+
+    i = 0
+    while i < len(raw):
+        ch = raw[i]
+        if ch == "\x1b":
+            match = _CSI.match(raw, i)
+            if match:
+                params, final = match.group(1), match.group(2)
+                first = 0
+                for part in params.split(";"):
+                    if part.isdigit():
+                        first = int(part)
+                        break
+                if final == "G":          # column, 1-based
+                    col = max(0, first - 1)
+                elif final == "H" or final == "f":
+                    numbers = [int(n) for n in params.split(";") if n.isdigit()]
+                    row = max(0, (numbers[0] if numbers else 1) - 1)
+                    col = max(0, (numbers[1] if len(numbers) > 1 else 1) - 1)
+                elif final == "A":
+                    row = max(0, row - max(1, first))
+                elif final == "B":
+                    row += max(1, first)
+                elif final == "C":
+                    col += max(1, first)
+                elif final == "D":
+                    col = max(0, col - max(1, first))
+                elif final == "K":        # erase in line
+                    while len(rows) <= row:
+                        rows.append([])
+                    if first == 0:
+                        del rows[row][col:]
+                    elif first == 2:
+                        rows[row] = []
+                i = match.end()
+                continue
+            # OSC and anything else escape-shaped: consume, draw nothing.
+            osc = _OSC_SEQUENCE.match(raw, i)
+            if osc:
+                i = osc.end()
+                continue
+            i += 2
+            continue
+        if ch == "\r":
+            col = 0
+        elif ch == "\n":
+            row += 1
+            col = 0
+        elif ch == "\b":
+            col = max(0, col - 1)
+        elif ch >= " ":
+            put(ch)
+        i += 1
+
+    return "\n".join("".join(line).rstrip() for line in rows)
+
+
+_OSC_SEQUENCE = re.compile("\x1b][^\x07\x1b]*(?:\x07|\x1b\\\\)")
+
+
 def _token_candidates(text: str) -> list[str]:
     """Every distinct reading of a token, best first.
 
@@ -95,7 +187,7 @@ def _token_candidates(text: str) -> list[str]:
     CLI redraws its frame, so a short reading is a partial one.
     """
     found: list[str] = []
-    for cleaned in (_clean_keeping_text(text), _clean(text)):
+    for cleaned in (render_screen(text), _clean_keeping_text(text), _clean(text)):
         for match in _TOKEN_PATTERN.findall(cleaned):
             # A redraw can print a partial token and then the whole one with
             # nothing between them once the cursor moves are stripped, and every

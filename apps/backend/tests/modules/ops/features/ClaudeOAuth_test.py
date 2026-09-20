@@ -184,3 +184,41 @@ def test_a_complete_rendering_still_wins_over_a_partial_one():
     raw = f"\x1b[2K{partial}\x1b[1G{TOKEN}\r\n"
 
     assert settings_router._token_candidates(raw)[0] == TOKEN
+
+
+def test_an_absolute_column_jump_does_not_lose_the_character_it_skips():
+    """The failure that outlasted every regex fix. Bytes from a real sign-in:
+
+        'Gyear):\r\n\x1b[1C\x1b[2Bsk-ant-\x1b[10Gat'
+
+    `ESC [ n G` is CHA - move to an absolute column. The CLI writes `sk-ant-`,
+    jumps, and carries on with `at01-`. The character it skipped belongs to an
+    earlier pass of the redraw and is sitting on the *screen*, never adjacent to
+    the rest in the byte stream. Deleting escapes welds the two together and
+    loses it: a 108-character token arrived as 107 with a prefix Claude Code does
+    not recognise, reported as "not logged in" rather than as an invalid token -
+    which is what made this read as a rejected authorization code for so long.
+
+    Positional damage needs the position modelled. Regex cannot do it.
+    """
+    # `sk-ant-` is 7 characters, so the redraw resumes at 0-based column 8.
+    raw = TOKEN + "\r" + "sk-ant-" + "\x1b[9G" + TOKEN[8:]
+
+    welded = settings_router._clean(raw)
+    # The redraw welds `sk-ant-` to what follows the jump, skipping the column
+    # the earlier pass had written. That damaged reading is what used to be sent.
+    assert "sk-ant-at01-" in welded, "stripping escapes really does lose the character"
+
+    assert settings_router.render_screen(raw).startswith(TOKEN)
+    assert settings_router._token_candidates(raw)[0] == TOKEN
+
+
+def test_the_renderer_replays_the_moves_the_cli_actually_uses():
+    """Each of these appeared in a captured stream."""
+    render = settings_router.render_screen
+    assert render("abc\rX") == "Xbc"                    # carriage return rewrites
+    assert render("abcdef\x1b[3Gxy") == "abxyef"        # absolute column
+    assert render("abc\x1b[2Dxy") == "axy"              # cursor back, overwriting
+    assert render("ab\x1b[2Ccd") == "ab  cd"            # cursor forward
+    assert render("abc\x1b[1;1Hz") == "zbc"             # absolute position
+    assert render("abcdef\x1b[4G\x1b[K") == "abc"      # erase to end of line
