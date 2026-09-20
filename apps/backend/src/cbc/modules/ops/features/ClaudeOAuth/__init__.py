@@ -259,6 +259,7 @@ async def oauth_code(body: OAuthCode, actor: Actor) -> dict[str, Any]:
                     "once.",
                     "hint": f"Tried {len(candidates)} reading(s): {shapes}. "
                     f"Claude Code said: {_LAST_VERIFY_ERROR['reason']!r}. "
+                    f"Raw bytes at the token: {_token_context(output)}. "
                     "Start the sign-in again.",
                 },
             )
@@ -342,6 +343,21 @@ async def oauth_code(body: OAuthCode, actor: Actor) -> dict[str, Any]:
 # failure can say whether the token was rejected as unauthorised - meaning it
 # was scraped wrong - or whether the check itself never got an answer.
 _LAST_VERIFY_ERROR: dict[str, str | None] = {"reason": None}
+
+
+def _token_context(raw: str) -> str:
+    """The bytes either side of where a token starts, escapes made visible.
+
+    A candidate can come out the right length and still be wrong, because
+    something in the stream removed a character rather than truncating. The only
+    way to see which escape did it is to look at the stream. Shows the 16 bytes
+    before `sk-ant-` and the 14 after - enough to cover the prefix and whatever
+    sits inside it, far short of a usable credential.
+    """
+    at = raw.find("sk-ant-")
+    if at < 0:
+        return "no sk-ant- in the stream"
+    return repr(raw[max(0, at - 16) : at + 14])
 
 
 async def _first_working_token(candidates: list[str]) -> str | None:
