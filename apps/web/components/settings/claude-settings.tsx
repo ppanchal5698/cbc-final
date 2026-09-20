@@ -202,6 +202,7 @@ export function ClaudeSettingsClient() {
   const [result, setResult] = useState<ProviderTest | null>(null);
   const [signIn, setSignIn] = useState<{ session: string; url: string } | null>(null);
   const [code, setCode] = useState("");
+  const [finishing, setFinishing] = useState(false);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
 
@@ -336,11 +337,26 @@ export function ClaudeSettingsClient() {
   }
 
   async function finishSignIn() {
-    if (!signIn || !code.trim()) return;
+    // One exchange per code. The submit is wired to both Enter and the button,
+    // and an authorization code is single-use: the first call consumes the
+    // session, so a second reaches a backend that has already closed it and
+    // comes back without a `message`. That is what surfaces as the bare
+    // "That code was not accepted" fallback below - a report of the double
+    // submit rather than of anything wrong with the code the estimator pasted.
+    if (!signIn || !code.trim() || finishing) return;
+    setFinishing(true);
+    try {
+      return await exchangeCode(signIn);
+    } finally {
+      setFinishing(false);
+    }
+  }
+
+  async function exchangeCode(session: { session: string; url: string }) {
     const response = await proxyFetch(endpoints.claudeOauthCode(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session: signIn.session, code: code.trim() }),
+      body: JSON.stringify({ session: session.session, code: code.trim() }),
     });
     const body: { detail?: string | OauthCodeError } = await response
       .json()
@@ -352,7 +368,7 @@ export function ClaudeSettingsClient() {
       const detail = body.detail ?? {};
       const structured: OauthCodeError = typeof detail === "string" ? { message: detail } : detail;
       if (structured.url) {
-        setSignIn({ session: signIn.session, url: structured.url });
+        setSignIn({ session: session.session, url: structured.url });
         setCode("");
       }
       toast.error(structured.message || "That code was not accepted", {
@@ -503,9 +519,10 @@ export function ClaudeSettingsClient() {
                 />
                 <button
                   onClick={finishSignIn}
-                  className="rounded-md px-4 py-2 text-[13px] font-semibold bg-brand-primary text-white shadow-sm hover:bg-brand-primary/90 transition-colors"
+                  disabled={finishing}
+                  className="rounded-md px-4 py-2 text-[13px] font-semibold bg-brand-primary text-white shadow-sm hover:bg-brand-primary/90 transition-colors disabled:opacity-60"
                 >
-                  Finish
+                  {finishing ? "Checking…" : "Finish"}
                 </button>
               </div>
             </div>
