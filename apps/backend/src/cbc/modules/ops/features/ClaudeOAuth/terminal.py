@@ -17,6 +17,19 @@ import time
 URL_PATTERN = re.compile("https://[^\\s\\x07\\x1b]+oauth/authorize[^\\s\\x07\\x1b]*")
 
 
+# The pty window the CLI draws into.
+#
+# Wide, because the CLI hard-wraps to the column count and a CRLF through the
+# middle of the authorization URL makes it unusable. Tall, because a terminal
+# scrolls once the cursor leaves the bottom row and everything drawn so far
+# shifts up one - while `render_screen` replays onto a buffer that only grows.
+# After a scroll the two disagree about which row a line is on, and half a
+# redrawn frame lands a row away from the half already there. Both numbers are
+# far beyond what this flow prints, which is the point.
+WINDOW_ROWS = 500
+WINDOW_COLUMNS = 400
+
+
 # `claude setup-token` prints an sk-ant-oat… token on success.
 _TOKEN_PATTERN = re.compile(r"sk-ant-[A-Za-z0-9\-_]{20,}")
 
@@ -100,19 +113,30 @@ def _clean_keeping_text(text: str) -> str:
 #
 # No amount of regex recovers that, because the information is positional. This
 # replays the moves onto a buffer and reads back what the terminal would show.
-_CSI = re.compile(r"\x1b\[([0-9;?]*)([A-Za-z])")
+#
+# Replaying is only faithful while the buffer and the terminal agree on where the
+# rows are. A real terminal scrolls when the cursor leaves the bottom and every
+# line drawn so far shifts up one; a buffer that grows on demand does not. One
+# scroll and the character the CLI skipped over is on a different row from the
+# rest of the token - the same missing `o`, reached a different way. Hence the
+# 500-row pty in `oauth_start`: tall enough that nothing ever scrolls.
+_CSI = re.compile(r"\x1b\[([0-9;?]*)([A-Za-z@])")
 
 
 def render_screen(raw: str) -> str:
     """What the terminal would be showing, after replaying the writes."""
     rows: list[list[str]] = [[]]
     row = col = 0
+    saved = (0, 0)
+
+    def line_at(index: int) -> list[str]:
+        while len(rows) <= index:
+            rows.append([])
+        return rows[index]
 
     def put(ch: str) -> None:
-        nonlocal row, col
-        while len(rows) <= row:
-            rows.append([])
-        line = rows[row]
+        nonlocal col
+        line = line_at(row)
         while len(line) <= col:
             line.append(" ")
         line[col] = ch
@@ -125,15 +149,11 @@ def render_screen(raw: str) -> str:
             match = _CSI.match(raw, i)
             if match:
                 params, final = match.group(1), match.group(2)
-                first = 0
-                for part in params.split(";"):
-                    if part.isdigit():
-                        first = int(part)
-                        break
-                if final == "G":          # column, 1-based
+                numbers = [int(n) for n in params.split(";") if n.isdigit()]
+                first = numbers[0] if numbers else 0
+                if final == "G":                      # absolute column, 1-based
                     col = max(0, first - 1)
-                elif final == "H" or final == "f":
-                    numbers = [int(n) for n in params.split(";") if n.isdigit()]
+                elif final in ("H", "f"):             # absolute position
                     row = max(0, (numbers[0] if numbers else 1) - 1)
                     col = max(0, (numbers[1] if len(numbers) > 1 else 1) - 1)
                 elif final == "A":
@@ -144,20 +164,41 @@ def render_screen(raw: str) -> str:
                     col += max(1, first)
                 elif final == "D":
                     col = max(0, col - max(1, first))
-                elif final == "K":        # erase in line
-                    while len(rows) <= row:
-                        rows.append([])
+                elif final == "K":                    # erase in line
+                    line = line_at(row)
                     if first == 0:
-                        del rows[row][col:]
-                    elif first == 2:
-                        rows[row] = []
+                        del line[col:]
+                    elif first == 1:
+                        line[: col + 1] = [" "] * min(col + 1, len(line))
+                    else:
+                        line.clear()
+                elif final == "J":                    # erase in display
+                    line = line_at(row)
+                    if first == 0:
+                        del line[col:]
+                        del rows[row + 1 :]
+                    elif first == 1:
+                        rows[:row] = [[] for _ in range(row)]
+                        line[: col + 1] = [" "] * min(col + 1, len(line))
+                    else:
+                        rows[:] = [[] for _ in rows]
+                elif final == "s":
+                    saved = (row, col)
+                elif final == "u":
+                    row, col = saved
                 i = match.end()
                 continue
-            # OSC and anything else escape-shaped: consume, draw nothing.
-            osc = _OSC_SEQUENCE.match(raw, i)
-            if osc:
-                i = osc.end()
+            following = raw[i + 1] if i + 1 < len(raw) else ""
+            if following == "]":
+                osc = _OSC.match(raw, i)
+                i = osc.end() if osc else i + 2
                 continue
+            if following == "7":                      # DECSC
+                saved = (row, col)
+            elif following == "8":                    # DECRC
+                row, col = saved
+            elif following == "M":                    # reverse index
+                row = max(0, row - 1)
             i += 2
             continue
         if ch == "\r":
@@ -174,7 +215,37 @@ def render_screen(raw: str) -> str:
     return "\n".join("".join(line).rstrip() for line in rows)
 
 
-_OSC_SEQUENCE = re.compile("\x1b][^\x07\x1b]*(?:\x07|\x1b\\\\)")
+def _prefix_repairs(candidate: str) -> list[str]:
+    """The same reading with the hole in its prefix filled in.
+
+    Every token starts `sk-ant-oat`. The terminal drops characters positionally,
+    so a reading can arrive with one missing from inside that prefix and the body
+    perfectly intact - `sk-ant-at01-...` for `sk-ant-oat01-...`. The body cannot
+    be guessed at, but the prefix is the same on every token ever issued, so the
+    hole in it is fillable: find where the reading rejoins the prefix and splice
+    the real one back on. A repair is offered to Claude Code like any other
+    candidate, so a wrong guess costs one check and is refused.
+    """
+    if candidate.startswith(_TOKEN_PREFIX):
+        return []
+    repairs: list[str] = []
+    width = len(_TOKEN_PREFIX)
+    for kept in range(width):                     # leading characters that survived
+        if candidate[:kept] != _TOKEN_PREFIX[:kept]:
+            break
+        for resume in range(kept + 1, width):     # where the reading rejoins it
+            rest = _TOKEN_PREFIX[resume:]
+            if not candidate[kept:].startswith(rest):
+                continue
+            fixed = _TOKEN_PREFIX + candidate[kept + len(rest) :]
+            # A cursor jump skips a column, occasionally two. Anything claiming
+            # the terminal swallowed more than that is the prefix re-aligning
+            # against itself somewhere it does not belong - `sk-ant-at01-…`
+            # rejoining at the second `t` yields `sk-ant-oat-at01-…`, which
+            # sorts first for being longest and wastes the check.
+            if 0 < len(fixed) - len(candidate) <= 2 and fixed not in repairs:
+                repairs.append(fixed)
+    return repairs
 
 
 def _token_candidates(text: str) -> list[str]:
@@ -199,9 +270,16 @@ def _token_candidates(text: str) -> list[str]:
                 match = match[cut:]
             if match not in found:
                 found.append(match)
+    for reading in list(found):
+        for repaired in _prefix_repairs(reading):
+            if repaired not in found:
+                found.append(repaired)
+
+    # Each candidate costs a CLI round trip to check, and past the first few they
+    # are variations on a reading that was already wrong.
     return sorted(
         found, key=lambda c: (c.startswith(_TOKEN_PREFIX), len(c)), reverse=True
-    )
+    )[:6]
 
 
 def _read_until(fd: int, pattern: re.Pattern[str], timeout: int) -> str:

@@ -24,6 +24,8 @@ from cbc.modules.ops.infrastructure import secrets
 from cbc.modules.ops.api import audit
 from cbc.modules.ops.features.ClaudeOAuth.terminal import (
     URL_PATTERN,
+    WINDOW_COLUMNS,
+    WINDOW_ROWS,
     _DONE_PATTERN,
     _OAUTH_ERROR,
     _PROMPT_PATTERN,
@@ -130,16 +132,25 @@ async def oauth_start() -> dict[str, Any]:
 
     controller, follower = pty.openpty()
 
-    # A pty defaults to 80 columns and the CLI hard-wraps to it, which puts a
-    # CRLF into the middle of both the authorization URL and anything else long.
-    # The URL survived only because the terminal hyperlink escape carries an
-    # unwrapped copy - not something to rely on. Give it a wide window instead.
+    # A pty defaults to 80x24 and both dimensions corrupt the read.
+    #
+    # Columns: the CLI hard-wraps to the width, which puts a CRLF into the middle
+    # of the authorization URL and anything else long. The URL survived only
+    # because the terminal hyperlink escape carries an unwrapped copy - not
+    # something to rely on.
+    #
+    # Rows: a terminal scrolls once the cursor leaves the bottom, and everything
+    # drawn so far shifts up a line. `render_screen` replays the cursor moves
+    # onto a buffer that only ever grows, so a single scroll puts the rest of a
+    # frame one row away from the part already drawn - which is how the token
+    # lost the character the CLI redrew over. Give it more rows than the flow can
+    # ever print and the question never arises.
     try:
         import fcntl
         import struct
         import termios
 
-        fcntl.ioctl(follower, termios.TIOCSWINSZ, struct.pack("HHHH", 50, 400, 0, 0))
+        fcntl.ioctl(follower, termios.TIOCSWINSZ, struct.pack("HHHH", WINDOW_ROWS, WINDOW_COLUMNS, 0, 0))
     except (ImportError, OSError):
         pass  # cosmetic; extraction still has the hyperlink copy to fall back on
 
@@ -371,7 +382,17 @@ async def _first_working_token(candidates: list[str]) -> str | None:
 
     _LAST_VERIFY_ERROR["reason"] = None
     for candidate in candidates:
-        env, _ = provider.build_env({"mode": provider.SUBSCRIPTION, "oauthToken": candidate})
+        env, _ = provider.build_env(
+            {"mode": provider.SUBSCRIPTION, "oauthToken": candidate}, prefer_config=True
+        )
+        # `build_env` answers "what would run", where the process environment and
+        # then `.env` outrank the stored value. That is right everywhere except
+        # here, where the question is whether *this* candidate works: a
+        # CLAUDE_CODE_OAUTH_TOKEN left in `.env` by an earlier attempt would be
+        # checked over and over instead, and a stale token reports exactly what a
+        # mangled one does - "Not logged in - Please run /login". Every reading
+        # then fails identically no matter how well it was scraped.
+        env[provider.FIELDS[provider.SUBSCRIPTION]["oauthToken"][0]] = candidate
         problem = await asyncio.to_thread(runner.preflight, env, [candidate])
         if problem is None:
             return candidate
