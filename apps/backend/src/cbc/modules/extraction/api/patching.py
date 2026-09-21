@@ -87,6 +87,13 @@ def _validates(opening: dict[str, Any]) -> str | None:
     return None
 
 
+# Top-level paths a patch may set, as opposed to openings/<door>/<field>.
+#
+# Deliberately tiny, and only for records of what the agent *did* - never for a
+# value read off a row, which belongs on its opening with its own evidence.
+TOP_LEVEL_PATCHABLE = frozenset({"visual_pages_checked"})
+
+
 def apply_patches(
     payload: Any, patches: list[dict[str, Any]]
 ) -> tuple[Any, list[PatchResult]]:
@@ -108,11 +115,46 @@ def apply_patches(
 
     for patch in patches:
         raw_path = str((patch or {}).get("path") or "").strip().strip("/")
+
+        # A patch that records what the agent opened, rather than what it read
+        # off a row. `check_extraction` *requires* `visual_pages_checked` on
+        # door_schedule.json, and with only openings/<door>/<field> patchable
+        # there was no way to write it: the artifact is seeded and the prompts
+        # steer to propose_patch, so the agent did the visual reads, tried to
+        # record them, was told "top-level fields aren't patchable", treated
+        # that as expected and saved nothing. Three runs died on the coverage
+        # check that its own reads had satisfied.
+        if raw_path in TOP_LEVEL_PATCHABLE:
+            value = (patch or {}).get("value")
+            if not isinstance(value, list):
+                results.append(PatchResult(
+                    raw_path, False,
+                    f"{raw_path} takes a list of "
+                    "{path, source_page, image_path, finding} rows",
+                ))
+                continue
+            op = str((patch or {}).get("op") or "set").lower()
+            if op == "append":
+                existing = updated.get(raw_path)
+                value = (list(existing) if isinstance(existing, list) else []) + value
+            elif op != "set":
+                results.append(PatchResult(raw_path, False, f"unknown op {op!r} - set or append"))
+                continue
+            if isinstance(updated, dict):
+                updated[raw_path] = value
+                results.append(PatchResult(raw_path, True, None))
+            else:
+                results.append(PatchResult(
+                    raw_path, False, "this artifact has no top level to patch"
+                ))
+            continue
+
         parts = raw_path.split("/")
         if len(parts) != 3 or parts[0] not in ("openings", "lines", "items"):
             results.append(PatchResult(
                 raw_path, False,
-                "path must read openings/<door number>/<field>",
+                "path must read openings/<door number>/<field>, or be one of "
+                + ", ".join(sorted(TOP_LEVEL_PATCHABLE)),
             ))
             continue
 

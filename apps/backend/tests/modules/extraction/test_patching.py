@@ -200,3 +200,59 @@ def test_the_patched_artifact_still_passes_its_schema_gate(artifact) -> None:
         "extracted/door_schedule.json", json.dumps(out)
     )
     assert problems == [], problems
+
+
+def test_the_coverage_record_a_run_is_failed_for_can_actually_be_written():
+    """`check_extraction` requires `visual_pages_checked` on door_schedule.json.
+
+    `door_schedule.json` is seeded, so the prompts steer every correction
+    through `propose_patch` — and a patch path had to read
+    `openings/<door>/<field>`. `visual_pages_checked` is top-level, so there was
+    no way to write the very field the artifact is failed for.
+
+    Three real runs died on it. The recording shows the agent doing the work and
+    then hitting the wall: 54 turns, 16 page images read, 13 patches applied,
+    and "1 rejected as expected - top-level fields aren't patchable". It treated
+    the refusal as normal and saved nothing.
+    """
+    from cbc.modules.extraction.api.patching import apply_patches
+
+    seed = {"openings": [{"door_number": "01"}], "source": "pretakeoff"}
+    rows = [
+        {
+            "path": "projects/x/uploads/raw/set.pdf",
+            "source_page": 20,
+            "image_path": "projects/x/extracted/_visual_pages/a.png",
+            "finding": "roof plan, no door schedule",
+        }
+    ]
+
+    updated, results = apply_patches(
+        seed, [{"op": "set", "path": "visual_pages_checked", "value": rows}]
+    )
+    assert results[0]["applied"], results[0]["reason"]
+    assert updated["visual_pages_checked"] == rows
+    assert updated["openings"] == seed["openings"], "the rows are untouched"
+
+    grown, _ = apply_patches(
+        updated,
+        [{"op": "append", "path": "visual_pages_checked", "value": [dict(rows[0], source_page=23)]}],
+    )
+    assert len(grown["visual_pages_checked"]) == 2
+
+
+def test_no_other_top_level_field_became_patchable():
+    """The opening is the audited unit; a reading belongs on its row.
+
+    Widening this to "any top-level key" would let a patch set `openings`
+    wholesale and bypass every per-field contract the module exists to enforce.
+    """
+    from cbc.modules.extraction.api import patching
+
+    assert patching.TOP_LEVEL_PATCHABLE == {"visual_pages_checked"}
+
+    for path in ("no_scope_reason", "openings", "source"):
+        _, results = patching.apply_patches(
+            {"openings": []}, [{"op": "set", "path": path, "value": "x"}]
+        )
+        assert not results[0]["applied"], f"{path} must not be patchable"
