@@ -145,3 +145,50 @@ def test_parse_recording_name_splits_retry_suffix() -> None:
 
     assert runmetrics.parse_recording_name("abc.log") == ("abc", 1)
     assert runmetrics.parse_recording_name("abc-attempt3.log") == ("abc", 3)
+
+
+def test_timestamps_are_stored_as_dates_not_strings() -> None:
+    """Mongo ranges String and Date in separate BSON type brackets.
+
+    These were written with `.isoformat()`, so every
+    `{"startedAt": {"$gte": <datetime>}}` matched nothing. That disabled both
+    readers of this collection at once: `/api/ops/spend` reported zeros, and
+    `cost_budget.spend_usd` summed to 0.0 - so WORKER_MAX_COST_USD_PER_DAY and
+    WORKER_MAX_COST_USD_PER_PROJECT never fired. A spend cap that cannot fire on
+    a pipeline being investigated for cost is worse than no cap, because the
+    number on screen says it is watching.
+    """
+    from datetime import datetime, timezone
+
+    from cbc.modules.ops.api import runmetrics
+
+    moment = datetime(2026, 9, 21, 12, 30, tzinfo=timezone.utc)
+    doc = runmetrics.document_for(
+        {"_id": "abc", "type": "extract_bid_set", "attempts": 1,
+         "startedAt": moment, "finishedAt": moment},
+        {},
+    )
+    assert isinstance(doc["startedAt"], datetime), f"got {type(doc['startedAt'])}"
+    assert isinstance(doc["finishedAt"], datetime)
+    assert doc["startedAt"] == moment
+
+
+def test_a_timestamp_from_the_recording_is_parsed_not_passed_through() -> None:
+    """The job carries datetimes; the recording's own events carry strings."""
+    from datetime import datetime, timezone
+
+    from cbc.modules.ops.api import runmetrics
+
+    doc = runmetrics.document_for(
+        {"_id": "abc", "type": "extract_bid_set", "attempts": 1},
+        {"startedAt": "2026-09-21T12:30:00Z", "finishedAt": "2026-09-21T12:45:00+00:00"},
+    )
+    assert doc["startedAt"] == datetime(2026, 9, 21, 12, 30, tzinfo=timezone.utc)
+    assert doc["finishedAt"] == datetime(2026, 9, 21, 12, 45, tzinfo=timezone.utc)
+
+    # Nothing usable is better than a string that will never match a range.
+    junk = runmetrics.document_for(
+        {"_id": "abc", "type": "extract_bid_set", "attempts": 1},
+        {"startedAt": "not a time"},
+    )
+    assert junk["startedAt"] is None

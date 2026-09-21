@@ -22,7 +22,10 @@ async def spend_usd(
         "totalCostUsd": {"$type": "number"},
     }
     if project_id is not None:
-        match["projectId"] = project_id
+        # `document_for` writes this with `str(...)`, and the spend page reads it
+        # straight out to JSON. Matching the ObjectId found nothing, so the
+        # per-project cap never fired either.
+        match["projectId"] = str(project_id)
     if job_types is not None:
         match["jobType"] = {"$in": sorted(job_types)}
 

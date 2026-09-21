@@ -344,6 +344,31 @@ def parse_recording_name(name: str) -> tuple[str, int]:
     return stem, 1
 
 
+def _as_utc(value: Any) -> datetime | None:
+    """A timestamp Mongo can actually compare.
+
+    These used to be written with `.isoformat()`. Mongo sorts and ranges String
+    and Date in separate BSON type brackets, so every `{"startedAt": {"$gte":
+    <datetime>}}` query silently matched nothing - which disabled the spend page
+    *and* `cost_budget.spend_usd`, so WORKER_MAX_COST_USD_PER_DAY never fired on
+    a pipeline that was being reported as too expensive to run.
+
+    A string still arrives from the recording's own events, so parse it here
+    rather than trusting the caller.
+    """
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc)
+    if isinstance(value, str) and value.strip():
+        try:
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    return None
+
+
 def document_for(
     job: dict[str, Any],
     parsed: dict[str, Any],
@@ -368,12 +393,8 @@ def document_for(
     mcp["exposed"] = exposed or mcp.get("invoked") or []
     mcp["toolsExposed"] = mcp.get("toolsExposed") or 0
 
-    started = job.get("startedAt") or parsed.get("startedAt")
-    finished = job.get("finishedAt") or parsed.get("finishedAt")
-    if isinstance(started, datetime):
-        started = started.astimezone(timezone.utc).isoformat()
-    if isinstance(finished, datetime):
-        finished = finished.astimezone(timezone.utc).isoformat()
+    started = _as_utc(job.get("startedAt") or parsed.get("startedAt"))
+    finished = _as_utc(job.get("finishedAt") or parsed.get("finishedAt"))
 
     return {
         "_id": f"{job_id}:{attempt}",
