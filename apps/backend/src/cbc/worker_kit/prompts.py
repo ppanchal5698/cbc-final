@@ -109,11 +109,13 @@ PREAMBLE = """Constraints that override anything else:
   in `extracted/_visual_pages.json`.** Call `list_documents` / `get_outline`, then
   `search_blocks` or `get_page_blocks`. Crop with
   `pdf-tools.get_page_image(..., region=bbox)` when a value is unclear **or**
-  when you are about to flag a field missing. For every page in
-  `_visual_pages.json`, `Read` the pre-rendered `image_path` PNG **first** (or
-  call `get_page_image` if the cache file is missing) — do not start with
-  bid-docs / extract_text on those pages. Unparsed documents still use
-  pdf-tools as before.
+  when you are about to flag a field missing. For every page listed under
+  **Mandatory visual reads**, `Read` the pre-rendered `image_path` PNG **first**
+  (or call `get_page_image` if the cache file is missing) — do not start with
+  bid-docs / extract_text on those pages. `_visual_pages.json` also lists FRP,
+  finish and bare-hardware sheets; those belong to their own specialists, and a
+  full-page image costs ~2,100 tokens that then rides in context for the rest of
+  the pass. Unparsed documents still use pdf-tools as before.
 - **Find the page before you read it.** `search_pdf` / `search_blocks` is cheap
   and tells you which sheet carries the schedule. `extract_tables` on a whole
   bid set costs more context than the entire estimate. Search, then read the two
@@ -297,8 +299,8 @@ summary alone. Cite page + excerpt (or "searched pages … — not found") in
 `evidence_note`. See `.claude/rules/pdf-verify-before-present.md`.
 
 Do not open a full-page image of a parsed page when a block crop will do —
-unless that page is listed in `_visual_pages.json` (then the full-page image is
-mandatory first).
+unless that page is listed under **Mandatory visual reads** (then the full-page
+image is mandatory first).
 
 Do not delete rows, do not renumber them, and do not drop `bbox`, `row_bbox`,
 `cell_boxes` or `page_size` - the estimator's sheet viewer draws the highlight
@@ -393,8 +395,9 @@ in extracted/ still stand. Do not redo them.
 The worker has already re-run `parse_schedule.py` over the schedule sheet and
 written the result to `{project_dir}/extracted/door_schedule.json`, carrying every
 confirmed and hand-added row across untouched. Read that file **and**
-`{project_dir}/extracted/_visual_pages.json`, then vision-read every listed page
-before correcting what the parser got wrong or left null. On visual pages prefer
+`{project_dir}/extracted/_visual_pages.json`, then vision-read the pages listed
+under **Mandatory visual reads** before correcting what the parser got wrong or
+left null. On visual pages prefer
 the pre-rendered image over extract_tables alone.
 
 The estimator asked for another pass because something was wrong or missing on the

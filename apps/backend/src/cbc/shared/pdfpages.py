@@ -219,8 +219,16 @@ def render_cache_name(
 def _clamp_dpi(requested: int, page: fitz.Page, region: list[float] | None) -> int:
     dpi = max(MIN_DPI, min(int(requested), MAX_DPI))
     if region:
-        return dpi
-    long_pt = max(page.rect.width, page.rect.height)
+        # A crop used to skip the clamp entirely and could render at 300 dpi.
+        # That is fine for the small crops this is meant for and ruinous for a
+        # large one: half an E-size sheet at 300 dpi is 6300x4500, about 37,800
+        # vision tokens in a single tool result. Bounding a region by its own
+        # long edge leaves small crops exactly as sharp as before - 200pt of
+        # page allows 564 dpi, well past the 300 ceiling - and only bites when
+        # the "crop" is most of a sheet.
+        long_pt = max(abs(region[2] - region[0]), abs(region[3] - region[1]))
+    else:
+        long_pt = max(page.rect.width, page.rect.height)
     if long_pt <= 0:
         return dpi
     max_for_edge = int(MAX_LONG_EDGE_PX * 72 / long_pt)
