@@ -243,7 +243,17 @@ def prompt_block(entries: list[dict[str, Any]] | None) -> str:
                 }
                 for row in entries
             ],
-            indent=2,
+            # Compact, not indented. This block is re-sent on every turn of the
+            # pricing pass and it grows with the bid: at `indent=2` it was 185
+            # characters an entry, ~11k on a 60-opening bid and ~37k on a
+            # 200-line one. The separators carry no meaning to the model, and
+            # every tool result it already reads is compacted the same way by
+            # `_runtime.dump_payload`.
+            #
+            # Deliberately *not* capped. A capped entry is one the matcher has
+            # to decide again, which costs more than the ~46 tokens the cached
+            # row occupies - the block is the saving, not the overhead.
+            separators=(",", ":"),
         ),
         "```",
         "",
