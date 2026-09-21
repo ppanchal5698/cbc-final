@@ -203,6 +203,15 @@ wave-2 output.
     3b. `frp-specialist`     -> extracted/frp_takeoff.json   (ONLY if scope_summary.frp_in_scope)
     3c. `div10-specialist`   -> extracted/div10_takeoff.json (ONLY if scope_summary.div10_in_scope)
 
+**Every file in both waves is already on disk.** Before this session started the
+worker parsed the sheets in code and wrote `scope_metadata.json`,
+`scope_summary.json`, `door_schedule.json`, `frp_takeoff.json` and
+`div10_takeoff.json`. Each subagent **checks and completes** its file - it does
+not author it. Read it with `get_artifact` first, keep what is right, correct
+what is wrong, and fill nulls from sheet evidence. Re-deriving a field the
+parser already got is the most expensive way to agree with it. Where the seed
+parsed nothing, it says so in its own fields - that is the part that needs you.
+
 Issuing wave 2 as three separate messages runs them one after another and roughly
 doubles the wall clock for no benefit — a measured run spent 11 of its 17 minutes
 waiting, with FRP idle until take-off finished and Div 10 idle until FRP did.
@@ -419,9 +428,17 @@ The estimator has confirmed the openings in {project_dir}/extracted/door_schedul
   2. `pricing-engineer` -> {project_dir}/priced/line_items.json,
                             {project_dir}/priced/margin_applied.json
 
-When delegating **product-matcher**, tell it to read `extracted/door_schedule.json`
-and `extracted/scope_summary.json` only — hardware groups are already in
-scope_summary; do **not** ask it to read `uploads/raw/` or call pdf-tools.
+When delegating **product-matcher**, tell it to read `extracted/door_schedule.json`,
+`extracted/hardware_sets.json` and `extracted/scope_summary.json` only —
+do **not** ask it to read `uploads/raw/` or call pdf-tools.
+
+`hardware_sets.json` is **already written**: the worker parsed the hardware
+legend in code before this session started, and on a sheet that parses well that
+is dozens of items with part numbers. product-matcher's job is to **match** those
+items, not to re-type them — keep every set and item already there, correct what
+is wrong, and add only what the parse missed. A thin seed (no items, or items
+carrying no part number) means the legend would not parse, and only then do the
+sets need building from the schedule's group callouts.
 
 {match_reuse}
 
