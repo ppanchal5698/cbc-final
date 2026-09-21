@@ -192,3 +192,28 @@ def test_a_timestamp_from_the_recording_is_parsed_not_passed_through() -> None:
         {"startedAt": "not a time"},
     )
     assert junk["startedAt"] is None
+
+
+def test_a_dead_letter_retry_does_not_erase_the_run_it_replaces():
+    """`_id` was {jobId}:{attempt}, and `jobs.retry` sets `attempts` back to 0.
+
+    So the retried run wrote the same key as the failed one and replaced it —
+    in the single collection the spend page and the cost caps read. Observed
+    live: retrying one dead extraction moved the measured waste figure from 41%
+    to 37% by deleting the evidence, not by fixing anything.
+
+    Ids written before a retry keep their old shape, so existing rows are not
+    orphaned.
+    """
+    from cbc.modules.ops.api import runmetrics
+
+    job = {"_id": "abc", "type": "extract_bid_set", "attempts": 1}
+    first = runmetrics.document_for(job, {})["_id"]
+    retried = runmetrics.document_for({**job, "retryGeneration": 1}, {})["_id"]
+    again = runmetrics.document_for({**job, "retryGeneration": 2}, {})["_id"]
+
+    assert first == "abc:1", "the pre-existing shape is untouched"
+    assert len({first, retried, again}) == 3, "each run keeps its own record"
+
+    for falsy in (0, None, ""):
+        assert runmetrics.document_for({**job, "retryGeneration": falsy}, {})["_id"] == first

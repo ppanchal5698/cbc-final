@@ -344,6 +344,15 @@ def parse_recording_name(name: str) -> tuple[str, int]:
     return stem, 1
 
 
+def _metrics_id(job_id: str, attempt: int, generation: Any) -> str:
+    """One id per run, including the runs a retry replaces."""
+    try:
+        number = int(generation or 0)
+    except (TypeError, ValueError):
+        number = 0
+    return f"{job_id}:{attempt}" if number <= 0 else f"{job_id}:r{number}:{attempt}"
+
+
 def _as_utc(value: Any) -> datetime | None:
     """A timestamp Mongo can actually compare.
 
@@ -397,7 +406,10 @@ def document_for(
     finished = _as_utc(job.get("finishedAt") or parsed.get("finishedAt"))
 
     return {
-        "_id": f"{job_id}:{attempt}",
+        # {jobId}:{attempt} alone collides after a dead-letter retry, which
+        # resets `attempts`. The generation keeps earlier runs on disk, and is
+        # left out at 0 so every id written before this stays as it was.
+        "_id": _metrics_id(job_id, attempt, job.get("retryGeneration")),
         "jobId": job_id,
         "attempt": attempt,
         "projectId": str(job["projectId"]) if job.get("projectId") else None,

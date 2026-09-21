@@ -428,7 +428,13 @@ async def retry(job_id: ObjectId, actor: str = "estimator") -> dict[str, Any]:
                 "retriedBy": actor,
                 "retriedAt": _now(),
                 "note": "requeued from dead-letter",
-            }
+            },
+            # `attempts` goes back to 0 so the job gets a fresh budget, which
+            # made the run's metrics key - {jobId}:{attempt} - collide with the
+            # failed run it is replacing. A dead-letter retry silently erased
+            # the record of the failure it was retrying, out of the one
+            # collection the spend page and the cost caps read.
+            "$inc": {"retryGeneration": 1},
         },
         return_document=ReturnDocument.AFTER,
     )
