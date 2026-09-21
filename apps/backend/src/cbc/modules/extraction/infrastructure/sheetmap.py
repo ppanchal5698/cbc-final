@@ -310,14 +310,29 @@ def _load_parse_schedule():
         / "parse_schedule.py"
     )
     name = "cbc_parse_schedule"
-    if name in sys.modules:
-        return sys.modules[name]
+    # Cached on the file's mtime, not on the name alone.
+    #
+    # The worker is long-lived and `.claude` is a bind mount, so an edit to the
+    # parser lands on disk under a process that has already imported it. A
+    # `name in sys.modules` cache then serves the pre-edit module for the life
+    # of the worker, and the edit looks like it did nothing: a real fix to the
+    # schedule row parser was applied, a bid was re-run, and the output came
+    # back byte-identical with no error anywhere to explain it.
+    try:
+        stamp = path.stat().st_mtime_ns
+    except OSError:  # gone or unreadable - let the import below report it
+        stamp = None
+    cached = sys.modules.get(name)
+    if cached is not None and getattr(cached, "_cbc_loaded_from", None) == stamp:
+        return cached
+
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:  # pragma: no cover
         raise ImportError(f"cannot load {path}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
     spec.loader.exec_module(module)
+    module._cbc_loaded_from = stamp
     return module
 
 

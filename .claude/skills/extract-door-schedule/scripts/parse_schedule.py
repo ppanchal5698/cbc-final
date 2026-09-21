@@ -21,6 +21,7 @@ import json
 import re
 import sys
 from collections import defaultdict
+from statistics import median
 from pathlib import Path
 from typing import Any
 
@@ -1074,6 +1075,61 @@ def parse_opening(
     return opening
 
 
+def _schedule_columns(
+    rows: list[dict[str, Any]], header_map: dict[str, int] | None = None
+) -> tuple[float, float] | None:
+    """The table's horizontal extent, measured from rows that are openings.
+
+    Header positions cannot be trusted for this - a sheet whose header map
+    matched a `notes` column at x 124-404 is exactly the sheet where the junk
+    lives. Rows the parser already reads as openings agree on where the table
+    is, so take the median of their spans and ignore the outliers by
+    construction.
+    """
+    spans: list[tuple[float, float]] = []
+    for row in rows:
+        boxes = row.get("cell_boxes") or []
+        if not boxes or not _row_is_opening(row, header_map):
+            continue
+        spans.append((min(b[0] for b in boxes), max(b[2] for b in boxes)))
+    if len(spans) < 2:
+        return None
+    return (median(s[0] for s in spans), median(s[1] for s in spans))
+
+
+def _trim_to_columns(row: dict[str, Any], columns: tuple[float, float] | None) -> None:
+    """Drop cells printed outside the table, and rebuild text and bbox. In place.
+
+    Never empties a row: a row that would lose every cell is left alone, so a
+    sheet whose table this misreads degrades to today's behaviour rather than
+    vanishing.
+    """
+    if not columns:
+        return
+    cells = row.get("cells") or []
+    boxes = row.get("cell_boxes") or []
+    if not cells or len(cells) != len(boxes):
+        return
+    x0, x1 = columns
+    pad = 0.05 * max(x1 - x0, 1.0)
+    kept = [
+        (cell, box)
+        for cell, box in zip(cells, boxes)
+        if box[0] >= x0 - pad and box[2] <= x1 + pad
+    ]
+    if not kept or len(kept) == len(cells):
+        return
+    row["cells"] = [cell for cell, _ in kept]
+    row["cell_boxes"] = [box for _, box in kept]
+    row["text"] = " | ".join(row["cells"])
+    row["bbox"] = [
+        round(min(b[0] for _, b in kept), 2),
+        round(min(b[1] for _, b in kept), 2),
+        round(max(b[2] for _, b in kept), 2),
+        round(max(b[3] for _, b in kept), 2),
+    ]
+
+
 def _schedule_band(
     rows: list[dict[str, Any]], header_map: dict[str, int] | None = None
 ) -> tuple[float, float] | None:
@@ -1233,11 +1289,13 @@ def schedule_rows(pdf_path: str, page_number: int) -> list[dict[str, Any]]:
     header_map = _detect_header_map(rows)
     sheet_finish = _page_sheet_finish(rows[0].get("_page_text") if rows else None)
     band = _schedule_band(rows, header_map)
+    columns = _schedule_columns(rows, header_map)
 
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
     for row in rows:
         page_text = row.pop("_page_text", None)
+        _trim_to_columns(row, columns)
         if page_text and not sheet_finish:
             sheet_finish = _page_sheet_finish(page_text)
         if band and not (band[0] <= row["y"] <= band[1]):
