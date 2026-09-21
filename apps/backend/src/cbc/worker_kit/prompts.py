@@ -892,7 +892,16 @@ one field at a time, each citing the page you read it from:
 
 A patch the contract refuses costs that one field and leaves a review flag -
 there is nothing to retry. A whole-file `save_artifact` over this schedule is
-refused.""",
+refused.
+
+`visual_pages_checked` is the one top-level path a patch may set - one patch
+carrying every row, before you finish.
+
+**Your pages run in the CBC 95% ladder**, schedule first: door schedule, then
+the hardware legend, then the Division 08 specs, then the floor plans. The later
+sheets are there for the fields the schedule does not print - `handing` above
+all, which is read off the door swing on the plan and never off a schedule
+row.""",
     },
     "frp": {
         "role": "FRP Specialist",

@@ -115,3 +115,47 @@ def test_each_leg_carries_only_its_own_pages() -> None:
     assert "16" in briefs["takeoff"]
     assert "23" in briefs["frp"]
     assert "19, 18" in briefs["div10"]
+
+
+def test_the_takeoff_leg_gets_the_sheets_the_schedule_does_not_print(bid) -> None:
+    """Handing is read off the door swing, and the leg was never given a plan.
+
+    The orchestrator path assigns takeoff-engineer door_schedule,
+    door_schedule_candidate, hardware, div08_specs *and* floor_plan, and the 95%
+    ladder ends "floor plans (validate / fill gaps)". The wave path handed it
+    schedule pages only. A real run then said, on every opening in the bid:
+
+        "floor-plan swing (sheet A2.0) is outside this session's page scope,
+         so handing stays flagged rather than filled"
+
+    It was being asked for a field and denied the sheet that carries it.
+    """
+    bid({
+        "door_schedule": [16],
+        "floor_plan": [40, 41, 42],
+        "hardware": [50, 51, 52],
+        "div08_specs": [60],
+        "frp": [23],
+    })
+    legs = dict(passes.extraction_wave(JOB, PROJECT))
+    pages = legs["takeoff"]
+
+    assert "16" in pages, "the schedule is still the primary read"
+    assert "40" in pages and "41" in pages, "floor plans, for the swing"
+    assert "60" in pages, "the Division 08 specs"
+    assert "42" not in pages, "an allowance, not the whole role - these cost tokens"
+    assert "52" not in pages
+
+
+def test_the_allowance_counts_sheets_the_leg_does_not_already_have(bid) -> None:
+    """`pages_for` ranks, it does not filter.
+
+    The same few sheets top every role's list, so taking the first N of each
+    added nothing and left the discriminating floor plans - which sit further
+    down - unseen. Measured on a real bid: `floor_plan` resolved to
+    [14, 1, 24, 10, ...] where 14 and 1 were already schedule pages.
+    """
+    bid({"door_schedule": [16], "floor_plan": [16, 40], "frp": [23]})
+    pages = dict(passes.extraction_wave(JOB, PROJECT))["takeoff"]
+
+    assert "40" in pages, "the overlap must not consume the allowance"

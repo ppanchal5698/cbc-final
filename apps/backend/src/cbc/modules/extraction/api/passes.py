@@ -502,7 +502,34 @@ def extraction_wave(job: dict[str, Any], project: dict[str, Any]) -> list[tuple[
 
     legs: list[tuple[str, list[int]]] = []
     takeoff_pages = pages_for("door_schedule") or pages_for("door_schedule_candidate")
+    # The schedule alone cannot answer every field, and the leg used to get
+    # nothing else — while the orchestrator path assigns takeoff-engineer
+    # door_schedule, door_schedule_candidate, hardware, div08_specs *and*
+    # floor_plan, and the 95% ladder in the prompts ends "floor plans (validate /
+    # fill gaps)". A real run reported, on every opening in the bid:
+    #
+    #   "floor-plan swing (sheet A2.0) is outside this session's page scope,
+    #    so handing stays flagged rather than filled"
+    #
+    # Handing is not printed on a door schedule; it is read off the swing. The
+    # leg was being asked for a field and denied the sheet that carries it.
+    #
+    # A small allowance, not the full cap: this bid maps 21 `hardware` pages and
+    # 9 `floor_plan`, and opening all of them would cost more than the handful of
+    # fields they settle.
     if takeoff_pages:
+        # The allowance counts pages the leg does not already have. `pages_for`
+        # ranks rather than filters, so the top of every role's list is the same
+        # few sheets - taking `[:allowance]` added nothing at all and left the
+        # discriminating floor plans, which sit further down, still unseen.
+        for role, allowance in (("hardware", 2), ("div08_specs", 2), ("floor_plan", 2)):
+            added = 0
+            for page in pages_for(role):
+                if added >= allowance:
+                    break
+                if page not in takeoff_pages:
+                    takeoff_pages.append(page)
+                    added += 1
         legs.append(("takeoff", takeoff_pages))
 
     # The specialty legs only exist when the scope file says the work does. That
