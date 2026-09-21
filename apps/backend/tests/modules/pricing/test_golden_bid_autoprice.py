@@ -197,16 +197,16 @@ def test_promote_never_erases_golden_priced_lines(tmp_path) -> None:
             json.dumps(live_payload), encoding="utf-8"
         )
 
-        workspace = sandbox.prepare("job-golden", slug)
+        workspace = sandbox.prepare(slug)
         clone = workspace / "projects" / slug
         (clone / "priced").mkdir(parents=True, exist_ok=True)
         (clone / "priced" / "line_items.json").write_text(
             json.dumps({"lines": []}), encoding="utf-8"
         )
         with pytest.raises(EmptyPricingPromoteError):
-            sandbox.promote("job-golden", slug)
+            sandbox.promote(slug)
         kept = json.loads((live / "priced" / "line_items.json").read_text())
         assert any(row.get("cost") == 12.41 for row in kept["lines"])
     finally:
-        sandbox.cleanup("job-golden")
+        sandbox.cleanup(slug)
         settings.storage_root = previous

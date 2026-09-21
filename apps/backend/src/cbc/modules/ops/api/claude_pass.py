@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import shutil
 import threading
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -237,7 +238,7 @@ async def run(
     if project is not None:
         try:
             sandbox_ws = await asyncio.to_thread(
-                sandbox_mod.prepare, str(job["_id"]), project["slug"]
+                sandbox_mod.prepare, project["slug"]
             )
             env = sandbox_mod.env_for(sandbox_ws, env)
         except Exception:
@@ -337,7 +338,7 @@ async def run(
         promote_ok = True
         if sandbox_ws is not None and project is not None and result is not None and result.ok:
             try:
-                await asyncio.to_thread(sandbox_mod.promote, str(job["_id"]), project["slug"])
+                await asyncio.to_thread(sandbox_mod.promote, project["slug"])
             except Exception as exc:
                 promote_ok = False
                 log.exception("sandbox promote failed for job %s", job["_id"])
@@ -358,16 +359,24 @@ async def run(
                     permanent=True,
                     error_code=error_code,
                 )
-        if sandbox_ws is not None and promote_ok:
+        if sandbox_ws is not None and project is not None and promote_ok:
             try:
-                await asyncio.to_thread(sandbox_mod.cleanup, str(job["_id"]))
+                await asyncio.to_thread(sandbox_mod.cleanup, project["slug"])
             except Exception:
                 log.exception("sandbox cleanup failed for job %s", job["_id"])
-        elif sandbox_ws is not None and not promote_ok:
-            log.error(
-                "sandbox: leaving scratch %s for recovery after promote failure",
-                job["_id"],
-            )
+        elif sandbox_ws is not None and project is not None and not promote_ok:
+            # The scratch root is keyed by project now, so the next job on this
+            # bid would wipe the only copy of work that never reached it. Move
+            # it aside instead.
+            # ponytail: never swept, add one if promote failures become routine.
+            kept = sandbox_mod.quarantine_dir(project["slug"], str(job["_id"]))
+            try:
+                await asyncio.to_thread(shutil.move, str(sandbox_ws), str(kept))
+                log.error("sandbox: kept %s for recovery after promote failure", kept)
+            except Exception:
+                log.exception(
+                    "sandbox: could not set aside %s after promote failure", sandbox_ws
+                )
 
     # Stopped because the worker is going down, not because anyone asked. Put it
     # back on the queue rather than recording a failure nobody caused.
