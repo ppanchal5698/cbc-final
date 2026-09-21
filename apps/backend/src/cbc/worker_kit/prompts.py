@@ -109,11 +109,12 @@ PREAMBLE = """Constraints that override anything else:
   in `extracted/_visual_pages.json`.** Call `list_documents` / `get_outline`, then
   `search_blocks` or `get_page_blocks`. Crop with
   `pdf-tools.get_page_image(..., region=bbox)` when a value is unclear **or**
-  when you are about to flag a field missing. For every page listed under
-  **Mandatory visual reads**, `Read` the pre-rendered `image_path` PNG **first**
+  when you are about to flag a field missing. For every page in
+  `_visual_pages.json` whose `roles` or `reasons` include `door_schedule` or
+  `door_schedule_candidate`, `Read` the pre-rendered `image_path` PNG **first**
   (or call `get_page_image` if the cache file is missing) — do not start with
-  bid-docs / extract_text on those pages. `_visual_pages.json` also lists FRP,
-  finish and bare-hardware sheets; those belong to their own specialists, and a
+  bid-docs / extract_text on those pages. The manifest also lists FRP, finish
+  and bare-hardware sheets; those belong to their own specialists, and a
   full-page image costs ~2,100 tokens that then rides in context for the rest of
   the pass. Unparsed documents still use pdf-tools as before.
 - **Find the page before you read it.** `search_pdf` / `search_blocks` is cheap
@@ -854,6 +855,7 @@ correct what is wrong. You are confirming a document, not producing one.
 - Your pages (from `extracted/_sheetmap.json`): {pages}
 - Your artifact: {artifact}
 
+{visual_checklist}
 {how_to_write}
 
 ## This session runs beside the others, not after them
@@ -917,6 +919,16 @@ refused.""",
 }
 
 
+def _visual_checklist_for(slug: str) -> str:
+    """The mandatory-visual-reads block, or nothing when there is none."""
+    try:
+        from cbc.modules.extraction.api import visual_pages as visual_pages_api
+
+        return visual_pages_api.prompt_checklist(slug) or ""
+    except Exception:  # a missing manifest must not stop a wave from starting
+        return ""
+
+
 def build_wave(
     project: dict[str, Any],
     legs: list[tuple[str, list[int]]],
@@ -944,6 +956,16 @@ def build_wave(
                 artifact=spec["artifact"],
                 how_to_write=spec["how_to_write"],
                 siblings=" or ".join(siblings) if siblings else "another take-off's file",
+                # Only the leg that owns door_schedule.json is validated on
+                # `visual_pages_checked`, and until now no wave leg was handed
+                # the list at all - `build_wave` never injected it, so the leg
+                # had to infer the set from the manifest. Two runs died on
+                # exactly that coverage check.
+                visual_checklist=(
+                    _visual_checklist_for(project["slug"])
+                    if str(spec["artifact"]).endswith("door_schedule.json")
+                    else ""
+                ),
                 preamble=PREAMBLE.format(
                     project_dir=project_dir,
                     delegation_rule=SOLO_RULE.format(project_dir=project_dir),

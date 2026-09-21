@@ -127,10 +127,22 @@ async def prepare(job: dict[str, Any], project: dict[str, Any], payload: dict[st
                 openings_seeded=openings_seeded,
                 mineru_by_path=mineru or None,
             )
+            # Two different numbers, and calling the first one "mandatory" read
+            # as though every pre-rendered sheet had to be opened. Most are FRP
+            # or finish pages that belong to their own specialist; only the
+            # door-schedule subset gates door_schedule.json.
+            rendered = list(visual.get("pages") or [])
+            mandatory = [
+                page
+                for page in rendered
+                if isinstance(page, dict)
+                and visual_pages.is_door_schedule_visual_page(page)
+            ]
             log.info(
-                "%s visual pages: %d mandatory reads",
+                "%s visual pages: %d pre-rendered, %d mandatory for the take-off",
                 project.get("code", project["slug"]),
-                len(visual.get("pages") or []),
+                len(rendered),
+                len(mandatory),
             )
         # The scope files are required for the run to validate at all. Seed a
         # truthful floor - known values in, everything else null and flagged -

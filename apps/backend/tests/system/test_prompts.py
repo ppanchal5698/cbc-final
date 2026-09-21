@@ -163,3 +163,44 @@ def test_an_ordinary_job_is_not_told_to_rebuild_everything(job_type: str) -> Non
     """Resume is the default, and it is the expensive thing to get wrong."""
     ordinary = prompts.build({"type": job_type, "payload": {}}, PROJECT)
     assert "FORCED CLEAN RUN" not in ordinary, job_type
+
+
+def test_a_wave_leg_is_handed_the_pages_it_will_be_validated_on(tmp_path, monkeypatch):
+    """`build_wave` never injected the mandatory-visual-reads block.
+
+    The orchestrator templates carry `{visual_checklist}`; the wave brief did
+    not, so a leg had to infer the set from the manifest. `door_schedule.json`
+    is then failed by `check_extraction` for missing `visual_pages_checked`
+    coverage on exactly those pages - two real runs died on it.
+
+    Only the leg that owns `door_schedule.json` is validated that way, so only
+    that leg pays for the block.
+    """
+    from cbc.worker_kit import prompts
+
+    monkeypatch.setattr(
+        prompts, "_visual_checklist_for", lambda slug: "**Mandatory visual reads (x).**\n- p20\n"
+    )
+    rendered = dict(
+        prompts.build_wave(
+            {"code": "CBC-1", "slug": "demo"},
+            [("takeoff", [20, 23]), ("frp", [14])],
+        )
+    )
+    assert "Mandatory visual reads" in rendered["takeoff"]
+    assert "Mandatory visual reads" not in rendered["frp"], "only the owner pays"
+
+
+def test_the_preamble_names_the_pages_without_relying_on_another_block():
+    """A wave leg's prompt has no checklist block, so PREAMBLE must stand alone.
+
+    Pointing it at "the **Mandatory visual reads** block" read fine in the
+    orchestrator templates and dangled in a wave leg, which is the one place
+    the instruction actually had to work.
+    """
+    from cbc.worker_kit import prompts
+
+    leg = dict(prompts.build_wave({"code": "C", "slug": "demo"}, [("frp", [14])]))["frp"]
+    assert "_visual_pages.json" in leg
+    assert "door_schedule_candidate" in leg
+    assert "listed under" not in leg, "no pointer at a block this prompt does not carry"
