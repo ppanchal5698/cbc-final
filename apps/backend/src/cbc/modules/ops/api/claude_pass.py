@@ -41,6 +41,19 @@ MAX_TURNS = int(os.environ.get("WORKER_MAX_TURNS", "60"))
 PIPELINE_TIMEOUT = int(os.environ.get("WORKER_PIPELINE_TIMEOUT_SECONDS", "10800"))
 PIPELINE_MAX_TURNS = int(os.environ.get("WORKER_PIPELINE_MAX_TURNS", "200"))
 
+# How long the first wave leg gets on its own before the rest follow.
+#
+# The legs are separate processes but they share a job type - so the same MCP
+# schemas - the same cwd and the same CLAUDE.md, which makes their ~32k system
+# prefix byte-identical. Prompt caching is server-side and content-keyed, so the
+# later legs would read the first one's prefix. Started in the same instant they
+# cannot: all three miss, and all three pay to write the same 32k.
+#
+# Measured on this CLI: a warm prefix cost $0.0056 against $0.0404 cold, 7.2x.
+# A few seconds of head start buys that on every leg after the first, against a
+# pass that runs for eleven to twenty-one minutes.
+WAVE_STAGGER_SECONDS = float(os.environ.get("WORKER_WAVE_STAGGER_SECONDS", "8"))
+
 # What a job slice hands the pass: how to sync its output (returning the job's
 # note), what to watch while it runs, and who records the provider on the bid.
 Sync = Callable[[dict[str, Any], dict[str, Any] | None], Awaitable[str]]
@@ -292,17 +305,26 @@ async def run(
             # one sandbox and write different files; the single promote below
             # copies all of it back with nothing to reconcile.
             log.info(
-                "%s wave: starting %s concurrently",
+                "%s wave: starting %s concurrently, %ss apart so they share a prefix",
                 job["type"],
                 ", ".join(leg.label for leg in legs),
+                WAVE_STAGGER_SECONDS,
             )
+            async def staggered(leg, path, delay: float):
+                # Only the first leg needs a head start. The rest can go together
+                # once the prefix exists - concurrent cache *reads* are fine; it
+                # is concurrent first-writes that all miss.
+                if delay:
+                    await asyncio.sleep(delay)
+                return await asyncio.to_thread(run_leg, leg, path)
+
             result = _combine(
                 legs,
                 list(
                     await asyncio.gather(
                         *(
-                            asyncio.to_thread(run_leg, leg, path)
-                            for leg, path in zip(legs, recordings)
+                            staggered(leg, path, 0 if index == 0 else WAVE_STAGGER_SECONDS)
+                            for index, (leg, path) in enumerate(zip(legs, recordings))
                         )
                     )
                 ),
