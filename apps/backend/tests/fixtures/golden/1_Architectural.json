@@ -2,7 +2,7 @@
   "source_file": "1_Architectural.pdf",
   "source_page": 14,
   "reviewed_by": null,
-  "note": "Regenerated after the header mapper was fixed and the accuracy gate was widened. The gate did not score width, height, room_name or the material columns, so it stayed green while the parser read every one of them from the wrong column - a stacked header tier has fewer cells than its data rows, and matching by index read each field one to the left. Provisional: every field in `unknown` needs a human to say whether the sheet is silent or the parser missed it.",
+  "note": "Regenerated after the header mapper was fixed and the accuracy gate was widened. The gate did not score width, height, room_name or the material columns, so it stayed green while the parser read every one of them from the wrong column - a stacked header tier has fewer cells than its data rows, and matching by index read each field one to the left. Provisional: every field in `unknown` needs a human to say whether the sheet is silent or the parser missed it. door_type on 02/03 was null here because those two rows were the ones `cluster_rows` polluted with off-table text; the column trim now reads them, and the sheet runs A/B/C/D down that column.",
   "openings": [
     {
       "door_number": "01",
@@ -40,7 +40,7 @@
       "finish": null,
       "fire_rating": null,
       "hardware_set": "GROUP 2",
-      "door_type": null,
+      "door_type": "B",
       "frame_type": null,
       "door_material": "HM",
       "frame_material": "HMD",
@@ -50,7 +50,6 @@
         "handing",
         "finish",
         "fire_rating",
-        "door_type",
         "frame_type",
         "wall_type"
       ]
@@ -66,7 +65,7 @@
       "finish": null,
       "fire_rating": null,
       "hardware_set": "GROUP 3",
-      "door_type": null,
+      "door_type": "C",
       "frame_type": null,
       "door_material": "HM",
       "frame_material": "HMD",
@@ -76,7 +75,6 @@
         "handing",
         "finish",
         "fire_rating",
-        "door_type",
         "frame_type",
         "wall_type"
       ]

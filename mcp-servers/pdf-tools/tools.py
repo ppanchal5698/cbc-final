@@ -93,9 +93,15 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "get_page_image",
         "description": (
-            "Render one PDF page to a PNG image for visual drawing take-off. "
-            "Writes the PNG to .cache/pdf-pages (or out_dir) and returns its path. "
-            "Full-page renders clamp the long edge to 1568 px; a region crop may exceed that."
+            "Render one PDF page to a PNG for visual take-off. Writes to "
+            ".cache/pdf-pages (or out_dir) and returns its path plus px_per_pt and "
+            "legible. The long edge is capped at 1568 px for full pages AND region "
+            "crops, so raising dpi on a wide area buys nothing - the only lever on "
+            "readability is a smaller region. A whole 2448pt sheet renders at 0.64 "
+            "px/pt, enough to see that a table exists and not to read it; schedule "
+            "text needs about 2.0. When legible is false the reply says how far to "
+            "crop. Region is [x0, y0, x1, y1] in the same display-space PDF points "
+            "as every stored bbox and page_size."
         ),
         "inputSchema": {
             "type": "object",

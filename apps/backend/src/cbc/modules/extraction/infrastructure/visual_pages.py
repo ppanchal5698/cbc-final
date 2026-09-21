@@ -236,6 +236,11 @@ def build_visual_pages(
             )
             entry["image_path"] = _project_image_path(hit["image_path"])
             entry["dpi"] = hit.get("dpi")
+            # dpi alone reads as reassuring and is not. A 2448pt sheet at the
+            # 1568px vision cap is 46 dpi - 0.64 px/pt - which shows that a
+            # table exists and will not yield a single row of it.
+            entry["px_per_pt"] = hit.get("px_per_pt")
+            entry["legible"] = hit.get("legible")
         except Exception as exc:
             log.warning("visual page render failed %s p%s: %s", path, source_page, exc)
             entry["error"] = str(exc)
@@ -354,6 +359,18 @@ def prompt_checklist(slug: str) -> str:
         "the file is missing). Do **not** prefer bid-docs / extract_text as the",
         "first read on these pages. FRP / finish / bare hardware vision pages",
         "are specialist work — not this checklist.",
+        "",
+        "**These are triage images, not readable ones.** A full architectural",
+        "sheet renders at roughly 0.6 px/pt against the 1568px vision cap —",
+        "enough to see *that* a schedule is on the page, nowhere near enough to",
+        "read a row. To read one, crop: `get_page_image(page, region=[x0,y0,x1,y1])`",
+        "over about 350–550pt. Raising `dpi` does nothing; the cap is on pixels,",
+        "so the only lever is a smaller region. The reply carries `px_per_pt`",
+        "and `legible` — check them instead of guessing from the picture.",
+        "",
+        "**On a page with a text layer, read it before you render anything.**",
+        "`parse_door_openings` or `extract_tables` return rows *with bboxes*,",
+        "which is both cheaper and more precise than reading pixels.",
         "",
         "Record them with **one patch**, before save / no_scope — the artifact is",
         "seeded, so this is a patch and not a whole-file write:",

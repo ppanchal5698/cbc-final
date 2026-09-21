@@ -53,7 +53,9 @@ def test_a_row_sized_crop_stays_exactly_as_sharp():
     300 dpi ceiling still governs and the crop is unchanged.
     """
     row_band = [0, 0, 200, 140]
-    assert pdfpages._clamp_dpi(300, E_SIZE, row_band) == pdfpages.MAX_DPI
+    assert pdfpages._clamp_dpi(300, E_SIZE, row_band) == 300, (
+        "a crop small enough to fit the pixel cap must get the dpi it asked for"
+    )
 
 
 def test_a_full_sheet_is_still_clamped_to_the_long_edge():

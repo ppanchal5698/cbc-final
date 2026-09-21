@@ -139,7 +139,54 @@ def save_artifact(
     }
 
 
-def get_artifact(project: str, path: str, version: str | None = None) -> dict[str, Any]:
+def _window(content: str, start: int, max_chars: int) -> dict[str, Any]:
+    """A slice of the artifact, saying plainly how much was left behind.
+
+    Truncation that does not announce itself is worse than refusing: an agent
+    reads half a JSON document, parses what it got, and reports on a schedule
+    that stops mid-array.
+    """
+    try:
+        begin = max(0, int(start))
+    except (TypeError, ValueError):
+        begin = 0
+    try:
+        budget = max(1_000, min(int(max_chars), MAX_CHARS_CEILING))
+    except (TypeError, ValueError):
+        budget = DEFAULT_MAX_CHARS
+    chunk = content[begin : begin + budget]
+    nxt = begin + len(chunk)
+    out: dict[str, Any] = {
+        "content": chunk,
+        "start": begin,
+        "total_chars": len(content),
+        "next": nxt if nxt < len(content) else None,
+    }
+    if out["next"] is not None:
+        out["note"] = (
+            f"{len(content) - nxt} characters not returned. Call again with "
+            f"start={nxt} to continue, or raise max_chars (ceiling "
+            f"{MAX_CHARS_CEILING}). This is a slice, not the whole file - do not "
+            "parse it as complete JSON."
+        )
+    return out
+
+
+# One artifact read must not be able to blow the caller's context. `_sheetmap.json`
+# on an 87-page set is 58,370 characters; an agent asking for it got the whole
+# thing refused by the harness and fell back to shelling out with `find` and
+# `python3` to read its own artifact. Same shape as `bid-docs.get_page_blocks`.
+DEFAULT_MAX_CHARS = 20_000
+MAX_CHARS_CEILING = 200_000
+
+
+def get_artifact(
+    project: str,
+    path: str,
+    version: str | None = None,
+    start: int = 0,
+    max_chars: int = DEFAULT_MAX_CHARS,
+) -> dict[str, Any]:
     if version:
         store = _versions_dir(project)
         candidates = [p for p in store.glob(f"{version}*") if p.name != INDEX_NAME]
@@ -150,7 +197,7 @@ def get_artifact(project: str, path: str, version: str | None = None) -> dict[st
             "project": project,
             "path": path,
             "version": blob.name,
-            "content": blob.read_text(encoding="utf-8"),
+            **_window(blob.read_text(encoding="utf-8"), start, max_chars),
         }
 
     target = _resolve(project, path)
@@ -161,7 +208,7 @@ def get_artifact(project: str, path: str, version: str | None = None) -> dict[st
         "project": project,
         "path": path,
         "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
-        "content": content,
+        **_window(content, start, max_chars),
     }
 
 
