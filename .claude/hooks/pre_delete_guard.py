@@ -462,13 +462,13 @@ def _under_projects(path: str) -> bool:
 
 
 # Checkpoint artifacts must go through save_artifact (schema + versioning).
-# Bare Write/Edit bypasses MCP validation and caused invalid door_schedule.json
+# Bare Write/Edit bypasses MCP validation and caused invalid line_items.json
 # to land on disk (thickness / page_size array) while the agent reported success.
 _CHECKPOINT_ARTIFACTS = frozenset(
     {
         "extracted/scope_metadata.json",
         "extracted/scope_summary.json",
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         "extracted/frp_takeoff.json",
         "extracted/div10_takeoff.json",
         "extracted/hardware_sets.json",
@@ -480,7 +480,7 @@ _CHECKPOINT_ARTIFACTS = frozenset(
 # number, so it understands the door schedule and nothing else yet. Withdrawing
 # whole-file authority for an artifact it cannot edit would leave no way to write
 # that artifact at all, which is a worse failure than a whole-file write.
-_PATCHABLE_ARTIFACTS = frozenset({"extracted/door_schedule.json"})
+_PATCHABLE_ARTIFACTS = frozenset({"extracted/line_items.json"})
 
 
 def _seeded_file_exists(project: str, rel: str) -> bool:
