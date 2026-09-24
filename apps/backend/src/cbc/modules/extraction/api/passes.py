@@ -48,7 +48,7 @@ PIPELINE_PROGRESS = (
     ("quotation.html", "proposal", 85, "Quote built"),
     ("priced/line_items.json", "quote", 70, "Pricing"),
     ("extracted/hardware_sets.json", "quote", 55, "Product matching"),
-    ("extracted/door_schedule.json", "extraction", 40, "Take-off"),
+    ("extracted/line_items.json", "extraction", 40, "Take-off"),
     ("extracted/scope_summary.json", "extraction", 25, "Spec scoping"),
     ("extracted/scope_metadata.json", "intake", 10, "Intake"),
 )
@@ -66,14 +66,14 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-async def _mineru_signals_by_path(project: dict[str, Any]) -> dict[str, dict[int, dict[str, Any]]]:
-    """MinerU verified / block counts per raw PDF page, from intake.
+async def _parse_signals_by_path(project: dict[str, Any]) -> dict[str, dict[int, dict[str, Any]]]:
+    """Parser verified / block counts per raw PDF page, from intake.
 
     This used to read `intake.infrastructure.collections` directly, past intake's
     api - the layering rule forbids it, and the question is about intake's own
     documents, so intake answers it.
     """
-    return await extraction_documents.mineru_signals_by_path(
+    return await extraction_documents.parse_signals_by_path(
         project.get("_id"), project.get("slug") or ""
     )
 
@@ -120,17 +120,29 @@ async def prepare(job: dict[str, Any], project: dict[str, Any], payload: dict[st
                 seeded["preserved"],
                 f" - {seeded['note']}" if seeded["note"] else "",
             )
-            mineru = await _mineru_signals_by_path(project)
+            signals = await _parse_signals_by_path(project)
             visual = await asyncio.to_thread(
                 visual_pages.build_visual_pages,
                 project["slug"],
                 openings_seeded=openings_seeded,
-                mineru_by_path=mineru or None,
+                signals_by_path=signals or None,
             )
+            # Two different numbers, and calling the first one "mandatory" read
+            # as though every pre-rendered sheet had to be opened. Most are FRP
+            # or finish pages that belong to their own specialist; only the
+            # door-schedule subset gates line_items.json.
+            rendered = list(visual.get("pages") or [])
+            mandatory = [
+                page
+                for page in rendered
+                if isinstance(page, dict)
+                and visual_pages.is_door_schedule_visual_page(page)
+            ]
             log.info(
-                "%s visual pages: %d mandatory reads",
+                "%s visual pages: %d pre-rendered, %d mandatory for the take-off",
                 project.get("code", project["slug"]),
-                len(visual.get("pages") or []),
+                len(rendered),
+                len(mandatory),
             )
         # The scope files are required for the run to validate at all. Seed a
         # truthful floor - known values in, everything else null and flagged -
@@ -178,6 +190,32 @@ async def prepare(job: dict[str, Any], project: dict[str, Any], payload: dict[st
                 error_code="extract_too_large",
             )
             return False
+
+    # The seed is already a real take-off - `seed_door_schedule` writes the rows
+    # before the first token is generated, so the model's job is checking them
+    # rather than producing them. They were only imported in `sync_results`,
+    # which is the job's *completion* hook, so for the whole run the review
+    # screen read an empty `openings` collection while telling the estimator
+    # "Claude is reading the bid set. Lines appear here as they are found."
+    # On a 24-page set that is the parse plus the entire wave - half an hour of
+    # a screen that says work is arriving and shows none of it.
+    #
+    # Importing here puts the seeded rows in front of the estimator while the
+    # take-off checks them. The end-of-job import then updates them with its
+    # corrections, and a row the estimator confirmed in the meantime is left
+    # alone by the same rule that already protects one during a re-run.
+    if job["type"] in ("extract_bid_set", "rerun_extraction", "run_full_pipeline"):
+        from cbc.modules.extraction.api import line_items
+
+        seeded_rows = await line_items.import_extraction(project, job=job)
+        if seeded_rows.get("inserted") or seeded_rows.get("updated"):
+            log.info(
+                "%s seeded openings visible: %d new, %d updated, %d left as the estimator set them",
+                project.get("code", project["slug"]),
+                seeded_rows.get("inserted", 0),
+                seeded_rows.get("updated", 0),
+                seeded_rows.get("skipped", 0),
+            )
     return True
 
 
@@ -326,6 +364,12 @@ def _sync_blocking_pre(job: dict, project: dict) -> dict:
             log.info(
                 "%s bbox: %d measured from the sheet, %d left null and flagged",
                 project.get("code", slug), attached, unmatched,
+            )
+        spec_attached, spec_unmatched = geometry.measure_specialty_bboxes(project)
+        if spec_attached or spec_unmatched:
+            log.info(
+                "%s specialty bbox: %d measured from the sheet, %d left null and flagged",
+                project.get("code", slug), spec_attached, spec_unmatched,
             )
         derived, no_depth = geometry.derive_frame_depths(project)
         if derived or no_depth:
@@ -477,9 +521,9 @@ def extraction_wave(job: dict[str, Any], project: dict[str, Any]) -> list[tuple[
     except (OSError, json.JSONDecodeError):
         return []
 
-    def pages_for(role: str) -> list[int]:
+    def pages_for(*roles: str) -> list[int]:
         seen: list[int] = []
-        for hit in sheetmap.pages_for_roles(sheets, role):
+        for hit in sheetmap.pages_for_roles(sheets, *roles):
             try:
                 page = int(hit["source_page"])
             except (KeyError, TypeError, ValueError):
@@ -489,21 +533,118 @@ def extraction_wave(job: dict[str, Any], project: dict[str, Any]) -> list[tuple[
         return seen[:MAX_WAVE_PAGES]
 
     legs: list[tuple[str, list[int]]] = []
-    takeoff_pages = pages_for("door_schedule") or pages_for("door_schedule_candidate")
+    # Both schedule roles in one ranked pass. The old
+    # `pages_for("door_schedule") or pages_for("door_schedule_candidate")` dropped
+    # every candidate the moment a single schedule page existed - and the leg was
+    # then validated against candidates it was never handed.
+    takeoff_pages = pages_for(*visual_pages.DOOR_SCHEDULE_VISUAL_ROLES)
+    # The schedule alone cannot answer every field, and the leg used to get
+    # nothing else — while the orchestrator path assigns takeoff-engineer
+    # door_schedule, door_schedule_candidate, hardware, div08_specs *and*
+    # floor_plan, and the 95% ladder in the prompts ends "floor plans (validate /
+    # fill gaps)". A real run reported, on every opening in the bid:
+    #
+    #   "floor-plan swing (sheet A2.0) is outside this session's page scope,
+    #    so handing stays flagged rather than filled"
+    #
+    # Handing is not printed on a door schedule; it is read off the swing. The
+    # leg was being asked for a field and denied the sheet that carries it.
+    #
+    # A small allowance, not the full cap: this bid maps 21 `hardware` pages and
+    # 9 `floor_plan`, and opening all of them would cost more than the handful of
+    # fields they settle.
     if takeoff_pages:
+        # The allowance counts pages the leg does not already have. `pages_for`
+        # ranks rather than filters, so the top of every role's list is the same
+        # few sheets - taking `[:allowance]` added nothing at all and left the
+        # discriminating floor plans, which sit further down, still unseen.
+        for role, allowance in (("hardware", 2), ("div08_specs", 2), ("floor_plan", 2)):
+            added = 0
+            for page in pages_for(role):
+                if added >= allowance:
+                    break
+                if page not in takeoff_pages:
+                    takeoff_pages.append(page)
+                    added += 1
+        # check_extraction requires every schedule/candidate visual page in
+        # visual_pages_checked, uncapped. These ride above MAX_WAVE_PAGES - they
+        # are not an allowance, the validator holds the leg to every one - so the
+        # leg is never validated on a page it was never handed.
+        for _path, page in visual_pages.schedule_visual_keys(project["slug"]):
+            if page not in takeoff_pages:
+                takeoff_pages.append(page)
         legs.append(("takeoff", takeoff_pages))
 
-    # The specialty legs only exist when the scope file says the work does. That
-    # file is what gates their seeds too, so the two never disagree.
+    # frp/div10 are selected on their sheetmap pages alone. scope_summary only
+    # vetoes, and only when a real pass wrote it - the pretakeoff seed's flags
+    # just mirror pages_for, so gating on them would be circular, and the scope
+    # leg (below) is writing this very file concurrently. So on a first
+    # extraction this is behaviour-preserving (seed flag == pages exist), and on
+    # rerun_extraction a real pass that set a flag false can veto a stray sheet.
     summary = read_json(storage.project_dir(project["slug"]) / "extracted" / "scope_summary.json")
     summary = summary if isinstance(summary, dict) else {}
-    if summary.get("frp_in_scope") and pages_for("frp"):
+    by_real_pass = summary.get("source") not in (None, pretakeoff.SOURCE)
+
+    def _not_vetoed(flag: str) -> bool:
+        return not (by_real_pass and summary.get(flag) is False)
+
+    if pages_for("frp") and _not_vetoed("frp_in_scope"):
         legs.append(("frp", pages_for("frp")))
-    if summary.get("div10_in_scope") and pages_for("div10"):
+    if pages_for("div10") and _not_vetoed("div10_in_scope"):
         legs.append(("div10", pages_for("div10")))
 
     # One leg is not a wave. Running it through the fan-out would drop the
-    # orchestrator prompt for no benefit.
+    # orchestrator prompt for no benefit - and the orchestrator runs intake and
+    # scope itself, so a single-pass extraction still reads the title block/specs.
     if len(legs) < 2:
         return []
-    return prompts.build_wave(project, legs)
+
+    # It IS a wave, so the orchestrator prompt is discarded (claude_pass runs the
+    # legs, not the orchestrator). Add the intake and scope legs it would
+    # otherwise have run, or scope_metadata.json / scope_summary.json stay at the
+    # pretakeoff seed - the title block never read, the specs never read. Their
+    # writes are disjoint from every other leg's, so they run beside them.
+    # ponytail: a spec-only FRP scope (no tagged sheet) gets no leg on this pass;
+    # the scope leg flips the flag and check_extraction warns. If that proves
+    # common, make this a two-stage wave (scope first, then specialty selection).
+    legs = [
+        ("intake", pages_for("title")),
+        ("scope", pages_for("div08_specs", "div10")),
+    ] + legs
+
+    # Skip legs a previous attempt already promoted, so a retry does not re-buy a
+    # ~32k prefix plus turns to re-confirm work already on disk. A leg qualifies
+    # only when the last attempt recorded it ok AND its promoted artifact still
+    # passes its own contract - res.ok is CLI-level and, on a wave failure, sync
+    # never validated it. Three guards the naive version needs:
+    #   1. A forced clean run trusts nothing on disk (reintroduces the W3b bug).
+    #   2. Validate, don't stat - a promoted-but-unparseable artifact re-runs.
+    #   3. If every leg would be skipped, the failure was at promote/sync, not in
+    #      a leg, so run the whole wave rather than no-op to success.
+    payload = job.get("payload") or {}
+    if not payload.get("force"):
+        prior_ok = {
+            entry.get("label")
+            for entry in (job.get("waveLegs") or [])
+            if isinstance(entry, dict) and entry.get("ok")
+        }
+        if prior_ok:
+            from cbc.modules.extraction.api.validation import contracts
+
+            remaining: list[tuple[str, list[int]]] = []
+            for label, pages in legs:
+                artifact = (prompts.WAVE_LEGS.get(label) or {}).get("artifact")
+                if label in prior_ok and artifact:
+                    kind = Path(artifact).stem
+                    problems, _ = contracts.check_contracts(
+                        project["slug"], ((artifact, kind),)
+                    )
+                    if not problems:
+                        continue  # done last time and still valid - skip it
+                remaining.append((label, pages))
+            if remaining:  # empty means re-run everything (failure was promote/sync)
+                legs = remaining
+
+    # After skipping, a single remaining leg is still worth a focused re-run
+    # rather than dropping back to the whole orchestrator, so build_wave it.
+    return prompts.build_wave(job, project, legs)

@@ -100,27 +100,50 @@ def _ocr_assist(
     return clipped or None, True, None
 
 
-def _rel_image_path(image_path: str) -> str:
-    """Prefer a repo-relative path for prompts when the file is under the repo."""
+def _visual_image_dir(slug: str) -> Path:
+    """Where a pre-rendered vision page is written: inside the project.
+
+    It used to go to the shared render cache and be recorded relative to the
+    repository root. Claude never runs there. Each job clones the project into
+    `_scratch/{job}/workspace` and runs with its cwd on that clone, so a
+    repo-relative `.cache/pdf-pages/x.png` resolves under the workspace, where
+    nothing was ever copied - every mandatory visual `Read` failed and the agent
+    fell back to re-rendering, which is the escape hatch, not the path. In
+    docker-sandbox mode it is worse: the cache is not mounted at all and the
+    container is read-only, so the fallback cannot work either.
+
+    `extracted/` is where extraction output belongs and it is cloned with the
+    project, so the same path resolves in both modes.
+    """
+    return storage_root() / slug / "extracted" / "_visual_pages"
+
+
+def _project_image_path(image_path: str) -> str:
+    """The rendered page as Claude addresses it: `projects/{slug}/...`.
+
+    The same spelling `path` already uses on every row, and the one
+    `_resolve_pdf` reverses.
+    """
     path = Path(image_path)
     try:
-        return str(path.resolve().relative_to(ROOT.resolve())).replace("\\", "/")
+        inside = path.resolve().relative_to(storage_root().resolve())
     except ValueError:
         return str(path).replace("\\", "/")
+    return f"projects/{inside.as_posix()}"
 
 
-def apply_mineru_signals(
+def apply_parse_signals(
     sheetmap_payload: dict[str, Any],
-    mineru_by_path: dict[str, dict[int, dict[str, Any]]] | None,
+    signals_by_path: dict[str, dict[int, dict[str, Any]]] | None,
 ) -> dict[str, Any]:
-    """Re-annotate pages with optional MinerU verified / block_count signals."""
-    if not mineru_by_path:
+    """Re-annotate pages with optional parser verified / block_count signals."""
+    if not signals_by_path:
         return sheetmap_payload
     for file_row in sheetmap_payload.get("files") or []:
         path = str(file_row.get("path") or "")
-        by_page = mineru_by_path.get(path) or mineru_by_path.get(Path(path).name) or {}
+        by_page = signals_by_path.get(path) or signals_by_path.get(Path(path).name) or {}
         pages = list(file_row.get("pages") or [])
-        sheetmap.annotate_visual_flags(pages, mineru_by_page=by_page)
+        sheetmap.annotate_visual_flags(pages, signals_by_page=by_page)
         file_row["pages"] = pages
         file_row["needs_visual_read_pages"] = sorted(
             {int(p["source_page"]) for p in pages if p.get("needs_visual_read")}
@@ -132,7 +155,7 @@ def build_visual_pages(
     slug: str,
     *,
     openings_seeded: int = 0,
-    mineru_by_path: dict[str, dict[int, dict[str, Any]]] | None = None,
+    signals_by_path: dict[str, dict[int, dict[str, Any]]] | None = None,
     cap: int = sheetmap.VISUAL_PAGE_CAP,
 ) -> dict[str, Any]:
     """Render capped vision targets and write ``extracted/_visual_pages.json``.
@@ -153,15 +176,15 @@ def build_visual_pages(
         return payload
 
     sheetmap_payload = sheetmap.build_sheetmap(slug)  # no-op rewrite when SHA matches
-    sheetmap_payload = apply_mineru_signals(sheetmap_payload, mineru_by_path)
+    sheetmap_payload = apply_parse_signals(sheetmap_payload, signals_by_path)
 
     force: set[tuple[str, int]] = set()
     if int(openings_seeded or 0) <= 0:
         force = _schedule_force_pages(sheetmap_payload)
 
-    # Persist re-annotated needs_visual_read back onto the sheetmap when MinerU
+    # Persist re-annotated needs_visual_read back onto the sheetmap when parser
     # or pretakeoff force expands the set.
-    if mineru_by_path or force:
+    if signals_by_path or force:
         for file_row in sheetmap_payload.get("files") or []:
             path = str(file_row.get("path") or "")
             pages = list(file_row.get("pages") or [])
@@ -208,9 +231,16 @@ def build_visual_pages(
             rendered.append(entry)
             continue
         try:
-            hit = pdfpages.page_image(pdf, source_page, dpi=VISUAL_DPI)
-            entry["image_path"] = _rel_image_path(hit["image_path"])
+            hit = pdfpages.page_image(
+                pdf, source_page, dpi=VISUAL_DPI, out_dir=_visual_image_dir(slug)
+            )
+            entry["image_path"] = _project_image_path(hit["image_path"])
             entry["dpi"] = hit.get("dpi")
+            # dpi alone reads as reassuring and is not. A 2448pt sheet at the
+            # 1568px vision cap is 46 dpi - 0.64 px/pt - which shows that a
+            # table exists and will not yield a single row of it.
+            entry["px_per_pt"] = hit.get("px_per_pt")
+            entry["legible"] = hit.get("legible")
         except Exception as exc:
             log.warning("visual page render failed %s p%s: %s", path, source_page, exc)
             entry["error"] = str(exc)
@@ -283,10 +313,18 @@ def load_visual_pages(slug: str) -> dict[str, Any] | None:
     return raw if isinstance(raw, dict) else None
 
 
-# Roles / reasons that gate door_schedule.json visual_pages_checked.
+# Roles / reasons that gate line_items.json visual_pages_checked.
 # Bare "hardware" / "frp" / "finish" are specialist pages — not this checklist.
 DOOR_SCHEDULE_VISUAL_ROLES = frozenset({"door_schedule", "door_schedule_candidate"})
-DOOR_SCHEDULE_VISUAL_REASONS = frozenset({"door_schedule_candidate", "pretakeoff_empty"})
+# `pretakeoff_empty` is not on this list, though it reads like it belongs. It is
+# stamped on *every* forced page when the take-off seeded nothing, so it says the
+# run found no openings - not that this sheet is door-schedule work. With it in,
+# an FRP / finish sheet joined the door-schedule checklist on the strength of an
+# empty take-off, and the block handed to Claude listed a page directly under the
+# sentence telling it FRP and finish pages are not on the checklist. A genuine
+# schedule page never needs it: `_schedule_force_pages` only forces pages that
+# already carry a door-schedule role or the candidate reason.
+DOOR_SCHEDULE_VISUAL_REASONS = frozenset({"door_schedule_candidate"})
 
 
 def is_door_schedule_visual_page(page: dict[str, Any]) -> bool:
@@ -298,11 +336,32 @@ def is_door_schedule_visual_page(page: dict[str, Any]) -> bool:
     )
 
 
+def schedule_visual_keys(slug: str) -> list[tuple[str, int]]:
+    """Schedule/candidate ``(path, source_page)`` pairs from the visual manifest.
+
+    `check_extraction` requires every one of these in `visual_pages_checked`,
+    uncapped - so the take-off wave must be handed all of them, not just the first
+    `MAX_WAVE_PAGES` the sheet map ranked. Shared by that validator (through
+    `_visual_manifest_schedule_pages`) and by `extraction_wave`, so the leg is
+    never validated on a page it was never handed.
+    """
+    payload = load_visual_pages(slug)
+    hits: list[tuple[str, int]] = []
+    for page in (payload.get("pages") or []) if isinstance(payload, dict) else []:
+        if not isinstance(page, dict) or not is_door_schedule_visual_page(page):
+            continue
+        try:
+            hits.append((str(page.get("path") or ""), int(page["source_page"])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return sorted(set(hits))
+
+
 def prompt_checklist(slug: str) -> str:
     """Block injected into the extract prompt listing mandatory vision pages.
 
     Only schedule / candidate pages — same filter as door_schedule validation.
-    FRP / finish / bare-hardware MinerU-null sheets are omitted here.
+    FRP / finish / bare-hardware verified-null sheets are omitted here.
     """
     payload = load_visual_pages(slug)
     if not payload:
@@ -319,9 +378,31 @@ def prompt_checklist(slug: str) -> str:
         "door schedule / schedule-candidate sheets with weak text. For each",
         "row: `Read` the `image_path` PNG first (or call `get_page_image` if",
         "the file is missing). Do **not** prefer bid-docs / extract_text as the",
-        "first read on these pages. Record every page in `visual_pages_checked`",
-        "on `door_schedule.json` before save / no_scope. FRP / finish / bare",
-        "hardware vision pages are specialist work — not this checklist.",
+        "first read on these pages. FRP / finish / bare hardware vision pages",
+        "are specialist work — not this checklist.",
+        "",
+        "**These are triage images, not readable ones.** A full architectural",
+        "sheet renders at roughly 0.6 px/pt against the 1568px vision cap —",
+        "enough to see *that* a schedule is on the page, nowhere near enough to",
+        "read a row. To read one, crop: `get_page_image(page, region=[x0,y0,x1,y1])`",
+        "over about 350–550pt. Raising `dpi` does nothing; the cap is on pixels,",
+        "so the only lever is a smaller region. The reply carries `px_per_pt`",
+        "and `legible` — check them instead of guessing from the picture.",
+        "",
+        "**On a page with a text layer, read it before you render anything.**",
+        "`parse_door_openings` or `extract_tables` return rows *with bboxes*,",
+        "which is both cheaper and more precise than reading pixels.",
+        "",
+        "Record them with **one patch**, before save / no_scope — the artifact is",
+        "seeded, so this is a patch and not a whole-file write:",
+        "",
+        "    propose_patch(project, 'extracted/line_items.json', [{",
+        '      "op": "set", "path": "visual_pages_checked",',
+        '      "value": [{"path": …, "source_page": …, "image_path": …,',
+        '                 "finding": "what the image showed"}, …]}])',
+        "",
+        "`visual_pages_checked` is the one top-level path a patch may set. A row",
+        "reading is still `openings/<door number>/<field>`.",
         "",
     ]
     for page in pages:

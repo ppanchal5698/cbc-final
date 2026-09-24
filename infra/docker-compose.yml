@@ -4,6 +4,13 @@
 #
 # Original monolith repo is unchanged; this compose belongs to cbc-copilot-final.
 
+# Pinned. Without it the project name comes from the directory holding this
+# file - `infra` - while the running stack was created as `cbc-final`. Two
+# projects then own containers with the same fixed container_name, and the
+# second `up` dies on "container name is already in use" partway through,
+# having already recreated some services.
+name: cbc-final
+
 x-app-env: &app-env
   MONGODB_URI: mongodb://cbc:${MONGO_ROOT_PASSWORD:-cbc_local_dev}@mongo:27017/cbc_opshub?authSource=admin&replicaSet=rs0
   MONGODB_DB: cbc_opshub
@@ -53,6 +60,12 @@ x-worker-env: &worker-env
   WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-5}
   WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
   WORKER_JOB_TIMEOUT_SECONDS: ${WORKER_JOB_TIMEOUT_SECONDS:-3600}
+  WORKER_MAX_TURNS: ${WORKER_MAX_TURNS:-60}
+  # Extraction is a multi-phase wave; it carries the pipeline budget, and each leg
+  # is capped separately. See claude_pass.LIMITS / WAVE_LEG_MAX_TURNS.
+  WORKER_PIPELINE_TIMEOUT_SECONDS: ${WORKER_PIPELINE_TIMEOUT_SECONDS:-10800}
+  WORKER_PIPELINE_MAX_TURNS: ${WORKER_PIPELINE_MAX_TURNS:-200}
+  WORKER_WAVE_LEG_MAX_TURNS: ${WORKER_WAVE_LEG_MAX_TURNS:-80}
   WORKER_MAX_ATTEMPTS: ${WORKER_MAX_ATTEMPTS:-3}
   CLAUDE_SANDBOX: ${CLAUDE_SANDBOX:-process}
   # Set CLAUDE_SANDBOX=docker and mount /var/run/docker.sock on the worker
@@ -81,6 +94,14 @@ services:
     entrypoint: ["bash", "/mongo-keyfile-entrypoint.sh"]
     expose:
       - "27017"
+    # Published to the host so the characterization and integration suites can run
+    # from a normal shell - without it 575 of them skip with "MongoDB is not
+    # reachable at localhost:27017" and a new endpoint's contract snapshot cannot
+    # be recorded at all. Bound to 127.0.0.1, not 0.0.0.0: this is a dev database
+    # whose password defaults to `cbc_local_dev`, and it has no business being
+    # reachable from the network the laptop is on.
+    ports:
+      - "127.0.0.1:27017:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: cbc
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-cbc_local_dev}
@@ -147,6 +168,15 @@ services:
     restart: unless-stopped
     expose:
       - "8001"
+    env_file:
+      # The machine identity for Infisical, and nothing else. Absent means
+      # secrets come from the mounted .env exactly as before. Deliberately NOT
+      # ../.env: promoting that file to process environment would make
+      # provider.build_env report every credential as `env` and lock the
+      # Settings screen against its own operator - and it holds native-run
+      # values (CLAMD_HOST=127.0.0.1, MALWARE_SCAN=off) that are wrong in here.
+      - path: ./infisical-client.env
+        required: false
     environment:
       <<: *app-env
       SERVICE_AUDIENCE: platform
@@ -172,6 +202,15 @@ services:
     image: cbc-final-worker:latest
     container_name: cbc-final-worker
     restart: unless-stopped
+    env_file:
+      # The machine identity for Infisical, and nothing else. Absent means
+      # secrets come from the mounted .env exactly as before. Deliberately NOT
+      # ../.env: promoting that file to process environment would make
+      # provider.build_env report every credential as `env` and lock the
+      # Settings screen against its own operator - and it holds native-run
+      # values (CLAMD_HOST=127.0.0.1, MALWARE_SCAN=off) that are wrong in here.
+      - path: ./infisical-client.env
+        required: false
     environment:
       <<: *worker-env
       WORKER_CLAIM_ALL: "1"
@@ -210,6 +249,18 @@ services:
       INTERNAL_AUTH: ${INTERNAL_AUTH:-jwt}
       INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET:-cbc-local-dev-key-change-me}
       APP_ENV: ${APP_ENV:-development}
+      # NextAuth v5 builds every redirect from this. Without it the standalone
+      # server falls back to its own bind address and signing out lands on
+      # http://0.0.0.0:3000 - a dead page. `trustHost: true` is set in auth.ts
+      # and nginx forwards Host and X-Forwarded-Host, but neither is consulted
+      # for the base: verified by posting a signout with a valid CSRF token and
+      # an explicit callbackUrl, which came back as 0.0.0.0:3000 until this was
+      # set.
+      #
+      # It pins ONE origin. Reaching the app by LAN address or Cloudflare
+      # tunnel still works, but a sign-out from there redirects here, so set
+      # this to whichever origin people actually use.
+      AUTH_URL: ${AUTH_URL:-http://localhost}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-}
       AUTH_SECRET: ${AUTH_SECRET:-cbc-opshub-local-dev-secret-change-in-production}
       AUTH_TRUST_HOST: "true"
@@ -232,8 +283,14 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       NVIDIA_NIM_API_KEY: ${NVIDIA_NIM_API_KEY:-}
       OLLAMA_API_BASE: ${OLLAMA_API_BASE:-http://host.docker.internal:11434}
+      # NIM free tier is 40 req/min. Lower it if NVIDIA still 429s at the
+      # window edge - their window and ours are not the same clock.
+      NIM_RPM: ${NIM_RPM:-40}
+      # nim_pacer is resolved by import, not from the rendered config's dir.
+      PYTHONPATH: /app
     volumes:
       - ./docker/litellm.config.yaml:/app/config.yaml:ro
+      - ./docker/nim_pacer.py:/app/nim_pacer.py:ro
       - ./docker/litellm-entrypoint.sh:/litellm-entrypoint.sh:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -241,56 +298,14 @@ services:
       - default
       - llm
 
-  # GPU MinerU API (compose network only). Profile + container knobs:
-  #   --env-file infra/mineru/{low,medium,high}.env --profile gpu
-  mineru:
-    profiles: ["gpu"]
-    build:
-      context: ./mineru
-      dockerfile: Dockerfile
-      args:
-        BASE_IMAGE: ${MINERU_BASE_IMAGE:-python:3.12-slim-bookworm}
-        MINERU_EXTRAS: ${MINERU_EXTRAS:-pipeline}
-    image: cbc-final-mineru:latest
-    container_name: cbc-final-mineru
-    restart: unless-stopped
-    environment:
-      MINERU_DEVICE_MODE: cuda
-      MINERU_MODELS: ${MINERU_MODELS:-pipeline}
-      MINERU_API_MAX_CONCURRENT_REQUESTS: ${MINERU_API_MAX_CONCURRENT_REQUESTS:-1}
-      MINERU_PROCESSING_WINDOW_SIZE: ${MINERU_PROCESSING_WINDOW_SIZE:-8}
-      MINERU_VIRTUAL_VRAM_SIZE: ${MINERU_VIRTUAL_VRAM_SIZE:-}
-      MINERU_API_EXTRA_ARGS: ${MINERU_API_EXTRA_ARGS:-}
-      MINERU_TOOLS_CONFIG_JSON: /models/mineru.json
-      # Do not set MINERU_FORMULA_ENABLE / MINERU_TABLE_ENABLE — they override
-      # request bodies; app settings use PARSER_TABLES / PARSER_FORMULAS.
-    volumes:
-      - mineru_models:/models
-    shm_size: ${MINERU_SHM_SIZE:-4g}
-    ipc: host
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: ${MINERU_GPU_COUNT:-1}
-              capabilities: [gpu]
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status==200 else 1)",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 180s
-
-  # Parsing-domain worker: claims parse_document only; waits for MinerU.
+  # Parsing-domain worker: claims parse_document only.
+  #
+  # No longer behind a profile. It used to be `gpu`, which was coherent while a
+  # missing GPU meant PARSER_URL was empty and parsing was off. Parsing is now on
+  # whenever PARSER_API_KEY is set, so leaving this profiled would queue
+  # parse_document jobs with no worker to claim them - and `defer_if_parsing`
+  # would hold every extraction behind a parse that never starts.
   parser:
-    profiles: ["gpu"]
     build:
       context: ..
       dockerfile: apps/backend/Dockerfile
@@ -298,12 +313,20 @@ services:
     image: cbc-final-worker:latest
     container_name: cbc-final-parser
     restart: unless-stopped
+    env_file:
+      # The machine identity for Infisical, and nothing else. Absent means
+      # secrets come from the mounted .env exactly as before. Deliberately NOT
+      # ../.env: promoting that file to process environment would make
+      # provider.build_env report every credential as `env` and lock the
+      # Settings screen against its own operator - and it holds native-run
+      # values (CLAMD_HOST=127.0.0.1, MALWARE_SCAN=off) that are wrong in here.
+      - path: ./infisical-client.env
+        required: false
     environment:
       <<: *worker-env
       WORKER_DOMAIN: parsing
       WORKER_CONCURRENCY: ${PARSER_WORKER_CONCURRENCY:-1}
       SERVICE_AUDIENCE: platform
-      PARSER_URL: ${PARSER_URL:-http://mineru:8000}
     volumes:
       - ../data/projects:/app/data/projects
       - ../data/pricebooks:/app/data/pricebooks
@@ -317,8 +340,6 @@ services:
         condition: service_healthy
       mongo-init:
         condition: service_completed_successfully
-      mineru:
-        condition: service_healthy
       platform:
         condition: service_healthy
     extra_hosts:
@@ -354,20 +375,125 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: cbc-final-tunnel
     restart: unless-stopped
-    command: tunnel --no-autoupdate --url http://nginx:80
+    # Default is a *quick* tunnel: no account, a random trycloudflare.com
+    # hostname, and - in cloudflared's own words on the first line of its log -
+    # "no uptime guarantee". The URL changes on every start, and when Cloudflare
+    # drops the tunnel the process does not exit. It retries the same tunnel id
+    # forever, logging `Unauthorized: Tunnel not found`, so `restart:
+    # unless-stopped` never fires and the container sits there looking healthy
+    # while the URL is dead. One ran 262 consecutive failed retries before anyone
+    # noticed.
+    #
+    # For a hostname that survives a restart, create a named tunnel in the
+    # Cloudflare dashboard and put its token in .env:
+    #
+    #     CLOUDFLARED_ARGS=run --token eyJhIjoi...
+    #
+    # The image is distroless - no shell - so this cannot branch at runtime; the
+    # argument list is chosen here instead.
+    command: tunnel --no-autoupdate ${CLOUDFLARED_ARGS:---url http://nginx:80}
+
+  # ── Infisical: the secrets manager ──────────────────────────────────────
+  # Opt-in, behind the `secrets` profile, so the documented
+  # `docker compose -f infra/docker-compose.yml up -d --build` is unchanged
+  # until someone asks for it:
+  #
+  #     docker compose -f infra/docker-compose.yml --profile secrets up -d
+  #
+  # Its own bootstrap credentials cannot live in Infisical, so they come from
+  # `infra/infisical.env` (gitignored, see infisical.env.example). That is a
+  # separate file from the app's `.env` on purpose - piping the app's `.env`
+  # in here would hand every application secret to the container that is
+  # supposed to be replacing it.
+  #
+  # `env_file` is read at container-create time and needs no `--env-file`, which
+  # matters: compose does NOT read the repo-root `.env` (its project directory
+  # is infra/), and that root file holds native-run values - CLAMD_HOST=127.0.0.1,
+  # MALWARE_SCAN=off - that are wrong inside compose. Do not "fix" that by
+  # adding --env-file.
+  infisical-db:
+    image: postgres:14-alpine
+    container_name: cbc-final-infisical-db
+    profiles: ["secrets"]
+    restart: unless-stopped
+    env_file:
+      - path: ./infisical.env
+        required: false
+    environment:
+      POSTGRES_USER: ${INFISICAL_DB_USER:-infisical}
+      POSTGRES_PASSWORD: ${INFISICAL_DB_PASSWORD:-infisical}
+      POSTGRES_DB: ${INFISICAL_DB_NAME:-infisical}
+    volumes:
+      - infisical_db:/var/lib/postgresql/data
+    networks:
+      - secrets
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username=$${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
+  infisical-redis:
+    image: redis:7-alpine
+    container_name: cbc-final-infisical-redis
+    profiles: ["secrets"]
+    restart: unless-stopped
+    networks:
+      - secrets
+    volumes:
+      - infisical_redis:/data
+
+  infisical:
+    # Pinned. `latest` on a store that holds every credential you own is a
+    # silent, unreviewed upgrade of the thing guarding them.
+    image: infisical/infisical:v0.165.15
+    container_name: cbc-final-infisical
+    profiles: ["secrets"]
+    restart: unless-stopped
+    depends_on:
+      infisical-db:
+        condition: service_healthy
+      infisical-redis:
+        condition: service_started
+    env_file:
+      - path: ./infisical.env
+        required: false
+    environment:
+      NODE_ENV: production
+      # ENCRYPTION_KEY and AUTH_SECRET come from infisical.env and have no
+      # default here on purpose. Infisical refuses to boot without them, which
+      # is the correct failure: a default would mean the secret store is
+      # encrypted with a key that is in a public git repository.
+      DB_CONNECTION_URI: postgres://${INFISICAL_DB_USER:-infisical}:${INFISICAL_DB_PASSWORD:-infisical}@infisical-db:5432/${INFISICAL_DB_NAME:-infisical}
+      REDIS_URL: redis://infisical-redis:6379
+      SITE_URL: ${INFISICAL_SITE_URL:-http://localhost:8080}
+      TELEMETRY_ENABLED: ${INFISICAL_TELEMETRY_ENABLED:-false}
+    ports:
+      - "${INFISICAL_PORT:-8080}:8080"
+    networks:
+      # `default` as well as `secrets`: platform, worker and parser resolve it
+      # as http://infisical:8080 from there. Postgres and Redis stay off it.
+      - default
+      - secrets
 
 volumes:
   mongo_data:
   claude_home:
   cbc_cache:
   clamav_data:
-  mineru_models:
   certbot_conf:
   certbot_www:
+  infisical_db:
+  infisical_redis:
 
 networks:
   default:
     name: cbc-final
   llm:
     name: cbc-final-llm
+    internal: true
+  # Postgres and Redis hold the decrypted secret store. Nothing outside
+  # Infisical itself has a route to them.
+  secrets:
+    name: cbc-final-secrets
     internal: true

@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from cbc.modules.extraction.api.normalize_artifacts import (
     normalize_div10_takeoff_payload,
-    normalize_door_schedule_payload,
+    normalize_line_items_payload,
     normalize_opening_dict,
     normalize_page_size,
     normalize_priced_quote_payload,
@@ -77,7 +77,7 @@ class Keying(BaseModel):
 
 
 class Opening(BaseModel):
-    """One row of extracted/door_schedule.json."""
+    """One row of extracted/line_items.json."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -209,7 +209,7 @@ class VisualPageChecked(BaseModel):
 
 
 class DoorSchedule(BaseModel):
-    """extracted/door_schedule.json — object wrapper or a bare openings array."""
+    """extracted/line_items.json — object wrapper or a bare openings array."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -223,11 +223,11 @@ class DoorSchedule(BaseModel):
 
     @classmethod
     def parse_payload(cls, raw: Any) -> DoorSchedule:
-        raw = normalize_door_schedule_payload(raw)
+        raw = normalize_line_items_payload(raw)
         if isinstance(raw, list):
             return cls(openings=[Opening.model_validate(item) for item in raw])
         if not isinstance(raw, dict):
-            raise ValueError("door_schedule.json must be an object or an array")
+            raise ValueError("line_items.json must be an object or an array")
         data = dict(raw)
         if "openings" not in data and isinstance(data.get("lines"), list):
             data["openings"] = data["lines"]
@@ -309,7 +309,15 @@ class FrpArea(BaseModel):
     adhesive_requirements: str | None = None
     special_conditions: str | None = None
     source_page: int | float | None = None
+    source_file: str | None = None
     flags: list[str] | None = None
+    # Measured from the sheet by `geometry.measure_specialty_bboxes`, never by
+    # the pass. A specialty row is verified the same way an opening is - the
+    # estimator clicks it and sees the highlight - so it needs the same three
+    # fields. Declared here because `extra="forbid"` would otherwise drop them.
+    bbox: list[float] | None = None
+    cell_boxes: list[list[float]] | None = None
+    page_size: dict[str, float] | None = None
 
 
 class FrpTakeoff(BaseModel):
@@ -354,6 +362,13 @@ class Div10Item(BaseModel):
     evidence_note: str | None = None
     flags: list[str] | None = None
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    # Measured from the sheet by `geometry.measure_specialty_bboxes`, never by
+    # the pass. A specialty row is verified the same way an opening is - the
+    # estimator clicks it and sees the highlight - so it needs the same three
+    # fields. Declared here because `extra="forbid"` would otherwise drop them.
+    bbox: list[float] | None = None
+    cell_boxes: list[list[float]] | None = None
+    page_size: dict[str, float] | None = None
 
     @field_validator("qty", mode="before")
     @classmethod

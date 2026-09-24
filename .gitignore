@@ -27,6 +27,7 @@ Thumbs.db
 
 # App
 .env
+.env.nim
 apps/web/.env.local
 web/.env.local
 apps/web/.next/
@@ -88,3 +89,12 @@ infra/docker/mongo-keyfile
 
 # Orchestrator/subagent lock state written by cbc.worker_kit.tool_session.
 .cbc_tool_session.json
+
+# Infisical: bootstrap + machine-identity credentials (see *.example)
+infra/infisical.env
+infra/infisical-client.env
+
+# Hand-made copies of .env. These are the real secrets, not a template.
+.env.bak
+.env.backup
+*.env.bak

@@ -16,4 +16,6 @@ export const endpoints = {
     `/api/proxy/projects/${encodeURIComponent(code)}/documents/${documentId}/pages/${page}/blocks`,
   jobMetrics: (hours = 24) => `/api/proxy/jobs/metrics?hours=${hours}`,
   opsSpend: (hours = 24) => `/api/proxy/ops/spend?hours=${hours}`,
+  opsCohorts: (days = 30, limit = 20) =>
+    `/api/proxy/ops/cohorts?days=${days}&limit=${limit}`,
 } as const;

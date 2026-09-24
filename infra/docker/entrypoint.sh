@@ -16,6 +16,51 @@
 # incomplete. Merging into whatever is there now is the version that sticks.
 set -euo pipefail
 
+# -- Infisical: pull secrets in, before anything reads them -----------------
+# Re-executes this script under `infisical run`, so the secrets are process
+# environment for bootstrap.py and for the API/worker alike. That placement is
+# what makes this a no-op for application code: provider.build_env,
+# parsing_config.resolve and cost_budget all resolve os.environ BEFORE .env,
+# so a secret served here simply wins, and the Settings screen marks the field
+# `env` and locks it - which is the honest thing to show for a value the
+# operator can no longer change from that screen.
+#
+# Fail-open, deliberately. Infisical unreachable, credentials missing or login
+# refused all fall through to the mounted .env, which is exactly how this ran
+# before. A secrets manager that takes the whole stack down with it when it
+# blinks is a worse outage than the one it prevents.
+#
+# Configure with infra/infisical-client.env - see docs/operations/secrets.md.
+if [ -z "${INFISICAL_INJECTED:-}" ] && [ -n "${INFISICAL_PROJECT_ID:-}" ]; then
+  # Guards the re-exec below against looping.
+  export INFISICAL_INJECTED=1
+  # The CLI phones home for a version check on every invocation; at start-up
+  # that is a stall between the container and a working API, not a feature.
+  export INFISICAL_DISABLE_UPDATE_CHECK=true
+
+  if [ -z "${INFISICAL_TOKEN:-}" ] && [ -n "${INFISICAL_UNIVERSAL_AUTH_CLIENT_ID:-}" ]; then
+    # Assigning inside `if` keeps `set -e` from killing the container on a
+    # failed login - falling back to .env is the whole point.
+    if _token="$(infisical login --method=universal-auth --silent --plain)"; then
+      export INFISICAL_TOKEN="${_token}"
+    else
+      echo "[entrypoint] Infisical login failed - falling back to .env" >&2
+    fi
+    unset _token
+  fi
+
+  if [ -n "${INFISICAL_TOKEN:-}" ]; then
+    echo "[entrypoint] secrets from Infisical: project ${INFISICAL_PROJECT_ID}, env ${INFISICAL_ENV_SLUG:-prod}, path ${INFISICAL_SECRET_PATH:-/}"
+    exec infisical run \
+      --projectId="${INFISICAL_PROJECT_ID}" \
+      --env="${INFISICAL_ENV_SLUG:-prod}" \
+      --path="${INFISICAL_SECRET_PATH:-/}" \
+      --recursive \
+      -- "$0" "$@"
+  fi
+  echo "[entrypoint] Infisical configured but no token - using .env" >&2
+fi
+
 python - <<'PY'
 import json
 from pathlib import Path

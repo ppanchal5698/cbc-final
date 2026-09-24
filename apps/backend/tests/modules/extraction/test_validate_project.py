@@ -68,7 +68,7 @@ def test_extraction_takes_the_shapes_the_importer_takes(validate_project):
         {"openings": [_good_opening()]},      # canonical
         {"lines": [_good_opening()]},         # the priced artifact's key
     ):
-        _write(validate_project, "extracted/door_schedule.json", payload)
+        _write(validate_project, "extracted/line_items.json", payload)
         problems, _ = check_extraction(validate_project)
         assert not problems, f"{payload!r} was refused: {problems}"
 
@@ -78,7 +78,7 @@ def test_extraction_takes_the_shapes_the_importer_takes(validate_project):
         {"openings": [{"door_number": "01"}]},
         {"lines": [{"door_number": "01"}]},
     ):
-        _write(validate_project, "extracted/door_schedule.json", payload)
+        _write(validate_project, "extracted/line_items.json", payload)
         problems, _ = check_extraction(validate_project)
         assert any("bbox" in p for p in problems), payload
 
@@ -86,7 +86,7 @@ def test_extraction_takes_the_shapes_the_importer_takes(validate_project):
 def test_extraction_requires_bbox_and_confidence(validate_project):
     _write(
         validate_project,
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {"openings": [{"door_number": "01", "size": "3070", "source_page": 14}]},
     )
     problems, _ = check_extraction(validate_project)
@@ -97,7 +97,7 @@ def test_extraction_requires_bbox_and_confidence(validate_project):
 def test_extraction_passes_with_provenance(validate_project):
     _write(
         validate_project,
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {"openings": [_good_opening()]},
     )
     problems, warnings = check_extraction(validate_project)
@@ -133,7 +133,7 @@ def test_pricing_requires_fields_on_each_line(validate_project):
 def test_validate_job_artifacts_raises(validate_project):
     from cbc.modules.extraction.api.validation.artifacts import ArtifactValidationError
 
-    _write(validate_project, "extracted/door_schedule.json", {"openings": []})
+    _write(validate_project, "extracted/line_items.json", {"openings": []})
     with pytest.raises(ArtifactValidationError, match="artifact validation failed"):
         validate_job_artifacts("extract_bid_set", validate_project)
 
@@ -266,7 +266,7 @@ def test_a_hand_added_opening_needs_no_drawing_page(validate_project):
     """
     _write(
         validate_project,
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {
             "openings": [
                 _good_opening(),
@@ -292,7 +292,7 @@ def test_a_hand_added_opening_needs_no_drawing_page(validate_project):
 def test_a_hand_added_opening_must_still_identify_itself(validate_project):
     _write(
         validate_project,
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {"openings": [{"added_by_hand": True, "confidence": 1.0, "qty": 1.0}]},
     )
     problems, _ = check_extraction(validate_project)
@@ -303,7 +303,7 @@ def test_a_drawing_opening_still_needs_its_provenance(validate_project):
     """Relaxing the hand-added case must not relax the drawing case."""
     _write(
         validate_project,
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {"openings": [_good_opening(source_page=None, bbox=None)]},
     )
     problems, _ = check_extraction(validate_project)
@@ -559,7 +559,7 @@ def test_a_measured_bbox_is_accepted(validate_project):
     rows, size = _sheet_with_text(validate_project)
     _write(
         validate_project,
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {"openings": [_good_opening(bbox=rows[0]["bbox"], page_size=size, source_page=1)]},
     )
     problems, _ = check_extraction(validate_project)
@@ -578,7 +578,7 @@ def test_an_invented_bbox_is_rejected(validate_project):
     _, size = _sheet_with_text(validate_project)
     _write(
         validate_project,
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {
             "openings": [
                 _good_opening(door_number="01", bbox=[42, 500, 200, 520], page_size=size, source_page=1),
@@ -601,7 +601,7 @@ def test_a_page_size_from_the_wrong_frame_is_rejected(validate_project):
     swapped = {"width": size["height"], "height": size["width"]}
     _write(
         validate_project,
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {"openings": [_good_opening(bbox=rows[0]["bbox"], page_size=swapped, source_page=1)]},
     )
     problems, _ = check_extraction(validate_project)
@@ -642,7 +642,7 @@ def test_pipeline_fails_fast_at_extraction_and_skips_pricing(validate_project, m
     # ordering - a pipeline that fails at extraction must not go on to price.
     _write(
         validate_project,
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {"openings": [{"door_number": "01"}]},
     )
     _write(validate_project, "extracted/scope_metadata.json", {})
@@ -655,7 +655,7 @@ def test_pipeline_fails_fast_at_extraction_and_skips_pricing(validate_project, m
 def test_pipeline_fails_at_pricing_after_good_extraction(validate_project):
     from cbc.modules.extraction.api.validation.artifacts import ArtifactValidationError
 
-    _write(validate_project, "extracted/door_schedule.json", {"openings": [_good_opening()]})
+    _write(validate_project, "extracted/line_items.json", {"openings": [_good_opening()]})
     _write(validate_project, "extracted/scope_metadata.json", {})
     _write(validate_project, "extracted/scope_summary.json", {})
     with pytest.raises(ArtifactValidationError, match="at pricing") as exc:
@@ -672,7 +672,7 @@ def test_pipeline_prompt_skips_passed_extraction_unless_forced():
     phase_state = {
         "extraction": {
             "passed": True,
-            "artifacts": {"extracted/door_schedule.json": "abc"},
+            "artifacts": {"extracted/line_items.json": "abc"},
         }
     }
     text = prompts.build(
@@ -680,7 +680,7 @@ def test_pipeline_prompt_skips_passed_extraction_unless_forced():
         project,
     )
     assert "Skip these completed phases" in text
-    assert "door_schedule.json" in text
+    assert "line_items.json" in text
     forced = prompts.build(
         {
             "type": "run_full_pipeline",

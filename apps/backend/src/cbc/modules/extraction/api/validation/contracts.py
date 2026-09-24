@@ -24,7 +24,7 @@ from cbc.modules.extraction.api.validation.review import CONFIDENCE_FLOOR, REQUI
 ROOT = repo_root()
 
 EXTRACT_REL = (
-    ("extracted/door_schedule.json", "door_schedule"),
+    ("extracted/line_items.json", "door_schedule"),
     ("extracted/scope_metadata.json", "scope_metadata"),
     ("extracted/scope_summary.json", "scope_summary"),
     ("extracted/hardware_sets.json", "hardware_sets"),
@@ -134,7 +134,7 @@ def _absurd_qty(schedule: DoorSchedule) -> list[str]:
 
 def extraction_review_verdict(slug: str) -> ReviewVerdict:
     """ok / needs_review for a parsed door schedule. reject is handled by check_contracts."""
-    path = _project_root(slug) / "extracted" / "door_schedule.json"
+    path = _project_root(slug) / "extracted" / "line_items.json"
     if not path.is_file():
         return "ok"
     try:

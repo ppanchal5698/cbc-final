@@ -10,7 +10,7 @@ Eight stdio MCP servers backing the estimating pipeline.
 | `calc-engine` | `cost_from_list`, `lookup_lite_kit_list_price`, `calculate_line`, `apply_margin`, `compute_totals`, `validate_margin` | The only quote arithmetic in the system |
 | `artifact-storage` | `save_artifact`, `get_artifact`, `list_versions`, `list_project_files` | Project writes with SHA-256 version history |
 | `p21-connector` | `lookup_last_po`, `check_freshness`, `search_item` | Cost path 1, **READ-ONLY** |
-| `bid-docs` | `list_documents`, `get_outline`, `search_blocks`, `get_page_blocks` | **READ-ONLY** MinerU-parsed blocks for uploaded bid PDFs - the cheap way to find a page before `pdf-tools` reads it |
+| `bid-docs` | `list_documents`, `get_outline`, `search_blocks`, `get_page_blocks` | **READ-ONLY** parsed blocks for uploaded bid PDFs - the cheap way to find a page before `pdf-tools` reads it |
 | `catalog-docs` | `list_catalogs_parsed`, `get_outline`, `search_blocks`, `get_page_blocks` | **READ-ONLY** the same four tools over parsed vendor price books |
 
 ## Install

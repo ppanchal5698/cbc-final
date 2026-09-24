@@ -1,7 +1,7 @@
 """Normalize common LLM shape mistakes before schema / Pydantic gates.
 
 Agents often emit schedule columns the Opening allowlist forbids (`thickness`)
-or MinerU-style `page_size: [w, h]`. Coerce those into the closed-world shape so
+or a bare `page_size: [w, h]`. Coerce those into the closed-world shape so
 a repairable mistake does not fail the run; leave true hallucinations for
 `extra="forbid"` to reject.
 """
@@ -141,7 +141,7 @@ def _bbox_ok(box: Any) -> bool:
         and float(box[3]) > float(box[1])
     )
 
-def normalize_door_schedule_payload(raw: Any) -> Any:
+def normalize_line_items_payload(raw: Any) -> Any:
     """Normalize openings inside an object wrapper or a bare openings array."""
     if isinstance(raw, list):
         return [
@@ -438,8 +438,8 @@ def normalize_artifact_text(rel_path: str, content: str) -> str:
         data = json.loads(content)
     except json.JSONDecodeError:
         return content
-    if key == "extracted/door_schedule.json":
-        normalized = normalize_door_schedule_payload(data)
+    if key == "extracted/line_items.json":
+        normalized = normalize_line_items_payload(data)
     elif key == "extracted/div10_takeoff.json":
         normalized = normalize_div10_takeoff_payload(data)
     elif key == "priced/line_items.json":

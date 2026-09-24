@@ -127,13 +127,15 @@ whether the client *derives* or merely *reads*:
 | `lib/claude-stream.ts` | 662 lines parsing `claude --print --output-format stream-json` into a `LogEntry` union | mirrors the CLI event schema |
 | `lib/run-pill.ts` | `runPillFor(job, …)`, kept out of a `"use client"` module so server pages can call it | job-type labels overlap `job-error.ts` |
 
-> **Board status is derived in three places that can disagree**: the canonical
-> `boardStatus()` in `lib/board.ts`, `statusOf()` in
-> `components/bids/board-groups.tsx:40`, and `waitingOn()` in
-> `app/(app)/dashboard/page.tsx:39` — the last redeclaring a local `blocked` set
-> that duplicates `BLOCKED_CHAIN` in `lib/run-pill.ts`. The header of
-> `lib/board.ts` claims the board and dashboard "can never disagree"; as written
-> they can.
+> Three functions look like they compute the same thing and do not.
+> `boardStatus()` in `lib/board.ts` returns the pipeline stage the roll-ups group
+> by; `statusOf()` in `components/bids/board-groups.tsx` returns a row chip
+> ("Claude is reading", "3 to check"); `waitingOn()` in
+> `app/(app)/dashboard/page.tsx` returns what the bid is waiting on. Only the
+> first computes a `BoardStatus`, so they cannot disagree about it. The real
+> duplication was the blocked-chain-state list, which the dashboard had
+> hand-copied; `BLOCKED_CHAIN` is exported from `lib/run-pill.ts` now and both
+> read it.
 
 **Hooks.** `use-pipeline-job` (`isPipelineJob` + polling), `use-job-recording`
 (replay then `EventSource` — the app's only SSE consumer), `use-dialog`
@@ -178,8 +180,8 @@ freshly bootstrapped database, which is why it was not caught earlier.
 
 ## Dead weight
 
-Worth knowing before adding to it: `components/shell/stage-panel.tsx` has no
-importers, and 13 of the 22 files in `components/ui/` are unused (`badge`,
+`components/shell/stage-panel.tsx` had no importers and is gone. 13 of the 22
+files in `components/ui/` are unused (`badge`,
 `checkbox`, `dropdown-menu`, `label`, `progress`, `scroll-area`, `select`,
 `separator`, `sheet`, `sonner`, `table`, `tabs`, `tooltip`). The shadcn install
 is largely ornamental — the design system in practice is `status-badge.tsx`,

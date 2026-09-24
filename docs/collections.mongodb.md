@@ -60,7 +60,7 @@ The guiding constraint from the workbook governs the whole design: *the estimato
 
 **32 collections.** Eight entities from the Phase 1 map are deliberately embedded rather than given their own collection; each is justified in §2.3.
 
-**Infrastructure (implemented, not in the workbook):** [`documentPages`](#documentpages-implemented) — one Mongo document per MinerU-parsed PDF page (blocks + bbox). See also `jobs`, `settings` and `pageIndex`, and [`backend/modules.md`](backend/modules.md) for which module owns each one.
+**Infrastructure (implemented, not in the workbook):** [`documentPages`](#documentpages-implemented) — one Mongo document per parsed PDF page (blocks + bbox). See also `jobs`, `settings` and `pageIndex`, and [`backend/modules.md`](backend/modules.md) for which module owns each one.
 
 ---
 
@@ -1722,7 +1722,7 @@ Per-page `ocrStatus` matters more than it might appear. Bid sets routinely conta
 
 ### `documentPages` (implemented)
 
-**Purpose:** MinerU parse output — one document per PDF page — so agents and the sheet viewer can query text blocks with bboxes without re-reading page images. Owned by intake (`cbc.modules.intake`); deleted with the parent document.
+**Purpose:** LlamaParse output — one document per PDF page — so agents and the sheet viewer can query text blocks with bboxes without re-reading page images. Owned by intake (`cbc.modules.intake`); deleted with the parent document.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -1740,7 +1740,9 @@ Per-page `ocrStatus` matters more than it might appear. Bid sets routinely conta
 
 ### `catalogPages` (implemented)
 
-**Purpose:** MinerU parse output for vendor price books — one document per PDF page — so `match_and_price` can query blocks with bboxes via **catalog-docs** (mirror of bid `documentPages` / bid-docs). Owned by catalog; purged with `delete_catalog`.
+**Purpose:** Block output for vendor price books — one document per PDF page — so `match_and_price` can query blocks with bboxes via **catalog-docs** (mirror of bid `documentPages` / bid-docs). Owned by catalog; purged with `delete_catalog`.
+
+**No longer written.** `parse_catalog` went with MinerU; catalog PDFs are read by their own MCP server. Existing rows stay readable, and **catalog-docs** falls back to `catalog.find_pages` (pageIndex) whenever a book is not in `parsed` state — the route it already took whenever parsing was off.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -1753,14 +1755,16 @@ Per-page `ocrStatus` matters more than it might appear. Bid sets routinely conta
 | `pageSize` | `{ width, height }` | |
 | `blocks` | array | Same shape as `documentPages.blocks` |
 | `verified` | float \| null | Bbox coverage vs PDF text layer |
-| `parser` | object | MinerU meta |
+| `parser` | object | Parser meta (name, version, tier) |
 | `parsedAt` | date | |
 
 **Indexes:** unique `(priceBookId, page)`; `(catalogId, page)`; `(vendor, page)`; text on `blocks.text`.
 
 ### `multiplierPages` (implemented)
 
-**Purpose:** MinerU blocks for multiplier / special-net PDFs (`parse_multiplier`). Structured `referenceData` multipliers remain calc SoT; this collection is for sheet evidence.
+**Purpose:** Blocks for multiplier / special-net PDFs. Structured `referenceData` multipliers remain calc SoT; this collection is for sheet evidence.
+
+**No longer written.** `parse_multiplier` went with MinerU; existing rows stay readable through **catalog-docs**.
 
 | Field | Type | Notes |
 |---|---|---|

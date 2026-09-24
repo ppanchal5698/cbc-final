@@ -114,3 +114,52 @@ def test_unchanged_review_skips_until_flags_change(tmp_path, monkeypatch) -> Non
     (root / "review" / "review_flags.json").write_text('[{"severity":"high"}]', encoding="utf-8")
     render.render_review_summary("demo")
     assert calls["n"] == 2
+
+
+def _stub_render_artifacts(monkeypatch, tmp_path, *, q_unchanged: bool, r_unchanged: bool, pdf_exists: bool):
+    """Wire render_artifacts to controllable HTML render results and a spy on the PDF step."""
+    from cbc.modules.quoting.api import proposal_artifacts as pa
+
+    root = tmp_path / "projects" / "demo"
+    root.mkdir(parents=True)
+    if pdf_exists:
+        (root / "quotation.pdf").write_bytes(b"%PDF-1.4 existing")
+    monkeypatch.setattr(pa, "storage_root", lambda: tmp_path / "projects")
+    monkeypatch.setattr(pa.review_flags, "write_flags", lambda slug: 0)
+    monkeypatch.setattr(
+        pa.render,
+        "render_quotation",
+        lambda slug: render.RenderResult(True, "quotation", unchanged=q_unchanged),
+    )
+    monkeypatch.setattr(
+        pa.render,
+        "render_review_summary",
+        lambda slug: render.RenderResult(True, "review", unchanged=r_unchanged),
+    )
+    spy = {"n": 0}
+    monkeypatch.setattr(pa, "_render_delivery", lambda slug: spy.__setitem__("n", spy["n"] + 1))
+    return pa, spy
+
+
+def test_pdf_is_not_re_rendered_when_nothing_changed(tmp_path, monkeypatch) -> None:
+    pa, spy = _stub_render_artifacts(
+        monkeypatch, tmp_path, q_unchanged=True, r_unchanged=True, pdf_exists=True
+    )
+    assert pa.render_artifacts("build_proposal", "demo") == []
+    assert spy["n"] == 0, "WeasyPrint ran though both renders were unchanged"
+
+
+def test_pdf_is_rendered_when_a_render_changed(tmp_path, monkeypatch) -> None:
+    pa, spy = _stub_render_artifacts(
+        monkeypatch, tmp_path, q_unchanged=False, r_unchanged=True, pdf_exists=True
+    )
+    pa.render_artifacts("build_proposal", "demo")
+    assert spy["n"] == 1, "a changed quotation must re-produce the PDF"
+
+
+def test_pdf_is_rendered_when_missing_even_if_unchanged(tmp_path, monkeypatch) -> None:
+    pa, spy = _stub_render_artifacts(
+        monkeypatch, tmp_path, q_unchanged=True, r_unchanged=True, pdf_exists=False
+    )
+    pa.render_artifacts("build_proposal", "demo")
+    assert spy["n"] == 1, "a missing quotation.pdf must be rendered"

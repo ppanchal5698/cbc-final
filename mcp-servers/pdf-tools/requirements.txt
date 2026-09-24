@@ -1,5 +1,4 @@
 mcp>=2.0.0
-pdfplumber>=0.11
 PyMuPDF>=1.24
 # Optional - OCR fallback for scanned bid sets. Also needs the tesseract binary.
 # pytesseract>=0.3.10

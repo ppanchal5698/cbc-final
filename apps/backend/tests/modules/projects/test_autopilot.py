@@ -38,12 +38,16 @@ def test_the_pipeline_job_type_is_a_known_job_type() -> None:
 
 
 def test_a_full_run_gets_a_bigger_budget_than_one_phase() -> None:
-    """60 turns and an hour are sized for one phase; this is nine subagents."""
+    """60 turns and an hour are sized for one phase; a full run - and the
+    multi-phase extraction wave (W2d) - need more. A single-phase job keeps it."""
     from cbc.modules.ops.api.claude_pass import JOB_TIMEOUT, MAX_TURNS, limits_for
 
     timeout, turns = limits_for("run_full_pipeline")
     assert timeout > JOB_TIMEOUT and turns > MAX_TURNS
-    assert limits_for("extract_bid_set") == (JOB_TIMEOUT, MAX_TURNS), "gated path unchanged"
+    # Extraction is a wave on a set that can be 744 pages, so it now carries the
+    # pipeline budget too; a genuinely single-phase job keeps the one-phase one.
+    assert limits_for("extract_bid_set")[1] > MAX_TURNS
+    assert limits_for("match_and_price") == (JOB_TIMEOUT, MAX_TURNS), "one-phase path unchanged"
 
 
 def test_a_full_run_gets_every_mcp_server() -> None:
@@ -170,7 +174,7 @@ def test_the_board_advances_as_each_phase_lands(tmp_path: Path) -> None:
     for relative, expected_stage, expected_progress, expected_label in [
         ("extracted/scope_metadata.json", "intake", 10, "Intake"),
         ("extracted/scope_summary.json", "extraction", 25, "Spec scoping"),
-        ("extracted/door_schedule.json", "extraction", 40, "Take-off"),
+        ("extracted/line_items.json", "extraction", 40, "Take-off"),
         ("extracted/hardware_sets.json", "quote", 55, "Product matching"),
         ("priced/line_items.json", "quote", 70, "Pricing"),
         ("quotation.html", "proposal", 85, "Quote built"),

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""bid-docs MCP server — query MinerU-parsed blocks for uploaded bid PDFs.
+"""bid-docs MCP server — query parsed blocks for uploaded bid PDFs.
 
 READ-ONLY: MONGODB_READONLY_URI only; no write tools; no fallback to the
 writable application URI.

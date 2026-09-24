@@ -51,8 +51,6 @@
       "mcp__p21-connector__post_*",
       "Read(.env)",
       "Read(.env.*)",
-      "Write(.env)",
-      "Write(.env.*)",
       "Edit(.env)",
       "Edit(.env.*)",
       "Bash(rm -rf *)",

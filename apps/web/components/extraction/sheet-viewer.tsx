@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import useSWR from "swr";
-import { FilePdf, Minus, Plus, X, ArrowsOut } from "@phosphor-icons/react/dist/ssr";
+import { FilePdf, Minus, Plus, X, ArrowsOut, Hand } from "@phosphor-icons/react/dist/ssr";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
 import { endpoints } from "@/lib/endpoints";
 import { documentUrl, ProxyError, proxyFetcher } from "@/lib/proxy-fetcher";
-import type { BidDocument, LineItem, PageBlocksResponse } from "@/lib/types";
+import type { BidDocument, Evidence, PageBlocksResponse } from "@/lib/types";
 
 // The version query busts a cached worker from a previous pdfjs; a mismatched
 // worker makes the viewer refuse to open any file.
@@ -62,7 +62,13 @@ export function SheetViewer({
 }: {
   code: string;
   documents: BidDocument[];
-  selected: LineItem | null;
+  /**
+   * Anything with evidence: a door line item or a Div 10 / FRP specialty row.
+   * Only `id` and `evidence` are read, and widening this to the structural
+   * minimum is what lets specialties reuse the highlight instead of growing a
+   * second viewer that would drift from this one.
+   */
+  selected: { id: string; evidence?: Evidence | null } | null;
   /**
    * A page to open that no line item points at - a review flag citing a sheet
    * the pass could not read. `token` changes on every request, so clicking the
@@ -78,6 +84,11 @@ export function SheetViewer({
   const [renderedWidth, setRenderedWidth] = useState(0);
   const [showBlocks, setShowBlocks] = useState(false);
   const [hoveredBlock, setHoveredBlock] = useState<number | null>(null);
+  
+  // Pan and Zoom tools
+  const [isHandTool, setIsHandTool] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
   // Keyed by document: an unreadable PDF must not blank the viewer for the
   // others. Previously the failure branch replaced <Document> entirely, so the
   // onLoadSuccess that would have cleared it could never fire again.
@@ -143,6 +154,40 @@ export function SheetViewer({
     if (!highlightRef.current) return;
     highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
   }, [bbox, renderedWidth, pageNumber, zoom]);
+
+  // Handle Ctrl+Wheel to zoom
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY * -0.002;
+      setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z + delta)));
+    }
+  }, []);
+
+  // Handle pan dragging
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isHandTool || !frameRef.current) return;
+    setIsDragging(true);
+    dragStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: frameRef.current.scrollLeft,
+      scrollTop: frameRef.current.scrollTop,
+    };
+  }, [isHandTool]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging || !frameRef.current) return;
+    e.preventDefault(); // Prevent text selection
+    const dx = e.clientX - dragStart.current.x;
+    const dy = e.clientY - dragStart.current.y;
+    frameRef.current.scrollLeft = dragStart.current.scrollLeft - dx;
+    frameRef.current.scrollTop = dragStart.current.scrollTop - dy;
+  }, [isDragging]);
+
+  const handleMouseUpOrLeave = useCallback(() => {
+    setIsDragging(false);
+  }, []);
 
   const activeDoc = documents.find((doc) => doc.id === activeDocId) ?? documents[0];
   const failure = activeDoc ? failures[activeDoc.id] : undefined;
@@ -323,6 +368,18 @@ export function SheetViewer({
 
         <div className="flex items-center gap-1.5 px-2">
           <button
+            onClick={() => setIsHandTool((on) => !on)}
+            aria-label="Toggle Hand Tool"
+            aria-pressed={isHandTool}
+            className={`p-1.5 rounded-md transition-colors mr-1 border-r border-subtle pr-2.5 ${
+              isHandTool 
+                ? "text-brand-primary bg-brand-primary/10" 
+                : "text-tx-secondary hover:text-tx-primary hover:bg-panel"
+            }`}
+          >
+            <Hand size={16} weight={isHandTool ? "fill" : "bold"} />
+          </button>
+          <button
             onClick={() => setZoom((z) => Math.max(MIN_ZOOM, z - 0.2))}
             className="p-1.5 rounded-md text-tx-secondary hover:text-tx-primary hover:bg-panel transition-colors"
             aria-label="Zoom out"
@@ -365,7 +422,17 @@ export function SheetViewer({
         </div>
       )}
 
-      <div ref={frameRef} className="min-h-0 flex-1 overflow-auto p-4 bg-[#e8ecef] dark:bg-background custom-scrollbar">
+      <div 
+        ref={frameRef} 
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUpOrLeave}
+        onMouseLeave={handleMouseUpOrLeave}
+        className={`min-h-0 flex-1 overflow-auto p-4 bg-[#e8ecef] dark:bg-background custom-scrollbar ${
+          isHandTool ? (isDragging ? "cursor-grabbing" : "cursor-grab") : ""
+        }`}
+      >
         {failure ? (
           <div className="rounded-xl px-5 py-4 text-[13px] font-medium bg-status-error-soft border border-status-error/30 text-status-error shadow-sm max-w-md mx-auto mt-8">
             {failure}

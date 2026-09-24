@@ -13,7 +13,7 @@ description: >
 
 ## Deterministic-first (mandatory)
 
-1. Read `extracted/door_schedule.json` if it exists (worker pretakeoff /
+1. Read `extracted/line_items.json` if it exists (worker pretakeoff /
    `parse_schedule.py` often already wrote it).
 2. If missing → **run the script or MCP** on sheetmap `door_schedule` pages.
    Do **not** freehand-author openings:
@@ -113,7 +113,7 @@ Emit **only** these properties on each opening (Pydantic `Opening`,
 ```
 
 - **Must** be an object with numeric `width` and `height`.
-- **Never** `[2448.0, 1584.0]` (MinerU array shape).
+- **Never** `[2448.0, 1584.0]` (bare array shape).
 - Prefer parser output or `mcp__pdf-tools__get_page_size`.
 
 ### Unknown schedule columns
@@ -137,7 +137,7 @@ See `references/schedule_anatomy.md`.
 ## Output schema
 
 Save via **`mcp__artifact-storage__save_artifact`** to
-`projects/{project}/extracted/door_schedule.json`:
+`projects/{project}/extracted/line_items.json`:
 
 ```json
 {

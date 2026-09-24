@@ -80,8 +80,6 @@ def register_jobs() -> None:
         DeleteCatalog,
         IndexCatalog,
         IngestPricebook,
-        ParseCatalog,
-        ParseMultiplier,
     )
     from cbc.modules.ops.api import worker
 
@@ -89,27 +87,15 @@ def register_jobs() -> None:
     # two run in the worker itself. A bad payload, a missing file or a layout the
     # extractor cannot read all read exactly the same on the third attempt, so
     # they fail at once rather than spend the attempt budget reaching it.
+    #
+    # `parse_catalog` / `parse_multiplier` are gone with MinerU. Catalog PDFs are
+    # read by their own MCP server now; until then `catalog-docs` serves the
+    # pageIndex path, which is the documented fallback whenever a book's
+    # parse_state is not `parsed` - the same route the system already took
+    # whenever parsing was switched off.
     permanent = (ValueError, FileNotFoundError, IndexCatalog.IndexingError)
-    parse_permanent = (
-        ValueError,
-        FileNotFoundError,
-        ParseCatalog.ParsePermanent,
-        ParseMultiplier.ParsePermanent,
-    )
     worker.register("index_catalog", partial(worker.run_locally, work=IndexCatalog.index_catalog, permanent=permanent))
     worker.register("delete_catalog", partial(worker.run_locally, work=DeleteCatalog.delete_catalog, permanent=permanent))
-    worker.register(
-        "parse_catalog",
-        partial(worker.run_locally, work=ParseCatalog.parse_catalog, permanent=parse_permanent),
-        after_finish=ParseCatalog.after_finish,
-    )
-    worker.register(
-        "parse_multiplier",
-        partial(
-            worker.run_locally, work=ParseMultiplier.parse_multiplier, permanent=parse_permanent
-        ),
-        after_finish=ParseMultiplier.after_finish,
-    )
     worker.register("ingest_pricebook", IngestPricebook.run)
 
 

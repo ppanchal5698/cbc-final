@@ -11,14 +11,14 @@ phase.
 | **Script** | `bash workflows/phase3_takeoff.sh <project>` |
 | **Command** | `/takeoff` |
 | **Skill** | `extract-door-schedule` |
-| **Writes** | field patches to `extracted/door_schedule.json` — **schema-gated, blocking, patch-only** |
+| **Writes** | field patches to `extracted/line_items.json` — **schema-gated, blocking, patch-only** |
 
 ## The agent does not author the schedule
 
 Before any token is spent, `extraction/infrastructure/pretakeoff.py` parses the
 schedule deterministically in code and writes
 `extracted/door_schedule.extracted.json`, which seeds
-`extracted/door_schedule.json`.
+`extracted/line_items.json`.
 
 `takeoff-engineer`'s job is to **check that seed against the sheets** and
 correct it field by field through `mcp__artifact-storage__propose_patch`, each
@@ -26,7 +26,7 @@ patch carrying `{source_page, excerpt}` evidence. It is the only agent with
 `propose_patch`, and it runs on Sonnet because deciding whether a schedule cell
 really says what the parser thinks it says is judgment.
 
-A whole-file `save_artifact` over an already-seeded `door_schedule.json` is
+A whole-file `save_artifact` over an already-seeded `line_items.json` is
 **blocked** by the `checkpoint-propose-patch` hook rule. A patch that fails
 costs that one field and leaves a review flag; if nothing applies, the file is
 left alone rather than rewritten byte-identically.
@@ -84,13 +84,13 @@ defect, not a shortcut.
 Phases 3, 3b and 3c run at the same time. When the worker runs them as a
 **wave** they share one sandbox with disjoint artifacts and each leg is told
 what its siblings own. When the orchestrator delegates instead, the session
-guard holds a lock on `extracted/door_schedule.json` so the orchestrator cannot
+guard holds a lock on `extracted/line_items.json` so the orchestrator cannot
 read it while this agent is still writing. See
 [`../backend/worker.md`](../backend/worker.md#waves).
 
 ## Output
 
-`extracted/door_schedule.json`, validated against `door_schedule.schema.json`.
+`extracted/line_items.json`, validated against `extracted_line_items.schema.json`.
 A failure **blocks**. Every opening carries `source_file`, `source_page`,
 `bbox`, `page_size` and `extracted_at`.
 

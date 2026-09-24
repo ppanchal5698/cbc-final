@@ -145,3 +145,130 @@ def test_parse_recording_name_splits_retry_suffix() -> None:
 
     assert runmetrics.parse_recording_name("abc.log") == ("abc", 1)
     assert runmetrics.parse_recording_name("abc-attempt3.log") == ("abc", 3)
+
+
+def test_timestamps_are_stored_as_dates_not_strings() -> None:
+    """Mongo ranges String and Date in separate BSON type brackets.
+
+    These were written with `.isoformat()`, so every
+    `{"startedAt": {"$gte": <datetime>}}` matched nothing. That disabled both
+    readers of this collection at once: `/api/ops/spend` reported zeros, and
+    `cost_budget.spend_usd` summed to 0.0 - so WORKER_MAX_COST_USD_PER_DAY and
+    WORKER_MAX_COST_USD_PER_PROJECT never fired. A spend cap that cannot fire on
+    a pipeline being investigated for cost is worse than no cap, because the
+    number on screen says it is watching.
+    """
+    from datetime import datetime, timezone
+
+    from cbc.modules.ops.api import runmetrics
+
+    moment = datetime(2026, 9, 21, 12, 30, tzinfo=timezone.utc)
+    doc = runmetrics.document_for(
+        {"_id": "abc", "type": "extract_bid_set", "attempts": 1,
+         "startedAt": moment, "finishedAt": moment},
+        {},
+    )
+    assert isinstance(doc["startedAt"], datetime), f"got {type(doc['startedAt'])}"
+    assert isinstance(doc["finishedAt"], datetime)
+    assert doc["startedAt"] == moment
+
+
+def test_a_timestamp_from_the_recording_is_parsed_not_passed_through() -> None:
+    """The job carries datetimes; the recording's own events carry strings."""
+    from datetime import datetime, timezone
+
+    from cbc.modules.ops.api import runmetrics
+
+    doc = runmetrics.document_for(
+        {"_id": "abc", "type": "extract_bid_set", "attempts": 1},
+        {"startedAt": "2026-09-21T12:30:00Z", "finishedAt": "2026-09-21T12:45:00+00:00"},
+    )
+    assert doc["startedAt"] == datetime(2026, 9, 21, 12, 30, tzinfo=timezone.utc)
+    assert doc["finishedAt"] == datetime(2026, 9, 21, 12, 45, tzinfo=timezone.utc)
+
+    # Nothing usable is better than a string that will never match a range.
+    junk = runmetrics.document_for(
+        {"_id": "abc", "type": "extract_bid_set", "attempts": 1},
+        {"startedAt": "not a time"},
+    )
+    assert junk["startedAt"] is None
+
+
+def test_a_dead_letter_retry_does_not_erase_the_run_it_replaces():
+    """`_id` was {jobId}:{attempt}, and `jobs.retry` sets `attempts` back to 0.
+
+    So the retried run wrote the same key as the failed one and replaced it —
+    in the single collection the spend page and the cost caps read. Observed
+    live: retrying one dead extraction moved the measured waste figure from 41%
+    to 37% by deleting the evidence, not by fixing anything.
+
+    Ids written before a retry keep their old shape, so existing rows are not
+    orphaned.
+    """
+    from cbc.modules.ops.api import runmetrics
+
+    job = {"_id": "abc", "type": "extract_bid_set", "attempts": 1}
+    first = runmetrics.document_for(job, {})["_id"]
+    retried = runmetrics.document_for({**job, "retryGeneration": 1}, {})["_id"]
+    again = runmetrics.document_for({**job, "retryGeneration": 2}, {})["_id"]
+
+    assert first == "abc:1", "the pre-existing shape is untouched"
+    assert len({first, retried, again}) == 3, "each run keeps its own record"
+
+    for falsy in (0, None, ""):
+        assert runmetrics.document_for({**job, "retryGeneration": falsy}, {})["_id"] == first
+
+
+def test_wave_legs_each_get_their_own_id_and_leg_zero_is_unchanged() -> None:
+    """A wave is N CLI runs; recording only leg 0 under-reported spend ~Nx. Leg 0
+    keeps the single-pass id byte-identical (set_estimator_corrections keys on it),
+    later legs get a suffix.
+    """
+    from cbc.modules.ops.api import runmetrics
+
+    job = {"_id": "abc", "type": "extract_bid_set", "attempts": 1}
+    base = runmetrics.document_for(job, {})["_id"]
+    leg0 = runmetrics.document_for(job, {}, leg=0)["_id"]
+    leg1 = runmetrics.document_for(job, {}, leg=1)["_id"]
+    leg2 = runmetrics.document_for(job, {}, leg=2)["_id"]
+
+    assert base == "abc:1"
+    assert leg0 == "abc:1", "leg 0 must stay byte-identical to the single-pass id"
+    assert leg1 == "abc:1:leg1"
+    assert leg2 == "abc:1:leg2"
+    assert len({leg0, leg1, leg2}) == 3
+
+    # A retried wave keeps generation and leg both in the key.
+    retried = runmetrics.document_for({**job, "retryGeneration": 2}, {}, leg=1)["_id"]
+    assert retried == "abc:r2:1:leg1"
+
+
+
+def test_context_hashes_digest_moves_when_toolsets_profiles_do(monkeypatch) -> None:
+    """W1a: a run that saw a different tool surface must land in a different
+    cohort, so the toolProfiles digest tracks toolsets.PROFILES. Ship the cohort
+    view without this and a toolset change lands silently inside an old cohort,
+    averaging before with after.
+    """
+    from cbc.modules.ops.api import runmetrics, toolsets
+
+    before = runmetrics.context_hashes()
+    assert before["toolProfiles"] is not None
+    assert "hooks" in before and "runtime" in before
+
+    patched = {**toolsets.PROFILES, "build_proposal": ["calc-engine"]}
+    monkeypatch.setattr(toolsets, "PROFILES", patched)
+    after = runmetrics.context_hashes()
+
+    assert after["toolProfiles"] != before["toolProfiles"]
+
+
+def test_context_hashes_runtime_is_recorded_when_supplied() -> None:
+    """The turn/timeout budget a run was given is part of its cohort identity."""
+    from cbc.modules.ops.api import runmetrics
+
+    assert runmetrics.context_hashes(runtime=None)["runtime"] is None
+    a = runmetrics.context_hashes(runtime=(3600, 60))["runtime"]
+    b = runmetrics.context_hashes(runtime=(10800, 200))["runtime"]
+    assert a is not None and b is not None and a != b
+

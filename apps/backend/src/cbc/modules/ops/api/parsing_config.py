@@ -1,150 +1,116 @@
-"""MinerU parser runtime settings: presets, resolution, and validation.
+"""LlamaParse runtime settings: resolution and validation.
 
-Two kinds of settings exist (see docs):
+Resolved the same way Claude credentials are: process env → `.env` → saved
+settings document → built-in default. Process env always wins and locks the field
+in the UI, so an operator can pin a value the Settings screen cannot override.
 
-- Runtime (`PARSER_*`): the next parse job picks them up; no restart. Resolved
-  here the same way Claude credentials are: process env → `.env` → saved
-  settings document → profile preset.
-- Container (`MINERU_*` in `infra/mineru/<profile>.env`): need a rebuild /
-  restart of the GPU service. Shown read-only in the UI from MinerU `/health`.
-
-MinerU's own `MINERU_FORMULA_ENABLE` / `MINERU_TABLE_ENABLE` override request
-bodies, so they are never set on the container; app settings use `PARSER_*`.
+`PARSER_API_KEY` is the on/off switch the way `PARSER_URL` used to be: empty means
+parsing is off and Claude reads PDFs through pdf-tools instead. The key is never
+returned to the browser - `public_config` reports only whether it is set.
 """
 from __future__ import annotations
 
 import os
-from typing import Any, Literal
+from typing import Any
 
 from cbc.shared import envfile
 
 DOC_ID = "parsing"
 
-PROFILES = ("low", "medium", "high")
-Profile = Literal["low", "medium", "high"]
+# `fast` is excluded deliberately: it returns no granular bounding boxes, and
+# without those a priced line has no rectangle on the sheet to point at, which
+# NFR-3 does not allow. Cost per page rises steeply across the rest.
+TIERS = ("cost_effective", "agentic", "agentic_plus")
+DEFAULT_TIER = "cost_effective"
 
-# Backends accepted by MinerU 3.4 `/tasks`. http-client* omitted (SSRF surface).
-BACKENDS = ("pipeline", "hybrid-engine", "vlm-engine")
-EFFORTS = ("low", "medium", "high")
-METHODS = ("auto", "txt", "ocr")
-
-# Field name → env variable. Booleans and ints are stored as strings in .env.
+# Field name → env variable. Ints are stored as strings in .env.
 FIELDS: dict[str, str] = {
-    "url": "PARSER_URL",
-    "profile": "PARSER_PROFILE",
-    "backend": "PARSER_BACKEND",
-    "effort": "PARSER_EFFORT",
-    "method": "PARSER_METHOD",
+    "apiKey": "PARSER_API_KEY",
+    "tier": "PARSER_TIER",
     "lang": "PARSER_LANG",
-    "tables": "PARSER_TABLES",
-    "formulas": "PARSER_FORMULAS",
-    "imageAnalysis": "PARSER_IMAGE_ANALYSIS",
     "windowPages": "PARSER_WINDOW_PAGES",
+    "windowConcurrency": "PARSER_WINDOW_CONCURRENCY",
     "windowTimeoutSeconds": "PARSER_WINDOW_TIMEOUT_SECONDS",
     "waitMaxSeconds": "PARSER_WAIT_MAX_SECONDS",
 }
 
-PRESETS: dict[str, dict[str, Any]] = {
-    "low": {
-        "backend": "pipeline",
-        "effort": None,
-        "method": "auto",
-        "lang": "en",
-        "tables": True,
-        "formulas": False,
-        "imageAnalysis": False,
-        "windowPages": 8,
-        "windowTimeoutSeconds": 1800,
-        "waitMaxSeconds": 1800,
-        "hardware": "4–6 GB VRAM, 16 GB RAM",
-    },
-    "medium": {
-        "backend": "hybrid-engine",
-        "effort": "medium",
-        "method": "auto",
-        "lang": "en",
-        "tables": True,
-        "formulas": False,
-        "imageAnalysis": False,
-        "windowPages": 16,
-        "windowTimeoutSeconds": 1800,
-        "waitMaxSeconds": 1800,
-        "hardware": "8–12 GB VRAM, 32 GB RAM",
-    },
-    "high": {
-        "backend": "hybrid-engine",
-        "effort": "high",
-        "method": "auto",
-        "lang": "en",
-        "tables": True,
-        "formulas": False,
-        "imageAnalysis": True,
-        "windowPages": 32,
-        "windowTimeoutSeconds": 1800,
-        "waitMaxSeconds": 1800,
-        "hardware": "16 GB+ VRAM, 64 GB RAM",
-    },
+# Never echoed back to the browser.
+SECRET_FIELDS = frozenset({"apiKey"})
+
+# Kept out of `envfile.apply_to_environ`, for the same reason the Claude provider
+# variables are: a value this screen *saved* into `.env` must not come back as
+# process environment on the next start. `resolve` reports process env as `env`,
+# which locks the field in the UI and makes the PUT handler ignore what was
+# typed - so saving a tier once and restarting left the field permanently
+# greyed out, with later saves returning 200 and changing nothing.
+#
+# A genuine process variable - Compose, or `infisical run` injecting before
+# Python starts - still wins and still locks, which is the intended meaning:
+# the operator pinned it outside the app.
+MANAGED = frozenset(FIELDS.values())
+
+DEFAULTS: dict[str, Any] = {
+    "apiKey": "",
+    "tier": DEFAULT_TIER,
+    "lang": "en",
+    "windowPages": 8,
+    # Windows are parsed concurrently. A window is ~97% waiting on the API, so
+    # this is the single biggest lever on how long a bid set takes; it is capped
+    # because the API is rate limited and unbounded fan-out fails rather than
+    # finishes.
+    "windowConcurrency": 4,
+    "windowTimeoutSeconds": 1800,
+    "waitMaxSeconds": 1800,
 }
 
-_BOOL_FIELDS = frozenset({"tables", "formulas", "imageAnalysis"})
-_INT_FIELDS = frozenset({"windowPages", "windowTimeoutSeconds", "waitMaxSeconds"})
+_INT_FIELDS = frozenset(
+    {"windowPages", "windowConcurrency", "windowTimeoutSeconds", "waitMaxSeconds"}
+)
 
 
 def default_config() -> dict[str, Any]:
-    """Empty stored document: profile low, no URL (parsing off)."""
-    return {"profile": "low", "url": ""}
+    """The stored document when nothing has been saved: empty.
 
-
-def _truthy(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _as_int(value: Any, default: int) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
+    Deliberately not seeded with `tier`. `resolve` reports where each value came
+    from and the Settings screen shows it, so seeding a value here would have it
+    reported as `db` - telling an operator the tier was saved in the database
+    when nothing ever was. `DEFAULTS` supplies the fallbacks and `resolve` labels
+    them `default`, which is the truth.
+    """
+    return {}
 
 
 def _coerce_field(field: str, raw: Any) -> Any:
-    if raw is None or raw == "":
+    if raw is None:
         return None
-    if field in _BOOL_FIELDS:
-        return _truthy(raw)
     if field in _INT_FIELDS:
-        return _as_int(raw, PRESETS["low"][field])
-    if field == "url":
-        return str(raw).strip()
-    if field == "profile":
-        text = str(raw).strip().lower()
-        return text if text in PROFILES else "low"
-    if field == "effort" and str(raw).strip().lower() in ("", "none", "null"):
-        return None
+        try:
+            return int(str(raw).strip())
+        except (TypeError, ValueError):
+            return None
+    if field == "tier":
+        return str(raw).strip().lower()
     return str(raw).strip()
 
 
 def validate(config: dict[str, Any]) -> list[str]:
     """Return human-readable problems; empty means ok."""
     problems: list[str] = []
-    profile = config.get("profile") or "low"
-    if profile not in PROFILES:
-        problems.append(f"profile must be one of {PROFILES}")
-    backend = config.get("backend")
-    if backend is not None and backend not in BACKENDS:
-        problems.append(f"backend must be one of {BACKENDS}")
-    effort = config.get("effort")
-    if effort is not None and effort not in EFFORTS:
-        problems.append(f"effort must be one of {EFFORTS}")
-    if effort is not None and backend != "hybrid-engine":
-        problems.append("effort is only valid with hybrid-engine")
-    method = config.get("method")
-    if method is not None and method not in METHODS:
-        problems.append(f"method must be one of {METHODS}")
+    tier = config.get("tier")
+    if tier is not None and tier not in TIERS:
+        if tier == "fast":
+            problems.append(
+                "tier `fast` returns no granular bounding boxes, so a parsed line "
+                f"would have no rectangle to point at. Use one of {TIERS}"
+            )
+        else:
+            problems.append(f"tier must be one of {TIERS}")
     window = config.get("windowPages")
     if window is not None and not (1 <= int(window) <= 200):
         problems.append("windowPages must be between 1 and 200")
+    concurrency = config.get("windowConcurrency")
+    if concurrency is not None and not (1 <= int(concurrency) <= 16):
+        problems.append("windowConcurrency must be between 1 and 16")
     for timeout_field in ("windowTimeoutSeconds", "waitMaxSeconds"):
         value = config.get(timeout_field)
         if value is not None and not (60 <= int(value) <= 7200):
@@ -157,7 +123,7 @@ def resolve(
 ) -> tuple[dict[str, Any], dict[str, str]]:
     """Return (effective settings, {field: source}).
 
-    Source is `env` | `dotenv` | `db` | `profile`. Process env always wins and
+    Source is `env` | `dotenv` | `db` | `default`. Process env always wins and
     locks the field in the UI. `prefer_config` is the Settings Test button:
     typed/saved values beat `.env`.
     """
@@ -166,34 +132,7 @@ def resolve(
     sources: dict[str, str] = {}
     resolved: dict[str, Any] = {}
 
-    # Profile first so preset fill works; still overridable per field below.
-    profile_raw = None
-    from_env = os.environ.get(FIELDS["profile"])
-    if from_env:
-        profile_raw = from_env
-        sources["profile"] = "env"
-    else:
-        from_file = file_env.get(FIELDS["profile"])
-        if from_file and not prefer_config:
-            profile_raw = from_file
-            sources["profile"] = "dotenv"
-        elif config.get("profile"):
-            profile_raw = config["profile"]
-            sources["profile"] = "db"
-        elif from_file:
-            profile_raw = from_file
-            sources["profile"] = "dotenv"
-        else:
-            profile_raw = "low"
-            sources["profile"] = "profile"
-
-    profile = _coerce_field("profile", profile_raw) or "low"
-    resolved["profile"] = profile
-    preset = dict(PRESETS[profile])
-
     for field, variable in FIELDS.items():
-        if field == "profile":
-            continue
         from_env = os.environ.get(variable)
         if from_env is not None and from_env != "":
             resolved[field] = _coerce_field(field, from_env)
@@ -212,33 +151,17 @@ def resolve(
             resolved[field] = _coerce_field(field, from_file)
             sources[field] = "dotenv"
             continue
-        # Preset (or empty URL = parsing off).
-        if field == "url":
-            resolved[field] = ""
-            sources[field] = "profile"
-        elif field in preset:
-            resolved[field] = preset[field]
-            sources[field] = "profile"
-        else:
-            resolved[field] = None
-            sources[field] = "profile"
-
-    # hybrid effort default when backend is hybrid and effort unset
-    if resolved.get("backend") == "hybrid-engine" and not resolved.get("effort"):
-        resolved["effort"] = preset.get("effort") or "medium"
-        if sources.get("effort") == "profile":
-            pass
-    if resolved.get("backend") != "hybrid-engine":
-        resolved["effort"] = None
+        resolved[field] = DEFAULTS.get(field)
+        sources[field] = "default"
 
     return resolved, sources
 
 
 def enabled(resolved: dict[str, Any] | None = None) -> bool:
-    """True when PARSER_URL is set — parsing is on."""
+    """True when PARSER_API_KEY is set — parsing is on."""
     if resolved is None:
         resolved, _ = resolve(None)
-    return bool(str(resolved.get("url") or "").strip())
+    return bool(str(resolved.get("apiKey") or "").strip())
 
 
 async def load_stored() -> dict[str, Any]:
@@ -250,63 +173,51 @@ async def load_stored() -> dict[str, Any]:
     return resolved
 
 
-def public_config(
-    config: dict[str, Any] | None,
-) -> dict[str, Any]:
-    """Settings payload: effective values, sources, locked flags, presets."""
+def public_config(config: dict[str, Any] | None) -> dict[str, Any]:
+    """Settings payload: effective values, sources, locked flags, tiers.
+
+    The API key is reported as set/unset and never by value: this payload goes
+    to the browser and into the characterization snapshots.
+    """
     resolved, sources = resolve(config)
     fields: dict[str, Any] = {}
     for field in FIELDS:
+        value = resolved.get(field)
+        if field in SECRET_FIELDS:
+            value = "set" if str(value or "").strip() else ""
         fields[field] = {
-            "value": resolved.get(field),
-            "source": sources.get(field, "profile"),
+            "value": value,
+            "source": sources.get(field, "default"),
             "locked": sources.get(field) == "env",
         }
     return {
         "enabled": enabled(resolved),
         "fields": fields,
-        "presets": {
-            name: {k: v for k, v in preset.items()}
-            for name, preset in PRESETS.items()
-        },
-        "backends": list(BACKENDS),
-        "efforts": list(EFFORTS),
-        "methods": list(METHODS),
-        "profiles": list(PROFILES),
+        "tiers": list(TIERS),
     }
 
 
 def persist_env_file(config: dict[str, Any]) -> bool:
-    """Mirror saved runtime settings into `.env` (PARSER_* only)."""
+    """Mirror saved runtime settings into `.env` (PARSER_* only).
+
+    Only fields the caller actually sent are written. A field that is absent
+    means "unchanged", not "clear it" - the Settings screen deliberately omits
+    the API key when it was not retyped, so that it cannot post a masked
+    placeholder over a real secret.
+
+    Treating absent as empty cost a real key: a Save with an untouched API key
+    field wrote `PARSER_API_KEY=""` and parsing silently went off. `envfile.upsert`
+    also *deletes* a variable given None, so the same mistake on the other fields
+    removes them from `.env` outright rather than resetting them.
+    """
     updates: dict[str, str | None] = {}
     for field, variable in FIELDS.items():
-        value = config.get(field)
-        if value is None or value == "":
-            # Keep URL empty meaning off; clear other empties.
-            if field == "url":
-                updates[variable] = ""
-            else:
-                updates[variable] = None
+        if field not in config:
             continue
-        if isinstance(value, bool):
-            updates[variable] = "1" if value else "0"
-        else:
-            updates[variable] = str(value)
+        value = config.get(field)
+        if value is None:
+            continue
+        # An explicit empty string is a real instruction: clearing the key is how
+        # an operator turns parsing off.
+        updates[variable] = str(value)
     return envfile.upsert(updates)
-
-
-def mineru_task_body(resolved: dict[str, Any]) -> dict[str, Any]:
-    """Fields for MinerU POST /tasks from resolved settings."""
-    body: dict[str, Any] = {
-        "backend": resolved.get("backend") or "pipeline",
-        "parse_method": resolved.get("method") or "auto",
-        "lang_list": [resolved.get("lang") or "en"],
-        "formula_enable": bool(resolved.get("formulas")),
-        "table_enable": bool(resolved.get("tables")),
-        "return_middle_json": True,
-    }
-    if resolved.get("backend") == "hybrid-engine" and resolved.get("effort"):
-        body["effort"] = resolved["effort"]
-    if resolved.get("imageAnalysis"):
-        body["image_analysis"] = True
-    return body

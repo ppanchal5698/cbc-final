@@ -22,10 +22,39 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/home/cbc/.local/bin:${PATH}"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates git libatomic1 poppler-utils tesseract-ocr \
+        ca-certificates curl git libatomic1 poppler-utils tesseract-ocr \
         libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libgdk-pixbuf-2.0-0 libffi8 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 1000 --shell /bin/bash cbc
+
+# -- Infisical CLI ----------------------------------------------------------
+# Fetches secrets at start-up; see infra/docker/entrypoint.sh. Installed from a
+# pinned release with its published sha256 verified, rather than the documented
+# `curl ... | bash` installer: the one binary that reads every credential this
+# system owns is a poor place to run an unpinned remote script, and a checksum
+# is what makes the build reproducible and auditable (NFR-3).
+#
+# Bump: take the version and both digests from
+# https://github.com/Infisical/infisical/releases (tag infisical-cli/vX.Y.Z,
+# asset checksums.txt). tests/system/test_infisical_wiring.py asserts a digest
+# is pinned for whatever version is set here.
+ARG INFISICAL_CLI_VERSION=0.41.90
+ARG INFISICAL_CLI_SHA256_AMD64=43e5c251ce5ba078f3751f76971a816f7b9f99c2fe4a938848af5cf5b087bf3c
+ARG INFISICAL_CLI_SHA256_ARM64=993bd2217ef7f9d8e276f313a90571efda5f29308bb73d2626be178cd03013b3
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "${arch}" in \
+      amd64) sha="${INFISICAL_CLI_SHA256_AMD64}" ;; \
+      arm64) sha="${INFISICAL_CLI_SHA256_ARM64}" ;; \
+      *) echo "no pinned Infisical CLI for ${arch}" >&2; exit 1 ;; \
+    esac; \
+    deb="infisical_${INFISICAL_CLI_VERSION}_linux_${arch}.deb"; \
+    curl -fsSL -o "/tmp/${deb}" \
+      "https://github.com/Infisical/infisical/releases/download/infisical-cli%2Fv${INFISICAL_CLI_VERSION}/${deb}"; \
+    echo "${sha}  /tmp/${deb}" | sha256sum -c -; \
+    dpkg -i "/tmp/${deb}"; \
+    rm -f "/tmp/${deb}"; \
+    infisical --version
 
 COPY apps/backend/pyproject.toml apps/backend/README.md /app/apps/backend/
 COPY apps/backend/src /app/apps/backend/src

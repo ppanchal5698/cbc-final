@@ -22,7 +22,7 @@ Outputs land in `projects/{name}/`:
 |---|---|
 | `extracted/scope_metadata.json` | intake-coordinator |
 | `extracted/scope_summary.json` | spec-scope-analyst |
-| `extracted/door_schedule.json` | takeoff-engineer |
+| `extracted/line_items.json` | takeoff-engineer |
 | `extracted/frp_takeoff.json` | frp-specialist |
 | `extracted/hardware_sets.json` | product-matcher |
 | `priced/line_items.json`, `priced/margin_applied.json` | pricing-engineer |

@@ -16,3 +16,11 @@ services:
   web:
     ports:
       - "127.0.0.1:3000:3000"
+    # NextAuth builds every redirect from AUTH_URL, and the deployment default is
+    # `http://localhost` because nginx serves the edge on port 80. CI stands up
+    # no nginx and publishes only 3000, so an unauthenticated request to
+    # /dashboard redirected to port 80 and the browser got ECONNREFUSED - while
+    # /signin, which does not redirect, passed. One test failing out of nineteen,
+    # for a reason that had nothing to do with authentication.
+    environment:
+      AUTH_URL: http://127.0.0.1:3000

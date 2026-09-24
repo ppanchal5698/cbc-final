@@ -114,12 +114,12 @@ def test_every_shape_a_pass_has_written_is_imported(project, shape) -> None:
     success, which is the worst available outcome: the bid looks empty rather
     than broken.
     """
-    from cbc.modules.extraction.api import door_schedule
+    from cbc.modules.extraction.api import line_items
 
     record, database, directory = project
-    _write(directory, "extracted/door_schedule.json", shape([_opening("101"), _opening("102")]))
+    _write(directory, "extracted/line_items.json", shape([_opening("101"), _opening("102")]))
 
-    counts = run(door_schedule.import_extraction(record))
+    counts = run(line_items.import_extraction(record))
 
     assert counts["inserted"] == 2, counts
     assert database[names.OPENINGS].count_documents({"projectId": record["_id"]}) == 2
@@ -127,18 +127,18 @@ def test_every_shape_a_pass_has_written_is_imported(project, shape) -> None:
 
 def test_importing_twice_updates_rather_than_duplicates(project) -> None:
     """A rerun must not double the schedule."""
-    from cbc.modules.extraction.api import door_schedule
+    from cbc.modules.extraction.api import line_items
 
     record, database, directory = project
-    _write(directory, "extracted/door_schedule.json", {"openings": [_opening("101")]})
-    run(door_schedule.import_extraction(record))
+    _write(directory, "extracted/line_items.json", {"openings": [_opening("101")]})
+    run(line_items.import_extraction(record))
 
     _write(
         directory,
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {"openings": [_opening("101", finish="US32D")]},
     )
-    second = run(door_schedule.import_extraction(record))
+    second = run(line_items.import_extraction(record))
 
     assert database[names.OPENINGS].count_documents({"projectId": record["_id"]}) == 1
     assert second["inserted"] == 0
@@ -148,12 +148,12 @@ def test_importing_twice_updates_rather_than_duplicates(project) -> None:
 
 def test_import_normalizes_finish_and_maps_alternate(project) -> None:
     """FR-2 alternate designation and NR-3 finish pair land on the line item."""
-    from cbc.modules.extraction.api import door_schedule
+    from cbc.modules.extraction.api import line_items
 
     record, database, directory = project
     _write(
         directory,
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {
             "openings": [
                 _opening(
@@ -166,7 +166,7 @@ def test_import_normalizes_finish_and_maps_alternate(project) -> None:
         },
     )
 
-    run(door_schedule.import_extraction(record))
+    run(line_items.import_extraction(record))
     stored = database[names.OPENINGS].find_one({"projectId": record["_id"]})
     assert stored["finish"] == "US26D (626)"
     assert stored["alternateGroup"] == "Alternate 1"
@@ -174,16 +174,16 @@ def test_import_normalizes_finish_and_maps_alternate(project) -> None:
 
 
 def test_import_flags_ambiguous_finish_without_guessing(project) -> None:
-    from cbc.modules.extraction.api import door_schedule
+    from cbc.modules.extraction.api import line_items
 
     record, database, directory = project
     _write(
         directory,
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {"openings": [_opening("101", finish="619")]},
     )
 
-    run(door_schedule.import_extraction(record))
+    run(line_items.import_extraction(record))
     stored = database[names.OPENINGS].find_one({"projectId": record["_id"]})
     assert stored["finish"] == "619"
     assert "finish_ambiguous" in stored["flags"]
@@ -313,7 +313,7 @@ def test_scope_metadata_fills_empties_with_provenance(project) -> None:
 
 def test_scope_metadata_imports_without_door_schedule(project) -> None:
     """Finishes-only / early checkpoint still updates the job record."""
-    from cbc.modules.extraction.api import door_schedule
+    from cbc.modules.extraction.api import line_items
 
     record, database, directory = project
     _write(
@@ -322,7 +322,7 @@ def test_scope_metadata_imports_without_door_schedule(project) -> None:
         {"brand": "BK", "state": "OH", "source_page": 3},
     )
 
-    counts = run(door_schedule.import_extraction(record))
+    counts = run(line_items.import_extraction(record))
     assert counts == {"inserted": 0, "updated": 0, "skipped": 0}
     stored = database[names.BID_REQUESTS].find_one({"_id": record["_id"]})
     assert stored.get("brand") == "BK"
@@ -434,10 +434,10 @@ def test_an_absent_schedule_imports_nothing_and_does_not_raise(project) -> None:
     The importer's job is to be honest about finding nothing, not to invent an
     error the validation layer already raises with a better message.
     """
-    from cbc.modules.extraction.api import door_schedule
+    from cbc.modules.extraction.api import line_items
 
     record, database, _directory = project
-    counts = run(door_schedule.import_extraction(record))
+    counts = run(line_items.import_extraction(record))
 
     assert counts["inserted"] == 0
     assert database[names.OPENINGS].count_documents({"projectId": record["_id"]}) == 0
@@ -499,11 +499,11 @@ def test_a_reimport_over_a_confirmed_row_refreshes_its_evidence(project) -> None
     path every confirmed bid takes on its next run raised NameError. The suite
     never noticed, because nothing imported over a confirmed row.
     """
-    from cbc.modules.extraction.api import door_schedule
+    from cbc.modules.extraction.api import line_items
 
     record, database, directory = project
-    _write(directory, "extracted/door_schedule.json", {"openings": [_opening("101")]})
-    run(door_schedule.import_extraction(record))
+    _write(directory, "extracted/line_items.json", {"openings": [_opening("101")]})
+    run(line_items.import_extraction(record))
 
     database[names.OPENINGS].update_one(
         {"projectId": record["_id"]},
@@ -517,8 +517,8 @@ def test_a_reimport_over_a_confirmed_row_refreshes_its_evidence(project) -> None
     moved = _opening("101")
     moved["source_page"] = 44
     moved["raw_row"] = "101 | re-read from a later sheet"
-    _write(directory, "extracted/door_schedule.json", {"openings": [moved]})
-    run(door_schedule.import_extraction(record))
+    _write(directory, "extracted/line_items.json", {"openings": [moved]})
+    run(line_items.import_extraction(record))
 
     stored = database[names.OPENINGS].find_one({"projectId": record["_id"]})
     assert stored["finish"] == "US10B", "a confirmed value is the estimator's"

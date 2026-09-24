@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -49,27 +48,38 @@ async def test_div10_empty_status_imports_placeholder(project_root, monkeypatch)
             },
         },
     )
-    inserted: list[dict] = []
+    bulk: list = []
 
-    async def insert_one(doc):
-        inserted.append(doc)
+    async def apply_bulk(requests):
+        bulk.extend(requests)
 
-    coll = SimpleNamespace(
-        delete_many=AsyncMock(),
-        insert_one=AsyncMock(side_effect=insert_one),
+    monkeypatch.setattr(
+        specialty_takeoffs.extraction_openings, "list_for_project", AsyncMock(return_value=[])
     )
-    monkeypatch.setattr(specialty_takeoffs, "takeoffs", lambda: coll)
+    monkeypatch.setattr(
+        specialty_takeoffs.extraction_openings, "apply_bulk", AsyncMock(side_effect=apply_bulk)
+    )
 
     project = {"slug": slug, "_id": "bid-1"}
     counts = await specialty_takeoffs.import_specialty_takeoffs(project)
 
     assert counts["frp"] == 1
     assert counts["div10"] == 1
-    types = {row["takeoffType"] for row in inserted}
-    assert "frpArea" in types
-    assert "accessoryCount" in types
-    div10_row = next(r for r in inserted if r["takeoffType"] == "accessoryCount")
-    assert div10_row["status"] == "NOT_EXTRACTED"
+
+    # In scope with nothing found is a result. It reaches the estimator as a
+    # flagged line in the openings table rather than as an empty panel.
+    docs = [request._doc for request in bulk]
+    divisions = {doc["division"] for doc in docs}
+    assert divisions == {
+        specialty_takeoffs.DIVISION_ACCESSORIES,
+        specialty_takeoffs.DIVISION_FRP,
+    }
+    div10_row = next(
+        doc for doc in docs if doc["division"] == specialty_takeoffs.DIVISION_ACCESSORIES
+    )
+    assert div10_row["status"] == "needs_look"
+    assert "div10_not_extracted" in div10_row["flags"]
+    assert div10_row["specialty"]["status"] == "NOT_EXTRACTED"
 
 
 def test_scope_flags_from_summary(project_root) -> None:

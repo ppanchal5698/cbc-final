@@ -28,15 +28,27 @@ model_list:
 
   - model_name: claude-oss-nim
     litellm_params:
-      model: nvidia_nim/qwen/qwen2.5-coder-32b-instruct
+      model: openai/nvidia/nemotron-3-ultra-550b-a55b
+      api_base: https://integrate.api.nvidia.com/v1
       api_key: os.environ/NVIDIA_NIM_API_KEY
+      # Free tier is 40/min. This `rpm` is router bookkeeping and is NOT what
+      # holds the line: Claude Code calls /v1/messages, which does not pass
+      # through the router's limiter, so the 429s came back from NVIDIA direct.
+      # nim_pacer.py (litellm_settings.callbacks) is the actual enforcement.
+      rpm: 40
+      max_parallel_requests: 5
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: true
 
 litellm_settings:
+  # Blocks NIM request 41 until a slot frees instead of letting NVIDIA 429 it.
+  # NIM-only; every other model passes through untouched. Tune with NIM_RPM.
+  callbacks: nim_pacer.instance
   # Long CAD extractions; the default read timeout cuts them off mid-run.
   request_timeout: 3600
   drop_params: true
   # Soft USD max_budget is injected at container start when LITELLM_MAX_BUDGET is set
   # (see infra/docker/litellm-entrypoint.sh). Leave unset for unlimited local use.
 
-general_settings:
-  master_key: os.environ/LITELLM_MASTER_KEY
+

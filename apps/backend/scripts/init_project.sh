@@ -42,7 +42,7 @@ Project scaffolded: ${PROJECT_DIR}
   uploads/raw/        bid-set PDFs as received (immutable)
   uploads/processed/  extraction artifacts
   uploads/final/      approved quotation (version controlled)
-  extracted/          door_schedule.json, hardware_sets.json, frp_takeoff.json, scope_*.json
+  extracted/          line_items.json, hardware_sets.json, frp_takeoff.json, scope_*.json
   priced/             line_items.json, margin_applied.json, confidence_scores.json
   review/             review_flags.json, review_summary.html, estimator_notes.md
   audit_trail.jsonl   append-only tool log

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from cbc.modules.extraction.api import documents, door_schedule, openings, passes
+from cbc.modules.extraction.api import documents, line_items, openings, passes
 from cbc.modules.ops.api import jobs as ops_jobs
 from cbc.modules.projects.api import bids, pipeline, saga
 from cbc.modules.extraction.api.validation.contracts import extraction_review_verdict
@@ -35,7 +35,7 @@ async def sync_results(job: dict[str, Any], project: dict[str, Any] | None) -> s
     note = await passes.check_output(job, project)
     if note is not None:
         return note
-    counts = await door_schedule.import_extraction(project, job=job)
+    counts = await line_items.import_extraction(project, job=job)
     if counts.get("aborted"):
         return "lease stolen; discarded output"
     from cbc.modules.extraction.api import specialty_takeoffs

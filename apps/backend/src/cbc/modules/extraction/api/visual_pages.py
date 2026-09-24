@@ -22,9 +22,9 @@ def build(
     slug: str,
     *,
     openings_seeded: int = 0,
-    mineru_by_path: dict[str, Any] | None = None,
+    signals_by_path: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Decide which pages need a full-page image, and pre-render them."""
     return _visual_pages.build_visual_pages(
-        slug, openings_seeded=openings_seeded, mineru_by_path=mineru_by_path
+        slug, openings_seeded=openings_seeded, signals_by_path=signals_by_path
     )

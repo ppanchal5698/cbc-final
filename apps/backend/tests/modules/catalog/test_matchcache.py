@@ -34,7 +34,7 @@ def test_high_confidence_is_reused_low_is_not(tmp_path, monkeypatch) -> None:
     root = tmp_path / "projects" / slug
     extracted = root / "extracted"
     extracted.mkdir(parents=True)
-    (extracted / "door_schedule.json").write_text("{}", encoding="utf-8")
+    (extracted / "line_items.json").write_text("{}", encoding="utf-8")
     (extracted / "hardware_sets.json").write_text(
         json.dumps(_hardware(_item("3400", 0.95), _item("3500", 0.5))),
         encoding="utf-8",
@@ -53,7 +53,7 @@ def test_watermark_change_clears_reuse(tmp_path, monkeypatch) -> None:
     slug = "demo"
     extracted = tmp_path / "projects" / slug / "extracted"
     extracted.mkdir(parents=True)
-    (extracted / "door_schedule.json").write_text("{}", encoding="utf-8")
+    (extracted / "line_items.json").write_text("{}", encoding="utf-8")
     (extracted / "hardware_sets.json").write_text(
         json.dumps(_hardware(_item("3400", 0.95))),
         encoding="utf-8",
@@ -76,13 +76,13 @@ def test_door_schedule_sha_change_clears_reuse(tmp_path, monkeypatch) -> None:
     slug = "demo"
     extracted = tmp_path / "projects" / slug / "extracted"
     extracted.mkdir(parents=True)
-    (extracted / "door_schedule.json").write_text("{}", encoding="utf-8")
+    (extracted / "line_items.json").write_text("{}", encoding="utf-8")
     (extracted / "hardware_sets.json").write_text(
         json.dumps(_hardware(_item("3400", 0.95))),
         encoding="utf-8",
     )
     matchcache.ingest(slug)
-    (extracted / "door_schedule.json").write_text('{"changed": true}', encoding="utf-8")
+    (extracted / "line_items.json").write_text('{"changed": true}', encoding="utf-8")
     assert matchcache.reusable(slug) == []
 
 
@@ -92,7 +92,7 @@ def test_match_prompt_includes_cached_item_unless_forced(tmp_path, monkeypatch) 
     slug = "demo"
     extracted = tmp_path / "projects" / slug / "extracted"
     extracted.mkdir(parents=True)
-    (extracted / "door_schedule.json").write_text("{}", encoding="utf-8")
+    (extracted / "line_items.json").write_text("{}", encoding="utf-8")
     (extracted / "hardware_sets.json").write_text(
         json.dumps(_hardware(_item("3400", 0.95))),
         encoding="utf-8",
@@ -125,7 +125,7 @@ def test_an_unreadable_index_reuses_nothing(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(matchcache, "catalog_watermark", lambda: "wm-1")
     extracted = tmp_path / "projects" / "demo" / "extracted"
     extracted.mkdir(parents=True)
-    (extracted / "door_schedule.json").write_text("{}", encoding="utf-8")
+    (extracted / "line_items.json").write_text("{}", encoding="utf-8")
     (extracted / "hardware_sets.json").write_text(json.dumps(_hardware(_item("3400", 0.95))), encoding="utf-8")
     matchcache.ingest("demo")
     assert matchcache.reusable("demo")

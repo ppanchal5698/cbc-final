@@ -212,7 +212,7 @@ def test_claude_settings(client, snapshots) -> None:
     snapshots.pin("GET /api/settings/claude", client.get("/api/settings/claude"))
     op = "PUT /api/settings/claude"
     snapshots.pin(op, client.put("/api/settings/claude", json={"mode": "subscription"}))
-    snapshots.pin(op, client.put("/api/settings/claude", json={"mode": "gateway", "baseUrl": "http://example.com"}), variant="placeholder base url")
+    snapshots.pin(op, client.put("/api/settings/claude", json={"mode": "anthropic_api", "baseUrl": "http://example.com"}), variant="placeholder base url")
 
 
 def test_claude_connection_test(client, snapshots, monkeypatch) -> None:
@@ -264,6 +264,19 @@ def test_ops_spend(client, snapshots) -> None:
     )
 
 
+def test_ops_cohorts(client, snapshots) -> None:
+    """W1b: the same spend, grouped by config cohort rather than by window.
+
+    Empty on a fresh database - the point of pinning it is that the shape is
+    stable before any run has been recorded, because that is the state an
+    operator first opens it in.
+    """
+    snapshots.pin(
+        "GET /api/ops/cohorts",
+        client.get("/api/ops/cohorts", params={"jobType": "match_and_price", "days": 30}),
+    )
+
+
 def test_audit_log(client, snapshots) -> None:
     snapshots.pin("GET /api/audit", client.get("/api/audit", params={"limit": 5}))
 
@@ -275,24 +288,22 @@ def test_delete_a_project(client, state, snapshots) -> None:
 
 
 def test_parsing_settings(client, snapshots) -> None:
-    """The MinerU parser's runtime knobs. `PARSER_URL` empty means parsing is off."""
+    """LlamaParse runtime knobs. An empty `PARSER_API_KEY` means parsing is off."""
+    # The key itself is never in the payload - it comes back as "set" or "" - so
+    # nothing here needs dropping to keep a secret out of a committed snapshot.
     snapshots.pin(
         "GET /api/settings/parsing",
         client.get("/api/settings/parsing"),
-        # Live MinerU status; absent when the service is not answering.
-        drop=("body.mineru", "body.fields.effort.value"),
     )
     op = "PUT /api/settings/parsing"
     snapshots.pin(
         op,
-        client.put("/api/settings/parsing", json={"profile": "medium"}),
-        drop=("body.mineru", "body.fields.effort.value"),
+        client.put("/api/settings/parsing", json={"tier": "agentic"}),
     )
     snapshots.pin(
         op,
-        client.put("/api/settings/parsing", json={"profile": "not-a-profile"}),
-        variant="unknown profile",
-        drop=("body.mineru", "body.fields.effort.value"),
+        client.put("/api/settings/parsing", json={"tier": "fast"}),
+        variant="fast tier rejected",
     )
 
 
@@ -303,5 +314,11 @@ def test_parsing_connection_test(client, snapshots) -> None:
         client.post("/api/settings/parsing/test"),
         # What a reachable parser answers with, how long it took, and - when
         # there is none - why not. The contract is that it answers at all.
-        drop=("body.backend", "body.seconds", "body.version", "body.blocks", "body.error"),
+        drop=(
+            "body.tier",
+            "body.seconds",
+            "body.verified",
+            "body.blocks",
+            "body.error",
+        ),
     )

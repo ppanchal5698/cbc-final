@@ -39,7 +39,7 @@ Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/e
    `frp` / `finish` vision rows belong to their specialists — do not treat them
    as door-schedule checklist items.
 1. **Read first.** `mcp__artifact-storage__get_artifact` / Read
-   `extracted/door_schedule.json` and `extracted/_sheetmap.json`.
+   `extracted/line_items.json` and `extracted/_sheetmap.json`.
 2. **Parse-health check.** If `list_documents` says `parse_state=parsed` but
    `get_page_blocks` / `get_outline` returns zero blocks or
    "no parsed blocks", treat the GPU parse as **failed**. Prefer pdf-tools +
@@ -127,7 +127,7 @@ Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/e
    `no_scope_reason` merely because the contiguous string `DOOR SCHEDULE` was
    absent from the text layer. Prefer schedule marks when both exist.
 9. **Save once** via `mcp__artifact-storage__save_artifact` to
-   `extracted/door_schedule.json`. Include `visual_pages_checked`: an array of
+   `extracted/line_items.json`. Include `visual_pages_checked`: an array of
    `{path, source_page, image_path, finding}` for every `_visual_pages.json`
    schedule/candidate page you opened (`finding` e.g. `schedule rows found` /
    `no schedule visible` / `hardware legend only`). **Never use Write/Edit** for
@@ -169,7 +169,7 @@ Emit **only** Opening allowlist fields (see skill). Especially:
 - extraction guide (.claude/guides/extraction.md)
 
 ## Output
-`extracted/door_schedule.json` via **save_artifact only**. Every opening carries
+`extracted/line_items.json` via **save_artifact only**. Every opening carries
 `door_number`, `source_page`, `bbox`, `page_size` (`{width,height}`), `confidence`,
 `flags`, and an `evidence_note` whenever a field was verified or searched-and-not-
 found on the PDF. The sheet viewer cannot highlight without bbox and page_size.

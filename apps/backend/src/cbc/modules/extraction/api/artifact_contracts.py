@@ -187,7 +187,7 @@ def _rows_envelope(model: type[BaseModel], *, defs_name: str, rows_key: str,
     }
 
 
-def door_schedule_schema() -> dict[str, Any]:
+def extracted_line_items_schema() -> dict[str, Any]:
     return _rows_envelope(
         Opening,
         defs_name="opening",
@@ -199,8 +199,8 @@ def door_schedule_schema() -> dict[str, Any]:
             "source_file": {"type": ["string", "null"]},
             "door_schedule_found": {"type": ["boolean", "null"]},
         },
-        schema_id="cbc.extracted.door_schedule",
-        title="door_schedule",
+        schema_id="cbc.extracted.line_items",
+        title="extracted_line_items",
     )
 
 
@@ -211,7 +211,7 @@ def line_items_schema() -> dict[str, Any]:
         rows_key="lines",
         extra={},
         schema_id="cbc.priced.line_items",
-        title="line_items",
+        title="priced_line_items",
     )
 
 
@@ -276,8 +276,8 @@ def frp_takeoff_schema() -> dict[str, Any]:
 
 
 SCHEMAS = {
-    "door_schedule.schema.json": door_schedule_schema,
-    "line_items.schema.json": line_items_schema,
+    "extracted_line_items.schema.json": extracted_line_items_schema,
+    "priced_line_items.schema.json": line_items_schema,
     "scope_metadata.schema.json": scope_metadata_schema,
     "scope_summary.schema.json": scope_summary_schema,
     "div10_takeoff.schema.json": div10_takeoff_schema,

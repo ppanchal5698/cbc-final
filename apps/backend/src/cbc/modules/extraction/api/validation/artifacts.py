@@ -308,29 +308,18 @@ def _visual_manifest_schedule_pages(project: str) -> list[tuple[str, int]]:
     """Mandatory vision pages that are schedule/candidate related.
 
     `_visual_pages.json` also lists FRP / finish / bare-hardware / generic
-    MinerU-null sheets. Those must be vision-read by their own specialists —
+    verified-null sheets. Those must be vision-read by their own specialists —
     they are not a door_schedule checklist item. Only pages whose roles (or
     schedule-specific reasons) mark them as door schedule work gate this
     artifact. Shared filter: ``visual_pages.is_door_schedule_visual_page``.
-    """
-    from cbc.modules.extraction.infrastructure.visual_pages import (
-        is_door_schedule_visual_page,
-    )
 
-    path = storage_root() / project / "extracted" / "_visual_pages.json"
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return []
-    hits: list[tuple[str, int]] = []
-    for page in (payload.get("pages") or []) if isinstance(payload, dict) else []:
-        if not isinstance(page, dict) or not is_door_schedule_visual_page(page):
-            continue
-        try:
-            hits.append((str(page.get("path") or ""), int(page["source_page"])))
-        except (KeyError, TypeError, ValueError):
-            continue
-    return sorted(set(hits))
+    Delegates to ``visual_pages.schedule_visual_keys`` so the validator and the
+    take-off wave draw the required pages from one function - the wave now hands
+    the leg every page this check will hold it to.
+    """
+    from cbc.modules.extraction.infrastructure import visual_pages
+
+    return visual_pages.schedule_visual_keys(project)
 
 
 def _visual_pages_checked_keys(payload: Any) -> set[tuple[str, int]]:
@@ -363,7 +352,7 @@ def _extraction_found_no_scope(project: str) -> bool:
     proposal gates run as independent checks and must reach the same verdict the
     extraction gate did.
     """
-    path = storage_root() / project / "extracted" / "door_schedule.json"
+    path = storage_root() / project / "extracted" / "line_items.json"
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -403,15 +392,15 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
             if not (extracted / name).exists():
                 problems.append(f"{project}: missing extracted/{name}")
 
-    schedule_path = extracted / "door_schedule.json"
+    schedule_path = extracted / "line_items.json"
     if not schedule_path.exists():
-        problems.append(f"{project}: door_schedule.json not written")
+        problems.append(f"{project}: line_items.json not written")
         return problems, warnings
 
     try:
         payload = json.loads(schedule_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        problems.append(f"{project}: door_schedule.json is not valid JSON: {exc}")
+        problems.append(f"{project}: line_items.json is not valid JSON: {exc}")
         return problems, warnings
 
     # Take the same shapes the importer takes, and no fewer. This gate runs
@@ -428,7 +417,7 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
             openings = payload["lines"]
         openings = openings or []
     else:
-        problems.append(f"{project}: door_schedule.json must be a JSON object or an array")
+        problems.append(f"{project}: line_items.json must be a JSON object or an array")
         return problems, warnings
     # A bid set with no Division 08 openings is a finding, not a failed read.
     #
@@ -448,14 +437,14 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
         candidates = _sheetmap_door_schedule_candidates(project)
         if missed:
             problems.append(
-                f"{project}: door_schedule.json has no openings, but the sheet map "
+                f"{project}: line_items.json has no openings, but the sheet map "
                 f"found a schedule on page(s) {missed}. Re-read those pages (use "
                 f"`_visual_pages.json` / get_page_image); an empty take-off over a "
                 "set that has a schedule is a missed read, not a no-scope bid."
             )
         elif candidates:
             problems.append(
-                f"{project}: door_schedule.json has no openings, but the sheet map "
+                f"{project}: line_items.json has no openings, but the sheet map "
                 f"flagged door-schedule candidate page(s) {candidates} "
                 "(sheet-ID / text-poor CAD heuristic). Open those pages with "
                 "get_page_image / `_visual_pages.json` and record "
@@ -491,10 +480,12 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
         ]
         if missing:
             problems.append(
-                f"{project}: door_schedule.json is missing visual_pages_checked "
+                f"{project}: line_items.json is missing visual_pages_checked "
                 f"coverage for mandatory vision page(s) {missing}. Read each "
                 "`_visual_pages.json` image and record "
-                "{{path, source_page, image_path, finding}} before save / no_scope."
+                "{path, source_page, image_path, finding} before save / no_scope "
+                "— one `propose_patch` with path `visual_pages_checked` does it; "
+                "the artifact is seeded, so a whole-file rewrite is the wrong tool."
             )
 
     for opening in openings:
@@ -575,18 +566,29 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
     frp_path = extracted / "frp_takeoff.json"
     scope_path = extracted / "scope_summary.json"
     frp_in_scope = False
+    frp_found_after_wave = False
     if scope_path.exists():
         try:
             scope = json.loads(scope_path.read_text(encoding="utf-8"))
             if isinstance(scope, dict):
                 frp_in_scope = bool(scope.get("frp_in_scope"))
+                frp_found_after_wave = bool(scope.get("frp_in_scope_found_after_wave"))
         except (OSError, json.JSONDecodeError):
             pass
     if frp_in_scope and not frp_path.exists():
-        problems.append(
-            f"{project}: frp_in_scope is true but extracted/frp_takeoff.json "
-            "was not written — run frp-specialist or clear the flag"
-        )
+        if frp_found_after_wave:
+            # The spec put FRP in scope but no sheet was tagged, so the wave ran
+            # no FRP leg. A named miss the estimator can act on, not a failure.
+            warnings.append(
+                f"{project}: the specification put FRP in scope but no sheet was "
+                "tagged for it, so the wave ran no FRP leg — rerun_extraction to "
+                "measure it"
+            )
+        else:
+            problems.append(
+                f"{project}: frp_in_scope is true but extracted/frp_takeoff.json "
+                "was not written — run frp-specialist or clear the flag"
+            )
     if frp_path.exists():
         try:
             frp = json.loads(frp_path.read_text(encoding="utf-8"))
@@ -610,18 +612,27 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
 
     div10_path = extracted / "div10_takeoff.json"
     div10_in_scope = False
+    div10_found_after_wave = False
     if scope_path.exists():
         try:
             scope = json.loads(scope_path.read_text(encoding="utf-8"))
             if isinstance(scope, dict):
                 div10_in_scope = bool(scope.get("div10_in_scope"))
+                div10_found_after_wave = bool(scope.get("div10_in_scope_found_after_wave"))
         except (OSError, json.JSONDecodeError):
             pass
     if div10_in_scope and not div10_path.exists():
-        problems.append(
-            f"{project}: div10_in_scope is true but extracted/div10_takeoff.json "
-            "was not written — run div10-specialist or clear the flag"
-        )
+        if div10_found_after_wave:
+            warnings.append(
+                f"{project}: the specification put Division 10 in scope but no sheet "
+                "was tagged for it, so the wave ran no Div 10 leg — rerun_extraction "
+                "to extract it"
+            )
+        else:
+            problems.append(
+                f"{project}: div10_in_scope is true but extracted/div10_takeoff.json "
+                "was not written — run div10-specialist or clear the flag"
+            )
     if div10_path.exists():
         try:
             div10 = json.loads(div10_path.read_text(encoding="utf-8"))
@@ -951,7 +962,7 @@ def check_delivery_readiness(project: str) -> tuple[list[str], list[str]]:
     Recompute from source data rather than trusting flags or summary counters.
     """
     from cbc.modules.extraction.api.normalize_artifacts import (
-        normalize_door_schedule_payload,
+        normalize_line_items_payload,
         normalize_priced_quote_payload,
     )
     from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
@@ -981,7 +992,7 @@ def check_delivery_readiness(project: str) -> tuple[list[str], list[str]]:
     if _extraction_found_no_scope(project):
         return problems, warnings
 
-    schedule = normalize_door_schedule_payload(read("extracted/door_schedule.json"))
+    schedule = normalize_line_items_payload(read("extracted/line_items.json"))
     openings = schedule.get("openings", []) if isinstance(schedule, dict) else schedule
     if not isinstance(openings, list):
         problems.append(f"{project}: cannot verify delivery openings")
@@ -1113,7 +1124,7 @@ PHASE_LABELS: dict[str, tuple[str, ...]] = {
 }
 PHASE_ARTIFACTS: dict[str, tuple[str, ...]] = {
     "extraction": (
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         "extracted/scope_metadata.json",
         "extracted/scope_summary.json",
         "extracted/frp_takeoff.json",
@@ -1139,8 +1150,6 @@ UNCHECKED_JOB_TYPES = frozenset(
         "index_catalog",
         "delete_catalog",
         "parse_document",
-        "parse_catalog",
-        "parse_multiplier",
     }
 )
 

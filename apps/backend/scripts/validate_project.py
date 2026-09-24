@@ -181,7 +181,7 @@ def _demo() -> None:
 
     project_dir = storage_root() / "_validate_demo"
     (project_dir / "extracted").mkdir(parents=True, exist_ok=True)
-    target = project_dir / "extracted" / "door_schedule.json"
+    target = project_dir / "extracted" / "line_items.json"
     try:
         target.write_text(
             json.dumps(

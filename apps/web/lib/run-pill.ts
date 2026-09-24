@@ -3,7 +3,9 @@ import { jobTypeLabel } from "@/lib/job-error";
 
 export type RunPill = { label: string; tone: "running" | "done" | "failed" } | null;
 
-const BLOCKED_CHAIN: ReadonlySet<ChainState> = new Set([
+/** Chain states that mean a human has to act. Exported because the dashboard
+ * says the same thing in its own words and had hand-copied the list. */
+export const BLOCKED_CHAIN: ReadonlySet<ChainState> = new Set([
   "extraction_needs_review",
   "pricing_failed",
   "quoting_failed",
@@ -30,9 +32,7 @@ function runningLabel(job: Job, phase?: string | null): string {
     match_and_price: "Pricing lines…",
     build_proposal: "Building proposal…",
     ingest_addendum: "Reading addendum…",
-    parse_document: "Parsing with MinerU…",
-    parse_catalog: "Parsing price book…",
-    parse_multiplier: "Parsing multiplier sheet…",
+    parse_document: "Parsing document…",
   };
   return byType[job.type] ?? `${jobTypeLabel(job.type)}…`;
 }

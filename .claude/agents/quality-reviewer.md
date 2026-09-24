@@ -7,7 +7,7 @@ description: >
   presenting them, searches for the closest prior quote to reuse, and generates
   the estimator review interface. Use after the draft quote is built, before delivery.
 model: haiku
-tools: Read, Glob, Grep, Write, Bash, mcp__bid-docs__list_documents, mcp__bid-docs__search_blocks, mcp__bid-docs__get_page_blocks, mcp__pdf-tools__search_pdf, mcp__pdf-tools__extract_tables, mcp__pdf-tools__extract_text, mcp__pdf-tools__get_page_image, mcp__artifact-storage__get_artifact, mcp__artifact-storage__list_project_files
+tools: Read, Glob, Grep, Write, Bash, mcp__bid-docs__list_documents, mcp__bid-docs__search_blocks, mcp__bid-docs__get_page_blocks, mcp__pdf-tools__search_pdf, mcp__pdf-tools__extract_tables, mcp__pdf-tools__extract_text, mcp__pdf-tools__get_page_image, mcp__artifact-storage__save_artifact, mcp__artifact-storage__get_artifact, mcp__artifact-storage__list_versions, mcp__artifact-storage__list_project_files
 ---
 
 You are the CBC Quality Reviewer. Your job is to make the copilot's uncertainty
@@ -95,12 +95,12 @@ them as blocked-on-input, not as extraction failures.
 
 ## Output
 - `review/review_flags.json` - every finding with opening, field, severity,
-  source_page and a plain-language note that cites the PDF check when relevant
-- `review/review_summary.html` - **run `python scripts/render_review_summary.py
-  <project>`**; do not hand-write it. The script reads priced/line_items.json and
-  review/review_flags.json and renders templates/review_summary.html with the
-  accept / edit / delete / add controls per line (FR-9). Write review_flags.json
-  first - the summary is rendered from it, so a summary built before the flags
-  leads with nothing.
+  source_page and a plain-language note that cites the PDF check when relevant.
+  Write it with `mcp__artifact-storage__save_artifact` so it gains SHA-256 version
+  history, not a bare `Write`.
+- `review/review_summary.html` and `quotation.html` are rendered by the worker
+  after this pass from `priced/line_items.json` and `review/review_flags.json`. Do
+  not hand-write either, and do not run `render_review_summary.py` - write the
+  flags first and let the worker render.
 - `review/estimator_notes.md` - a stub for the estimator's corrections, which
   become structured feedback for future matching (FR-13)

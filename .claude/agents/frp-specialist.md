@@ -72,3 +72,30 @@ Bobrick, who do not make FRP.
 `extracted/frp_takeoff.json` - schema in @.claude/skills/frp-takeoff/SKILL.md.
 Always include `blocked_on` when the constants are still pending, so the reason
 travels with the data.
+
+## `source_page` is now load-bearing
+
+Each item's `source_page` is the page the estimator's highlight is measured
+against: after you write the artifact, the pipeline finds your item's
+`product_type` on that page and records the rectangle of the row it sits on.
+It never invents one. So a page number that is close but wrong does not degrade
+gracefully - the item arrives with no highlight and a `bbox_row_not_found` flag,
+and the estimator is back to searching the sheet by eye.
+
+Give each item the page you actually read **that row** from. If you took the
+model from a specification and the count from a plan, the page is the one
+carrying the row you counted; say where the rest came from in `evidence_note`.
+
+Two flags come back from that measurement and are worth knowing:
+
+- `bbox_row_not_found` - the model is not on the page cited. Usually the page is
+  wrong, occasionally the model was inferred rather than read.
+- `bbox_row_ambiguous` - the model appears on several rows and nothing separates
+  them. Recording `room` or the accessory tag makes the row identifiable.
+
+Do not add `bbox`, `cell_boxes` or `page_size` yourself. They are measured from
+the sheet, and a value you supply is overwritten.
+
+FRP geometry derived from elevation views usually has no printed row to
+measure, so `bbox_row_not_found` is the expected answer there rather than a
+fault. Cite the sheet you measured on anyway - it is what the estimator opens.

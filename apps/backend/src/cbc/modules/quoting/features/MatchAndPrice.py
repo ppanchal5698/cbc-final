@@ -9,6 +9,8 @@ pricing may not import quoting.
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import Any
 
 from cbc.modules.quoting.domain import matching
@@ -17,9 +19,28 @@ from cbc.modules.extraction.api import openings as extraction_openings, passes
 from cbc.modules.projects.api import bids, pipeline
 from cbc.modules.quoting.api import lines as quoting_lines, priced_lines, quote
 
+log = logging.getLogger("cbc.worker")
+
 
 async def run(job: dict[str, Any]) -> None:
-    await pipeline.run_pass(job, sync=sync_results, needs_catalog=True)
+    await pipeline.run_pass(job, sync=sync_results, prepare=_prepare, needs_catalog=True)
+
+
+async def _prepare(job: dict[str, Any], project: dict[str, Any], payload: dict[str, Any]) -> bool:
+    """Seed priced/line_items.json deterministically before the pass, so the pass
+    handles judgment, not arithmetic (W4). PREPRICE_SEED reverts the whole phase -
+    the same flag also selects the prompt's cost ladder, read through one helper."""
+    from cbc.modules.pricing.api import preprice
+
+    if preprice.preprice_seed_enabled():
+        result = await asyncio.to_thread(preprice.seed_line_items, project["slug"])
+        if result.get("written"):
+            log.info(
+                "%s pre-priced %s line(s) before the pass",
+                project.get("code", project["slug"]),
+                result.get("lines"),
+            )
+    return True
 
 
 async def sync_results(job: dict[str, Any], project: dict[str, Any] | None) -> str:

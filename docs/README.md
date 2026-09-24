@@ -11,6 +11,7 @@ approving before anything leaves the building.
 | see how data moves through it | [`data-flow-diagrams.md`](data-flow-diagrams.md) |
 | know what a phase actually does | [`pipeline/README.md`](pipeline/README.md) |
 | run it locally | [`operations/running.md`](operations/running.md) |
+| put a credential somewhere better than `.env` | [`operations/secrets.md`](operations/secrets.md) |
 
 ## By area
 
@@ -61,6 +62,8 @@ approving before anything leaves the building.
   environment, and the project directory layout
 - [`operations/ci.md`](operations/ci.md) — the three CI jobs and what the
   architecture tests guard
+- [`operations/secrets.md`](operations/secrets.md) — self-hosted Infisical:
+  what it covers, what it does not, and why it fails open
 - [`data_stewardship.md`](data_stewardship.md) — open items, including the
   ownership gap that is still unassigned
 

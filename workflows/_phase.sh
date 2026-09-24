@@ -102,7 +102,7 @@ This is a single-phase run. Do the delegated agent's work only. Do not launch ad
     echo "Could not read the job prompt from worker_kit/prompts.py" >&2
     return 1
   fi
-  "${CLAUDE_BIN}" --print "${scope[@]}" --max-turns 60 --dangerously-skip-permissions "$(cat <<EOF
+  "${CLAUDE_BIN}" --print "${scope[@]}" --max-turns "${CBC_MAX_TURNS:-60}" --dangerously-skip-permissions "$(cat <<EOF
 You are the CBC Estimating Copilot running ${label} for project ${project}.
 
 ${how}

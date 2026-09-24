@@ -33,24 +33,20 @@ def main() -> int:
         _fail("visual_pages.py", str(exc))
         failed += 1
 
-    # 2. PARSER_URL
-    parser_url = (os.environ.get("PARSER_URL") or "").strip()
-    if parser_url:
-        _ok("PARSER_URL", parser_url)
-    else:
-        # Also accept parsing_config resolution
-        try:
-            from cbc.modules.ops.api.parsing_config import enabled, resolve
+    # 2. PARSER_API_KEY — the on/off switch for parsing.
+    try:
+        from cbc.modules.ops.api.parsing_config import enabled, resolve
 
-            resolved, _ = resolve(None)
-            if enabled(resolved):
-                _ok("PARSER_URL", str(resolved.get("url")))
-            else:
-                _fail("PARSER_URL", "empty / parsing disabled")
-                failed += 1
-        except Exception as exc:
-            _fail("PARSER_URL", str(exc))
+        resolved, _ = resolve(None)
+        if enabled(resolved):
+            # Report the tier, never the key.
+            _ok("PARSER_API_KEY", f"set (tier {resolved.get('tier')})")
+        else:
+            _fail("PARSER_API_KEY", "empty / parsing disabled")
             failed += 1
+    except Exception as exc:
+        _fail("PARSER_API_KEY", str(exc))
+        failed += 1
 
     # 3. readonly_uri
     try:
@@ -184,13 +180,12 @@ def main() -> int:
         _fail("list_x / hager_list_price", str(exc))
         failed += 1
 
-    # 12. Catalog parse wait + P21 connectivity knobs
-    wait = (os.environ.get("CATALOG_PARSE_WAIT") or "").strip().lower()
-    if wait in {"1", "true", "yes", "on"}:
-        _ok("CATALOG_PARSE_WAIT", wait)
-    else:
-        _fail("CATALOG_PARSE_WAIT", f"{wait!r} — set to 1 so pricing waits for MinerU index")
-        failed += 1
+    # 12. P21 connectivity knobs.
+    #
+    # CATALOG_PARSE_WAIT is no longer checked: it gated `match_and_price` behind
+    # `parse_catalog` / `parse_multiplier`, and both went with MinerU. There is
+    # nothing left for pricing to wait on, so requiring the flag would fail a
+    # readiness check over a job type that no longer exists.
 
     p21 = (os.environ.get("P21_BASE_URL") or "").strip()
     if p21:

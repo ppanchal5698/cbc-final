@@ -98,7 +98,7 @@ def _candidates(slug: str | None) -> dict[str, dict[str, Any]]:
     """
     if not slug:
         return {}
-    schedule = storage_root() / slug / "extracted" / "door_schedule.json"
+    schedule = storage_root() / slug / "extracted" / "line_items.json"
     if not schedule.exists():
         return {}
     payload = json.loads(schedule.read_text(encoding="utf-8"))
@@ -205,7 +205,7 @@ def score(actual: list[dict[str, Any]], golden: dict[str, Any]) -> dict[str, Any
 
 
 def score_project(slug: str) -> dict[str, Any] | None:
-    schedule = storage_root() / slug / "extracted" / "door_schedule.json"
+    schedule = storage_root() / slug / "extracted" / "line_items.json"
     if not schedule.exists():
         return None
     payload = json.loads(schedule.read_text(encoding="utf-8"))
@@ -268,7 +268,7 @@ def main() -> int:
 
     slugs = [args.project] if args.project else (
         sorted(p.name for p in (storage_root()).iterdir()
-               if (p / "extracted" / "door_schedule.json").exists())
+               if (p / "extracted" / "line_items.json").exists())
         if args.all else []
     )
     if not slugs:

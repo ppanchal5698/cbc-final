@@ -28,7 +28,16 @@ RENDERER_VERSION = str(getattr(fitz, "version", "unknown"))
 
 # Anthropic's documented long-edge cap for a useful vision token budget.
 MAX_LONG_EDGE_PX = 1568
-MAX_DPI = 300
+# Below this, rendered text on an architectural sheet is not reliably readable.
+# A full 2448pt sheet at the cap is 0.64 px/pt, which answers "is there a table
+# here" and nothing else.
+LEGIBLE_PX_PER_PT = 2.0
+# The pixel cap above is the real guard on what a render costs, so this only
+# ever bound the tight crops that most need to be sharp: an 80pt crop came back
+# 333px when the same token budget allows 1568. Raised so a small region can use
+# the budget it is already entitled to; wide regions are still governed by the
+# long edge, which is what actually bounds tokens.
+MAX_DPI = 1200
 MIN_DPI = 36
 
 
@@ -219,8 +228,16 @@ def render_cache_name(
 def _clamp_dpi(requested: int, page: fitz.Page, region: list[float] | None) -> int:
     dpi = max(MIN_DPI, min(int(requested), MAX_DPI))
     if region:
-        return dpi
-    long_pt = max(page.rect.width, page.rect.height)
+        # A crop used to skip the clamp entirely and could render at 300 dpi.
+        # That is fine for the small crops this is meant for and ruinous for a
+        # large one: half an E-size sheet at 300 dpi is 6300x4500, about 37,800
+        # vision tokens in a single tool result. Bounding a region by its own
+        # long edge leaves small crops exactly as sharp as before - 200pt of
+        # page allows 564 dpi, well past the 300 ceiling - and only bites when
+        # the "crop" is most of a sheet.
+        long_pt = max(abs(region[2] - region[0]), abs(region[3] - region[1]))
+    else:
+        long_pt = max(page.rect.width, page.rect.height)
     if long_pt <= 0:
         return dpi
     max_for_edge = int(MAX_LONG_EDGE_PX * 72 / long_pt)
@@ -248,20 +265,52 @@ def page_image(
         page = doc[index]
         effective_dpi = _clamp_dpi(dpi, page, region)
         output = target / render_cache_name(path, page_number, effective_dpi, region)
+        # What the caller actually gets, in the only unit that predicts whether
+        # text will be readable. dpi is misleading on its own: the long edge is
+        # capped at MAX_LONG_EDGE_PX, so asking for more dpi on a wide region
+        # buys nothing and the answer comes back silently unreadable.
+        span = (
+            max(abs(region[2] - region[0]), abs(region[3] - region[1]))
+            if region
+            else max(page.rect.width, page.rect.height)
+        )
+        px_per_pt = round(MAX_LONG_EDGE_PX / span, 2) if span else 0.0
+        px_per_pt = min(px_per_pt, round(effective_dpi / 72, 2))
         hit = {
             "source_page": page_number,
             "image_path": str(output),
             "dpi": effective_dpi,
+            "px_per_pt": px_per_pt,
             "file": str(file_path),
         }
+        if px_per_pt < LEGIBLE_PX_PER_PT:
+            readable = int(MAX_LONG_EDGE_PX / LEGIBLE_PX_PER_PT)
+            hit["legible"] = False
+            hit["note"] = (
+                f"{round(span)}pt across renders at {px_per_pt} px/pt, below the "
+                f"{LEGIBLE_PX_PER_PT} needed to read schedule text. More dpi will "
+                f"not help - the long edge is capped at {MAX_LONG_EDGE_PX}px, so "
+                f"the only lever is a smaller region. Crop to about {readable}pt "
+                "or less."
+            )
+        else:
+            hit["legible"] = True
         if output.exists():
             return hit
         if region:
+            # The clip stays in display space. `get_pixmap` already renders the
+            # page as displayed, so `clip` is read in the same frame as
+            # `page.rect` - the frame every stored bbox is measured in.
+            #
+            # This used to un-rotate the clip first, which applied the rotation
+            # twice. On a 270-rotated page (72 of the 87 sheets in one real bid
+            # set) that returned the *wrong area, transposed* when it worked -
+            # 800,450,1400,900 came back 1175x1568 instead of 1568x1175 - and
+            # collapsed to a zero-height pixmap when it did not, which MuPDF
+            # reports as the entirely unhelpful "code=4: Invalid bandwriter
+            # header dimensions/setup". An agent cropping to read a schedule row
+            # got a picture of somewhere else and no way to tell.
             clip = fitz.Rect(region[0], region[1], region[2], region[3])
-            # Clip is relative to the unrotated page; stored / agent bboxes are
-            # display-space (page.rect). Map back when the page is rotated.
-            if page.rotation:
-                clip = (clip * ~page.rotation_matrix).normalize()
             page.get_pixmap(clip=clip, dpi=effective_dpi).save(output)
         else:
             page.get_pixmap(dpi=effective_dpi).save(output)

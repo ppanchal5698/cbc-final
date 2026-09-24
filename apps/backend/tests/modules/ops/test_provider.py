@@ -44,12 +44,14 @@ def test_each_mode_sets_the_variable_that_provider_actually_reads():
     assert env["ANTHROPIC_API_KEY"] == "sk-ant-plain"  # x-api-key
     assert "ANTHROPIC_AUTH_TOKEN" not in env
 
+    # Ollama sends a dummy bearer only to keep Claude Code off the credentials
+    # file, and an explicitly empty api key so neither header carries a secret.
     env, _ = provider.build_env(
-        {"mode": provider.GATEWAY, "baseUrl": "http://litellm:4000", "authToken": "sk-gw"}
+        {"mode": provider.OLLAMA, "baseUrl": "http://localhost:11434", "model": "llama3"}
     )
-    assert env["ANTHROPIC_AUTH_TOKEN"] == "sk-gw"  # Authorization: Bearer
-    assert env["ANTHROPIC_BASE_URL"] == "http://litellm:4000"
-    assert "ANTHROPIC_API_KEY" not in env
+    assert env["ANTHROPIC_AUTH_TOKEN"] == "ollama"
+    assert env["ANTHROPIC_BASE_URL"] == "http://localhost:11434"
+    assert env["ANTHROPIC_API_KEY"] == ""
 
     env, _ = provider.build_env({"mode": provider.SUBSCRIPTION, "oauthToken": "sk-ant-oat-x"})
     assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "sk-ant-oat-x"
@@ -351,15 +353,15 @@ def test_settings_start_from_a_working_default(client):
 def test_saving_a_credential_returns_it_masked_and_never_in_the_clear(client):
     response = client.put(
         "/api/settings/claude",
-        json={"mode": "gateway", "baseUrl": "http://litellm:4000", "authToken": "sk-gw-secret"},
+        json={"mode": "anthropic_api", "baseUrl": "https://api.anthropic.com", "apiKey": "sk-ant-secret"},
     )
     assert response.status_code == 200
 
     body = response.json()
-    assert body["mode"] == "gateway"
-    assert "sk-gw-secret" not in response.text
-    assert body["fields"]["authToken"]["configured"] is True
-    assert body["fields"]["baseUrl"]["value"] == "http://litellm:4000"
+    assert body["mode"] == "anthropic_api"
+    assert "sk-ant-secret" not in response.text
+    assert body["fields"]["apiKey"]["configured"] is True
+    assert body["fields"]["baseUrl"]["value"] == "https://api.anthropic.com"
 
 
 def test_saving_bedrock_settings_round_trips(client):

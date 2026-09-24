@@ -3,7 +3,7 @@
 CBC-260004 (a Dunkin' remodel) was tile, paint and vinyl wall covering: no door
 schedule, no hardware sets, no partitions on any of 28 sheets. The take-off was
 correct and the estimator was shown "Automatic read didn't finish - something
-went wrong", because an unwritten `door_schedule.json` and an empty one were
+went wrong", because an unwritten `line_items.json` and an empty one were
 indistinguishable to the gate.
 
 The schedule must still be written. What changed is that a schedule which says
@@ -23,7 +23,7 @@ from cbc.modules.extraction.api.validation import artifacts, review
 def _project(root: Path, slug: str, schedule: object) -> None:
     extracted = root / "projects" / slug / "extracted"
     extracted.mkdir(parents=True, exist_ok=True)
-    (extracted / "door_schedule.json").write_text(
+    (extracted / "line_items.json").write_text(
         json.dumps(schedule), encoding="utf-8"
     )
 
@@ -34,6 +34,35 @@ def project_root(tmp_path, monkeypatch):
     monkeypatch.setattr(review, "ROOT", tmp_path)
     monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     return tmp_path
+
+
+def _spec_only_scope(root: Path, slug: str, flag: str) -> None:
+    extracted = root / "projects" / slug / "extracted"
+    extracted.mkdir(parents=True, exist_ok=True)
+    (extracted / "line_items.json").write_text(
+        json.dumps({"openings": [{"door_number": "101", "source_page": 2}]}),
+        encoding="utf-8",
+    )
+    (extracted / "scope_summary.json").write_text(
+        json.dumps({flag.split("_found")[0]: True, flag: True}), encoding="utf-8"
+    )
+
+
+def test_spec_only_frp_scope_after_wave_is_a_warning_not_a_failure(project_root) -> None:
+    """W3d: a spec put FRP in scope with no tagged sheet, so the wave ran no FRP
+    leg. The scope leg flips the flag and marks it; the missing frp_takeoff.json
+    is a named warning to rerun_extraction, never a failure."""
+    _spec_only_scope(project_root, "spec_frp", "frp_in_scope_found_after_wave")
+    problems, warnings = artifacts.check_extraction("spec_frp")
+    assert not any("frp_takeoff.json" in p for p in problems), problems
+    assert any("rerun_extraction to measure it" in w for w in warnings), warnings
+
+
+def test_spec_only_div10_scope_after_wave_is_a_warning_not_a_failure(project_root) -> None:
+    _spec_only_scope(project_root, "spec_div10", "div10_in_scope_found_after_wave")
+    problems, warnings = artifacts.check_extraction("spec_div10")
+    assert not any("div10_takeoff.json" in p for p in problems), problems
+    assert any("rerun_extraction to extract it" in w for w in warnings), warnings
 
 
 def test_an_empty_schedule_with_a_reason_passes(project_root) -> None:

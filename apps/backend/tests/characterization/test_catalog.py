@@ -105,7 +105,7 @@ def test_upload_a_price_book_file(client, state, books_dir, snapshots) -> None:
     snapshots.pin(
         "POST /api/price-books/{book_id}/file",
         client.post(f"/api/price-books/{state['book']}/file", files=files),
-        # Both exist only when MinerU is reachable to parse the sheet.
+        # Both exist only when a parse has run for the sheet.
         drop=("body.parseJob", "body.priceBook.parse"),
     )
     assert [p.name for p in books_dir.iterdir()] == ["characterization_sheet.pdf"]

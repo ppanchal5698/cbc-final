@@ -188,7 +188,7 @@ def test_continue_to_quote_writes_the_confirmed_state_to_disk(client, project):
     assert response.json()["job"]["type"] == "match_and_price"
 
     # Claude's next phase must read what the estimator confirmed.
-    exported = settings.storage_root / slug / "extracted" / "door_schedule.json"
+    exported = settings.storage_root / slug / "extracted" / "line_items.json"
     assert exported.exists()
     import json
 

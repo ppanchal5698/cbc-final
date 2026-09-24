@@ -1,7 +1,7 @@
-"""GET and PUT /api/settings/parsing - MinerU runtime parser settings.
+"""GET and PUT /api/settings/parsing - LlamaParse runtime parser settings.
 
-Container settings (VRAM, base image, concurrent requests) live in
-`infra/mineru/<profile>.env` and are shown read-only from MinerU `/health`.
+There is no container to configure any more: parsing is a cloud call, so the
+whole surface is the API key, the tier and the windowing knobs.
 """
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Any
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -29,15 +28,9 @@ def _now() -> datetime:
 class ParsingSettingsBody(BaseModel):
     """Runtime PARSER_* values the Settings screen may save."""
 
-    url: str | None = None
-    profile: str | None = None
-    backend: str | None = None
-    effort: str | None = None
-    method: str | None = None
+    apiKey: str | None = None
+    tier: str | None = None
     lang: str | None = None
-    tables: bool | None = None
-    formulas: bool | None = None
-    imageAnalysis: bool | None = None
     windowPages: int | None = Field(default=None, ge=1, le=200)
     windowTimeoutSeconds: int | None = Field(default=None, ge=60, le=7200)
     waitMaxSeconds: int | None = Field(default=None, ge=60, le=7200)
@@ -47,26 +40,13 @@ async def load_config() -> dict[str, Any]:
     return await settings_collection().find_one({"_id": parsing_config.DOC_ID}) or {}
 
 
-async def mineru_health(url: str) -> dict[str, Any]:
-    """GET MinerU /health. Returns the JSON body or {"error": ...}."""
-    base = url.rstrip("/")
-    if not base:
-        return {"error": "PARSER_URL is empty — parsing is off"}
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(f"{base}/health")
-            response.raise_for_status()
-            return response.json()
-    except Exception as exc:
-        return {"error": str(exc)}
-
-
 @router.get("/parsing")
 async def get_parsing_settings() -> dict[str, Any]:
+    # No upstream health probe: against a cloud API the first parse request is
+    # the health check, and a synchronous third-party call on every settings page
+    # load is a bad trade. `POST /parsing/test` is the deliberate version.
     stored = await load_config()
     payload = parsing_config.public_config(stored)
-    resolved, _ = parsing_config.resolve(stored)
-    payload["mineru"] = await mineru_health(str(resolved.get("url") or ""))
     payload["updatedAt"] = stored.get("updatedAt")
     payload["updatedBy"] = stored.get("updatedBy")
     return payload

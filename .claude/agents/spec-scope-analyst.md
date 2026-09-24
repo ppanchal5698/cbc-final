@@ -45,7 +45,7 @@ searched, and cite those pages in `fire_rating_note` / `unparsed_sections` /
 5. Extract **hardware-set callouts** (`HW-1`, `GROUP 1`, `HDW-01`) and record
    **which pages** carry the HARDWARE GROUPS block in `hardware_group_pages`.
    **Do not parse the block item by item** - `takeoff-engineer` owns that, and
-   writes it into `extracted/door_schedule.json`. Your output has one field for
+   writes it into `extracted/line_items.json`. Your output has one field for
    this and it holds page numbers, so parsing here produces a second copy of the
    hardware with nowhere to put it and no way to reconcile it against the first.
    Find it and say where it is; the take-off reads it.

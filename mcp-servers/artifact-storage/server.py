@@ -60,20 +60,49 @@ def _versions_dir(project: str) -> Path:
     return _project_dir(project) / VERSIONS_DIRNAME
 
 
-def save_artifact(
-    project: str, path: str, content: str, version_note: str | None = None
-) -> dict[str, Any]:
+def _assert_writable(path: str) -> None:
+    """The write allowlist, for every caller that reaches the tree.
+
+    `propose_patch` used to skip this: it went straight to `_resolve` and
+    `read_text`, so a path the write gate would refuse came back as a decode
+    error or a missing-file message instead of the refusal it is. One guard,
+    both callers - `uploads/` is the worker's and stays unwritable from here.
+    """
     posix = path.replace("\\", "/").lstrip("/")
     if ".." in posix.split("/") or not SAVE_ALLOW.match(posix):
         raise ValueError(
             f"refusing to write {path!r} — allowed paths are extracted/*.json, "
             "priced/*.json, review/*.(json|html|md), quotation.html"
         )
-    stripped = content.strip()
-    if stripped in ("{file_content}", "{content}", "<file_content>"):
+
+
+# A placeholder is any body that is only a content-substitution token. Exact
+# matching on three literals let `{FILE_CONTENT}`, `{{ content }}` and every
+# truncation marker through, and the file landed with the token as its content.
+_PLACEHOLDER = re.compile(r"^\{{0,2}\s*<?\s*[a-z_-]*file[_-]?contents?\s*>?\s*\}{0,2}$", re.I)
+_BARE_CONTENT = re.compile(r"^\{{1,2}\s*contents?\s*\}{1,2}$", re.I)
+
+
+def _assert_not_placeholder(path: str, stripped: str) -> None:
+    if _PLACEHOLDER.match(stripped) or _BARE_CONTENT.match(stripped):
         raise ValueError(
             f"refusing placeholder content for {path!r} - read the file from disk first"
         )
+    # A draft or a rendered page that is one short line is a truncation marker
+    # ("...", "[content]", "TODO"), not a deliverable.
+    if path.endswith(("_draft.md", ".html")) and "\n" not in stripped and len(stripped) < 40:
+        raise ValueError(
+            f"refusing {len(stripped)}-byte single-line content for {path!r} - "
+            "this is a truncation marker, not the artifact"
+        )
+
+
+def save_artifact(
+    project: str, path: str, content: str, version_note: str | None = None
+) -> dict[str, Any]:
+    _assert_writable(path)
+    stripped = content.strip()
+    _assert_not_placeholder(path, stripped)
     if path.endswith("quotation.html") and len(stripped) < 200:
         raise ValueError(
             f"refusing to save quotation.html with only {len(stripped)} bytes - "
@@ -139,7 +168,54 @@ def save_artifact(
     }
 
 
-def get_artifact(project: str, path: str, version: str | None = None) -> dict[str, Any]:
+def _window(content: str, start: int, max_chars: int) -> dict[str, Any]:
+    """A slice of the artifact, saying plainly how much was left behind.
+
+    Truncation that does not announce itself is worse than refusing: an agent
+    reads half a JSON document, parses what it got, and reports on a schedule
+    that stops mid-array.
+    """
+    try:
+        begin = max(0, int(start))
+    except (TypeError, ValueError):
+        begin = 0
+    try:
+        budget = max(1_000, min(int(max_chars), MAX_CHARS_CEILING))
+    except (TypeError, ValueError):
+        budget = DEFAULT_MAX_CHARS
+    chunk = content[begin : begin + budget]
+    nxt = begin + len(chunk)
+    out: dict[str, Any] = {
+        "content": chunk,
+        "start": begin,
+        "total_chars": len(content),
+        "next": nxt if nxt < len(content) else None,
+    }
+    if out["next"] is not None:
+        out["note"] = (
+            f"{len(content) - nxt} characters not returned. Call again with "
+            f"start={nxt} to continue, or raise max_chars (ceiling "
+            f"{MAX_CHARS_CEILING}). This is a slice, not the whole file - do not "
+            "parse it as complete JSON."
+        )
+    return out
+
+
+# One artifact read must not be able to blow the caller's context. `_sheetmap.json`
+# on an 87-page set is 58,370 characters; an agent asking for it got the whole
+# thing refused by the harness and fell back to shelling out with `find` and
+# `python3` to read its own artifact. Same shape as `bid-docs.get_page_blocks`.
+DEFAULT_MAX_CHARS = 20_000
+MAX_CHARS_CEILING = 200_000
+
+
+def get_artifact(
+    project: str,
+    path: str,
+    version: str | None = None,
+    start: int = 0,
+    max_chars: int = DEFAULT_MAX_CHARS,
+) -> dict[str, Any]:
     if version:
         store = _versions_dir(project)
         candidates = [p for p in store.glob(f"{version}*") if p.name != INDEX_NAME]
@@ -150,7 +226,7 @@ def get_artifact(project: str, path: str, version: str | None = None) -> dict[st
             "project": project,
             "path": path,
             "version": blob.name,
-            "content": blob.read_text(encoding="utf-8"),
+            **_window(blob.read_text(encoding="utf-8"), start, max_chars),
         }
 
     target = _resolve(project, path)
@@ -161,7 +237,7 @@ def get_artifact(project: str, path: str, version: str | None = None) -> dict[st
         "project": project,
         "path": path,
         "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
-        "content": content,
+        **_window(content, start, max_chars),
     }
 
 
@@ -214,6 +290,9 @@ def propose_patch(
     if not isinstance(patches, list) or not patches:
         raise ValueError("patches must be a non-empty list")
 
+    # Before the read, not after: a path the write gate refuses must say so,
+    # rather than surfacing as "does not exist yet" or a UnicodeDecodeError.
+    _assert_writable(path)
     target = _resolve(project, path)
     if not target.is_file():
         raise ValueError(
@@ -282,34 +361,60 @@ def _demo() -> None:
         else:  # pragma: no cover
             raise AssertionError("path escape was not blocked")
 
+        # Placeholders. Exact matching on three literals let every other
+        # spelling through, and the token landed on disk as the artifact.
+        for body in ("{file_content}", "{FILE_CONTENT}", "{{ content }}",
+                     "<FILE_CONTENTS>", "{ file_contents }"):
+            try:
+                save_artifact(project, "review/x_draft.md", body)
+            except ValueError:
+                pass
+            else:  # pragma: no cover
+                raise AssertionError(f"placeholder {body!r} was not blocked")
+        # ...while a real body that merely mentions the word still saves.
+        save_artifact(project, "review/x_draft.md", '{"content": "a real draft"}\nmore')
+
+        # `uploads/` is the worker's. propose_patch must refuse it at the gate,
+        # not by failing to read it.
+        for tool in (
+            lambda: save_artifact(project, "uploads/final/quotation.pdf", "x" * 80),
+            lambda: propose_patch(project, "uploads/final/x.json", [{"path": "a/b/c", "value": 1}]),
+        ):
+            try:
+                tool()
+            except ValueError as exc:
+                assert "refusing to write" in str(exc), exc
+            else:  # pragma: no cover
+                raise AssertionError("uploads/ was writable")
+
         # propose_patch: the good field lands, the invented one costs itself.
         seed = {"source_page": 16, "openings": [
             {"door_number": "05", "size": "3068", "handing": None,
              "source_page": 16, "flags": []},
         ]}
-        save_artifact(project, "extracted/door_schedule.json", json.dumps(seed), "seed")
+        save_artifact(project, "extracted/line_items.json", json.dumps(seed), "seed")
         cite = {"source_page": 16, "excerpt": "05 UNISEX WRM RH"}
-        patched = propose_patch(project, "extracted/door_schedule.json", [
+        patched = propose_patch(project, "extracted/line_items.json", [
             {"op": "set", "path": "openings/05/handing", "value": "RH", "evidence": cite},
             {"op": "set", "path": "openings/05/thickness", "value": "1 3/4in", "evidence": cite},
         ])
         assert patched["applied"] == 1 and patched["rejected"] == 1, patched
         on_disk = json.loads(
-            get_artifact(project, "extracted/door_schedule.json")["content"]
+            get_artifact(project, "extracted/line_items.json")["content"]
         )["openings"][0]
         assert on_disk["handing"] == "RH", on_disk
         assert "thickness" not in on_disk, "an invented key must not reach disk"
         assert "patch_rejected_thickness" in on_disk["flags"], on_disk
         # The write went through save_artifact, so it is versioned like any other.
-        assert list_versions(project, "extracted/door_schedule.json")["version_count"] == 2
+        assert list_versions(project, "extracted/line_items.json")["version_count"] == 2
 
         # Nothing applies: the file is left alone rather than re-versioned.
-        before = get_artifact(project, "extracted/door_schedule.json")["content"]
-        none_held = propose_patch(project, "extracted/door_schedule.json", [
+        before = get_artifact(project, "extracted/line_items.json")["content"]
+        none_held = propose_patch(project, "extracted/line_items.json", [
             {"op": "set", "path": "openings/99/handing", "value": "LH", "evidence": cite},
         ])
         assert none_held["applied"] == 0 and none_held["run_can_continue"] is True
-        assert get_artifact(project, "extracted/door_schedule.json")["content"] == before
+        assert get_artifact(project, "extracted/line_items.json")["content"] == before
     finally:
         shutil.rmtree(_projects_root() / project, ignore_errors=True)
     print("artifact-storage demo OK")
