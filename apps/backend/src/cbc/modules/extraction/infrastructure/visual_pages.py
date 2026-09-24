@@ -132,18 +132,18 @@ def _project_image_path(image_path: str) -> str:
     return f"projects/{inside.as_posix()}"
 
 
-def apply_mineru_signals(
+def apply_parse_signals(
     sheetmap_payload: dict[str, Any],
-    mineru_by_path: dict[str, dict[int, dict[str, Any]]] | None,
+    signals_by_path: dict[str, dict[int, dict[str, Any]]] | None,
 ) -> dict[str, Any]:
-    """Re-annotate pages with optional MinerU verified / block_count signals."""
-    if not mineru_by_path:
+    """Re-annotate pages with optional parser verified / block_count signals."""
+    if not signals_by_path:
         return sheetmap_payload
     for file_row in sheetmap_payload.get("files") or []:
         path = str(file_row.get("path") or "")
-        by_page = mineru_by_path.get(path) or mineru_by_path.get(Path(path).name) or {}
+        by_page = signals_by_path.get(path) or signals_by_path.get(Path(path).name) or {}
         pages = list(file_row.get("pages") or [])
-        sheetmap.annotate_visual_flags(pages, mineru_by_page=by_page)
+        sheetmap.annotate_visual_flags(pages, signals_by_page=by_page)
         file_row["pages"] = pages
         file_row["needs_visual_read_pages"] = sorted(
             {int(p["source_page"]) for p in pages if p.get("needs_visual_read")}
@@ -155,7 +155,7 @@ def build_visual_pages(
     slug: str,
     *,
     openings_seeded: int = 0,
-    mineru_by_path: dict[str, dict[int, dict[str, Any]]] | None = None,
+    signals_by_path: dict[str, dict[int, dict[str, Any]]] | None = None,
     cap: int = sheetmap.VISUAL_PAGE_CAP,
 ) -> dict[str, Any]:
     """Render capped vision targets and write ``extracted/_visual_pages.json``.
@@ -176,15 +176,15 @@ def build_visual_pages(
         return payload
 
     sheetmap_payload = sheetmap.build_sheetmap(slug)  # no-op rewrite when SHA matches
-    sheetmap_payload = apply_mineru_signals(sheetmap_payload, mineru_by_path)
+    sheetmap_payload = apply_parse_signals(sheetmap_payload, signals_by_path)
 
     force: set[tuple[str, int]] = set()
     if int(openings_seeded or 0) <= 0:
         force = _schedule_force_pages(sheetmap_payload)
 
-    # Persist re-annotated needs_visual_read back onto the sheetmap when MinerU
+    # Persist re-annotated needs_visual_read back onto the sheetmap when parser
     # or pretakeoff force expands the set.
-    if mineru_by_path or force:
+    if signals_by_path or force:
         for file_row in sheetmap_payload.get("files") or []:
             path = str(file_row.get("path") or "")
             pages = list(file_row.get("pages") or [])
@@ -313,7 +313,7 @@ def load_visual_pages(slug: str) -> dict[str, Any] | None:
     return raw if isinstance(raw, dict) else None
 
 
-# Roles / reasons that gate door_schedule.json visual_pages_checked.
+# Roles / reasons that gate line_items.json visual_pages_checked.
 # Bare "hardware" / "frp" / "finish" are specialist pages — not this checklist.
 DOOR_SCHEDULE_VISUAL_ROLES = frozenset({"door_schedule", "door_schedule_candidate"})
 # `pretakeoff_empty` is not on this list, though it reads like it belongs. It is
@@ -336,11 +336,32 @@ def is_door_schedule_visual_page(page: dict[str, Any]) -> bool:
     )
 
 
+def schedule_visual_keys(slug: str) -> list[tuple[str, int]]:
+    """Schedule/candidate ``(path, source_page)`` pairs from the visual manifest.
+
+    `check_extraction` requires every one of these in `visual_pages_checked`,
+    uncapped - so the take-off wave must be handed all of them, not just the first
+    `MAX_WAVE_PAGES` the sheet map ranked. Shared by that validator (through
+    `_visual_manifest_schedule_pages`) and by `extraction_wave`, so the leg is
+    never validated on a page it was never handed.
+    """
+    payload = load_visual_pages(slug)
+    hits: list[tuple[str, int]] = []
+    for page in (payload.get("pages") or []) if isinstance(payload, dict) else []:
+        if not isinstance(page, dict) or not is_door_schedule_visual_page(page):
+            continue
+        try:
+            hits.append((str(page.get("path") or ""), int(page["source_page"])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return sorted(set(hits))
+
+
 def prompt_checklist(slug: str) -> str:
     """Block injected into the extract prompt listing mandatory vision pages.
 
     Only schedule / candidate pages — same filter as door_schedule validation.
-    FRP / finish / bare-hardware MinerU-null sheets are omitted here.
+    FRP / finish / bare-hardware verified-null sheets are omitted here.
     """
     payload = load_visual_pages(slug)
     if not payload:
@@ -375,7 +396,7 @@ def prompt_checklist(slug: str) -> str:
         "Record them with **one patch**, before save / no_scope — the artifact is",
         "seeded, so this is a patch and not a whole-file write:",
         "",
-        "    propose_patch(project, 'extracted/door_schedule.json', [{",
+        "    propose_patch(project, 'extracted/line_items.json', [{",
         '      "op": "set", "path": "visual_pages_checked",',
         '      "value": [{"path": …, "source_page": …, "image_path": …,',
         '                 "finding": "what the image showed"}, …]}])',

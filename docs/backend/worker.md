@@ -33,7 +33,7 @@ types; `ops` owns the queue itself.
 | `extraction` | `extract_bid_set`, `rerun_extraction` |
 | `pricing` | `match_and_price` |
 | `quoting` | `build_proposal` |
-| `catalog` | `index_catalog`, `delete_catalog`, `ingest_pricebook`, `parse_catalog`, `parse_multiplier` |
+| `catalog` | `index_catalog`, `delete_catalog`, `ingest_pricebook` |
 | `parsing` | `parse_document` |
 
 Selection happens in `_claimable()`:
@@ -48,11 +48,14 @@ Selection happens in `_claimable()`:
 Two traps worth knowing:
 
 **`WORKER_CLAIM_ALL=1` is not "all".** It deliberately excludes `parsing`, so a
-single-worker dev setup never runs `parse_document`. MinerU parsing is meant for
-a GPU worker started with `WORKER_DOMAIN=parsing`. Note the asymmetry inside
-`catalog`: the catalog MinerU jobs (`parse_catalog`, `parse_multiplier`) stay on
-the catalog set so a 700-page price book cannot starve bid `parse_document` on
-the GPU worker.
+single-worker dev setup never runs `parse_document`; that lane is served by the
+`parser` service with `WORKER_DOMAIN=parsing`.
+
+The reason is the concurrency slot, not the GPU it used to protect. The main
+worker runs `WORKER_CONCURRENCY=1`, so a long document parked in the one slot
+would block unrelated extractions — and `defer_if_parsing` requeues
+`extract_bid_set` every 15s behind a `parse_document`, which in a shared slot is
+a livelock waiting to be found.
 
 **`CLAIMABLE_TYPES` is resolved once, at module import.** Changing
 `WORKER_DOMAIN` or `WORKER_CLAIM_ALL` needs a process restart, and tests that
@@ -122,11 +125,11 @@ Three gates put a claimed job straight back with a 15s `nextAttemptAt` **and
 | Gate | Holds until |
 |---|---|
 | `defer_if_bid_busy` | no other `EXCLUSIVE_JOB_TYPES` job is running for this bid — one Claude session per bid |
-| `defer_if_parsing` | MinerU has finished parsing the document |
-| `defer_if_catalog_parsing` | opt-in via `CATALOG_PARSE_WAIT=1` |
+| `defer_if_parsing` | the document has finished parsing |
+| `defer_if_catalog_parsing` | opt-in via `CATALOG_PARSE_WAIT=1` (no catalog parse jobs remain) |
 
 `PARSER_WAIT_MAX_SECONDS` only changes the log line — **it does not release
-`defer_if_parsing`**. A stuck MinerU parse holds the Claude job indefinitely.
+`defer_if_parsing`**. A stuck parse holds the Claude job indefinitely.
 That is deliberate and documented in the function's docstring, but it reads like
 a timeout and is not one.
 
@@ -215,7 +218,7 @@ sandbox** with disjoint artifacts, gathered and merged by `_combine` (every
 failure is named; the result is `permanent` only if all legs are).
 
 `WAVE_LEGS` defines the three concurrent take-off legs — `takeoff` →
-`extracted/door_schedule.json`, `frp` → `frp_takeoff.json`, `div10` →
+`extracted/line_items.json`, `frp` → `frp_takeoff.json`, `div10` →
 `div10_takeoff.json` — each told what its siblings own.
 
 Waves exist because delegation is not reliably parallel: asked to parallelise, a
@@ -241,7 +244,7 @@ entirely rather than being refused at call time.
 |---|---|
 | `extract_bid_set`, `rerun_extraction`, `ingest_addendum` | `pdf-tools`, `artifact-storage`, `reference`, `bid-docs` |
 | `match_and_price` | `catalog`, `catalog-docs`, `reference`, `pdf-tools`, `calc-engine`, `p21-connector`, `artifact-storage` |
-| `build_proposal` | `calc-engine`, `reference`, `artifact-storage` |
+| `build_proposal` | `calc-engine`, `reference`, `artifact-storage`, `bid-docs`, `pdf-tools` |
 | `ingest_pricebook` | `catalog`, `reference`, `pdf-tools`, `artifact-storage` |
 | `run_full_pipeline` | everything |
 | `preflight` | none |

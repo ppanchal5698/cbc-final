@@ -18,7 +18,7 @@ from cbc.shared import manifests
 
 MATCHCACHE_REL = "extracted/_matchcache.json"
 HARDWARE_SETS_REL = "extracted/hardware_sets.json"
-DOOR_SCHEDULE_REL = "extracted/door_schedule.json"
+DOOR_SCHEDULE_REL = "extracted/line_items.json"
 JOB_TYPES = frozenset(
     {
         "match_and_price",

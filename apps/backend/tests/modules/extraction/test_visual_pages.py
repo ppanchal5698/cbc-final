@@ -99,7 +99,7 @@ def test_empty_openings_without_visual_checklist_fails(project_root) -> None:
     extracted = project_root / "projects" / slug / "extracted"
     extracted.mkdir(parents=True)
     path = f"projects/{slug}/uploads/raw/set.pdf"
-    (extracted / "door_schedule.json").write_text(
+    (extracted / "line_items.json").write_text(
         json.dumps({"openings": [], "no_scope_reason": "none"}),
         encoding="utf-8",
     )
@@ -151,7 +151,7 @@ def test_visual_checklist_coverage_passes_with_openings(project_root) -> None:
     extracted = project_root / "projects" / slug / "extracted"
     extracted.mkdir(parents=True)
     path = f"projects/{slug}/uploads/raw/set.pdf"
-    (extracted / "door_schedule.json").write_text(
+    (extracted / "line_items.json").write_text(
         json.dumps(
             {
                 "openings": [
@@ -200,7 +200,7 @@ def test_missing_visual_manifest_when_sheetmap_needs_it_fails(project_root) -> N
     slug = "vis_prepare_bug"
     extracted = project_root / "projects" / slug / "extracted"
     extracted.mkdir(parents=True)
-    (extracted / "door_schedule.json").write_text(
+    (extracted / "line_items.json").write_text(
         json.dumps(
             {
                 "openings": [
@@ -239,7 +239,7 @@ def test_ocr_unavailable_review_flag(project_root) -> None:
     slug = "vis_ocr"
     extracted = project_root / "projects" / slug / "extracted"
     extracted.mkdir(parents=True)
-    (extracted / "door_schedule.json").write_text(
+    (extracted / "line_items.json").write_text(
         json.dumps({"openings": [], "no_scope_reason": "none"}),
         encoding="utf-8",
     )
@@ -262,13 +262,13 @@ def test_ocr_unavailable_review_flag(project_root) -> None:
     assert any(f.get("field") == "ocr_unavailable" for f in flags), flags
 
 
-def test_visual_checklist_ignores_non_schedule_mineru_pages(project_root) -> None:
-    """FRP / blank MinerU-null pages must not gate door_schedule coverage."""
+def test_visual_checklist_ignores_non_schedule_unverified_pages(project_root) -> None:
+    """FRP / blank verified-null pages must not gate door_schedule coverage."""
     slug = "vis_frp_only"
     extracted = project_root / "projects" / slug / "extracted"
     extracted.mkdir(parents=True)
     path = f"projects/{slug}/uploads/raw/set.pdf"
-    (extracted / "door_schedule.json").write_text(
+    (extracted / "line_items.json").write_text(
         json.dumps(
             {
                 "openings": [
@@ -299,21 +299,21 @@ def test_visual_checklist_ignores_non_schedule_mineru_pages(project_root) -> Non
                     {
                         "path": path,
                         "source_page": 16,
-                        "reasons": ["mineru_verified_null"],
+                        "reasons": ["parser_verified_null"],
                         "roles": ["frp"],
                         "image_path": ".cache/pdf-pages/frp.png",
                     },
                     {
                         "path": path,
                         "source_page": 9,
-                        "reasons": ["mineru_verified_null"],
+                        "reasons": ["parser_verified_null"],
                         "roles": [],
                         "image_path": ".cache/pdf-pages/blank.png",
                     },
                     {
                         "path": path,
                         "source_page": 28,
-                        "reasons": ["mineru_verified_null"],
+                        "reasons": ["parser_verified_null"],
                         "roles": ["door_schedule"],
                         "image_path": ".cache/pdf-pages/x.png",
                     },
@@ -334,7 +334,7 @@ def test_visual_checklist_ignores_frp_plus_hardware_pages(project_root) -> None:
     extracted = project_root / "projects" / slug / "extracted"
     extracted.mkdir(parents=True)
     path = f"projects/{slug}/uploads/raw/BUILDING PLANS.pdf"
-    (extracted / "door_schedule.json").write_text(
+    (extracted / "line_items.json").write_text(
         json.dumps(
             {
                 "openings": [
@@ -371,21 +371,21 @@ def test_visual_checklist_ignores_frp_plus_hardware_pages(project_root) -> None:
                     {
                         "path": path,
                         "source_page": 15,
-                        "reasons": ["mineru_verified_null"],
+                        "reasons": ["parser_verified_null"],
                         "roles": ["door_schedule", "hardware", "frp"],
                         "image_path": ".cache/pdf-pages/sched.png",
                     },
                     {
                         "path": path,
                         "source_page": 25,
-                        "reasons": ["mineru_verified_null"],
+                        "reasons": ["parser_verified_null"],
                         "roles": ["door_schedule_candidate", "hardware"],
                         "image_path": ".cache/pdf-pages/cand.png",
                     },
                     {
                         "path": path,
                         "source_page": 20,
-                        "reasons": ["mineru_verified_null"],
+                        "reasons": ["parser_verified_null"],
                         "roles": ["frp", "hardware"],
                         "image_path": ".cache/pdf-pages/frp_hw.png",
                     },
@@ -411,7 +411,7 @@ def test_bbox_falls_back_to_row_bbox(project_root) -> None:
     slug = "bbox_row"
     extracted = project_root / "projects" / slug / "extracted"
     extracted.mkdir(parents=True)
-    (extracted / "door_schedule.json").write_text(
+    (extracted / "line_items.json").write_text(
         json.dumps(
             {
                 "openings": [

@@ -259,12 +259,18 @@ class EmptyPricingPromoteError(ValueError):
     error_code = "sandbox_promote_empty_pricing"
 
 
-def promote(slug: str) -> list[str]:
+def promote(slug: str, *, only: set[str] | None = None) -> list[str]:
     """Copy allowlisted files from the scratch clone back to the live bid.
 
     The audit trail and the versions index are appended to, never replaced; the
     content-addressed version copies are copied. Returns the relative paths that
     were promoted. Anything else is discarded.
+
+    ``only`` restricts the *allowlisted* artifacts promoted to that set of
+    relative paths - used to promote just the succeeded legs of a partially-failed
+    wave, so one failed FRP leg does not discard a finished take-off. The audit
+    trail and version copies (APPEND_ONLY / VERSION_COPY) always promote: they are
+    the whole run's history, not any one leg's.
 
     Rejects promoting an empty ``priced/line_items.json`` over a live file that
     already has lines — that was the session-to-session data-loss failure mode.
@@ -297,8 +303,17 @@ def promote(slug: str) -> list[str]:
             if _append_new_lines(path, target):
                 promoted.append(rel)
             continue
-        if not (allowed_relpath(rel) or VERSION_COPY.match(rel)):
+        if VERSION_COPY.match(rel):
+            target.parent.mkdir(parents=True, exist_ok=True)
+            _copy_replace(path, target)
+            promoted.append(rel)
+            continue
+        if not allowed_relpath(rel):
             discarded.append(rel)
+            continue
+        if only is not None and rel not in only:
+            # A leg that failed (or is not being promoted this pass): its artifact
+            # stays in the clone and is not copied to the live bid.
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
         _copy_replace(path, target)

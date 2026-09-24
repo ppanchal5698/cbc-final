@@ -251,7 +251,7 @@ def _excluded_vendors() -> list[dict]:
 def derive_flags(slug: str) -> list[dict]:
     """Every finding that follows from the artifacts, without a model."""
     project = storage_root() / slug
-    schedule = _load(project / "extracted" / "door_schedule.json")
+    schedule = _load(project / "extracted" / "line_items.json")
     openings = _openings(schedule)
     priced = _load(project / "priced" / "line_items.json")
     if isinstance(priced, list):
@@ -298,7 +298,7 @@ def _ocr_unavailable_flags(project: Path) -> list[dict]:
 
 
 def _document_not_parsed_flags(project: Path) -> list[dict]:
-    """NFR-2: a bid PDF that never got MinerU blocks must be visible on review."""
+    """NFR-2: a bid PDF that never got parsed blocks must be visible on review."""
     status = _load(project / "extracted" / "_parse_status.json")
     if not isinstance(status, dict):
         return []

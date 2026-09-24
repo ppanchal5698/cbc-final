@@ -45,6 +45,9 @@ class JobRef(TypedDict, total=False):
     startedAt: datetime
     stragglerPending: bool
     traceId: str
+    # Per-leg wave outcome, written by claude_pass; read by extraction_wave so a
+    # retry skips the legs a prior attempt already promoted (W3c).
+    waveLegs: list[dict[str, Any]]
 
 
 # Published with job= once a retry has put a dead or failed job back on the queue.
@@ -138,13 +141,9 @@ def coalesce_note(job: dict[str, Any] | None) -> str | None:
 # fallback for jobs enqueued before fileSha existed.
 COALESCE_BY_PAYLOAD = {
     "index_catalog": "fileSha",
-    "parse_catalog": "fileSha",
-    "parse_multiplier": "fileSha",
 }
 COALESCE_FALLBACK = {
     "index_catalog": "filename",
-    "parse_catalog": "filename",
-    "parse_multiplier": "filename",
 }
 
 

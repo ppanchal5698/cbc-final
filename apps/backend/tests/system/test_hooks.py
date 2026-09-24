@@ -16,8 +16,8 @@ def test_artifact_path_from_save_artifact() -> None:
     helper = load_module("_artifact_path", HOOKS / "_artifact_path.py")
     assert helper.project_path_from_tool(
         "mcp__artifact-storage__save_artifact",
-        {"project": "test_bid", "path": "extracted/door_schedule.json", "content": "{}"},
-    ) == ("test_bid", "extracted/door_schedule.json")
+        {"project": "test_bid", "path": "extracted/line_items.json", "content": "{}"},
+    ) == ("test_bid", "extracted/line_items.json")
 
 
 def test_artifact_path_from_write() -> None:
@@ -118,7 +118,7 @@ def test_post_tool_use_isolates_its_steps_and_audits_first(monkeypatch) -> None:
 
     payload = {
         "tool_name": "Write",
-        "tool_input": {"file_path": "projects/demo/extracted/door_schedule.json"},
+        "tool_input": {"file_path": "projects/demo/extracted/line_items.json"},
     }
 
     assert module.check(payload) == 0, "a PostToolUse hook must never block the pipeline"

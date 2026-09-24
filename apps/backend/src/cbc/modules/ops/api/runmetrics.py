@@ -56,8 +56,35 @@ def _sha256_file(path: Path) -> str | None:
     return _sha256_bytes(path.read_bytes())
 
 
-def context_hashes(prompt: str | None = None) -> dict[str, Any]:
-    """SHA-256 of the files a run actually followed. Recorded, never reused."""
+def _hooks_digest() -> str | None:
+    """SHA-256 of hook *source* only. Never settings.local.json - that is
+    per-developer, and folding it in would fragment cohorts one per machine."""
+    blob = b"".join(
+        path.read_bytes()
+        for path in sorted((ROOT / ".claude" / "hooks").glob("*.py"))
+        if path.is_file()
+    )
+    return _sha256_bytes(blob) if blob else None
+
+
+def _tool_profiles_digest() -> str | None:
+    """SHA-256 of the whole toolset map. Any profile change moves the digest, so
+    a run that saw a different tool surface lands in a different cohort."""
+    try:
+        from cbc.modules.ops.api import toolsets
+
+        payload = json.dumps(toolsets.PROFILES, sort_keys=True, default=list)
+    except Exception:
+        return None
+    return _sha256_text(payload)
+
+
+def context_hashes(prompt: str | None = None, runtime: Any = None) -> dict[str, Any]:
+    """SHA-256 of the files a run actually followed. Recorded, never reused.
+
+    `runtime` is the `limits_for()` result, passed in rather than imported:
+    `claude_pass` owns it and importing it here would be a cycle inside ops/api.
+    """
     rules_dir = ROOT / ".claude" / "rules"
     rules_blob = b"".join(
         path.read_bytes()
@@ -86,6 +113,11 @@ def context_hashes(prompt: str | None = None) -> dict[str, Any]:
         "rules": _sha256_bytes(rules_blob) if rules_blob else None,
         "agents": agents,
         "skills": skills,
+        "toolProfiles": _tool_profiles_digest(),
+        "hooks": _hooks_digest(),
+        "runtime": _sha256_text(json.dumps(runtime, sort_keys=True, default=str))
+        if runtime is not None
+        else None,
     }
 
 
@@ -344,13 +376,23 @@ def parse_recording_name(name: str) -> tuple[str, int]:
     return stem, 1
 
 
-def _metrics_id(job_id: str, attempt: int, generation: Any) -> str:
-    """One id per run, including the runs a retry replaces."""
+def _metrics_id(job_id: str, attempt: int, generation: Any, leg: Any = None) -> str:
+    """One id per run: the runs a retry replaces, and the legs of a wave.
+
+    `leg` is appended only when truthy, so leg 0 - a single pass, or a wave's first
+    leg - keeps the id byte-identical to what was written before waves recorded
+    every leg. `set_estimator_corrections` keys on that same `{jobId}:{attempt}`.
+    """
     try:
         number = int(generation or 0)
     except (TypeError, ValueError):
         number = 0
-    return f"{job_id}:{attempt}" if number <= 0 else f"{job_id}:r{number}:{attempt}"
+    base = f"{job_id}:{attempt}" if number <= 0 else f"{job_id}:r{number}:{attempt}"
+    try:
+        leg_no = int(leg or 0)
+    except (TypeError, ValueError):
+        leg_no = 0
+    return base if leg_no <= 0 else f"{base}:leg{leg_no}"
 
 
 def _as_utc(value: Any) -> datetime | None:
@@ -387,6 +429,8 @@ def document_for(
     provider: dict[str, Any] | None = None,
     outcome_status: str | None = None,
     error_code: str | None = None,
+    runtime: Any = None,
+    leg: Any = None,
 ) -> dict[str, Any]:
     job_id = _job_id_str(job)
     attempt = max(int(job.get("attempts") or 1), 1)
@@ -409,7 +453,7 @@ def document_for(
         # {jobId}:{attempt} alone collides after a dead-letter retry, which
         # resets `attempts`. The generation keeps earlier runs on disk, and is
         # left out at 0 so every id written before this stays as it was.
-        "_id": _metrics_id(job_id, attempt, job.get("retryGeneration")),
+        "_id": _metrics_id(job_id, attempt, job.get("retryGeneration"), leg),
         "jobId": job_id,
         "attempt": attempt,
         "projectId": str(job["projectId"]) if job.get("projectId") else None,
@@ -428,7 +472,7 @@ def document_for(
         "tools": parsed.get("tools") or {},
         "mcp": mcp,
         "subagents": parsed.get("subagents") or {},
-        "contextHashes": context_hashes(prompt),
+        "contextHashes": context_hashes(prompt, runtime),
         "outcome": {
             "status": outcome_status or job.get("status") or "unknown",
             "errorCode": error_code or job.get("errorCode"),
@@ -454,6 +498,8 @@ async def record(
     provider: dict[str, Any] | None = None,
     outcome_status: str | None = None,
     error_code: str | None = None,
+    runtime: Any = None,
+    leg: Any = None,
 ) -> dict[str, Any] | None:
     """Upsert one runMetrics document. Missing recordings still write hashes."""
     parsed: dict[str, Any] = {}
@@ -467,6 +513,8 @@ async def record(
         provider=provider,
         outcome_status=outcome_status,
         error_code=error_code,
+        runtime=runtime,
+        leg=leg,
     )
     await run_metrics_collection().replace_one({"_id": document["_id"]}, document, upsert=True)
     return document

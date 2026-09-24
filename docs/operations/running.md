@@ -31,8 +31,7 @@ keep the API and worker environments identical.
 | `nginx` | `nginx:1.27-alpine` | **`80:80`, `443:443`** | the only published ports |
 | `certbot` | `certbot/certbot:v3.1.0` | — | renew loop |
 | `litellm` | `ghcr.io/berriai/litellm` | `expose: 4000` | profile `oss` — **no provider mode uses it since `gateway` was retired** |
-| `mineru` | `infra/mineru` | — | profile `gpu`, needs an NVIDIA device |
-| `parser` | worker image | none | profile `gpu`, `WORKER_DOMAIN=parsing` |
+| `parser` | worker image | none | `WORKER_DOMAIN=parsing` — claims `parse_document` |
 | `tunnel` | `cloudflared` | — | optional public URL |
 
 **Only nginx publishes host ports.** Everything else is `expose:`, reachable
@@ -102,10 +101,14 @@ docker compose -p cbc-final -f infra/docker-compose.yml ps
 
 CI sets `COMPOSE_PROJECT_NAME=cbc-final` for the same reason.
 
-Two profiles keep optional weight out of a default `up`: `oss` (the LiteLLM
-gateway — reachable, but nothing routes to it now that the `gateway` provider
-mode is gone; Ollama talks to its own daemon directly) and `gpu` (MinerU plus a
-dedicated parsing worker).
+One profile keeps optional weight out of a default `up`: `oss` (the LiteLLM
+gateway — used by the `nim` and `ollama` provider modes; Ollama can also talk to
+its own daemon directly).
+
+The `gpu` profile is gone. Parsing is a cloud call now, so the `parser` service
+starts by default — it has to, or `parse_document` jobs would queue with nothing
+to claim them and `defer_if_parsing` would hold every extraction behind a parse
+that never begins.
 
 Networks: `default` (named `cbc-final`) and `llm` (named `cbc-final-llm`,
 **`internal: true`**) — the latter is what `CBC_SANDBOX_NETWORK` points at, so a
@@ -200,12 +203,12 @@ The layout, with the agent that writes each file:
 
 ```
 uploads/raw/<bid-set>.pdf              immutable input — never written over
-uploads/processed/mineru/<docId>/      MinerU block batches, p1-8.json, p9-16.json, …
+uploads/processed/parsed/<docId>/      LlamaParse block batches, p1-8.json, p9-16.json, …
 uploads/final/                         delivery-agent copies
 
 extracted/scope_metadata.json          intake-coordinator    schema-gated, blocking
 extracted/scope_summary.json           spec-scope-analyst    schema-gated, blocking
-extracted/door_schedule.json           takeoff-engineer      schema-gated, patch-only once seeded
+extracted/line_items.json           takeoff-engineer      schema-gated, patch-only once seeded
 extracted/door_schedule.extracted.json deterministic pre-take-off seed
 extracted/frp_takeoff.json             frp-specialist
 extracted/div10_takeoff.json           div10-specialist

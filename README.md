@@ -54,6 +54,20 @@ WORKER_CLAIM_ALL=1 python -m cbc.app.worker
 
 Images build from [`apps/backend/Dockerfile`](apps/backend/Dockerfile).
 
+## Running Claude Code with NVIDIA NIM
+
+NVIDIA NIM's free-tier API enforces a strict ~40 requests-per-minute limit, which Claude Code can easily burst past during execution. To run Claude Code against NIM safely without failing on 429 errors, use the provided proxy runner script.
+
+1. Ensure your `.env` file contains your NIM API key: `NVIDIA_NIM_API_KEY=your_key_here`
+2. Start Claude Code using the wrapper script:
+   ```bash
+   bash scripts/run_with_nim.sh
+   ```
+
+This script automatically:
+- Boots a local LiteLLM proxy (`docker compose --profile oss up -d litellm`) configured with a hard 35 RPM cap.
+- Sources `.env.nim` to point Claude Code at `http://localhost:4000` and configures Claude Code's retry watchdog (`CLAUDE_CODE_RETRY_WATCHDOG=1`) to indefinitely wait for the proxy's rate-limit resets.
+
 ## Tests
 
 Primary suite (monolith) — also what CI gates:

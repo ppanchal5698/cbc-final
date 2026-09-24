@@ -42,6 +42,24 @@ MAX_TURNS = int(os.environ.get("WORKER_MAX_TURNS", "60"))
 PIPELINE_TIMEOUT = int(os.environ.get("WORKER_PIPELINE_TIMEOUT_SECONDS", "10800"))
 PIPELINE_MAX_TURNS = int(os.environ.get("WORKER_PIPELINE_MAX_TURNS", "200"))
 
+# A wave leg reads a few pages and writes or patches one artifact - far less than a
+# whole extraction. Without a per-leg cap, three legs of an extract_bid_set that now
+# carries the pipeline budget would each take 200 turns. Size this from a real leg
+# recording rather than a guess; the default is a bounded placeholder.
+# ponytail: measure it off a .runs leg log once W1 cohorts show the callCount.
+WAVE_LEG_MAX_TURNS = int(os.environ.get("WORKER_WAVE_LEG_MAX_TURNS", "80"))
+
+# (timeout seconds, max turns) per job type. Extraction is a multi-phase wave on a
+# set that can be 744 pages; the one-phase JOB_TIMEOUT/MAX_TURNS starved it, and the
+# pipeline budget it needed used to go only to run_full_pipeline - which is retired
+# and refused by the API, so nothing that actually runs received it. run_full_pipeline
+# stays in the table because _CLAIM_ALL_EXTRA still claims requeued historical jobs.
+LIMITS: dict[str, tuple[int, int]] = {
+    "run_full_pipeline": (PIPELINE_TIMEOUT, PIPELINE_MAX_TURNS),
+    "extract_bid_set": (PIPELINE_TIMEOUT, PIPELINE_MAX_TURNS),
+    "rerun_extraction": (PIPELINE_TIMEOUT, PIPELINE_MAX_TURNS),
+}
+
 # How long the first wave leg gets on its own before the rest follow.
 #
 # The legs are separate processes but they share a job type - so the same MCP
@@ -104,35 +122,44 @@ def _combine(legs: list[WavePass], results: list[runner.RunResult]) -> runner.Ru
 
 def limits_for(job_type: str) -> tuple[int, int]:
     """(timeout seconds, max turns) for a job type."""
-    if job_type == "run_full_pipeline":
-        return PIPELINE_TIMEOUT, PIPELINE_MAX_TURNS
-    return JOB_TIMEOUT, MAX_TURNS
+    return LIMITS.get(job_type, (JOB_TIMEOUT, MAX_TURNS))
 
 
 async def _record_runmetrics(
     job: dict,
-    recording: Path,
-    prompt: str,
+    legs: list["WavePass"],
+    recordings: list[Path],
     project: dict | None,
     described: dict | None,
     error_code: str | None = None,
 ) -> None:
-    """Parse the Claude recording after every post-CLI finish(). Never raises."""
+    """Parse the Claude recording(s) after every post-CLI finish(). Never raises.
+
+    A wave is N CLI invocations, each with its own recording, prompt and cost.
+    Recording only leg 0 under-reported extraction spend ~Nx, so SpendSummary lied
+    and `cost_budget.spend_usd` under-counted - WORKER_MAX_COST_USD_PER_DAY never
+    fired. One document per leg now; leg 0 keeps the single-pass id byte-identical,
+    and its prompt is the brief that actually ran, not the orchestrator prompt that
+    was built and never sent.
+    """
     try:
         current = await ops_jobs.get(
             job["_id"],
             {"status": 1, "errorCode": 1, "startedAt": 1, "finishedAt": 1, "provider": 1},
         )
         merged = {**job, **(current or {})}
-        await runmetrics.record(
-            merged,
-            recording,
-            prompt=prompt,
-            project=project,
-            provider=described or merged.get("provider"),
-            outcome_status=merged.get("status"),
-            error_code=error_code or merged.get("errorCode"),
-        )
+        for index, (leg, recording) in enumerate(zip(legs, recordings)):
+            await runmetrics.record(
+                merged,
+                recording,
+                prompt=leg.prompt,
+                project=project,
+                provider=described or merged.get("provider"),
+                outcome_status=merged.get("status"),
+                error_code=error_code or merged.get("errorCode"),
+                runtime=limits_for(job["type"]),
+                leg=index,
+            )
     except Exception:
         log.exception("runmetrics failed for job %s", job.get("_id"))
 
@@ -217,6 +244,9 @@ async def run(
     await ops_jobs.set_fields(job["_id"], fields)
 
     timeout, max_turns = limits_for(job["type"])
+    # A wave splits the job's work across legs, each doing a fraction of it, so a
+    # leg is capped lower than the whole-job budget the orchestrator path gets.
+    leg_max_turns = WAVE_LEG_MAX_TURNS if len(legs) > 1 else max_turns
     cancel_event = threading.Event()
 
     async def watch_cancel() -> None:
@@ -281,7 +311,7 @@ async def run(
             redact_values=provider.secret_values(config),
             recording=leg_recording,
             job_type=job["type"],
-            max_turns=max_turns,
+            max_turns=leg_max_turns,
             cancel_check=cancel_event.is_set,
             settings=provider.claude_settings_overlay(config),
             on_heartbeat=ping,
@@ -298,9 +328,12 @@ async def run(
     )
     progress_watcher = asyncio.create_task(watch_progress_bound())
     result = None
+    leg_results: list[runner.RunResult] = []
+    wave_leg_records: list[dict[str, Any]] = []
     try:
         if len(legs) == 1:
             result = await asyncio.to_thread(run_leg, legs[0], recordings[0])
+            leg_results = [result]
         else:
             # Started in one gather, so they overlap rather than queue. They share
             # one sandbox and write different files; the single promote below
@@ -319,24 +352,52 @@ async def run(
                     await asyncio.sleep(delay)
                 return await asyncio.to_thread(run_leg, leg, path)
 
-            result = _combine(
-                legs,
-                list(
-                    await asyncio.gather(
-                        *(
-                            staggered(leg, path, 0 if index == 0 else WAVE_STAGGER_SECONDS)
-                            for index, (leg, path) in enumerate(zip(legs, recordings))
-                        )
+            leg_results = list(
+                await asyncio.gather(
+                    *(
+                        staggered(leg, path, 0 if index == 0 else WAVE_STAGGER_SECONDS)
+                        for index, (leg, path) in enumerate(zip(legs, recordings))
                     )
-                ),
+                )
             )
+            result = _combine(legs, leg_results)
     finally:
         cancel_event.set()
         watcher.cancel()
         heartbeat.cancel()
         progress_watcher.cancel()
         promote_ok = True
-        if sandbox_ws is not None and project is not None and result is not None and result.ok:
+        # A wave is not all-or-nothing on the artifacts: each leg that finished
+        # wrote its own file. If some legs failed, promote just the succeeded
+        # ones' artifacts - a failed FRP leg must not discard a finished take-off.
+        # The job still fails and retries; the retry re-clones from a live bid
+        # that now holds the succeeded work and skips those legs.
+        wave_only: set[str] | None = None
+        if len(legs) > 1:
+            wave_leg_records = [
+                {"label": leg.label, "ok": bool(res.ok), "error": res.error}
+                for leg, res in zip(legs, leg_results)
+            ]
+            if result is not None and not result.ok:
+                wave_only = {
+                    prompts.WAVE_LEGS[leg.label]["artifact"]
+                    for leg, res in zip(legs, leg_results)
+                    if res.ok and leg.label in prompts.WAVE_LEGS
+                }
+        full_promote = (
+            sandbox_ws is not None
+            and project is not None
+            and result is not None
+            and result.ok
+        )
+        partial_promote = (
+            sandbox_ws is not None
+            and project is not None
+            and result is not None
+            and not result.ok
+            and bool(wave_only)
+        )
+        if full_promote:
             try:
                 await asyncio.to_thread(sandbox_mod.promote, project["slug"])
             except Exception as exc:
@@ -358,6 +419,17 @@ async def run(
                     returncode=result.returncode,
                     permanent=True,
                     error_code=error_code,
+                )
+        elif partial_promote:
+            # Best-effort: the job has already failed and will retry. A failure to
+            # promote the succeeded legs only means the retry re-runs them too.
+            try:
+                await asyncio.to_thread(
+                    sandbox_mod.promote, project["slug"], only=wave_only
+                )
+            except Exception:
+                log.exception(
+                    "sandbox partial-wave promote failed for job %s", job["_id"]
                 )
         if sandbox_ws is not None and project is not None and promote_ok:
             try:
@@ -400,21 +472,29 @@ async def run(
 
     # Recorded so "which provider produced this line?" is answerable months later,
     # the same question NFR-3 asks of every price.
-    await ops_jobs.set_fields(job["_id"], {"provider": described})
+    provider_fields: dict[str, Any] = {"provider": described}
+    if wave_leg_records:
+        # Per-leg outcome, so a retry can skip the legs that already succeeded
+        # (extraction_wave reads this) and an operator can see which leg failed.
+        provider_fields["waveLegs"] = wave_leg_records
+    await ops_jobs.set_fields(job["_id"], provider_fields)
     if project is not None and on_provider is not None:
         await on_provider(project, described)
 
     recording_note = ""
-    if recording.exists():
+    notes: list[str] = []
+    for rec in recordings:
+        if not rec.exists():
+            continue
         try:
             raw = await asyncio.to_thread(
-                recording.read_text, encoding="utf-8", errors="replace"
+                rec.read_text, encoding="utf-8", errors="replace"
             )
-            rec_warnings = streaming.recording_warnings(raw)
-            if rec_warnings:
-                recording_note = "; ".join(rec_warnings)
         except OSError:
-            pass
+            continue
+        notes.extend(streaming.recording_warnings(raw))
+    if notes:
+        recording_note = "; ".join(notes)
     if described.get("warnings"):
         provider_note = "; ".join(described["warnings"])
         recording_note = f"{recording_note}; {provider_note}" if recording_note else provider_note
@@ -430,7 +510,7 @@ async def run(
             retry_at=result.retry_at,
         )
         await _record_runmetrics(
-            job, recording, prompt, project, described, result.error_code
+            job, legs, recordings, project, described, result.error_code
         )
         return
 
@@ -446,17 +526,17 @@ async def run(
             error_code="artifact_validation",
         )
         await _record_runmetrics(
-            job, recording, prompt, project, described, "artifact_validation"
+            job, legs, recordings, project, described, "artifact_validation"
         )
         return
     except Exception as exc:  # a sync failure is a real failure - do not mask it
         if str(exc) == "cancelled by estimator":
             await finish(job, False, "cancelled by estimator", result.output)
-            await _record_runmetrics(job, recording, prompt, project, described)
+            await _record_runmetrics(job, legs, recordings, project, described)
             return
         await finish(job, False, f"result sync failed: {exc}", result.output, error_code="sync_failed")
         await _record_runmetrics(
-            job, recording, prompt, project, described, "sync_failed"
+            job, legs, recordings, project, described, "sync_failed"
         )
         return
 
@@ -464,4 +544,4 @@ async def run(
     if recording_note:
         combined = f"{note}; {recording_note}" if note else recording_note
     await finish(job, True, None, result.output, combined or None)
-    await _record_runmetrics(job, recording, prompt, project, described)
+    await _record_runmetrics(job, legs, recordings, project, described)

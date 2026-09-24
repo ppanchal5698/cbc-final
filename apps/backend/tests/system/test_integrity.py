@@ -289,7 +289,7 @@ def test_writing_inside_a_project_is_allowed(path: str) -> None:
 @pytest.mark.parametrize(
     "path",
     [
-        "projects/dutch_bros/extracted/door_schedule.json",
+        "projects/dutch_bros/extracted/line_items.json",
         "projects/dutch_bros/extracted/scope_metadata.json",
         "projects/dutch_bros/extracted/scope_summary.json",
         "projects/dutch_bros/extracted/frp_takeoff.json",

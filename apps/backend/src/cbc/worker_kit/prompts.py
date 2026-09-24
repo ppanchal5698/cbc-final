@@ -30,7 +30,7 @@ DELEGATION_RULE = """- **Delegate with the Agent tool, not by reading agent file
   Example:
     Agent(description="Verify door schedule pages 14-15", subagent_type="takeoff-engineer",
           prompt="Project {project_dir}. Sheetmap door_schedule pages: 14,15.
-          extracted/door_schedule.json is already seeded from the sheet. Read it,
+          extracted/line_items.json is already seeded from the sheet. Read it,
           check each opening against those pages, and send what is wrong as
           patches to propose_patch. Cite the page you read each value from.")
 - **The artifact already exists. An agent checks it, it does not write it.**
@@ -183,8 +183,6 @@ The bid set is in {project_dir}/uploads/raw/.
 
 {how}
 
-{straggler_block}
-
 {visual_checklist}
 
 **Job-record checkpoint — do this before anything else.** Estimators often create
@@ -200,13 +198,13 @@ wave-2 output.
     2. `spec-scope-analyst`  -> extracted/scope_summary.json
 
   Wave 2 (**launch all of these in ONE message — concurrent Agent calls**)
-    3a. `takeoff-engineer`   -> extracted/door_schedule.json
+    3a. `takeoff-engineer`   -> extracted/line_items.json
     3b. `frp-specialist`     -> extracted/frp_takeoff.json   (ONLY if scope_summary.frp_in_scope)
     3c. `div10-specialist`   -> extracted/div10_takeoff.json (ONLY if scope_summary.div10_in_scope)
 
 **Every file in both waves is already on disk.** Before this session started the
 worker parsed the sheets in code and wrote `scope_metadata.json`,
-`scope_summary.json`, `door_schedule.json`, `frp_takeoff.json` and
+`scope_summary.json`, `line_items.json`, `frp_takeoff.json` and
 `div10_takeoff.json`. Each subagent **checks and completes** its file - it does
 not author it. Read it with `get_artifact` first, keep what is right, correct
 what is wrong, and fill nulls from sheet evidence. Re-deriving a field the
@@ -233,9 +231,9 @@ Div 10 / FRP. Do not give every sheet equal attention.
 - Launch `div10-specialist` only when `div10_in_scope` is true — no exploratory
   Div 10 pass when the flag is false.
 - Write all checkpoint JSON via `save_artifact` (atomic). Never Write/Edit
-  `door_schedule.json`, scopes, `frp_takeoff.json`, `div10_takeoff.json`, or
+  `line_items.json`, scopes, `frp_takeoff.json`, `div10_takeoff.json`, or
   `priced/line_items.json`.
-- **After wave 2 returns**, confirm `extracted/door_schedule.json` exists on the
+- **After wave 2 returns**, confirm `extracted/line_items.json` exists on the
   artifact path before any later phase. If missing after the subagent "succeeds",
   stop — re-prompt takeoff once with the brief template, then halt. Check this
   once the wave is done, never as a precondition for starting FRP or Div 10:
@@ -275,7 +273,7 @@ starting the next; do not duplicate its work while it runs.
 **The take-off is already done (or one parse_schedule call away). Check, don't redo.**
 Before this session started the worker usually ran `parse_schedule.py` over the
 highest-scoring `door_schedule` sheet and wrote
-`{project_dir}/extracted/door_schedule.json`. Read that file first via
+`{project_dir}/extracted/line_items.json`. Read that file first via
 `get_artifact`. **If it is missing:** takeoff must run
 `parse_schedule.py --page <n> --openings --json` on sheetmap pages, then save —
 never freehand-author openings.
@@ -328,7 +326,7 @@ context and carry nothing a take-off needs.
 **If the set genuinely has no Division 08 openings, say so in the file.** Some
 bids are finishes-only - tile, paint, wall covering - with no doors, frames or
 hardware. That is a finding, not a failure, and the way to report it is to write
-extracted/door_schedule.json with an empty `openings` array and a
+extracted/line_items.json with an empty `openings` array and a
 `no_scope_reason` naming what you searched for and did not find:
 
   {{"openings": [], "no_scope_reason": "no door schedule, door type or hardware
@@ -359,7 +357,7 @@ hardware_set, `qty`, structured `keying` when present, and `alternate` when the
 schedule marks a bid alternate (null = base bid). Import maps `alternate` →
 `alternateGroup`.
 
-If {project_dir}/extracted/door_schedule.json already exists it holds openings the
+If {project_dir}/extracted/line_items.json already exists it holds openings the
 estimator has confirmed or added by hand. Reconcile against it; do not discard
 their work.
 
@@ -367,7 +365,7 @@ their work.
 
 EXTRACT_STRAGGLER_MERGE = """**STRAGGLER MERGE MODE — late PDF(s) arrived mid-run.**
 This is NOT a clean extract. Existing `extracted/scope_metadata.json`,
-`scope_summary.json`, and `door_schedule.json` are the source of truth for prior
+`scope_summary.json`, and `line_items.json` are the source of truth for prior
 files. Rebuild `_sheetmap.json` (worker may already have), then:
 
 1. Process only the newly received PDF(s) / pages not covered by the prior pass.
@@ -389,7 +387,7 @@ RERUN = """You are the CBC Estimating Copilot re-running the take-off for projec
 
 The estimator asked for another pass over the drawings in {project_dir}/uploads/raw/.
 
-{project_dir}/extracted/door_schedule.json holds the current state, including
+{project_dir}/extracted/line_items.json holds the current state, including
 lines the estimator has confirmed (`confirmed_by` set) or added by hand
 (`added_by_hand: true`). Those are decisions, not suggestions - leave them alone.
 
@@ -397,13 +395,13 @@ lines the estimator has confirmed (`confirmed_by` set) or added by hand
 
 {visual_checklist}
 
-  1. `takeoff-engineer`  -> {project_dir}/extracted/door_schedule.json
+  1. `takeoff-engineer`  -> {project_dir}/extracted/line_items.json
 
 A rerun is take-off only - intake and spec scoping already ran, and their outputs
 in extracted/ still stand. Do not redo them.
 
 The worker has already re-run `parse_schedule.py` over the schedule sheet and
-written the result to `{project_dir}/extracted/door_schedule.json`, carrying every
+written the result to `{project_dir}/extracted/line_items.json`, carrying every
 confirmed and hand-added row across untouched. Read that file **and**
 `{project_dir}/extracted/_visual_pages.json`, then vision-read the pages listed
 under **Mandatory visual reads** before correcting what the parser got wrong or
@@ -413,7 +411,7 @@ the pre-rendered image over extract_tables alone.
 The estimator asked for another pass because something was wrong or missing on the
 last one, not for the whole set to be read again.
 
-Write the full schedule back to extracted/door_schedule.json: the openings you
+Write the full schedule back to extracted/line_items.json: the openings you
 re-read, plus every confirmed or hand-added line carried across untouched. A rerun
 that drops the estimator's own rows is worse than the extraction it replaced.
 
@@ -421,7 +419,7 @@ that drops the estimator's own rows is worse than the extraction it replaced.
 
 MATCH_AND_PRICE = """You are the CBC Estimating Copilot pricing project {code}.
 
-The estimator has confirmed the openings in {project_dir}/extracted/door_schedule.json.
+The estimator has confirmed the openings in {project_dir}/extracted/line_items.json.
 
 {how}
 
@@ -429,7 +427,7 @@ The estimator has confirmed the openings in {project_dir}/extracted/door_schedul
   2. `pricing-engineer` -> {project_dir}/priced/line_items.json,
                             {project_dir}/priced/margin_applied.json
 
-When delegating **product-matcher**, tell it to read `extracted/door_schedule.json`,
+When delegating **product-matcher**, tell it to read `extracted/line_items.json`,
 `extracted/hardware_sets.json` and `extracted/scope_summary.json` only —
 do **not** ask it to read `uploads/raw/` or call pdf-tools.
 
@@ -441,9 +439,13 @@ is wrong, and add only what the parse missed. A thin seed (no items, or items
 carrying no part number) means the legend would not parse, and only then do the
 sets need building from the schedule's group callouts.
 
-{match_reuse}
+{cost_ladder}
 
-The `catalog` server returns pages for PDF Path 2, plus Path 2b product-catalog
+{preamble}"""
+
+
+# PREPRICE_SEED off: the model runs the whole cost ladder itself (today's prompt).
+FULL_LADDER = """The `catalog` server returns pages for PDF Path 2, plus Path 2b product-catalog
 costs via `lookup_catalog_item` / `search_catalog_items`. **product-matcher**
 searches the product catalog first; **pricing-engineer** (not product-matcher)
 opens vendor books only after catalog miss:
@@ -518,9 +520,36 @@ for an estimator; twenty invented ones are a quote that has to be thrown away.
 Every line names what it is: carry `part_number` and `description` across from
 extracted/hardware_sets.json (`specified`) even when nothing matched. A MANUAL
 line is an instruction to an estimator, and a blank one tells them nothing.
-When cost is set, sale_ea and ext_price must also be set (use calc-engine).
+When cost is set, sale_ea and ext_price must also be set (use calc-engine)."""
 
-{preamble}"""
+
+# PREPRICE_SEED on: preprice.py already ran the ladder; the pass does judgment only.
+SEEDED_LADDER = """`priced/line_items.json` is **already seeded**. `preprice` ran the deterministic
+cost ladder in code before this session — P21 last-PO, special net, the product
+catalog and list×multiplier — so most lines already carry a cost, a cost_source
+and a citation. Do **not** re-price a line that has one, and never hand-compute
+sale_ea or ext_price. Your job is the judgment the ladder cannot: the MANUAL lines
+it left you.
+
+- **Allegion distributor lines are always MANUAL.** Von Duprin, LCN, Schlage and
+  **IVES** are bought through Banner Solutions or SecLock, not off any list — do
+  not tag them `LIST_X_MULTIPLIER` because IVES pages appear in the Hager book.
+- **Never extrapolate a price from a similar SKU**, and never give the same part
+  two different costs on one quote. A blank MANUAL line tells an estimator
+  nothing: say why in `cost_source_detail`, and name the distributor or RFQ that
+  would settle it.
+- The two provenances are different fields, both required (NFR-3): `source_page`
+  is the drawing page the item was specified on; `cost_source_detail` is where the
+  price came from. A MANUAL line still carries its drawing page.
+
+`priced/line_items.json` is seeded, so correct it with `propose_patch`, one field
+at a time - `lines/<line_id>/<field>` - never a whole-file `save_artifact`, which
+is refused over the seed. A cost field (cost / margin / sale_ea / multiplier)
+cites `{{cost_source, cost_source_detail}}`; a drawing field (quantity) cites
+`{{source_page, excerpt}}`. A patch the contract refuses costs that one field and
+leaves a review flag.
+
+{seed_worklist}"""
 
 BUILD_PROPOSAL = """You are the CBC Estimating Copilot preparing the proposal for project {code}.
 
@@ -558,7 +587,7 @@ Read the addendum in {project_dir}/uploads/raw/ and follow
 .claude/agents/takeoff-engineer.md to extract what it specifies.
 
 Then, for every opening the addendum touches, compare it against the existing
-{project_dir}/extracted/door_schedule.json and write the differences to
+{project_dir}/extracted/line_items.json and write the differences to
 {project_dir}/review/addendum_diff.json:
 
 {{
@@ -569,7 +598,7 @@ Then, for every opening the addendum touches, compare it against the existing
                   "source_page": 3 }} ]
 }}
 
-**Do not merge the addendum into door_schedule.json.** How a reconciliation
+**Do not merge the addendum into line_items.json.** How a reconciliation
 resolves - and whether a confirmed line survives it - has not been answered by
 CBC (Matrix 4.1 / Open Item 11). Report the differences and stop; the estimator
 decides.
@@ -591,8 +620,6 @@ every subagent below. Four subagents each searching the same set is the same wor
 four times, and on a full run it is the difference between finishing and
 exhausting the budget.
 
-{skip}
-
 **Resume, do not redo.** If a phase's output below already exists in this project,
 that phase ran on an earlier attempt: read the file, tell the next subagent what
 is in it, and move on. Re-reading a 744-page set that was already read is the most
@@ -606,7 +633,7 @@ at the top of the prompt.
   Phase 0/1  intake-coordinator  -> extracted/scope_metadata.json
   Phase 2    spec-scope-analyst  -> extracted/scope_summary.json
   Phase 3    ── launch 3, 3b and 3c together, in ONE message ──
-    3   takeoff-engineer   -> extracted/door_schedule.json
+    3   takeoff-engineer   -> extracted/line_items.json
     3b  frp-specialist     -> extracted/frp_takeoff.json   (only if FRP is in scope)
     3c  div10-specialist   -> extracted/div10_takeoff.json (only if Div 10 is in scope)
   Phase 4    product-matcher     -> extracted/hardware_sets.json
@@ -634,15 +661,13 @@ full ranked dump. After each **wave**, verify its output files exist via
 `get_artifact` / `list_project_files` before launching the next. Checkpoint
 artifacts must use `save_artifact` only (never Write).
 
-**product-matcher** reads `extracted/door_schedule.json` and
+**product-matcher** reads `extracted/line_items.json` and
 `extracted/scope_summary.json` — not the bid-set PDF. Hardware groups live in
 scope_summary; pdf-tools on uploads/raw/ belong to takeoff-engineer and
 pricing-engineer only.
 
-{match_reuse}
-
   Phase 5    quality-reviewer    -> review/review_flags.json
-  Phase 6    delivery-agent      -> uploads/final/, review/quotation_email_draft.md
+  Phase 6    delivery-agent      -> review/quotation_email_draft.md
 
 Run the phases in that order. **Wave 3 (take-off, FRP, Div 10) goes out in one
 message; everything else is one subagent at a time.** Wait for a wave to finish
@@ -653,7 +678,7 @@ phase that fails stops the run - do not carry on and quote off a take-off that
 did not finish.
 
 **If the set has no Division 08 openings, write that down.** A finishes-only bid
-is a real outcome. Write extracted/door_schedule.json with an empty `openings`
+is a real outcome. Write extracted/line_items.json with an empty `openings`
 array and a `no_scope_reason` naming what you searched for and did not find, then
 carry on - the later phases will have nothing to price and that is the answer.
 Never skip Phase 3 and leave the file unwritten. Before no_scope, image-review
@@ -682,8 +707,11 @@ stop and report those blockers for estimator action. Do not generate client-faci
 deliverables or say the draft is ready merely because files exist.
 
 Halt only after **delivery-agent** completes and has written
-`uploads/final/`, `review/quotation_email_draft.md`, and attempted
-`quotation.pdf`. Then report exactly what the delivery-agent reports:
+`review/quotation_email_draft.md`. `quotation.pdf` and `uploads/final/` are the
+worker's, rendered after this pass - do not wait for them and do not try to write
+them: `save_artifact` refuses any path outside `extracted/`, `priced/`, `review/`
+and `quotation.html`, so an agent that tries reads the refusal as a path error.
+Then report exactly what the delivery-agent reports:
 
 "Draft ready for estimator review"
 
@@ -817,7 +845,7 @@ def skip_completed_phases(phase_state: dict[str, Any] | None) -> str:
         "extraction": (
             "Skip intake, spec scoping, and take-off (Phase 0–3). "
             "`extracted/` already passed validation; do not rewrite "
-            "door_schedule.json or re-run find_sheets."
+            "line_items.json or re-run find_sheets."
         ),
         "pricing": (
             "Skip product matching and pricing (Phase 4). "
@@ -847,9 +875,7 @@ WAVE_BRIEF = """You are the CBC {role} on project {code}.
 
 ## The one thing you are here to do
 
-`{artifact}` is **already written**. `pretakeoff` read it off the sheet in code
-before this session started. Read it first, check it against your pages, and
-correct what is wrong. You are confirming a document, not producing one.
+{seed_note}
 
 - Project: {project_dir}
 - Your pages (from `extracted/_sheetmap.json`): {pages}
@@ -878,15 +904,25 @@ Before you flag a field missing, open the specific page and look
 (.claude/rules/pdf-verify-before-present.md).
 """
 
+WAVE_SEED_NOTE_DEFAULT = """`{artifact}` is **already written**. `pretakeoff` read it off the sheet in code
+before this session started. Read it first, check it against your pages, and
+correct what is wrong. You are confirming a document, not producing one."""
+
+WAVE_SEED_NOTE_FORCED = """**THIS IS A FORCED CLEAN RUN.** A prior attempt of this job left output that is
+not to be trusted, so `{artifact}` may hold a stale seed — do not confirm it.
+Produce it fresh from your pages. Every field you did not read is null and flagged,
+never carried over from the stale seed."""
+
+
 # What each leg owns. The artifact is also what its siblings must not touch.
 WAVE_LEGS: dict[str, dict[str, str]] = {
     "takeoff": {
         "role": "Take-off Engineer",
-        "artifact": "extracted/door_schedule.json",
+        "artifact": "extracted/line_items.json",
         "how_to_write": """Send every correction through `mcp__artifact-storage__propose_patch`,
 one field at a time, each citing the page you read it from:
 
-    propose_patch(path="extracted/door_schedule.json", patches=[
+    propose_patch(path="extracted/line_items.json", patches=[
       {"op": "set", "path": "openings/05/handing", "value": "RH",
        "evidence": {"source_page": 16, "excerpt": "05 UNISEX WRM RH"}}])
 
@@ -925,6 +961,37 @@ row.""",
             "null with `qty_not_stated` - never a default of 1."
         ),
     },
+    "intake": {
+        "role": "Intake Coordinator",
+        "artifact": "extracted/scope_metadata.json",
+        "how_to_write": (
+            "Write with `mcp__artifact-storage__save_artifact`. The seeded file "
+            "carries what the Ops-Hub create form already knew and a "
+            "`title_block_not_read` flag per field still null. Those flags are your "
+            "work list: read the cover sheet and drawing index for brand, location, "
+            "state, architect, GC, project number, bid due date and alternates, and "
+            "fill each with `field_sources` evidence (source_file, source_page, "
+            "excerpt). A field the title block does not carry stays null and "
+            "flagged - never guessed, never copied from a similar bid."
+        ),
+    },
+    "scope": {
+        "role": "Spec Scope Analyst",
+        "artifact": "extracted/scope_summary.json",
+        "how_to_write": (
+            "Write with `mcp__artifact-storage__save_artifact`. The seeded file "
+            "carries `frp_in_scope` / `div10_in_scope` from the sheet-map roles and "
+            "a `specs_not_read` flag. Read the specification: confirm Division 08 "
+            "(doors, frames, hardware) and Division 10 (specialties, partitions, "
+            "accessories) scope, the fire ratings and hardware-set callouts, and "
+            "what is explicitly out of scope. If the specs put FRP or a Div 10 item "
+            "in scope that no tagged sheet carried, set that flag true and add "
+            "`frp_in_scope_found_after_wave` / `div10_in_scope_found_after_wave` so "
+            "the estimator can rerun_extraction for the specialist. Keep "
+            "`divisions` and `out_of_scope_items` sourced to the spec, never "
+            "invented."
+        ),
+    },
 }
 
 
@@ -938,7 +1005,80 @@ def _visual_checklist_for(slug: str) -> str:
         return ""
 
 
+def _modifiers(job: dict[str, Any], project: dict[str, Any] | None) -> tuple[str, str]:
+    """The prefix and suffix a job's prompt carries around its rendered body.
+
+    `build()` and `build_wave()` both wrap in these, so a template - a wave brief
+    above all - cannot silently opt out of a modifier by forgetting a placeholder,
+    which is the trap a `{skip}`/`{match_reuse}`/`{straggler_block}` slot was. The
+    prefix is FORCE_BANNER; the suffix is the straggler-merge block, skipped-phase
+    list, learned/reusable matches, pipeline-context recap and validated-handoff
+    note, in that order. Each piece keeps the same guard it had inside `build()`.
+    """
+    payload = job.get("payload") or {}
+    job_type = job["type"]
+    force = bool(payload.get("force"))
+
+    prefix = FORCE_BANNER if force else ""
+
+    parts: list[str] = []
+    straggler = straggler_merge_block(payload)
+    if straggler:
+        parts.append(straggler)
+    if job_type == "run_full_pipeline" and not force:
+        skip = skip_completed_phases(job.get("phaseState"))
+        if skip:
+            parts.append(skip)
+    if job_type in ("match_and_price", "run_full_pipeline"):
+        from cbc.modules.catalog.api import matchcache
+
+        # `force` throws away this bid's cached matches; it never throws away what
+        # an estimator taught CBC on another bid, so the learning block stays.
+        match_reuse = matchcache.learning_block()
+        if not force and project is not None:
+            match_reuse += matchcache.prompt_block(
+                matchcache.reusable(project["slug"], force=False)
+            )
+        if match_reuse:
+            parts.append(match_reuse)
+    if (
+        project is not None
+        and not force
+        and job_type
+        in (
+            "extract_bid_set",
+            "rerun_extraction",
+            "match_and_price",
+            "build_proposal",
+            "run_full_pipeline",
+        )
+    ):
+        from cbc.modules.projects.api import pipeline_context
+
+        ctx = pipeline_context.prompt_block(project["slug"])
+        if ctx:
+            parts.append(ctx)
+    state = job.get("phaseState") or {}
+    if state and not force:
+        rows = [
+            f"- {phase}: " + ", ".join(sorted(entry.get("artifacts") or {}))
+            for phase, entry in state.items()
+            if isinstance(entry, dict) and entry.get("passed")
+        ]
+        if rows:
+            parts.append(
+                "Validated handoff from earlier jobs (artifact hashes checked against disk):\n"
+                + "\n".join(rows)
+                + "\nReuse these inputs; run only this job's requested phase. "
+                "Validation is not estimator approval."
+            )
+
+    suffix = ("\n\n" + "\n\n".join(parts)) if parts else ""
+    return prefix, suffix
+
+
 def build_wave(
+    job: dict[str, Any],
     project: dict[str, Any],
     legs: list[tuple[str, list[int]]],
     *,
@@ -947,40 +1087,52 @@ def build_wave(
     """One focused prompt per concurrent take-off. Returns [(label, prompt)].
 
     No orchestrator and no delegation rule: the worker starts these itself, so
-    there is no message in which a model could get the ordering wrong.
+    there is no message in which a model could get the ordering wrong. Every leg
+    carries the same job modifiers `build()` applies - a forced clean run swaps the
+    seed note, and the straggler/pipeline-context suffix rides along - so a wave
+    can no longer silently ignore a `force` and tell the leg its stale seed is
+    "already written".
     """
+    payload = job.get("payload") or {}
+    force = bool(payload.get("force"))
+    # The wave uses the seed note, not the FORCE_BANNER prefix: a banner in front
+    # of "already written" is self-contradicting. The suffix still applies.
+    _prefix, suffix = _modifiers(job, project)
+
     project_dir = f"projects/{project['slug']}"
     owned = {label: WAVE_LEGS[label]["artifact"] for label, _pages in legs}
     out: list[tuple[str, str]] = []
     for label, pages in legs:
         spec = WAVE_LEGS[label]
         siblings = [art for other, art in owned.items() if other != label]
-        out.append((
-            label,
-            WAVE_BRIEF.format(
-                role=spec["role"],
-                code=project.get("code", project["slug"]),
-                project_dir=project_dir,
-                pages=", ".join(str(p) for p in pages) or "none tagged - search for them",
-                artifact=spec["artifact"],
-                how_to_write=spec["how_to_write"],
-                siblings=" or ".join(siblings) if siblings else "another take-off's file",
-                # Only the leg that owns door_schedule.json is validated on
-                # `visual_pages_checked`, and until now no wave leg was handed
-                # the list at all - `build_wave` never injected it, so the leg
-                # had to infer the set from the manifest. Two runs died on
-                # exactly that coverage check.
-                visual_checklist=(
-                    _visual_checklist_for(project["slug"])
-                    if str(spec["artifact"]).endswith("door_schedule.json")
-                    else ""
-                ),
-                preamble=PREAMBLE.format(
-                    project_dir=project_dir,
-                    delegation_rule=SOLO_RULE.format(project_dir=project_dir),
-                ),
+        seed_note = (WAVE_SEED_NOTE_FORCED if force else WAVE_SEED_NOTE_DEFAULT).format(
+            artifact=spec["artifact"]
+        )
+        brief = WAVE_BRIEF.format(
+            role=spec["role"],
+            code=project.get("code", project["slug"]),
+            project_dir=project_dir,
+            pages=", ".join(str(p) for p in pages) or "none tagged - search for them",
+            artifact=spec["artifact"],
+            seed_note=seed_note,
+            how_to_write=spec["how_to_write"],
+            siblings=" or ".join(siblings) if siblings else "another take-off's file",
+            # Only the leg that owns line_items.json is validated on
+            # `visual_pages_checked`, and until now no wave leg was handed
+            # the list at all - `build_wave` never injected it, so the leg
+            # had to infer the set from the manifest. Two runs died on
+            # exactly that coverage check.
+            visual_checklist=(
+                _visual_checklist_for(project["slug"])
+                if str(spec["artifact"]).endswith("line_items.json")
+                else ""
             ),
-        ))
+            preamble=PREAMBLE.format(
+                project_dir=project_dir,
+                delegation_rule=SOLO_RULE.format(project_dir=project_dir),
+            ),
+        )
+        out.append((label, brief + suffix))
     return out
 
 
@@ -1012,33 +1164,6 @@ def build(
         raise ValueError(f"job {job['type']} needs a project")
 
     project_dir = f"projects/{project['slug']}"
-    body = FORCE_BANNER + template if payload.get("force") else template
-    skip = ""
-    if job["type"] == "run_full_pipeline" and not payload.get("force"):
-        skip = skip_completed_phases(job.get("phaseState"))
-    match_reuse = ""
-    if job["type"] in ("match_and_price", "run_full_pipeline"):
-        from cbc.modules.catalog.api import matchcache
-
-        # `force` throws away this bid's cached matches so they are decided
-        # again. It does not throw away what an estimator taught CBC on another
-        # bid - that is not a cache, and a re-run should still know it.
-        match_reuse = matchcache.learning_block()
-        if not payload.get("force"):
-            match_reuse += matchcache.prompt_block(
-                matchcache.reusable(project["slug"], force=False)
-            )
-    pipeline_ctx = ""
-    if job["type"] in (
-        "extract_bid_set",
-        "rerun_extraction",
-        "match_and_price",
-        "build_proposal",
-        "run_full_pipeline",
-    ) and not payload.get("force"):
-        from cbc.modules.projects.api import pipeline_context
-
-        pipeline_ctx = pipeline_context.prompt_block(project["slug"])
     visual_checklist = ""
     if job["type"] in (
         "extract_bid_set",
@@ -1049,15 +1174,25 @@ def build(
         from cbc.modules.extraction.api import visual_pages as visual_pages_api
 
         visual_checklist = visual_pages_api.prompt_checklist(project["slug"])
-    rendered = body.format(
+    # The cost ladder is body content, inside the PREPRICE_SEED switch (not W3b's
+    # _modifiers wrapper): with the seed on, the pass does judgment over a seeded
+    # file; with it off, the pass runs the whole ladder itself. One placeholder,
+    # two bodies, so the flag reverts the whole phase - prompt and seed together.
+    cost_ladder = ""
+    if job["type"] == "match_and_price":
+        from cbc.modules.pricing.api import preprice
+
+        if preprice.preprice_seed_enabled():
+            cost_ladder = SEEDED_LADDER.format(seed_worklist=preprice.prompt_block(project["slug"]))
+        else:
+            cost_ladder = FULL_LADDER
+    rendered = template.format(
         code=project.get("code", project["slug"]),
         project_dir=project_dir,
         how=HOW_DELEGATED if delegates else HOW_SOLO,
-        skip=skip,
-        match_reuse=match_reuse,
         ops_hub_block=ops_hub_block(project),
-        straggler_block=straggler_merge_block(payload),
         visual_checklist=visual_checklist,
+        cost_ladder=cost_ladder,
         preamble=PREAMBLE.format(
             project_dir=project_dir,
             delegation_rule=(DELEGATION_RULE if delegates else SOLO_RULE).format(
@@ -1065,23 +1200,8 @@ def build(
             ),
         ),
     )
-    if pipeline_ctx:
-        rendered += "\n" + pipeline_ctx
-    state = job.get("phaseState") or {}
-    if state and not payload.get("force"):
-        rows = [
-            f"- {phase}: " + ", ".join(sorted(entry.get("artifacts") or {}))
-            for phase, entry in state.items()
-            if isinstance(entry, dict) and entry.get("passed")
-        ]
-        if rows:
-            rendered += (
-                "\n\nValidated handoff from earlier jobs (artifact hashes checked against disk):\n"
-                + "\n".join(rows)
-                + "\nReuse these inputs; run only this job's requested phase. "
-                "Validation is not estimator approval.\n"
-            )
-    return rendered
+    prefix, suffix = _modifiers(job, project)
+    return prefix + rendered + suffix
 
 
 def pipeline_for(project_dir: str, code: str | None = None, *, delegates: bool = True) -> str:
@@ -1090,8 +1210,6 @@ def pipeline_for(project_dir: str, code: str | None = None, *, delegates: bool =
         code=code or project_dir.rsplit("/", 1)[-1],
         project_dir=project_dir,
         how=HOW_DELEGATED if delegates else HOW_SOLO,
-        skip="",
-        match_reuse="",
         # Headless has no Ops-Hub record, so every create-form field is empty and
         # the block says so. Omitting it entirely raised KeyError and no
         # full-pipeline prompt could be built at all.

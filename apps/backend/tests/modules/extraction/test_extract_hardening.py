@@ -74,10 +74,10 @@ def test_artifact_schema_rejects_bad_scope_summary() -> None:
         "extracted/scope_metadata.json", {"brand": "X", "state": "OH"}
     )
     assert not validate_artifact_path(
-        "extracted/door_schedule.json", {"openings": [], "no_scope_reason": "none"}
+        "extracted/line_items.json", {"openings": [], "no_scope_reason": "none"}
     )
     assert validate_artifact_path(
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {"openings": [{"door_number": "101", "hallucinated_price": "12.00"}]},
     )
 
@@ -94,7 +94,7 @@ def test_check_extraction_fails_when_frp_flag_without_file(tmp_path, monkeypatch
     (extracted / "scope_summary.json").write_text(
         json.dumps({"frp_in_scope": True}), encoding="utf-8"
     )
-    (extracted / "door_schedule.json").write_text(
+    (extracted / "line_items.json").write_text(
         json.dumps({"openings": [], "no_scope_reason": "none"}), encoding="utf-8"
     )
 
@@ -115,7 +115,7 @@ def test_check_extraction_fails_when_div10_flag_without_file(tmp_path, monkeypat
     (extracted / "scope_summary.json").write_text(
         json.dumps({"frp_in_scope": False, "div10_in_scope": True}), encoding="utf-8"
     )
-    (extracted / "door_schedule.json").write_text(
+    (extracted / "line_items.json").write_text(
         json.dumps({"openings": [], "no_scope_reason": "none"}), encoding="utf-8"
     )
 

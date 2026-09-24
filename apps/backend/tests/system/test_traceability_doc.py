@@ -16,7 +16,7 @@ repository paths:
    `scripts/y.py`. A leading segment we recognise is what makes it a repo path
    rather than prose.
 
-Deliberately *not* checked: artifact paths like `extracted/door_schedule.json`,
+Deliberately *not* checked: artifact paths like `extracted/line_items.json`,
 which are relative to a project directory and do not exist in the tree; bare
 filenames like `mongo.py`; and package names like `@tailwindcss/postcss`.
 Checking those means either a pile of false positives or a pile of exceptions,
@@ -199,7 +199,7 @@ def test_prose_is_not_mistaken_for_a_path() -> None:
         "rm -rf",              # a command
         "MONGODB_URI",         # an env var
         "save_artifact",       # a tool
-        "extracted/door_schedule.json",  # relative to a project dir, not the repo
+        "extracted/line_items.json",  # relative to a project dir, not the repo
         "@tailwindcss/postcss",          # a package
         "data/pricebooks/...",           # an elided example
         "extracted/*.json",              # a glob

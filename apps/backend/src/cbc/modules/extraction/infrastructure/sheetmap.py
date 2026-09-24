@@ -26,6 +26,7 @@ from cbc.shared.storage import atomic_write_json
 
 ROOT = repo_root()
 SHEETMAP_REL = "extracted/_sheetmap.json"
+TRIAGE_REL = "extracted/_triage.json"
 SHEETMAP_JOB_TYPES = frozenset(
     {
         "extract_bid_set",
@@ -112,8 +113,8 @@ _VISUAL_ROLE_PRIORITY = (
 # Floor-plan sheet IDs are a hint only — ROLE_TERM_HINTS also catch "first floor".
 FLOOR_PLAN_SHEET_ID_RE = re.compile(r"^A1\.\d+$", re.IGNORECASE)
 VISUAL_PAGES_REL = "extracted/_visual_pages.json"
-# Sentinel: MinerU signal absent (distinct from verified=None for image-only pages).
-_NO_MINERU = object()
+# Sentinel: parser signal absent (distinct from verified=None for image-only pages).
+_NO_SIGNAL = object()
 
 
 def _now() -> str:
@@ -122,6 +123,52 @@ def _now() -> str:
 
 def sheetmap_path(slug: str) -> Path:
     return storage_root() / slug / SHEETMAP_REL
+
+
+def triage_path(slug: str) -> Path:
+    return storage_root() / slug / TRIAGE_REL
+
+
+def load_triage(slug: str) -> dict[str, Any]:
+    """Claude's page triage, or {} when it has not run.
+
+    Kept in its own file rather than written into `_sheetmap.json`, because
+    `build_sheetmap` regenerates that file wholesale whenever a source SHA moves
+    or `force=True` - anything Claude wrote into it would be silently erased on
+    the next `prepare()`. The sidecar is the record; the sheetmap unions it in.
+    """
+    target = triage_path(slug)
+    if not target.is_file():
+        return {}
+    try:
+        payload = json.loads(target.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _apply_triage(slug: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Attach Claude's roles to each page as `triage_roles`, read fresh each time.
+
+    Separate from `roles` on purpose. `roles` stays exactly what the deterministic
+    pass derived, so the two are never confused and a re-run of triage cannot
+    leave a stale role behind: `triage_roles` is replaced from the sidecar on
+    every build rather than merged into a field that persists.
+    """
+    triage = load_triage(slug)
+    by_page = triage.get("pages") if isinstance(triage.get("pages"), dict) else {}
+    if not by_page:
+        return payload
+    for file_row in payload.get("files") or []:
+        path = file_row.get("path")
+        for page in file_row.get("pages") or []:
+            key = f"{path}#{page.get('source_page')}"
+            entry = by_page.get(key) or {}
+            roles = [str(r).lower() for r in (entry.get("roles") or [])]
+            page["triage_roles"] = roles
+            if entry.get("alternate"):
+                page["alternate"] = entry["alternate"]
+    return payload
 
 
 def visual_pages_path(slug: str) -> Path:
@@ -140,14 +187,14 @@ def visual_reasons_for_page(
     char_count: int | None,
     roles: list[str] | set[str] | None,
     text_poor: bool = False,
-    mineru_verified: Any = _NO_MINERU,
-    mineru_block_count: int | None = None,
+    parser_verified: Any = _NO_SIGNAL,
+    parser_block_count: int | None = None,
     pretakeoff_sparse: bool = False,
 ) -> list[str]:
     """Why this page must be vision-read (empty list ⇒ text path is enough).
 
-    Pass ``mineru_verified=None`` when MinerU reported no text layer to compare;
-    omit / pass ``_NO_MINERU`` when there is no MinerU signal for the page.
+    Pass ``parser_verified=None`` when the parser reported no text layer to compare;
+    omit / pass ``_NO_SIGNAL`` when there is no parser signal for the page.
     """
     role_set = {str(r).lower() for r in (roles or [])}
     reasons: list[str] = []
@@ -159,11 +206,11 @@ def visual_reasons_for_page(
         reasons.append("no_text_layer")
     if poor:
         reasons.append("text_poor")
-    if mineru_verified is not _NO_MINERU:
-        if mineru_verified is None:
-            reasons.append("mineru_verified_null")
-        if mineru_block_count is not None and int(mineru_block_count) == 0:
-            reasons.append("mineru_empty_blocks")
+    if parser_verified is not _NO_SIGNAL:
+        if parser_verified is None:
+            reasons.append("parser_verified_null")
+        if parser_block_count is not None and int(parser_block_count) == 0:
+            reasons.append("parser_empty_blocks")
     high_value = bool(role_set & HIGH_VALUE_VISUAL_ROLES)
     if high_value and pretakeoff_sparse:
         reasons.append("pretakeoff_empty")
@@ -184,13 +231,13 @@ def visual_reasons_for_page(
 def page_needs_visual_read(
     page: dict[str, Any],
     *,
-    mineru: dict[str, Any] | None = None,
+    signals: dict[str, Any] | None = None,
     pretakeoff_sparse: bool = False,
 ) -> tuple[bool, list[str]]:
     """Return (needs_visual_read, reasons) for one sheetmap page dict."""
-    mineru = mineru or {}
-    verified = mineru["verified"] if "verified" in mineru else _NO_MINERU
-    block_count = mineru.get("block_count")
+    signals = signals or {}
+    verified = signals["verified"] if "verified" in signals else _NO_SIGNAL
+    block_count = signals.get("block_count")
     roles = list(page.get("roles") or [])
     char_count = page.get("char_count")
     text_poor = bool(page.get("text_poor")) or (
@@ -200,8 +247,8 @@ def page_needs_visual_read(
         char_count=int(char_count) if char_count is not None else None,
         roles=roles,
         text_poor=text_poor,
-        mineru_verified=verified,
-        mineru_block_count=int(block_count) if block_count is not None else None,
+        parser_verified=verified,
+        parser_block_count=int(block_count) if block_count is not None else None,
         pretakeoff_sparse=pretakeoff_sparse,
     )
     return bool(reasons), reasons
@@ -271,11 +318,11 @@ def select_visual_targets(
 def annotate_visual_flags(
     pages: list[dict[str, Any]],
     *,
-    mineru_by_page: dict[int, dict[str, Any]] | None = None,
+    signals_by_page: dict[int, dict[str, Any]] | None = None,
     pretakeoff_sparse: bool = False,
 ) -> list[dict[str, Any]]:
     """Mutate/return pages with needs_visual_read + visual_reasons filled in."""
-    mineru_by_page = mineru_by_page or {}
+    signals_by_page = signals_by_page or {}
     for page in pages:
         if not isinstance(page, dict):
             continue
@@ -285,7 +332,7 @@ def annotate_visual_flags(
             continue
         needs, reasons = page_needs_visual_read(
             page,
-            mineru=mineru_by_page.get(source_page),
+            signals=signals_by_page.get(source_page),
             pretakeoff_sparse=pretakeoff_sparse
             and bool(
                 {str(r).lower() for r in (page.get("roles") or [])}
@@ -512,14 +559,19 @@ def pages_for_roles(sheetmap: dict[str, Any], *roles: str) -> list[dict[str, Any
     for file_row in sheetmap.get("files") or []:
         path = file_row.get("path")
         for page in file_row.get("pages") or []:
+            # Claude's triage roles count the same as the derived ones. A page it
+            # identified that the term heuristics missed is exactly the case
+            # triage exists for; leaving it out of the lookup would make the
+            # sidecar decorative.
             page_roles = {str(r).lower() for r in (page.get("roles") or [])}
+            page_roles |= {str(r).lower() for r in (page.get("triage_roles") or [])}
             if wanted and not (page_roles & wanted):
                 continue
             hits.append(
                 {
                     "path": path,
                     "source_page": page.get("source_page"),
-                    "roles": list(page.get("roles") or []),
+                    "roles": sorted(page_roles),
                     "kind": page.get("kind"),
                     "why": page.get("why"),
                 }
@@ -615,7 +667,7 @@ def build_sheetmap(slug: str, *, force: bool = False) -> dict[str, Any]:
     """Write `extracted/_sheetmap.json` for every PDF under uploads/raw/.
 
     Skip the rewrite when every file SHA already matches, unless `force`.
-    Does not write `door_schedule.json`.
+    Does not write `line_items.json`.
     """
     project = storage_root() / slug
     raw = project / "uploads" / "raw"
@@ -628,12 +680,15 @@ def build_sheetmap(slug: str, *, force: bool = False) -> dict[str, Any]:
         except json.JSONDecodeError:
             existing = {}
         if isinstance(existing, dict) and _unchanged(slug, existing, files):
-            return existing
+            # Re-applied on the skip path too: triage may have landed after the
+            # last build, and it must not wait for a SHA to move to take effect.
+            return _apply_triage(slug, existing)
 
     payload = {
         "generated_at": _now(),
         "files": [_file_entry(slug, pdf) for pdf in files],
     }
+    payload = _apply_triage(slug, payload)
     target.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_json(target, payload)
     return payload

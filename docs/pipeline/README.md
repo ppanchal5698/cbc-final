@@ -14,7 +14,7 @@ Phase 6 stops at a draft and halts with `Draft ready for estimator review`.
 |---|---|---|---|---|
 | 0/1 | [Intake](phase-0-1-intake.md) | `intake-coordinator` | haiku | `extracted/scope_metadata.json` |
 | 2 | [Spec scoping](phase-2-spec-scope.md) | `spec-scope-analyst` | haiku | `extracted/scope_summary.json` |
-| 3 | [Drawing take-off](phase-3-takeoff.md) | `takeoff-engineer` | **sonnet** | patches to `extracted/door_schedule.json` |
+| 3 | [Drawing take-off](phase-3-takeoff.md) | `takeoff-engineer` | **sonnet** | patches to `extracted/line_items.json` |
 | 3b | [FRP take-off](phase-3b-frp.md) | `frp-specialist` | haiku | `extracted/frp_takeoff.json` |
 | 3c | [Division 10](phase-3c-div10.md) | `div10-specialist` | haiku | `extracted/div10_takeoff.json` |
 | 4 | [Matching and pricing](phase-4-pricing.md) | `product-matcher`, `pricing-engineer` | **sonnet** | `extracted/hardware_sets.json`, `priced/line_items.json` |
@@ -112,7 +112,7 @@ first three **block the pipeline** on a validation failure rather than warning:
 ```
 scope_metadata.schema.json    blocking      frp_takeoff.schema.json
 scope_summary.schema.json     blocking      div10_takeoff.schema.json
-door_schedule.schema.json     blocking      line_items.schema.json
+extracted_line_items.schema.json     blocking      line_items.schema.json
 ```
 
 Checkpoint artifacts must be written with

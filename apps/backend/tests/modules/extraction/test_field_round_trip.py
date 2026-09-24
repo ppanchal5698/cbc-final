@@ -3,7 +3,7 @@
 The parser reads 26 fields off a schedule row. The Ops-Hub import is a
 hand-written map, and eight of them were not in it - so `width`, `height`,
 `size_notation`, `raw_row`, the per-cell geometry and the whole scope verdict
-existed in `extracted/door_schedule.json` and then simply stopped.
+existed in `extracted/line_items.json` and then simply stopped.
 
 Nothing reported a loss, because nothing compared the two.
 """
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from cbc.modules.extraction.api import door_schedule
+from cbc.modules.extraction.api import line_items
 
 
 CARRIED = (
@@ -48,7 +48,7 @@ def _opening():
 
 def test_the_parsed_row_survives_the_import_map() -> None:
     """Each of these was dropped between the artifact and the collection."""
-    fields = door_schedule._mongo_fields(_opening(), key="05", project_id="p", payload={})
+    fields = line_items._mongo_fields(_opening(), key="05", project_id="p", payload={})
     for name in CARRIED:
         assert name in fields, f"{name} is dropped on the way into Mongo"
     assert fields["rawRow"].startswith("05 | UNISEX WRM")
@@ -58,7 +58,7 @@ def test_the_parsed_row_survives_the_import_map() -> None:
 
 def test_cell_geometry_reaches_the_viewer() -> None:
     """Row-level bbox highlights a row; cell boxes highlight the column."""
-    fields = door_schedule._mongo_fields(_opening(), key="05", project_id="p", payload={})
+    fields = line_items._mongo_fields(_opening(), key="05", project_id="p", payload={})
     evidence = fields["evidence"]
     assert evidence["bbox"] == [1.0, 2.0, 3.0, 4.0]
     assert evidence["rowBbox"] is not None
@@ -73,7 +73,7 @@ def test_a_confirmed_export_does_not_drop_them_again() -> None:
     """
     import inspect
 
-    source = inspect.getsource(door_schedule.export_line_items)
+    source = inspect.getsource(line_items.export_line_items)
     for snake in ("raw_row", "width", "height", "size_notation",
                   "in_scope", "scope_rule", "scope_reason",
                   "row_bbox", "cell_boxes"):
@@ -100,7 +100,7 @@ def test_the_import_loop_holds_no_stale_names() -> None:
     import inspect
     import textwrap
 
-    tree = ast.parse(textwrap.dedent(inspect.getsource(door_schedule.import_extraction)))
+    tree = ast.parse(textwrap.dedent(inspect.getsource(line_items.import_extraction)))
     assigned = {
         target.id
         for node in ast.walk(tree)
@@ -116,7 +116,7 @@ def test_the_import_loop_holds_no_stale_names() -> None:
         if isinstance(node, ast.For) and isinstance(node.target, ast.Tuple):
             assigned |= {e.id for e in node.target.elts if isinstance(e, ast.Name)}
 
-    module = set(vars(door_schedule)) | set(dir(__builtins__))
+    module = set(vars(line_items)) | set(dir(__builtins__))
     args = {a.arg for n in ast.walk(tree) if isinstance(n, ast.arguments) for a in n.args}
     used = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
 

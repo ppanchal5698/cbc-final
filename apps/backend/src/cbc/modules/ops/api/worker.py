@@ -79,7 +79,7 @@ _handlers: dict[str, Handler] = {}
 _after: dict[str, AfterFinish] = {}
 _after_finish: AfterFinish | None = None
 _on_dead: OnDead | None = None
-# Bound by intake: documents still queued/running for MinerU on a bid.
+# Bound by intake: documents still queued/running for parsing on a bid.
 _incomplete_parses: IncompleteParses | None = None
 
 
@@ -104,7 +104,7 @@ def bind(*, after_finish: AfterFinish, on_dead: OnDead) -> None:
 
 
 def bind_parse_status(*, incomplete_parses: IncompleteParses) -> None:
-    """Intake supplies which bid documents still need MinerU before Claude may run."""
+    """Intake supplies which bid documents still need parsing before Claude may run."""
     global _incomplete_parses
     _incomplete_parses = incomplete_parses
 
@@ -454,14 +454,14 @@ async def defer_if_bid_busy(job: dict[str, Any]) -> dict[str, Any] | None:
     return other
 
 
-# Job types that must wait for MinerU before reading the PDF with pdf-tools /
+# Job types that must wait for parsing before reading the PDF with pdf-tools /
 # starting Claude. When PARSER_URL is empty, defer_if_parsing is a no-op and
 # Claude extracts via pdf-tools as before.
 _WAIT_FOR_PARSE = frozenset({"extract_bid_set", "rerun_extraction", "ingest_addendum"})
 
 
 async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
-    """Hold Claude extract until MinerU has finished every in-flight parse on this bid.
+    """Hold Claude extract until every in-flight parse on this bid has finished.
 
     When PARSER_URL is unset, returns None immediately — Claude handles the PDF
     with pdf-tools. When parsing is on, requeues (15s, no attempt spent) while
@@ -506,7 +506,7 @@ async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
     wait_max = int(resolved.get("waitMaxSeconds") or 1800)
     if waited >= wait_max:
         log.warning(
-            "job %s still waiting for MinerU after %ss (PARSER_WAIT_MAX_SECONDS=%s); "
+            "job %s still waiting for the parser after %ss (PARSER_WAIT_MAX_SECONDS=%s); "
             "Claude will not start until parse finishes or fails",
             job["_id"],
             waited,
@@ -520,7 +520,7 @@ async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
         filename = pending_docs[0].get("filename") or "document"
         blocker = {"_id": pending_docs[0].get("_id"), "type": "parse_document", "status": "document"}
 
-    note = f"waiting for MinerU to parse {filename}"
+    note = f"waiting for {filename} to be parsed"
     if waited > 0:
         note = f"{note} ({waited}s so far)"
 
@@ -546,63 +546,3 @@ async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
     return blocker
 
 
-# Optional: hold match_and_price until catalog MinerU finishes. Default is off —
-# agents fall back to find_pages / pageIndex. Set CATALOG_PARSE_WAIT=1 to wait.
-_WAIT_FOR_CATALOG_PARSE = frozenset({"match_and_price"})
-
-
-async def defer_if_catalog_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
-    """Hold pricing until parse_catalog / parse_multiplier finish (opt-in).
-
-    When CATALOG_PARSE_WAIT is unset, returns None — match_and_price uses
-    catalog-docs when ready and find_pages otherwise. Never watches bid
-    parse_document.
-    """
-    import os
-
-    if (
-        job["type"] not in _WAIT_FOR_CATALOG_PARSE
-        or job.get("status") != "running"
-        or os.environ.get("CATALOG_PARSE_WAIT", "").strip().lower()
-        not in {"1", "true", "yes"}
-    ):
-        return None
-
-    from cbc.modules.ops.api import parsing_config
-
-    stored = await settings_collection().find_one({"_id": parsing_config.DOC_ID}) or {}
-    resolved, _ = parsing_config.resolve(stored)
-    if not parsing_config.enabled(resolved):
-        return None
-
-    other = await jobs_collection().find_one(
-        {
-            "type": {"$in": ["parse_catalog", "parse_multiplier"]},
-            "status": {"$in": ["queued", "running"]},
-        }
-    )
-    if other is None:
-        return None
-
-    filename = (other.get("payload") or {}).get("filename") or "price book"
-    note = f"waiting for MinerU to parse catalog {filename}"
-    await jobs_collection().update_one(
-        {
-            "_id": job["_id"],
-            "status": "running",
-            "workerId": job.get("workerId"),
-            "claimGeneration": job.get("claimGeneration"),
-        },
-        {
-            "$set": {
-                "status": "queued",
-                "startedAt": None,
-                "heartbeatAt": None,
-                "workerId": None,
-                "nextAttemptAt": _now() + timedelta(seconds=15),
-                "note": note,
-            },
-            "$inc": {"attempts": -1},
-        },
-    )
-    return other

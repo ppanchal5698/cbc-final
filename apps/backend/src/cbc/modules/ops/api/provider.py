@@ -26,8 +26,9 @@ SUBSCRIPTION = "subscription"
 ANTHROPIC_API = "anthropic_api"
 BEDROCK = "bedrock"
 OLLAMA = "ollama"
+NIM = "nim"
 
-MODES = (SUBSCRIPTION, ANTHROPIC_API, BEDROCK, OLLAMA)
+MODES = (SUBSCRIPTION, ANTHROPIC_API, BEDROCK, OLLAMA, NIM)
 
 # Which stored field feeds which variable, and whether it holds a credential.
 FIELDS: dict[str, dict[str, tuple[str, bool]]] = {
@@ -46,6 +47,12 @@ FIELDS: dict[str, dict[str, tuple[str, bool]]] = {
         "smallFastModel": ("ANTHROPIC_DEFAULT_HAIKU_MODEL", False),
     },
     OLLAMA: {
+        "baseUrl": ("ANTHROPIC_BASE_URL", False),
+        "model": ("ANTHROPIC_MODEL", False),
+        "smallFastModel": ("ANTHROPIC_DEFAULT_HAIKU_MODEL", False),
+    },
+    NIM: {
+        "apiKey": ("NVIDIA_NIM_API_KEY", True),
         "baseUrl": ("ANTHROPIC_BASE_URL", False),
         "model": ("ANTHROPIC_MODEL", False),
         "smallFastModel": ("ANTHROPIC_DEFAULT_HAIKU_MODEL", False),
@@ -83,6 +90,8 @@ MANAGED = {
     "ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES",
     "ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES",
+    "CLAUDE_CODE_MAX_RETRIES",
+    "CLAUDE_CODE_RETRY_WATCHDOG",
 }
 
 # Claude Code aliases. A value that is one of these is left as-is; a concrete
@@ -114,6 +123,7 @@ WITHHELD = {"MONGODB_URI", "MONGODB_READONLY_URI", "MONGODB_READONLY_PASSWORD"}
 REQUIRED_FIELDS: dict[str, tuple[str, str]] = {
     ANTHROPIC_API: ("apiKey", "an API key"),
     OLLAMA: ("model", "a model"),
+    NIM: ("apiKey", "an API key"),
 }
 
 # `.env` does not count towards a requirement. `persist_env_file` owns these
@@ -464,6 +474,20 @@ def build_env(
         if env.get("ANTHROPIC_MODEL"):
             _pin_model_aliases(env, pin_haiku=True)
 
+    if mode == NIM:
+        if "ANTHROPIC_AUTH_TOKEN" not in env:
+            env["ANTHROPIC_AUTH_TOKEN"] = os.environ.get("LITELLM_MASTER_KEY", "sk-cbc-local-dev")
+        env["ANTHROPIC_API_KEY"] = ""
+        if "ANTHROPIC_BASE_URL" not in env:
+            env["ANTHROPIC_BASE_URL"] = os.environ.get(
+                "NIM_PROXY_BASE_URL", "http://litellm:4000"
+            )
+        env["CLAUDE_CODE_MAX_RETRIES"] = "20"
+        env["CLAUDE_CODE_RETRY_WATCHDOG"] = "1"
+        _apply_non_catalog_model_compat(env, max_context_tokens=128000)
+        if env.get("ANTHROPIC_MODEL"):
+            _pin_model_aliases(env, pin_haiku=True)
+
     return env, sources
 
 
@@ -515,7 +539,8 @@ _PERSISTED = frozenset(
         "ANTHROPIC_VERTEX_PROJECT_ID",
         "CLOUD_ML_REGION",
         "CLAUDE_CODE_SKIP_VERTEX_AUTH",
-                    }
+        "NVIDIA_NIM_API_KEY",
+    }
 )
 
 
@@ -554,7 +579,7 @@ def supports_subagents(config: dict[str, Any] | None) -> bool:
     """
     cfg = config or default_config()
     mode = resolve_mode(cfg)
-    if mode == OLLAMA:
+    if mode in (OLLAMA, NIM):
         return False
     return True
 
@@ -576,12 +601,12 @@ def describe(config: dict[str, Any] | None, *, prefer_config: bool = False) -> d
                 f"Foundation model ID {typed!r} was rewritten to inference profile "
                 f"{model!r} for {env.get('AWS_REGION')}."
             )
-    if mode == OLLAMA:
+    if mode in (OLLAMA, NIM):
         warnings.append(
-            "Ollama/local models may fail Agent-tool delegation; Anthropic Sonnet "
+            f"{mode.title()}/local models may fail Agent-tool delegation; Anthropic Sonnet "
             "is recommended for pipeline jobs."
         )
-        if model and ("cloud" in model.lower() or "gemma" in model.lower()):
+        if mode == OLLAMA and model and ("cloud" in model.lower() or "gemma" in model.lower()):
             warnings.append(
                 f"Model {model!r} may be unrecognized by Claude Code "
                 "(watch for claude-code:unrecognized_model in job logs)."

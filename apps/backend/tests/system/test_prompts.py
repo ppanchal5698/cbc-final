@@ -63,7 +63,7 @@ def test_a_rerun_names_its_agent_and_its_output(delegates: bool) -> None:
     """It reruns the take-off, so it must say so and say where the answer goes."""
     text = _render("rerun_extraction", delegates=delegates)
     assert "takeoff-engineer" in text
-    assert "extracted/door_schedule.json" in text
+    assert "extracted/line_items.json" in text
 
 
 def test_every_job_type_renders_on_both_providers() -> None:
@@ -95,7 +95,7 @@ def test_no_prompt_names_a_server_that_does_not_exist() -> None:
 
 def test_extract_prompt_points_at_the_seeded_artifact_and_the_patch_path() -> None:
     text = _render("extract_bid_set", delegates=True)
-    assert "door_schedule.json" in text
+    assert "line_items.json" in text
     assert "propose_patch" in text
     assert "Verify on disk" in text or "get_artifact" in text
     assert "parse_schedule" in text
@@ -169,11 +169,11 @@ def test_a_wave_leg_is_handed_the_pages_it_will_be_validated_on(tmp_path, monkey
     """`build_wave` never injected the mandatory-visual-reads block.
 
     The orchestrator templates carry `{visual_checklist}`; the wave brief did
-    not, so a leg had to infer the set from the manifest. `door_schedule.json`
+    not, so a leg had to infer the set from the manifest. `line_items.json`
     is then failed by `check_extraction` for missing `visual_pages_checked`
     coverage on exactly those pages - two real runs died on it.
 
-    Only the leg that owns `door_schedule.json` is validated that way, so only
+    Only the leg that owns `line_items.json` is validated that way, so only
     that leg pays for the block.
     """
     from cbc.worker_kit import prompts
@@ -183,6 +183,7 @@ def test_a_wave_leg_is_handed_the_pages_it_will_be_validated_on(tmp_path, monkey
     )
     rendered = dict(
         prompts.build_wave(
+            {"type": "extract_bid_set"},
             {"code": "CBC-1", "slug": "demo"},
             [("takeoff", [20, 23]), ("frp", [14])],
         )
@@ -200,7 +201,49 @@ def test_the_preamble_names_the_pages_without_relying_on_another_block():
     """
     from cbc.worker_kit import prompts
 
-    leg = dict(prompts.build_wave({"code": "C", "slug": "demo"}, [("frp", [14])]))["frp"]
+    leg = dict(prompts.build_wave({"type": "extract_bid_set"}, {"code": "C", "slug": "demo"}, [("frp", [14])]))["frp"]
     assert "_visual_pages.json" in leg
     assert "door_schedule_candidate" in leg
     assert "listed under" not in leg, "no pointer at a block this prompt does not carry"
+
+
+@pytest.mark.parametrize("label", list(prompts.WAVE_LEGS))
+def test_a_wave_leg_carries_the_job_modifiers(label: str) -> None:
+    """A modifier (here the straggler-merge suffix) reaches every leg by
+    construction. A new leg cannot opt out the way a forgotten `{...}` placeholder
+    could - `build_wave` wraps every brief in `_modifiers`, same as `build`."""
+    job = {"type": "extract_bid_set", "payload": {"stragglerMerge": True}}
+    briefs = dict(prompts.build_wave(job, {"code": "C", "slug": "demo"}, [(label, [1])]))
+    assert "STRAGGLER MERGE MODE" in briefs[label], label
+
+
+@pytest.mark.parametrize("label", list(prompts.WAVE_LEGS))
+def test_a_forced_wave_leg_is_told_its_seed_is_stale(label: str) -> None:
+    """A forced clean run must not tell a leg its stale seed is 'already written'."""
+    forced = dict(
+        prompts.build_wave(
+            {"type": "extract_bid_set", "payload": {"force": True}},
+            {"code": "C", "slug": "demo"},
+            [(label, [1])],
+        )
+    )[label]
+    assert "FORCED CLEAN RUN" in forced, label
+    assert "confirming a document, not producing one" not in forced, label
+
+
+def test_the_flag_selects_the_cost_ladder(monkeypatch) -> None:
+    """PREPRICE_SEED selects the same ladder for the seed and the prompt, so the
+    two halves of the switch cannot drift (W4 step 5). Off -> the seven-step tool
+    ladder; on -> the judgment-only worklist."""
+    job = {"type": "match_and_price", "payload": {}}
+    project = {"code": "CBC-1", "slug": "demo"}
+
+    monkeypatch.setenv("PREPRICE_SEED", "0")
+    full = prompts.build(job, project)
+    assert "mcp__p21-connector__lookup_last_po" in full
+    assert "ran the deterministic" not in full
+
+    monkeypatch.setenv("PREPRICE_SEED", "1")
+    seeded = prompts.build(job, project)
+    assert "ran the deterministic" in seeded
+    assert "mcp__p21-connector__lookup_last_po" not in seeded

@@ -22,7 +22,6 @@ import { AlternateBar } from "@/components/bids/alternate-bar";
 import { BulkBar } from "@/components/extraction/bulk-bar";
 import { LineItemRow, ROW_COLUMNS } from "@/components/extraction/line-item-row";
 import { PartComposer } from "@/components/extraction/part-composer";
-import { SpecialtiesTakeoffPanel } from "@/components/extraction/specialties-takeoff-panel";
 import { UnreadPanel } from "@/components/extraction/unread-panel";
 import { JobFailedBanner } from "@/components/jobs/job-failed-banner";
 import { useRowKeys } from "@/hooks/use-row-keys";
@@ -34,6 +33,7 @@ import type {
   AlternatesResponse,
   BidDocument,
   BulkResult,
+  Evidence,
   Job,
   LineItem,
   LineItemsResponse,
@@ -325,7 +325,6 @@ export function ExtractionClient({
 
           <AlternateBar code={code} active={alternate} onChange={setAlternate} />
 
-          <SpecialtiesTakeoffPanel code={code} />
 
           <UnreadPanel
             code={code}
@@ -341,7 +340,14 @@ export function ExtractionClient({
           {running && (
             <div className="anim-fadein relative overflow-hidden rounded-xl px-5 py-4 text-[13px] font-medium bg-status-warning-soft border border-status-warning/30 text-status-warning shadow-sm">
               <span className="anim-sweep opacity-50" />
-              Claude is reading the bid set. Lines appear here as they are found.
+              {/* The rows below are the code take-off, seeded before the pass
+                  started. Claude is checking and correcting them, and its
+                  corrections land when the pass finishes - they do not trickle
+                  in row by row, and saying they did left an estimator watching
+                  an empty table for half an hour on a 24-page set. */}
+              {items.length > 0
+                ? "Claude is checking these against the sheets. Corrections land when the pass finishes."
+                : "Claude is reading the bid set. Rows appear once the take-off has been seeded."}
             </div>
           )}
 
@@ -456,6 +462,7 @@ export function ExtractionClient({
                 />
               ))
             )}
+
             </div>
             <BulkBar
               selected={picked.size}

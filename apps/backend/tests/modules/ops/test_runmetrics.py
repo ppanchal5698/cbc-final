@@ -217,3 +217,58 @@ def test_a_dead_letter_retry_does_not_erase_the_run_it_replaces():
 
     for falsy in (0, None, ""):
         assert runmetrics.document_for({**job, "retryGeneration": falsy}, {})["_id"] == first
+
+
+def test_wave_legs_each_get_their_own_id_and_leg_zero_is_unchanged() -> None:
+    """A wave is N CLI runs; recording only leg 0 under-reported spend ~Nx. Leg 0
+    keeps the single-pass id byte-identical (set_estimator_corrections keys on it),
+    later legs get a suffix.
+    """
+    from cbc.modules.ops.api import runmetrics
+
+    job = {"_id": "abc", "type": "extract_bid_set", "attempts": 1}
+    base = runmetrics.document_for(job, {})["_id"]
+    leg0 = runmetrics.document_for(job, {}, leg=0)["_id"]
+    leg1 = runmetrics.document_for(job, {}, leg=1)["_id"]
+    leg2 = runmetrics.document_for(job, {}, leg=2)["_id"]
+
+    assert base == "abc:1"
+    assert leg0 == "abc:1", "leg 0 must stay byte-identical to the single-pass id"
+    assert leg1 == "abc:1:leg1"
+    assert leg2 == "abc:1:leg2"
+    assert len({leg0, leg1, leg2}) == 3
+
+    # A retried wave keeps generation and leg both in the key.
+    retried = runmetrics.document_for({**job, "retryGeneration": 2}, {}, leg=1)["_id"]
+    assert retried == "abc:r2:1:leg1"
+
+
+
+def test_context_hashes_digest_moves_when_toolsets_profiles_do(monkeypatch) -> None:
+    """W1a: a run that saw a different tool surface must land in a different
+    cohort, so the toolProfiles digest tracks toolsets.PROFILES. Ship the cohort
+    view without this and a toolset change lands silently inside an old cohort,
+    averaging before with after.
+    """
+    from cbc.modules.ops.api import runmetrics, toolsets
+
+    before = runmetrics.context_hashes()
+    assert before["toolProfiles"] is not None
+    assert "hooks" in before and "runtime" in before
+
+    patched = {**toolsets.PROFILES, "build_proposal": ["calc-engine"]}
+    monkeypatch.setattr(toolsets, "PROFILES", patched)
+    after = runmetrics.context_hashes()
+
+    assert after["toolProfiles"] != before["toolProfiles"]
+
+
+def test_context_hashes_runtime_is_recorded_when_supplied() -> None:
+    """The turn/timeout budget a run was given is part of its cohort identity."""
+    from cbc.modules.ops.api import runmetrics
+
+    assert runmetrics.context_hashes(runtime=None)["runtime"] is None
+    a = runmetrics.context_hashes(runtime=(3600, 60))["runtime"]
+    b = runmetrics.context_hashes(runtime=(10800, 200))["runtime"]
+    assert a is not None and b is not None and a != b
+

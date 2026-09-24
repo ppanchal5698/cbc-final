@@ -1,6 +1,6 @@
 """Typed field patches onto an artifact Python already owns.
 
-A pass used to author `door_schedule.json` whole, through `save_artifact`. One
+A pass used to author `line_items.json` whole, through `save_artifact`. One
 bad key anywhere in it - `thickness` as a top-level field, `page_size` as an
 array, a `flags` entry that was an object - failed the write and took the run
 with it. Three consecutive runs on the same bid died three different ways, each
@@ -49,9 +49,68 @@ def _openings(payload: Any) -> list[dict[str, Any]]:
     return []
 
 
-def _mark(opening: dict[str, Any]) -> str:
-    value = opening.get("door_number") or opening.get("mark")
-    return str(value).strip().upper() if value else ""
+# For a `lines` patch, the evidence a field needs depends on the field's axis: a
+# cost-derived value is provenanced by cost_source + cost_source_detail, a
+# drawing-derived one by the source_page + excerpt every opening uses. Demanding a
+# drawing page for a cost forces the agent to invent one.
+_LINE_PRICING_FIELDS = frozenset({"cost", "margin", "sale_ea", "ext_price", "multiplier"})
+
+_ROOTS = ("openings", "lines", "items")
+
+
+def _root_model(root: str):
+    """(model, note field) for a path root. The note column is load-bearing:
+    PricedLine / Div10Item are extra='forbid' and PricedLine has no evidence_note,
+    so a lines/items note goes in `notes`; an opening's stays in `evidence_note`.
+    This also fixes a live bug - div10 rows were gated against Opening."""
+    from cbc.modules.extraction.api.claude_output import Div10Item, Opening, PricedLine
+
+    return {
+        "openings": (Opening, "evidence_note"),
+        "lines": (PricedLine, "notes"),
+        "items": (Div10Item, "notes"),
+    }[root]
+
+
+def _rows(payload: Any, root: str) -> list[dict[str, Any]]:
+    """The rows for this path's root - not 'whichever key exists'. A `lines`
+    payload patched via openings/... would otherwise be validated as openings."""
+    if isinstance(payload, list):
+        return [row for row in payload if isinstance(row, dict)]
+    if isinstance(payload, dict):
+        rows = payload.get(root)
+        if isinstance(rows, list):
+            return [row for row in rows if isinstance(row, dict)]
+    return []
+
+
+def _key(row: dict[str, Any], root: str) -> str:
+    """A row's business key: line_id for a priced/div10 row (mandatory, and the
+    Mongo lineKey), the door mark for an opening. Never a list index - an index
+    means a patch written against one run lands on a different row in the next."""
+    if root in ("lines", "items"):
+        value = row.get("line_id")
+        if value not in (None, ""):
+            return str(value).strip()
+    value = row.get("door_number") or row.get("mark")
+    return str(value).strip() if value else ""
+
+
+def _resolve(mark: str, rows: list[dict[str, Any]], root: str) -> dict[str, Any] | None:
+    """Exact key match first; the uppercased key only when exactly one candidate
+    matches, so a case fold never silently lands on the wrong row."""
+    exact: dict[str, dict[str, Any]] = {}
+    folded: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        key = _key(row, root)
+        if not key:
+            continue
+        exact.setdefault(key, row)
+        folded.setdefault(key.upper(), []).append(row)
+    if mark in exact:
+        return exact[mark]
+    candidates = folded.get(mark.strip().upper(), [])
+    return candidates[0] if len(candidates) == 1 else None
 
 
 def _flag(target: dict[str, Any], note: str) -> None:
@@ -61,6 +120,7 @@ def _flag(target: dict[str, Any], note: str) -> None:
 
 
 def _has_evidence(patch: dict[str, Any]) -> bool:
+    """Drawing-form evidence: a page and the excerpt read off it."""
     evidence = patch.get("evidence")
     if not isinstance(evidence, dict):
         return False
@@ -69,18 +129,44 @@ def _has_evidence(patch: dict[str, Any]) -> bool:
     return isinstance(page, (int, float)) and bool(excerpt)
 
 
-def _opening_fields() -> frozenset[str]:
-    from cbc.modules.extraction.api.claude_output import Opening
+def _has_pricing_evidence(patch: dict[str, Any]) -> bool:
+    """Pricing-form evidence: the cost source and its citation - a different axis
+    from the drawing page. A cost has no page; demanding one invents it."""
+    evidence = patch.get("evidence")
+    if not isinstance(evidence, dict):
+        return False
+    return bool(str(evidence.get("cost_source") or "").strip()) and bool(
+        str(evidence.get("cost_source_detail") or "").strip()
+    )
 
-    return frozenset(Opening.model_fields)
+
+def _evidence_ok(patch: dict[str, Any], root: str, field: str) -> bool:
+    if field in EVIDENCE_EXEMPT:
+        return True
+    if root == "lines" and field in _LINE_PRICING_FIELDS:
+        return _has_pricing_evidence(patch)
+    return _has_evidence(patch)
 
 
-def _validates(opening: dict[str, Any]) -> str | None:
-    """None when the patched opening still satisfies its contract, else why not."""
-    from cbc.modules.extraction.api.claude_output import Opening
+def _evidence_message(root: str, field: str) -> str:
+    if root == "lines" and field in _LINE_PRICING_FIELDS:
+        return (
+            f"{field} is a cost - it needs evidence {{cost_source, cost_source_detail}}, "
+            "not a drawing page (a cost has no page; demanding one invents it) (NFR-3)"
+        )
+    return (
+        f"{field} needs evidence {{source_page, excerpt}} - a filled value with no "
+        "page citation is unauditable (NFR-3)"
+    )
 
+
+def _validates(row: dict[str, Any], model) -> str | None:
+    """None when the patched row still satisfies its contract, else why not. The
+    row is closed to the model's fields first, so a stray key an older pass left
+    (e.g. a normalized-away `manufacturer`) does not fail an otherwise-valid patch."""
+    closed = {key: value for key, value in row.items() if key in model.model_fields}
     try:
-        Opening.model_validate(opening)
+        model.model_validate(closed)
     except Exception as exc:  # pydantic ValidationError, kept loose on purpose
         first = str(exc).splitlines()
         return "; ".join(first[1:3]).strip() or str(exc)[:200]
@@ -108,9 +194,6 @@ def apply_patches(
     import copy
 
     updated = copy.deepcopy(payload)
-    rows = _openings(updated)
-    by_mark = {_mark(row): row for row in rows if _mark(row)}
-    declared = _opening_fields()
     results: list[PatchResult] = []
 
     for patch in patches:
@@ -118,7 +201,7 @@ def apply_patches(
 
         # A patch that records what the agent opened, rather than what it read
         # off a row. `check_extraction` *requires* `visual_pages_checked` on
-        # door_schedule.json, and with only openings/<door>/<field> patchable
+        # line_items.json, and with only openings/<door>/<field> patchable
         # there was no way to write it: the artifact is seeded and the prompts
         # steer to propose_patch, so the agent did the visual reads, tried to
         # record them, was told "top-level fields aren't patchable", treated
@@ -150,21 +233,26 @@ def apply_patches(
             continue
 
         parts = raw_path.split("/")
-        if len(parts) != 3 or parts[0] not in ("openings", "lines", "items"):
+        if len(parts) != 3 or parts[0] not in _ROOTS:
             results.append(PatchResult(
                 raw_path, False,
-                "path must read openings/<door number>/<field>, or be one of "
+                "path must read openings/<door number>/<field> (or "
+                "lines/<line_id>/<field>, items/<line_id>/<field>), or be one of "
                 + ", ".join(sorted(TOP_LEVEL_PATCHABLE)),
             ))
             continue
 
-        _, mark, field = parts
-        target = by_mark.get(mark.strip().upper())
+        root, mark, field = parts
+        model, note_field = _root_model(root)
+        rows = _rows(updated, root)
+        target = _resolve(mark, rows, root)
         if target is None:
+            # Rejects, does not panic: name the missing key and the keys it has.
+            keys = sorted({_key(row, root) for row in rows if _key(row, root)})
             results.append(PatchResult(
                 raw_path, False,
-                f"no opening {mark!r} in this artifact - "
-                f"it has {', '.join(sorted(by_mark)[:8]) or 'none'}",
+                f"no {root[:-1]} {mark!r} in this artifact - "
+                f"it has {', '.join(keys[:8]) or 'none'}",
             ))
             continue
 
@@ -175,20 +263,16 @@ def apply_patches(
             _flag(target, f"patch_rejected_{field}")
             continue
 
-        if field not in declared:
+        if field not in model.model_fields:
             results.append(PatchResult(
                 raw_path, False,
-                f"{field!r} is not an Opening field - put it in notes",
+                f"{field!r} is not a {model.__name__} field - put it in notes",
             ))
             _flag(target, f"patch_rejected_{field}")
             continue
 
-        if field not in EVIDENCE_EXEMPT and not _has_evidence(patch):
-            results.append(PatchResult(
-                raw_path, False,
-                f"{field} needs evidence {{source_page, excerpt}} - a filled value "
-                "with no page citation is unauditable (NFR-3)",
-            ))
+        if not _evidence_ok(patch, root, field):
+            results.append(PatchResult(raw_path, False, _evidence_message(root, field)))
             _flag(target, f"patch_unevidenced_{field}")
             continue
 
@@ -204,21 +288,29 @@ def apply_patches(
             continue
 
         trial = {**target, field: candidate}
-        why = _validates(trial)
+        why = _validates(trial, model)
         if why:
-            results.append(PatchResult(raw_path, False, f"rejected by the Opening contract: {why}"))
+            results.append(PatchResult(
+                raw_path, False, f"rejected by the {model.__name__} contract: {why}"
+            ))
             _flag(target, f"patch_rejected_{field}")
             continue
 
         target[field] = candidate
         evidence = patch.get("evidence") if isinstance(patch.get("evidence"), dict) else {}
         if evidence:
-            note = (
-                f"{field} <- p{evidence.get('source_page')}: "
-                f"{str(evidence.get('excerpt') or '')[:120]}"
-            )
-            target["evidence_note"] = "; ".join(
-                part for part in (target.get("evidence_note"), note) if part
+            if root == "lines" and field in _LINE_PRICING_FIELDS:
+                note = (
+                    f"{field} <- {evidence.get('cost_source')}: "
+                    f"{str(evidence.get('cost_source_detail') or '')[:120]}"
+                )
+            else:
+                note = (
+                    f"{field} <- p{evidence.get('source_page')}: "
+                    f"{str(evidence.get('excerpt') or '')[:120]}"
+                )
+            target[note_field] = "; ".join(
+                part for part in (target.get(note_field), note) if part
             )[:2000]
         results.append(PatchResult(raw_path, True, None))
 

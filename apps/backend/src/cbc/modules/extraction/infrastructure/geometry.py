@@ -33,7 +33,7 @@ def measure_bboxes(project: dict[str, Any]) -> tuple[int, int]:
     """
     slug = project["slug"]
     directory = storage.project_dir(slug)
-    path = directory / "extracted" / "door_schedule.json"
+    path = directory / "extracted" / "line_items.json"
     payload = read_json(path)
     if payload is None:
         return 0, 0
@@ -168,7 +168,7 @@ def derive_frame_depths(project: dict[str, Any]) -> tuple[int, int]:
     from cbc.modules.pricing.api.reference_library import depth_for_wall_type
 
     slug = project["slug"]
-    path = storage.project_dir(slug) / "extracted" / "door_schedule.json"
+    path = storage.project_dir(slug) / "extracted" / "line_items.json"
     payload = read_json(path)
     if payload is None:
         return 0, 0
@@ -203,3 +203,142 @@ def derive_frame_depths(project: dict[str, Any]) -> tuple[int, int]:
             key = "openings" if "openings" in payload else "lines"
             write_json(path, {**payload, key: openings})
     return derived, flagged
+
+
+# Which artifact holds the rows, and where inside it the list lives.
+_SPECIALTY_ARTIFACTS = (
+    ("div10_takeoff.json", "items"),
+    ("frp_takeoff.json", "areas"),
+)
+
+
+def measure_specialty_bboxes(project: dict[str, Any]) -> tuple[int, int]:
+    """Give Div 10 and FRP rows the same measured evidence an opening gets.
+
+    These rows were traceable only to a page number, which NFR-3 does not accept
+    from an opening and should not have accepted from an accessory either: a page
+    number names a sheet the estimator still has to search by eye. They are read
+    off a printed schedule exactly like a door row is, so the row can be found
+    again and measured.
+
+    Nothing here invents. On the first real bid set this measures 4 of 10 Div 10
+    items and flags the other 6 with a reason - three of which turned out to cite
+    a page their model does not appear on at all. That is the feature working: an
+    item that cannot be pinned to one row is a provenance problem worth seeing,
+    not one worth papering over with a plausible rectangle.
+
+    FRP areas mostly have no row to find - "Kitchen / back-of-house, 13 interior
+    elevation views" is derived from elevations, not copied off a line of text -
+    so they are measured on the same terms and usually come back flagged.
+
+    Returns (attached, unmatched) across both artifacts.
+    """
+    slug = project["slug"]
+    directory = storage.project_dir(slug)
+    raw = directory / "uploads" / "raw"
+    pdfs = sorted(raw.glob("*.pdf")) if raw.is_dir() else []
+    if not pdfs:
+        return 0, 0
+
+    import fitz
+
+    from cbc.shared.pdfrows import attach_specialty_bboxes, detect_shift
+
+    attached = unmatched = 0
+
+    for filename, key in _SPECIALTY_ARTIFACTS:
+        path = directory / "extracted" / filename
+        payload = read_json(path)
+        if not isinstance(payload, dict):
+            continue
+        rows = payload.get(key)
+        if not isinstance(rows, list) or not rows:
+            continue
+
+        by_page: dict[int, list[dict[str, Any]]] = defaultdict(list)
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            page_number = row.get("source_page")
+            if isinstance(page_number, float) and page_number.is_integer():
+                page_number = int(page_number)
+            if isinstance(page_number, int):
+                by_page[page_number].append(row)
+            else:
+                # No page means nothing to measure against. Say so on the record
+                # rather than leaving a silent null.
+                row["bbox"] = None
+                flags = row.setdefault("flags", [])
+                if isinstance(flags, list) and "bbox_unavailable" not in flags:
+                    flags.append("bbox_unavailable")
+                row["bbox_note"] = "no source_page"
+                unmatched += 1
+
+        touched = bool(by_page)
+        for page_number, group in by_page.items():
+            named = next((r.get("source_file") for r in group if r.get("source_file")), None)
+            if named:
+                candidates = [p for p in pdfs if Path(named).name == p.name]
+            elif len(pdfs) == 1:
+                candidates = list(pdfs)
+            else:
+                candidates = []
+            if len(candidates) != 1:
+                why = (
+                    f"source_file {named!r} matches none of the uploads"
+                    if named else f"no source_file and {len(pdfs)} PDF(s) in uploads/raw"
+                )
+                log.warning(
+                    "specialty bbox: %s page %s left unmeasured (%s) - %d row(s)",
+                    filename, page_number, why, len(group),
+                )
+                for row in group:
+                    row["bbox"] = None
+                    row.pop("cell_boxes", None)
+                    flags = row.setdefault("flags", [])
+                    if isinstance(flags, list) and "bbox_unavailable" not in flags:
+                        flags.append("bbox_unavailable")
+                    row["bbox_note"] = why
+                    unmatched += 1
+                continue
+
+            try:
+                document = fitz.open(candidates[0])
+            except Exception as exc:  # noqa: BLE001 - any failure is "cannot measure"
+                log.warning("specialty bbox: cannot open %s: %s", candidates[0].name, exc)
+                for row in group:
+                    row["bbox"] = None
+                    flags = row.setdefault("flags", [])
+                    if isinstance(flags, list) and "bbox_unavailable" not in flags:
+                        flags.append("bbox_unavailable")
+                    row["bbox_note"] = f"cannot open {candidates[0].name}: {exc}"
+                    unmatched += 1
+                continue
+            try:
+                if not 0 <= page_number - 1 < document.page_count:
+                    for row in group:
+                        row["bbox"] = None
+                        flags = row.setdefault("flags", [])
+                        if isinstance(flags, list) and "bbox_unavailable" not in flags:
+                            flags.append("bbox_unavailable")
+                        row["bbox_note"] = (
+                            f"{candidates[0].name} has {document.page_count} page(s)"
+                        )
+                        unmatched += 1
+                    continue
+                shift = detect_shift(document, str(candidates[0]))
+                got, missed = attach_specialty_bboxes(
+                    group, document[page_number - 1], shift=shift, overwrite=True,
+                )
+                attached += got
+                unmatched += missed
+                for row in group:
+                    if row.get("bbox") and not row.get("source_file"):
+                        row["source_file"] = candidates[0].name
+            finally:
+                document.close()
+
+        if touched or any(r.get("bbox_note") for r in rows if isinstance(r, dict)):
+            write_json(path, {**payload, key: rows})
+
+    return attached, unmatched

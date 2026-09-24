@@ -134,7 +134,7 @@ def _mongo_fields(
 async def import_extraction(
     project: dict[str, Any], *, job: dict[str, Any] | None = None
 ) -> dict[str, int]:
-    """Load `extracted/door_schedule.json` into `lineItems`.
+    """Load `extracted/line_items.json` into `lineItems`.
 
     Returns counts so the caller can report what a job actually changed.
     Pass `job` to abort without writing when the worker's lease was stolen.
@@ -145,10 +145,10 @@ async def import_extraction(
         if not await holds_lease(job):
             return {"inserted": 0, "updated": 0, "skipped": 0, "aborted": True}
     slug, project_id = project["slug"], project["_id"]
-    raw = read_json(storage.project_dir(slug) / "extracted" / "door_schedule.json")
-    source = storage.project_dir(slug) / "extracted" / "door_schedule.json"
+    raw = read_json(storage.project_dir(slug) / "extracted" / "line_items.json")
+    source = storage.project_dir(slug) / "extracted" / "line_items.json"
     if source.exists() and raw is None:
-        raise ValueError("extracted/door_schedule.json is missing or invalid JSON")
+        raise ValueError("extracted/line_items.json is missing or invalid JSON")
     # Create-form autofill must not wait on openings — finishes-only bids still
     # get brand / location / state from the title block.
     await import_scope_metadata(project)
@@ -279,10 +279,15 @@ async def export_line_items(project: dict[str, Any]) -> Path:
                 "status": doc.get("status"),
                 "confirmed_by": doc.get("confirmedBy"),
                 "added_by_hand": doc.get("addedByHand", False),
+                # Division 10 counts and FRP geometry. This is the only route
+                # they take to pricing now: the pass used to read
+                # `div10_takeoff.json` and `frp_takeoff.json` directly, which
+                # meant an accessory could be quoted from two places at once.
+                "specialty": doc.get("specialty"),
             }
         )
 
-    path = storage.project_dir(slug) / "extracted" / "door_schedule.json"
+    path = storage.project_dir(slug) / "extracted" / "line_items.json"
     payload = {
         "project": slug,
         "project_code": project.get("code"),

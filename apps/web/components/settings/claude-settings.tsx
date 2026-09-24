@@ -7,6 +7,7 @@ import {
   ArrowSquareOut,
   CheckCircle,
   Cloud,
+  Cpu,
   HardDrives,
   Key,
   Lock,
@@ -77,6 +78,12 @@ const MODES: {
     blurb: "Host-installed Ollama — local or :cloud models.",
     Icon: HardDrives,
   },
+  {
+    key: "nim",
+    label: "NVIDIA NIM",
+    blurb: "Uses local LiteLLM proxy with automatic RPM backoffs.",
+    Icon: Cpu,
+  },
 ];
 
 const FIELD_LABELS: Record<string, { label: string; hint?: string; placeholder?: string }> = {
@@ -136,6 +143,22 @@ function fieldMeta(
         label: "Background model",
         placeholder: "global.anthropic.claude-haiku-4-5-20251001-v1:0",
         hint: "Optional. Haiku for session titles; leave empty to reuse the main model. Maps to the haiku alias.",
+      };
+    }
+  }
+  if (mode === "nim") {
+    if (key === "apiKey") {
+      return {
+        label: "NIM API key",
+        placeholder: "nvapi-...",
+        hint: "Saved to the repo `.env` as NVIDIA_NIM_API_KEY (gitignored).",
+      };
+    }
+    if (key === "model") {
+      return {
+        label: "Model",
+        placeholder: "nvidia_nim/meta/llama-3.1-70b-instruct",
+        hint: "The LiteLLM model string to request through the proxy.",
       };
     }
   }
@@ -469,6 +492,19 @@ export function ClaudeSettingsClient() {
                 Set <code>OLLAMA_CONTEXT_LENGTH=65536</code> before starting Ollama. Phase agents
                 declare <code>model: sonnet</code>; in Ollama mode those aliases route to your
                 configured model automatically.
+              </p>
+            </>
+          }
+        />
+      )}
+
+      {mode === "nim" && (
+        <ModeNotice
+          summary="Ensure the local LiteLLM proxy is running. Claude Code rate limiting retries are configured automatically."
+          advanced={
+            <>
+              <p>
+                Run <code>docker compose --profile oss up -d litellm</code> to start the proxy. NIM has a strict 40 requests-per-minute limit on free tier.
               </p>
             </>
           }

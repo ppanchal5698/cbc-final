@@ -175,7 +175,7 @@ def test_text_rich_page_without_schedule_role_not_forced() -> None:
     assert pages[0]["visual_reasons"] == []
 
 
-def test_mineru_empty_blocks_force_visual_read() -> None:
+def test_parser_empty_blocks_force_visual_read() -> None:
     page = {
         "source_page": 9,
         "roles": ["door_schedule"],
@@ -183,11 +183,11 @@ def test_mineru_empty_blocks_force_visual_read() -> None:
         "text_poor": False,
     }
     needs, reasons = sheetmap.page_needs_visual_read(
-        page, mineru={"verified": None, "block_count": 0}
+        page, signals={"verified": None, "block_count": 0}
     )
     assert needs is True
-    assert "mineru_verified_null" in reasons
-    assert "mineru_empty_blocks" in reasons
+    assert "parser_verified_null" in reasons
+    assert "parser_empty_blocks" in reasons
 
 
 def test_select_visual_targets_caps_and_prioritises() -> None:

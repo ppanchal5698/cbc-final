@@ -13,18 +13,18 @@ from typing import Any
 
 _mark_received: Callable[..., Awaitable[int]] | None = None
 _count_received_after: Callable[[Any, datetime | None], Awaitable[int]] | None = None
-_mineru_signals: Callable[[Any, str], Awaitable[dict[str, Any]]] | None = None
+_parse_signals: Callable[[Any, str], Awaitable[dict[str, Any]]] | None = None
 
 
 def bind(
     mark_received: Callable[..., Awaitable[int]],
     count_received_after: Callable[[Any, datetime | None], Awaitable[int]],
-    mineru_signals: Callable[[Any, str], Awaitable[dict[str, Any]]] | None = None,
+    parse_signals: Callable[[Any, str], Awaitable[dict[str, Any]]] | None = None,
 ) -> None:
-    global _mark_received, _count_received_after, _mineru_signals
+    global _mark_received, _count_received_after, _parse_signals
     _mark_received, _count_received_after = mark_received, count_received_after
-    if mineru_signals is not None:
-        _mineru_signals = mineru_signals
+    if parse_signals is not None:
+        _parse_signals = parse_signals
 
 
 def _require() -> None:
@@ -44,13 +44,13 @@ async def count_received_after(project_id: Any, uploaded_after: datetime | None)
     return await _count_received_after(project_id, uploaded_after)
 
 
-async def mineru_signals_by_path(project_id: Any, slug: str) -> dict[str, Any]:
-    """Per raw-PDF page: whether MinerU verified it, and how many blocks it read.
+async def parse_signals_by_path(project_id: Any, slug: str) -> dict[str, Any]:
+    """Per raw-PDF page: whether the parser verified it, and how many blocks it read.
 
     Take-off routes a page to a vision read from this. Unbound or unparsed is the
     normal case on a fresh bid - the caller falls back to pdf-tools - so this
     answers `{}` rather than raising the way the two required ports do.
     """
-    if _mineru_signals is None:
+    if _parse_signals is None:
         return {}
-    return await _mineru_signals(project_id, slug)
+    return await _parse_signals(project_id, slug)

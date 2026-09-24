@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -76,7 +77,9 @@ def _render_delivery(slug: str) -> None:
         deliverable["pdf_error"] = str(exc)
     else:
         try:
+            start = time.perf_counter()
             content = HTML(filename=str(html), base_url=str(root)).write_pdf()
+            deliverable["pdf_ms"] = round((time.perf_counter() - start) * 1000, 1)
         except Exception as exc:
             raise ArtifactValidationError(f"{slug}: PDF export failed: {exc}") from exc
         problems = _pdf_problems(content, f"{slug}/quotation.pdf")
@@ -92,6 +95,14 @@ def _render_delivery(slug: str) -> None:
                 deliverable["pdf_pages"] = document.page_count
         except Exception:
             deliverable["pdf_pages"] = 0
+        # The number that decides whether headless Chromium is ever worth ~300MB
+        # in the worker image: one PDF per bid, at the end of a ~20-minute run.
+        log.info(
+            "%s: rendered quotation.pdf in %s ms (%d page(s))",
+            slug,
+            deliverable.get("pdf_ms"),
+            deliverable["pdf_pages"],
+        )
     if html.is_file():
         shutil.copy2(html, final / html.name)
         deliverable["html"] = True
@@ -158,10 +169,19 @@ def render_artifacts(job_type: str, slug: str) -> list[str]:
     except Exception:
         pass_log.exception("%s: could not derive review flags for %s", job_type, slug)
     failed: list[str] = []
-    for result in (render.render_quotation(slug), render.render_review_summary(slug)):
+    results = [render.render_quotation(slug), render.render_review_summary(slug)]
+    for result in results:
         if not result.ok:
             pass_log.warning("%s: %s", job_type, result.detail)
             failed.append(result.detail)
     if not failed:
-        _render_delivery(slug)
+        # The PDF rides the same sha keys as the HTML: if both renders were
+        # unchanged and a valid PDF already exists, WeasyPrint has nothing to do.
+        # A template edit or RENDERER_VERSION bump moves those keys and re-renders
+        # both, so the PDF invalidates automatically - no second stamp needed.
+        pdf = storage_root() / slug / "quotation.pdf"
+        if any(not r.unchanged for r in results) or not pdf.is_file():
+            _render_delivery(slug)
+        else:
+            pass_log.info("%s: quotation.pdf is current; skipping PDF render", job_type)
     return failed

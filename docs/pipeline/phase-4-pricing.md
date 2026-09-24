@@ -15,7 +15,7 @@ deciding where a cost may legitimately come from.
 
 ## Inputs
 
-`extracted/door_schedule.json`, `extracted/scope_summary.json`, plus
+`extracted/line_items.json`, `extracted/scope_summary.json`, plus
 `frp_takeoff.json` and `div10_takeoff.json` where present.
 
 ---
@@ -142,7 +142,7 @@ and a stale price sheet must be visible as stale rather than silently wrong.
 
 ## Output
 
-`priced/line_items.json` (validated against `line_items.schema.json`) and
+`priced/line_items.json` (validated against `priced_line_items.schema.json`) and
 `priced/margin_applied.json`. Both are checkpoints — written with
 `save_artifact`, never a bare `Write`.
 

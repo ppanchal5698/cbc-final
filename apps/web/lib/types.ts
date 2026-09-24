@@ -132,7 +132,7 @@ export interface BidDocument {
   contentSha?: string | null;
   state: string;
   uploadedAt: string;
-  /** MinerU parse progress when PARSER_URL is set; absent means read via pdf-tools. */
+  /** Parse progress when PARSER_API_KEY is set; absent means read via pdf-tools. */
   parse?: {
     state?: string;
     pages?: number;
@@ -201,6 +201,25 @@ export interface LineItem {
   inScope?: boolean | null;
   scopeRule?: string | null;
   scopeReason?: string | null;
+  /**
+   * Set on Division 10 and FRP lines. They are line items like any other -
+   * `division` routes them to the right quote block (`10 21`, `10 28`, `06 64`)
+   * and this carries what a door row has no column for.
+   */
+  specialty?: {
+    kind: "div10" | "frp";
+    productType?: string | null;
+    specifiedModel?: string | null;
+    unit?: string | null;
+    drawingRef?: string | null;
+    room?: string | null;
+    perimeterLf?: number | null;
+    insideCorners?: number | null;
+    outsideCorners?: number | null;
+    wallHeightFt?: number | null;
+    drawingScale?: string | null;
+    status?: string | null;
+  } | null;
   evidence?: Evidence | null;
   duplicateOf?: string | null;
   duplicateReason?: string | null;
@@ -228,7 +247,24 @@ export interface SpecialtyTakeoff {
   status?: string | null;
   notes?: string | null;
   flags?: string[];
-  sourceRef?: { sourcePage?: number | null; sourceFile?: string | null } | null;
+  /** Set once an estimator corrects the row; survives the next re-extraction. */
+  editedBy?: string | null;
+  editedAt?: string | null;
+  /**
+   * Measured against the sheet by the extraction pass, never typed. `bbox` is
+   * null when the row could not be pinned to exactly one printed line - the
+   * reason is in `bboxNote` / the `bbox_*` flag, and the panel says "no
+   * highlight" rather than pointing at a rectangle nobody measured.
+   */
+  sourceRef?: {
+    sourcePage?: number | null;
+    sourceFile?: string | null;
+    bbox?: number[] | null;
+    cellBoxes?: number[][] | null;
+    pageSize?: { width: number; height: number } | null;
+    bboxNote?: string | null;
+    evidenceNote?: string | null;
+  } | null;
 }
 
 export interface TakeoffsResponse {
@@ -407,7 +443,7 @@ export interface ProductSearchResponse {
   pagesNote?: string | null;
 }
 
-/** MinerU parse progress on a price book (mirrors BidDocument.parse). */
+/** Legacy parse progress on a price book (mirrors BidDocument.parse). */
 export interface PriceBookParse {
   state?: string;
   pages?: number;
@@ -533,7 +569,7 @@ export interface ProviderField {
 }
 
 export interface ClaudeSettings {
-  mode: "subscription" | "anthropic_api" | "bedrock" | "ollama";
+  mode: "subscription" | "anthropic_api" | "bedrock" | "ollama" | "nim";
   modes: string[];
   fields: Record<string, ProviderField>;
   /** Field shape for every mode, so an unsaved provider still renders a form. */
@@ -552,30 +588,11 @@ export interface ParsingField {
   locked: boolean;
 }
 
-export interface ParsingPreset {
-  backend: string;
-  effort: string | null;
-  method: string;
-  lang: string;
-  tables: boolean;
-  formulas: boolean;
-  imageAnalysis: boolean;
-  windowPages: number;
-  windowTimeoutSeconds: number;
-  waitMaxSeconds: number;
-  hardware: string;
-}
-
 export interface ParsingSettings {
   enabled: boolean;
   fields: Record<string, ParsingField>;
-  presets: Record<string, ParsingPreset>;
-  backends: string[];
-  efforts: string[];
-  methods: string[];
-  profiles: string[];
-  /** MinerU GET /health body, or `{ error }` when unreachable / parsing off. */
-  mineru?: Record<string, unknown> & { error?: string };
+  /** cost_effective | agentic | agentic_plus. `fast` is excluded: no bboxes. */
+  tiers: string[];
   updatedAt?: string | null;
   updatedBy?: string | null;
 }
@@ -584,8 +601,12 @@ export interface ParsingTestResult {
   ok: boolean;
   seconds: number | null;
   blocks: number | null;
-  version: string | null;
-  backend?: string;
+  tier?: string;
+  /**
+   * Share of returned boxes landing on text actually present on the sample page.
+   * Null when there was no text layer to score against.
+   */
+  verified?: number | null;
   error: string | null;
 }
 
@@ -1013,6 +1034,35 @@ export interface SpendSummary {
     cacheHitRatio: number | null;
     startedAt?: string | null;
     finishedAt?: string | null;
+  }[];
+}
+
+/** One statistic over a cohort's runs. */
+export interface CohortStat {
+  median: number;
+  mean: number;
+  n: number;
+}
+
+/** `GET /api/ops/cohorts` — LLM spend grouped by config cohort (W1b). */
+export interface CohortSummary {
+  days: number;
+  since: string;
+  jobType: string | null;
+  cohorts: {
+    cohortId: string;
+    jobType: string;
+    context: Record<string, unknown>;
+    runs: number;
+    costUsd: CohortStat;
+    durationApiMs: CohortStat;
+    toolCalls: CohortStat;
+    firstRun?: string | null;
+    lastRun?: string | null;
+    changedFrom: {
+      keys: string[];
+      deltaPct: { costUsd?: number };
+    } | null;
   }[];
 }
 

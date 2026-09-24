@@ -43,15 +43,70 @@ JOB = {"type": "extract_bid_set"}
 
 def test_all_three_takeoffs_are_started_together(bid) -> None:
     bid({"door_schedule": [16], "frp": [23], "div10": [19, 18]})
+    # A real wave also runs intake and scope, which the discarded orchestrator
+    # would otherwise have run (W3d), prepended before the take-offs.
     assert [label for label, _prompt in passes.extraction_wave(JOB, PROJECT)] == [
-        "takeoff", "frp", "div10"
+        "intake", "scope", "takeoff", "frp", "div10"
     ]
 
 
-def test_a_specialty_out_of_scope_is_not_started(bid) -> None:
-    """The scope file gates the leg and its seed alike, so they cannot disagree."""
+def test_a_specialty_is_selected_on_sheetmap_pages_alone(bid) -> None:
+    """frp/div10 are chosen on their tagged pages; the pretakeoff seed's flags
+    just mirror pages_for, so it cannot veto (W3d). Behaviour-preserving here."""
     bid({"door_schedule": [16], "frp": [23], "div10": [19]}, frp_in_scope=False)
-    assert [label for label, _p in passes.extraction_wave(JOB, PROJECT)] == ["takeoff", "div10"]
+    labels = [label for label, _p in passes.extraction_wave(JOB, PROJECT)]
+    assert "frp" in labels, "the seed flag does not gate; the tagged sheet does"
+
+
+def test_a_real_pass_can_veto_a_specialty(bid) -> None:
+    """On a rerun, a real pass (source != pretakeoff seed) that set the flag false
+    vetoes the specialty even when a sheet is still tagged for it (W3d)."""
+    bid(
+        {"door_schedule": [16], "frp": [23], "div10": [19]},
+        frp_in_scope=False,
+        source="quality-reviewer (human-confirmed)",
+    )
+    labels = [label for label, _p in passes.extraction_wave(JOB, PROJECT)]
+    assert "frp" not in labels
+    assert "div10" in labels
+
+
+def _capture_legs(monkeypatch) -> dict:
+    captured: dict = {}
+
+    def fake_build_wave(job, project, legs, *a, **k):
+        captured["legs"] = dict(legs)
+        return [(label, "prompt") for label, _pages in legs]
+
+    monkeypatch.setattr(passes.prompts, "build_wave", fake_build_wave)
+    return captured
+
+
+def test_both_schedule_roles_reach_the_takeoff_leg(bid, monkeypatch) -> None:
+    """`door_schedule or door_schedule_candidate` dropped every candidate the
+    moment one schedule page existed; both roles must reach the leg now (W3a)."""
+    bid({"door_schedule": [16], "door_schedule_candidate": [40, 41], "frp": [23]})
+    captured = _capture_legs(monkeypatch)
+    passes.extraction_wave(JOB, PROJECT)
+    takeoff = captured["legs"]["takeoff"]
+    assert 16 in takeoff and 40 in takeoff and 41 in takeoff
+
+
+def test_required_visual_pages_ride_above_the_cap(bid, monkeypatch) -> None:
+    """Validator-required schedule visual pages are handed to the leg uncapped -
+    otherwise the leg is validated on pages it was never given."""
+    bid({"door_schedule": list(range(1, 12)), "frp": [23], "div10": [19]})
+    monkeypatch.setattr(
+        passes.visual_pages,
+        "schedule_visual_keys",
+        lambda slug: [("uploads/raw/a.pdf", 99), ("uploads/raw/a.pdf", 3)],
+    )
+    captured = _capture_legs(monkeypatch)
+    passes.extraction_wave(JOB, PROJECT)
+    takeoff = captured["legs"]["takeoff"]
+    assert len(takeoff) > passes.MAX_WAVE_PAGES, "the cap must not drop required pages"
+    assert 99 in takeoff, "a required page beyond the cap must still be handed over"
+    assert takeoff.count(3) == 1, "a required page already selected is not duplicated"
 
 
 def test_one_leg_is_not_a_wave(bid) -> None:
@@ -72,11 +127,79 @@ def test_no_sheetmap_falls_back_to_a_single_pass(tmp_path, monkeypatch) -> None:
     assert passes.extraction_wave(JOB, PROJECT) == []
 
 
+# ── retry skips legs the last attempt already promoted (W3c) ─────────────────
+
+def _passing_contracts(monkeypatch) -> None:
+    from cbc.modules.extraction.api.validation import contracts
+
+    monkeypatch.setattr(contracts, "check_contracts", lambda slug, rels: ([], []))
+
+
+def _failing_contracts(monkeypatch) -> None:
+    from cbc.modules.extraction.api.validation import contracts
+
+    monkeypatch.setattr(
+        contracts, "check_contracts", lambda slug, rels: (["frp_takeoff.json: not valid JSON"], [])
+    )
+
+
+def test_a_promoted_leg_is_not_re_run(bid, monkeypatch) -> None:
+    """A retry skips a leg the prior attempt promoted whose artifact still parses,
+    so it does not re-buy a ~32k prefix to re-confirm work already on disk."""
+    bid({"door_schedule": [16], "frp": [23], "div10": [19]})
+    _passing_contracts(monkeypatch)
+    job = {"type": "extract_bid_set", "waveLegs": [{"label": "frp", "ok": True}]}
+    labels = [label for label, _p in passes.extraction_wave(job, PROJECT)]
+    assert "frp" not in labels
+    assert "takeoff" in labels and "div10" in labels
+
+
+def test_a_forced_retry_re_runs_every_leg(bid, monkeypatch) -> None:
+    """A forced clean run trusts nothing on disk, so no leg is skipped."""
+    bid({"door_schedule": [16], "frp": [23], "div10": [19]})
+    _passing_contracts(monkeypatch)
+    job = {
+        "type": "extract_bid_set",
+        "payload": {"force": True},
+        "waveLegs": [{"label": "frp", "ok": True}],
+    }
+    labels = [label for label, _p in passes.extraction_wave(job, PROJECT)]
+    assert set(labels) == {"intake", "scope", "takeoff", "frp", "div10"}
+
+
+def test_a_leg_whose_artifact_no_longer_parses_is_re_run(bid, monkeypatch) -> None:
+    """res.ok is CLI-level; a promoted-but-unparseable artifact must re-run."""
+    bid({"door_schedule": [16], "frp": [23], "div10": [19]})
+    _failing_contracts(monkeypatch)
+    job = {"type": "extract_bid_set", "waveLegs": [{"label": "frp", "ok": True}]}
+    labels = [label for label, _p in passes.extraction_wave(job, PROJECT)]
+    assert "frp" in labels, "contract failed, so re-run despite the prior ok"
+
+
+def test_all_legs_done_still_re_runs_the_whole_wave(bid, monkeypatch) -> None:
+    """Every leg skipped means the failure was at promote/sync, not in a leg -
+    re-run the wave rather than no-op into a false success."""
+    bid({"door_schedule": [16], "frp": [23], "div10": [19]})
+    _passing_contracts(monkeypatch)
+    job = {
+        "type": "extract_bid_set",
+        "waveLegs": [
+            {"label": "intake", "ok": True},
+            {"label": "scope", "ok": True},
+            {"label": "takeoff", "ok": True},
+            {"label": "frp", "ok": True},
+            {"label": "div10", "ok": True},
+        ],
+    }
+    labels = [label for label, _p in passes.extraction_wave(job, PROJECT)]
+    assert set(labels) == {"intake", "scope", "takeoff", "frp", "div10"}
+
+
 # ── what a leg is told ──────────────────────────────────────────────────────
 
 def _briefs():
     return dict(prompts.build_wave(
-        PROJECT, [("takeoff", [16]), ("frp", [23]), ("div10", [19])]
+        JOB, PROJECT, [("takeoff", [16]), ("frp", [23]), ("div10", [19])]
     ))
 
 
@@ -92,7 +215,7 @@ def test_a_leg_is_told_which_files_belong_to_its_siblings() -> None:
     briefs = _briefs()
     assert "extracted/frp_takeoff.json" in briefs["takeoff"]
     assert "extracted/div10_takeoff.json" in briefs["takeoff"]
-    assert "extracted/door_schedule.json" in briefs["frp"]
+    assert "extracted/line_items.json" in briefs["frp"]
 
 
 def test_a_leg_is_told_its_artifact_already_exists() -> None:
@@ -110,7 +233,7 @@ def test_the_takeoff_leg_patches_and_the_specialists_save() -> None:
 
 def test_each_leg_carries_only_its_own_pages() -> None:
     briefs = dict(prompts.build_wave(
-        PROJECT, [("takeoff", [16]), ("frp", [23]), ("div10", [19, 18])]
+        JOB, PROJECT, [("takeoff", [16]), ("frp", [23]), ("div10", [19, 18])]
     ))
     assert "16" in briefs["takeoff"]
     assert "23" in briefs["frp"]

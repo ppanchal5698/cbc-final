@@ -76,7 +76,7 @@ counting as a pass.
 **`bid-docs`** — `list_documents` · `get_outline` · `search_blocks` ·
 `get_page_blocks`
 
-MinerU-parsed blocks for uploaded bid PDFs, out of Mongo. `MAX_LIMIT = 50`.
+Parsed blocks for uploaded bid PDFs, out of Mongo. `MAX_LIMIT = 50`.
 This is the cheap way to find a page; `pdf-tools` is how you then read it.
 
 **`catalog-docs`** — `list_catalogs_parsed` · `get_outline` · `search_blocks` ·

@@ -9,7 +9,7 @@ from cbc.worker_kit import sandbox
 
 
 def test_allowlist_accepts_known_outputs() -> None:
-    assert sandbox.allowed_relpath("extracted/door_schedule.json")
+    assert sandbox.allowed_relpath("extracted/line_items.json")
     assert sandbox.allowed_relpath("priced/line_items.json")
     assert sandbox.allowed_relpath("review/review_flags.json")
     assert sandbox.allowed_relpath("quotation.html")
@@ -35,13 +35,13 @@ def test_promote_copies_allowlisted_files_only(tmp_path, monkeypatch) -> None:
         workspace = sandbox.prepare(slug)
         clone = workspace / "projects" / slug
         (clone / "extracted").mkdir(parents=True, exist_ok=True)
-        (clone / "extracted" / "door_schedule.json").write_text("{}", encoding="utf-8")
+        (clone / "extracted" / "line_items.json").write_text("{}", encoding="utf-8")
         (clone / ".ssh").mkdir(exist_ok=True)
         (clone / ".ssh" / "id_rsa").write_text("secret", encoding="utf-8")
         (clone / "stolen.txt").write_text("nope", encoding="utf-8")
         promoted = sandbox.promote(slug)
-        assert "extracted/door_schedule.json" in promoted
-        assert (live / "extracted" / "door_schedule.json").is_file()
+        assert "extracted/line_items.json" in promoted
+        assert (live / "extracted" / "line_items.json").is_file()
         assert not (live / ".ssh" / "id_rsa").exists()
         assert not (live / "stolen.txt").exists()
     finally:

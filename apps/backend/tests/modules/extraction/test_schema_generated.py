@@ -37,12 +37,12 @@ def test_the_committed_schema_matches_the_model(filename: str) -> None:
 def test_every_model_field_reaches_the_schema() -> None:
     """The check that would have caught the failure directly."""
     opening = json.loads(
-        (contracts.SCHEMA_DIR / "door_schedule.schema.json").read_text(encoding="utf-8")
+        (contracts.SCHEMA_DIR / "extracted_line_items.schema.json").read_text(encoding="utf-8")
     )["$defs"]["opening"]["properties"]
     assert set(opening) == set(Opening.model_fields)
 
     line = json.loads(
-        (contracts.SCHEMA_DIR / "line_items.schema.json").read_text(encoding="utf-8")
+        (contracts.SCHEMA_DIR / "priced_line_items.schema.json").read_text(encoding="utf-8")
     )["$defs"]["priced_line"]["properties"]
     assert set(line) == set(PricedLine.model_fields)
 
@@ -64,7 +64,7 @@ def test_the_schema_accepts_what_the_model_accepts() -> None:
 def test_a_hallucinated_opening_field_is_still_refused() -> None:
     """Generating the schema must not have loosened the guard that matters."""
     problems = validate_artifact_path(
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {"openings": [{"door_number": "101", "hallucinated_price": "12.00"}]},
     )
     assert problems, "an unknown opening key must not validate"
@@ -72,7 +72,7 @@ def test_a_hallucinated_opening_field_is_still_refused() -> None:
 
 def test_page_size_in_schema_requires_width_and_height() -> None:
     opening = json.loads(
-        (contracts.SCHEMA_DIR / "door_schedule.schema.json").read_text(encoding="utf-8")
+        (contracts.SCHEMA_DIR / "extracted_line_items.schema.json").read_text(encoding="utf-8")
     )["$defs"]["opening"]["properties"]["page_size"]
     assert opening.get("required") == ["width", "height"]
     assert "width" in (opening.get("properties") or {})
@@ -135,7 +135,7 @@ def test_a_seeded_schedule_passes_the_gate_it_will_be_saved_through() -> None:
     payload = {"source_page": 16, "openings": openings}
 
     cleaned, problems = prepare_artifact_text(
-        "extracted/door_schedule.json", json.dumps(payload)
+        "extracted/line_items.json", json.dumps(payload)
     )
     assert problems == [], problems
     parsed = DoorSchedule.model_validate(json.loads(cleaned))

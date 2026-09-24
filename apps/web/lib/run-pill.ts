@@ -32,9 +32,7 @@ function runningLabel(job: Job, phase?: string | null): string {
     match_and_price: "Pricing lines…",
     build_proposal: "Building proposal…",
     ingest_addendum: "Reading addendum…",
-    parse_document: "Parsing with MinerU…",
-    parse_catalog: "Parsing price book…",
-    parse_multiplier: "Parsing multiplier sheet…",
+    parse_document: "Parsing document…",
   };
   return byType[job.type] ?? `${jobTypeLabel(job.type)}…`;
 }

@@ -1,6 +1,6 @@
 """The door schedule a take-off pass writes: the shapes it arrives in, a row's identity, the status it lands in.
 
-Pure rules, shared by the importer (extraction.api.door_schedule) and the
+Pure rules, shared by the importer (extraction.api.line_items) and the
 measurements taken off the sheet (extraction.infrastructure.geometry).
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ def _normalize_schedule_payload(payload: dict[str, Any] | list[Any]) -> dict[str
     if isinstance(payload, list):
         payload = {"openings": payload}
     if not isinstance(payload, dict):
-        raise ValueError("extracted/door_schedule.json must be a JSON object or openings array")
+        raise ValueError("extracted/line_items.json must be a JSON object or openings array")
 
     # `lines` is the key the priced artifact uses, and a run that writes both
     # files in one pass reaches for it here too - it wrote a complete schedule,

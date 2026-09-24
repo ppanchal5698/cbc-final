@@ -1,6 +1,6 @@
 """Tool definitions for the bid-docs MCP server.
 
-Read MinerU-parsed blocks for uploaded bid PDFs. Cropping still goes through
+Read parsed blocks for uploaded bid PDFs. Cropping still goes through
 pdf-tools.get_page_image with a block's bbox — this server never writes.
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ TOOLS: list[dict[str, Any]] = [
         "name": "list_documents",
         "description": (
             "Documents on a bid (by project code or slug), with parse state and "
-            "page counts. Start here to see which PDFs have MinerU blocks."
+            "page counts. Start here to see which PDFs have parsed blocks."
         ),
         "inputSchema": {
             "type": "object",

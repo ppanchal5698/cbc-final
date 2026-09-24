@@ -29,10 +29,11 @@ An uploaded PDF, and whatever the estimator typed into the Ops-Hub intake form.
    `uploads/processed/` or `extracted/`.
 3. **Scan.** `MALWARE_SCAN=clamd` routes the upload through the `clamav`
    service before it is accepted.
-4. **Parse.** MinerU (the `gpu` profile, job type `parse_document`) renders the
-   PDF into block batches under `uploads/processed/mineru/<documentId>/`, eight
-   pages per file. Later phases read blocks from Mongo via `bid-docs` rather
-   than re-parsing.
+4. **Parse.** LlamaParse Cloud (job type `parse_document`, run by the `parser`
+   service) turns the PDF into block batches under
+   `uploads/processed/parsed/<documentId>/`, `PARSER_WINDOW_PAGES` per file. The
+   document is uploaded once and every window reuses the same file. Later phases
+   read blocks from Mongo via `bid-docs` rather than re-parsing.
 5. **Extract the project metadata** — job name, customer, general contractor,
    bid date, ship-to state, addenda. Each field records the page it came from,
    which is what the intake screen shows as per-field provenance.

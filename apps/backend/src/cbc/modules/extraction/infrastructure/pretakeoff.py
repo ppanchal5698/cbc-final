@@ -7,7 +7,7 @@ regex does not have an off day.
 
 Until now the extraction prompt *asked* the model to run that script. A capable model
 did; a 31B local model read three files, replied "I am ready to assist you with your
-software engineering tasks", and the job died with no `door_schedule.json` at all.
+software engineering tasks", and the job died with no `line_items.json` at all.
 The take-off was one `subprocess` call away the whole time.
 
 So the worker runs it, the same way it already builds `_sheetmap.json`, and the model
@@ -62,7 +62,7 @@ def _schedule_candidates(sheets: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _schedule_path(slug: str):
-    return storage.project_dir(slug) / "extracted" / "door_schedule.json"
+    return storage.project_dir(slug) / "extracted" / "line_items.json"
 
 
 def _existing(slug: str) -> dict[str, Any]:
@@ -140,7 +140,7 @@ def _resolve(slug: str, path: str):
 
 
 def seed_door_schedule(slug: str) -> dict[str, Any]:
-    """Write `extracted/door_schedule.json` from the drawings, in code.
+    """Write `extracted/line_items.json` from the drawings, in code.
 
     Returns a summary: which page was read, how many openings, how many human rows
     were preserved. Never raises - a bid set whose schedule cannot be parsed is a
@@ -218,7 +218,7 @@ def seed_door_schedule(slug: str) -> dict[str, Any]:
 
         # What the sheet actually said, kept where nothing will overwrite it.
         #
-        # `door_schedule.json` is the working document: the pass patches it, and
+        # `line_items.json` is the working document: the pass patches it, and
         # confirming in the Ops-Hub exports the estimator's version straight over
         # it. That is right - pricing must price what was approved - but it means
         # that the moment anyone confirms, the reading the parser took no longer
@@ -232,7 +232,7 @@ def seed_door_schedule(slug: str) -> dict[str, Any]:
 
         raw = copy.deepcopy(openings)
         scope_rules.apply_to(raw)
-        snapshot = path.with_name("door_schedule.extracted.json")
+        snapshot = path.with_name("line_items.extracted.json")
         atomic_write_json(snapshot, {
             "source": SOURCE,
             "source_file": candidate["path"],
@@ -240,7 +240,7 @@ def seed_door_schedule(slug: str) -> dict[str, Any]:
             "extracted_at": sheetmap._now(),
             "note": (
                 "The deterministic parse, before any model patch or estimator "
-                "edit. Never overwritten - diff door_schedule.json against this "
+                "edit. Never overwritten - diff line_items.json against this "
                 "to see what a pass or a person changed."
             ),
             "openings": raw,

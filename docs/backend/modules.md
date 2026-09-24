@@ -43,7 +43,7 @@ and indexes are specified in [`../collections.mongodb.md`](../collections.mongod
 | **catalog** | Parts and vendor price books, page indexing, match learning | `catalogItems`, `priceBooks`, `catalogPages`, `multiplierPages`, `matchLearning`, `pageIndex` |
 | **extraction** | Openings, alternates, FRP and Div 10 take-offs, estimator corrections | `openings`, `failedExtractions`, `takeoffs`, `feedbackEvents` |
 | **quoting** | Priced lines, totals, the proposal, vendor RFQs and RFIs. Renders and routes, never sends | `estimateLines`, `quotes`, `proposals`, `vendorRfqs`, `rfis` |
-| **intake** | Document upload, page render, MinerU parse, addendum versions | `documents`, `documentPages`, `estimateVersions` |
+| **intake** | Document upload, page render, LlamaParse parse, addendum versions | `documents`, `documentPages`, `estimateVersions` |
 
 `pageIndex` is the one exception to the pattern: it is owned by
 `catalog/api/pageindex/store.py` rather than by `collections.py`.

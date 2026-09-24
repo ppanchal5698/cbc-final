@@ -12,8 +12,8 @@ flowchart TB
   API --> DOC[(documents)]
   API --> Q1["enqueue parse_document"]
 
-  Q1 --> MIN["MinerU<br/>WORKER_DOMAIN=parsing"]
-  MIN --> BLK["uploads/processed/mineru/&lt;docId&gt;/<br/>+ documentPages"]
+  Q1 --> MIN["LlamaParse Cloud<br/>WORKER_DOMAIN=parsing"]
+  MIN --> BLK["uploads/processed/parsed/&lt;docId&gt;/<br/>+ documentPages"]
 
   RAW --> Q2["enqueue extract_bid_set"]
   BLK --> Q2
@@ -21,7 +21,7 @@ flowchart TB
 
   EX --> M0["extracted/scope_metadata.json"]
   EX --> M1["extracted/scope_summary.json"]
-  EX --> M2["extracted/door_schedule.json"]
+  EX --> M2["extracted/line_items.json"]
   EX --> M3["extracted/frp_takeoff.json"]
   EX --> M4["extracted/div10_takeoff.json"]
   M2 --> OPN[(openings)]
@@ -62,7 +62,7 @@ flowchart LR
     B[scope_summary.json]
   end
   subgraph P3["3 / 3b / 3c — concurrent"]
-    C[door_schedule.json]
+    C[line_items.json]
     D[frp_takeoff.json]
     E[div10_takeoff.json]
   end

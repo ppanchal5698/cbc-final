@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "cbc.priced.line_items",
-  "title": "line_items",
+  "title": "priced_line_items",
   "oneOf": [
     {
       "type": "object",
