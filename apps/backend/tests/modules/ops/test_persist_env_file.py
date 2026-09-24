@@ -12,6 +12,9 @@ from __future__ import annotations
 
 import os
 
+import pytest
+from pydantic import ValidationError
+
 from cbc.modules.ops.api import parsing_config
 
 
@@ -115,3 +118,17 @@ def test_a_real_process_pin_still_wins(tmp_path, monkeypatch):
     resolved, sources = parsing_config.resolve(None)
     assert resolved["tier"] == "agentic_plus"
     assert sources["tier"] == "env"
+
+
+def test_window_concurrency_is_accepted_by_the_settings_body():
+    """The screen offered it and `parsing_config` validated it - but the request
+    model had no such field, so Pydantic dropped it and the save returned 200
+    having stored nothing."""
+    from cbc.modules.ops.features.ParsingSettings import ParsingSettingsBody
+
+    assert ParsingSettingsBody(windowConcurrency=6).windowConcurrency == 6
+
+    with pytest.raises(ValidationError):
+        ParsingSettingsBody(windowConcurrency=0)
+    with pytest.raises(ValidationError):
+        ParsingSettingsBody(windowConcurrency=17)

@@ -272,3 +272,45 @@ def test_context_hashes_runtime_is_recorded_when_supplied() -> None:
     b = runmetrics.context_hashes(runtime=(10800, 200))["runtime"]
     assert a is not None and b is not None and a != b
 
+
+
+def test_tools_exposed_comes_from_the_recordings_own_init_event() -> None:
+    """It was a hardcoded 0, so the cohort rig could not see a profile change.
+
+    `mcp.toolsExposed` is half of the pair that explains cold prefix writes - a
+    profile exposing ten more tools rewrites a longer prefix on every cold turn -
+    and the CLI names every tool it handed the model on its init event.
+    """
+    import json
+
+    from cbc.modules.ops.api import runmetrics
+
+    recording = "\n".join(
+        json.dumps(event)
+        for event in (
+            {
+                "type": "system",
+                "subtype": "init",
+                "tools": ["Bash", "Read", "mcp__bid-docs__get_page_blocks", "mcp__pdf-tools__search_pdf"],
+                "mcp_servers": [{"name": "bid-docs", "status": "connected"}],
+            },
+            {"type": "result", "num_turns": 3, "total_cost_usd": 0.1},
+        )
+    )
+
+    mcp = runmetrics.parse_recording(recording)["mcp"]
+
+    assert mcp["toolsExposed"] == 2, "built-in tools are not MCP tools"
+    assert mcp["exposed"] == [
+        "mcp__bid-docs__get_page_blocks",
+        "mcp__pdf-tools__search_pdf",
+    ]
+
+
+def test_a_recording_without_an_init_event_reports_nothing_rather_than_guessing() -> None:
+    from cbc.modules.ops.api import runmetrics
+
+    mcp = runmetrics.parse_recording('{"type":"result","num_turns":1}')["mcp"]
+
+    assert mcp["toolsExposed"] == 0
+    assert mcp["exposed"] == []

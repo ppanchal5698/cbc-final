@@ -32,6 +32,10 @@ class ParsingSettingsBody(BaseModel):
     tier: str | None = None
     lang: str | None = None
     windowPages: int | None = Field(default=None, ge=1, le=200)
+    # The Settings screen has always offered this and `parsing_config` has always
+    # validated it, but it was missing here - so Pydantic dropped it and the save
+    # returned 200 having stored nothing. Bounds match `parsing_config.validate`.
+    windowConcurrency: int | None = Field(default=None, ge=1, le=16)
     windowTimeoutSeconds: int | None = Field(default=None, ge=60, le=7200)
     waitMaxSeconds: int | None = Field(default=None, ge=60, le=7200)
 

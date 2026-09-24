@@ -150,6 +150,11 @@ def parse_recording(source: str | Path) -> dict[str, Any]:
     tools = _tools_from_events(events)
     return {
         "sessionId": result.get("session_id"),
+        # The CLI reports this on the result event and it was thrown away, so the
+        # one number that explains a run's cost - how many times the whole
+        # conversation was resent - existed only in the web stream renderer. A
+        # take-off leg ran 81 turns against an 80 cap before anyone could see it.
+        "numTurns": result.get("num_turns"),
         "durationApiMs": result.get("duration_api_ms"),
         "totalCostUsd": result.get("total_cost_usd"),
         "modelUsage": model_usage,
@@ -281,10 +286,19 @@ def _tools_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
     result_chars: list[int] = []
     image_chars = 0
     tool_times: list[datetime] = []
+    exposed: list[str] = []
 
     for event in events:
         kind = event.get("type")
         stamp = _parse_ts(event.get("timestamp"))
+        if kind == "system" and event.get("subtype") == "init":
+            # The CLI names every tool it handed the model on this event. That is
+            # the number the cohort rig compares against cold prefix writes - a
+            # profile that exposes ten more tools rewrites a longer prefix on
+            # every cold turn - and it was recorded as a hardcoded 0.
+            names = event.get("tools")
+            if isinstance(names, list):
+                exposed = [str(n) for n in names if str(n).startswith("mcp__")]
         if kind == "assistant":
             for block in _content_blocks(event):
                 if block.get("type") != "tool_use":
@@ -337,9 +351,9 @@ def _tools_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
             "meanInterCallGapMs": round(sum(gaps) / len(gaps)) if gaps else None,
         },
         "mcp": {
-            "exposed": [],
+            "exposed": exposed,
             "invoked": invoked,
-            "toolsExposed": 0,
+            "toolsExposed": len(exposed),
             "toolsInvoked": sum(1 for name in by_name if name.startswith("mcp__")),
         },
         "subagents": {
@@ -443,8 +457,11 @@ def document_for(
     except Exception:
         exposed = []
     mcp = dict(parsed.get("mcp") or {})
-    mcp["exposed"] = exposed or mcp.get("invoked") or []
-    mcp["toolsExposed"] = mcp.get("toolsExposed") or 0
+    # The recording's own init event is authoritative - it names what the CLI
+    # actually handed the model. PROFILES is the intent, and stands in only when
+    # there was no recording to read.
+    mcp["exposed"] = mcp.get("exposed") or exposed or mcp.get("invoked") or []
+    mcp["toolsExposed"] = mcp.get("toolsExposed") or len(mcp["exposed"])
 
     started = _as_utc(job.get("startedAt") or parsed.get("startedAt"))
     finished = _as_utc(job.get("finishedAt") or parsed.get("finishedAt"))
@@ -466,6 +483,14 @@ def document_for(
         "startedAt": started,
         "finishedAt": finished,
         "durationApiMs": parsed.get("durationApiMs"),
+        "numTurns": parsed.get("numTurns"),
+        # A leg that stopped because it ran out of turns did not finish its
+        # verification; that is a quality signal, not a cost one.
+        "hitTurnCap": (
+            parsed.get("numTurns") is not None
+            and runtime is not None
+            and parsed["numTurns"] >= (runtime[1] if isinstance(runtime, tuple) else 0)
+        ),
         "tokens": parsed.get("tokens") or {},
         "modelUsage": parsed.get("modelUsage") or {},
         "totalCostUsd": parsed.get("totalCostUsd"),
