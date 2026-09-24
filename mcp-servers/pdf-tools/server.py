@@ -11,6 +11,7 @@ therefore clusters positioned words into rows instead. See
 """
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 from typing import Any
 
@@ -325,7 +326,28 @@ def get_page_image(
     out_dir: str | None = None,
     region: list[float] | None = None,
 ) -> dict[str, Any]:
-    return pdfpages.page_image(file_path, page_number, dpi, out_dir, region)
+    """Render a page or region and return the image itself.
+
+    This used to return `image_path` alone, so seeing a page took two turns -
+    render, then `Read` the file. On one 24-page bid the take-off spent 48 of its
+    80 tool calls on that pair, rendering two sheets twenty-four times, and hit
+    its turn cap with the verification unfinished. The path is still returned for
+    `visual_pages_checked`; the image now comes back with it.
+    """
+    hit = pdfpages.page_image(file_path, page_number, dpi, out_dir, region)
+    path = hit.get("image_path")
+    if path:
+        try:
+            with open(path, "rb") as handle:
+                hit["_image"] = {
+                    "data": base64.b64encode(handle.read()).decode("ascii"),
+                    "mimeType": "image/png",
+                }
+        except OSError as exc:
+            # The metadata is still worth returning - px_per_pt and `legible`
+            # tell the caller whether a re-crop is even worth attempting.
+            hit["image_note"] = f"rendered but unreadable at {path}: {exc}"
+    return hit
 
 
 def search_pdf(
