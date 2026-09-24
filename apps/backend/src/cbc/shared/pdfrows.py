@@ -358,6 +358,25 @@ def _corroborant_needles(value: str) -> list[str]:
     return needles
 
 
+def _carries_another_mark(cell: str, other_marks: set[str]) -> bool:
+    """Is a second opening's mark stacked into this cell?
+
+    `rows_from_words` buckets words by y, so two schedule rows closer than
+    ROW_TOLERANCE collapse into one - and because the marks then sit within
+    COLUMN_GAP of each other in x, they land in the *same cell*: `5 6 | DINING
+    WASHING | ...`. That is the shape a clustering failure actually takes, and
+    the first cell is the only place it shows.
+
+    Tokens are matched whole. Dutch Bros glues the width onto the mark
+    (`01 3' - 6"`), and `3'` is not a mark however many door 3s exist.
+    """
+    tokens = (cell or "").split()
+    return any(
+        token in other_marks and re.fullmatch(r"\d{1,3}[A-Z]?", token, re.IGNORECASE)
+        for token in tokens[1:]
+    )
+
+
 def _row_matches_opening(
     row: dict[str, Any],
     number: str,
@@ -377,14 +396,17 @@ def _row_matches_opening(
     )
     if hits < 2:
         return False
-    # Refuse a row that also carries another opening's mark as its own cell.
-    for cell in cells[1:]:
-        mark = _first_cell_mark(cell)
-        if mark and mark in other_marks and re.fullmatch(
-            r"\d{1,3}[A-Z]?", cell.strip(), re.IGNORECASE
-        ):
-            return False
-    return True
+    # Refuse a row that runs several openings together - a wrong highlight is
+    # worse than none, because it looks checked.
+    #
+    # Only the first cell is examined, because that is where a merge lands.
+    # Scanning the whole row instead refused rows that were never merged: a
+    # schedule prints the hardware group and the frame type as bare two-digit
+    # numbers, so door 03's row reads `03 | VESTIBULE | ... | 02 | G-3 | A | ...`
+    # and that `02` is group 02, not door 02. On the Wendys set marks 03 and 09
+    # lost their measured rectangle to their neighbours' group numbers and
+    # reached the estimator with no highlight at all.
+    return not _carries_another_mark(cells[0], other_marks)
 
 
 def attach_measured_bboxes(
