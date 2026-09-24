@@ -895,9 +895,17 @@ export interface VendorTierRow {
   key: string;
   name?: string;
   categories?: Record<string, number>;
+  /** Present on the wire and needed on screen: a multiplier without its
+   *  effective date and price book is a number nobody can audit (NFR-3). */
+  discounts?: Record<string, string>;
   multiplier?: number | null;
   tier?: string | null;
   note?: string | null;
+  account?: string | null;
+  effective_date?: string | null;
+  price_book?: string | null;
+  source?: string | null;
+  share_of_volume?: number | null;
 }
 
 export interface VendorTierDoc {
@@ -926,10 +934,48 @@ export interface LiteKitTableMeta {
   heightCount: number;
 }
 
+/** One National Guard price table: a width x height grid, keyed height then width. */
+export interface LiteKitTable {
+  pdf_page?: number | null;
+  printed_page?: number | null;
+  models?: string;
+  rules?: string[];
+  widths?: number[];
+  /** `prices[height][width]` - both keys arrive as strings over the wire. */
+  prices?: Record<string, Record<string, number>>;
+  cell_count?: number;
+}
+
+export interface LiteKitDoc {
+  description?: string;
+  source?: string;
+  price_basis?: string;
+  note?: string;
+  sizing_rule?: string;
+  tables?: LiteKitTable[];
+}
+
 export interface LiteKitResponse {
   tableCount: number;
   tables: LiteKitTableMeta[];
-  data: Record<string, unknown>;
+  data: LiteKitDoc;
+}
+
+/** The CUSTOM / OTHER option matrix: named option lists plus prose (NR-13). */
+export interface CustomOtherMatrixDoc {
+  description?: string;
+  design_principle?: string;
+  cost_path?: string;
+  keying_note?: string;
+  functions?: string[];
+  backsets?: string[];
+  finishes?: string[];
+  levers?: string[];
+  keyways?: string[];
+  strikes?: string[];
+  electrified?: string[];
+  preps?: string[];
+  hard_manual_triggers?: string[];
 }
 
 export interface StockListDoc {
@@ -939,7 +985,7 @@ export interface StockListDoc {
   source?: string;
 }
 
-export type CustomOtherMatrix = Record<string, unknown>;
+export type CustomOtherMatrix = CustomOtherMatrixDoc & Record<string, unknown>;
 
 export interface AuditEntry {
   id: string;

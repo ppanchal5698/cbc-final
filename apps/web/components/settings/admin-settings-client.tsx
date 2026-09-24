@@ -16,12 +16,12 @@ import { FrameDepthsPanel } from "@/components/settings/frame-depths-panel";
 import { FrpConstantsPanel } from "@/components/settings/frp-constants-panel";
 import { QueueMetricsPanel } from "@/components/settings/queue-metrics-panel";
 import {
-  CustomOtherMatrixPanel,
-  LiteKitPanel,
   SpecialNetsPanel,
   StockListsPanel,
-  VendorTiersPanel,
 } from "@/components/settings/reference-extra-panels";
+import { VendorTiersPanel } from "@/components/settings/vendor-tiers-panel";
+import { LiteKitPanel } from "@/components/settings/lite-kit-panel";
+import { CustomOtherMatrixPanel } from "@/components/settings/custom-other-matrix-panel";
 
 export function AdminSettingsClient() {
   return (
