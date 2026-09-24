@@ -133,6 +133,22 @@ def ensure_workspace_trusted(workspace: Path, *, home: Path | None = None) -> bo
     return True
 
 
+# Directories that live inside the agent config but are not agent config. A
+# graph-indexer run left 62 cache files in `.claude/`; they are gitignored, which
+# keeps them out of the repository and does nothing about this copy - which
+# happens once per leg, of every job, of every bid.
+AGENT_CONFIG_SKIP = frozenset({"graphify-out", "__pycache__", ".pytest_cache", "node_modules"})
+
+
+def agent_config_ignore():
+    """`shutil.copytree` ignore callback: build output never reaches a sandbox."""
+
+    def ignore(_directory: str, names: list[str]) -> set[str]:
+        return {name for name in names if name in AGENT_CONFIG_SKIP}
+
+    return ignore
+
+
 def prepare(slug: str) -> Path:
     """Clone the bid into an isolated workspace. Returns cwd for Claude."""
     from cbc.shared.storage_backends import hydrate_project
@@ -161,7 +177,7 @@ def prepare(slug: str) -> Path:
             continue
         try:
             if origin.is_dir():
-                shutil.copytree(origin, target)
+                shutil.copytree(origin, target, ignore=agent_config_ignore())
             else:
                 shutil.copy2(origin, target)
         except OSError as exc:
