@@ -84,6 +84,37 @@ def _label(opening: dict) -> str:
     return str(name) if str(name).lower().startswith("door") else f"Door {name}"
 
 
+# The `<field>_missing` strings a pass writes onto the opening itself. These are
+# what the line-items screen renders beside the row, and unlike review_flags.json
+# nothing ever checked them against the row's own data - so a door carrying
+# `finish: "US26D (626)"` reached the estimator flagged `finish_missing`, on every
+# row of a real bid. A flag contradicted by the field it names is worse than no
+# flag: it is the review queue telling the estimator to look at something that is
+# already answered.
+FIELD_MISSING_FLAGS = {field: f"{field}_missing" for field in REQUIRED_OPENING_FIELDS}
+
+
+def reconcile_flags(opening: dict[str, Any]) -> list[str]:
+    """The opening's flags with the contradicted `<field>_missing` ones removed.
+
+    Deterministic and one-directional on purpose. A flag whose field is populated
+    is dropped, because the data is the evidence and the flag is a claim about it.
+    A flag that is *absent* while the field is empty is added, so a pass that
+    simply forgot to flag cannot hide a gap. Everything else the pass wrote is
+    left alone - it sees things this cannot.
+    """
+    flags = [f for f in (opening.get("flags") or []) if isinstance(f, str)]
+    owned = set(FIELD_MISSING_FLAGS.values())
+    kept = [f for f in flags if f not in owned]
+    for field, flag in FIELD_MISSING_FLAGS.items():
+        if opening.get(field) in (None, "", []):
+            kept.append(flag)
+    # Order is stable so an unchanged opening produces an unchanged artifact and
+    # the version store does not record a new revision for nothing.
+    seen: set[str] = set()
+    return [f for f in kept if not (f in seen or seen.add(f))]
+
+
 def _opening_flags(openings: list[dict]) -> list[dict]:
     flags: list[dict] = []
     for opening in openings:

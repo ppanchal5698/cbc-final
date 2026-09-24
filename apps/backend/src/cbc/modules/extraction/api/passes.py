@@ -371,6 +371,12 @@ def _sync_blocking_pre(job: dict, project: dict) -> dict:
                 "%s specialty bbox: %d measured from the sheet, %d left null and flagged",
                 project.get("code", slug), spec_attached, spec_unmatched,
             )
+        reconciled = geometry.reconcile_review_flags(project)
+        if reconciled:
+            log.info(
+                "%s review flags: %d opening(s) had flags contradicting their own data",
+                project.get("code", slug), reconciled,
+            )
         derived, no_depth = geometry.derive_frame_depths(project)
         if derived or no_depth:
             log.info(

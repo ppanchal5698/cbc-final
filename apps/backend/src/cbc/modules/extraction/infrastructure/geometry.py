@@ -148,6 +148,45 @@ def measure_bboxes(project: dict[str, Any]) -> tuple[int, int]:
     return attached, unmatched
 
 
+def reconcile_review_flags(project: dict[str, Any]) -> int:
+    """Make each opening's own flags agree with its own data. Returns the changes.
+
+    Runs beside `measure_bboxes`, on what the pass just wrote, for the same
+    reason: these are claims the estimator acts on and the system can check them.
+    A door carrying `finish: "US26D (626)"` arrived flagged `finish_missing` on
+    every row of a real bid, which sends the estimator to look at a field that is
+    already answered - and a review queue that cries wolf is one that stops being
+    read.
+    """
+    from cbc.modules.extraction.api.validation.review import reconcile_flags
+
+    slug = project["slug"]
+    path = storage.project_dir(slug) / "extracted" / "line_items.json"
+    payload = read_json(path)
+    if payload is None:
+        return 0
+    openings = _normalize_schedule_payload(payload)["openings"]
+    if not openings:
+        return 0
+
+    changed = 0
+    for opening in openings:
+        before = list(opening.get("flags") or [])
+        after = reconcile_flags(opening)
+        if after != before:
+            opening["flags"] = after
+            changed += 1
+    if not changed:
+        return 0
+
+    if isinstance(payload, list):
+        write_json(path, openings)
+    else:
+        key = "openings" if "openings" in payload else "lines"
+        write_json(path, {**payload, key: openings})
+    return changed
+
+
 def derive_frame_depths(project: dict[str, Any]) -> tuple[int, int]:
     """Fill in each opening's frame throat from its wall construction.
 

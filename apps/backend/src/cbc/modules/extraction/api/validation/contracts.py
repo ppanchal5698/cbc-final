@@ -142,7 +142,14 @@ def extraction_review_verdict(slug: str) -> ReviewVerdict:
         schedule = DoorSchedule.parse_payload(raw)
     except (OSError, json.JSONDecodeError, ValidationError, ValueError):
         return "needs_review"
-    openings = schedule.openings
+    # An opening CBC is not quoting cannot make the take-off incomplete.
+    #
+    # Aluminium storefront is deliberately out of scope, and the pass marks it so
+    # - then those rows were scored for fire rating, handing and finish like any
+    # other, and dragged the whole bid under the floor. On the first real set two
+    # of six openings were storefront, so the gate was judging the take-off on
+    # doors it had correctly decided not to price.
+    openings = [o for o in schedule.openings if getattr(o, "in_scope", None) is not False]
     if not openings:
         return "ok"
     complete = 0
