@@ -28,23 +28,36 @@ Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/e
 
 ## Fixed procedure (do not improvise)
 
-0. **Mandatory visual pages first.** Read
-   `extracted/_visual_pages.json` (via get_artifact / Read). For **every** page
-   listed there with `door_schedule` / `door_schedule_candidate` roles (or
-   `pretakeoff_empty` / `door_schedule_candidate` reasons): `Read` the
-   pre-rendered `image_path` PNG **before** trusting pretakeoff, bid-docs, or
-   concluding `no_scope`. If `image_path` is missing, call
-   `get_page_image(page, dpi=200)` full page. Record each of those pages in
-   `visual_pages_checked` on the door schedule when you save. Bare `hardware` /
-   `frp` / `finish` vision rows belong to their specialists — do not treat them
-   as door-schedule checklist items.
+0. **Read the parse first.** The bid set is parsed by LlamaParse before you
+   start. Every page carries blocks with `text`, a `bbox`, and — on tables —
+   `cells` and `cell_boxes`, plus a `verified` score measuring the parser's
+   claims against the real text on the page. A schedule row you can read in
+   `cells` is a row you do not need a picture of, and the cell box is a better
+   citation than anything you could crop by eye.
+
+   `search_blocks` finds the page; `get_page_blocks` reads it.
+
+   **Render a page only when the parse cannot answer.** That is:
+   - the page is listed in `extracted/_visual_pages.json` — that list now holds
+     only pages the parser could not verify (`verified: null`,
+     `parser_verified_null`, `text_poor`). Read those images.
+   - `get_page_blocks` returns zero blocks on a page the sheet map says carries
+     a schedule.
+   - the field is **handing**, read off the door swing on a floor plan. It is
+     printed as text nowhere, so it is always a vision read.
+
+   Record every page you checked in `visual_pages_checked` — an `image_path`
+   when you looked at it, the block number when you read it. The gate is that
+   you checked the page, not that you photographed it. Bare `hardware` / `frp` /
+   `finish` vision rows belong to their specialists — not this checklist.
 1. **Read first.** `mcp__artifact-storage__get_artifact` / Read
    `extracted/line_items.json` and `extracted/_sheetmap.json`.
 2. **Parse-health check.** If `list_documents` says `parse_state=parsed` but
-   `get_page_blocks` / `get_outline` returns zero blocks or
-   "no parsed blocks", treat the GPU parse as **failed**. Prefer pdf-tools +
-   **`get_page_image`** for the rest of the run — do not keep calling bid-docs
-   on empty pages.
+   `get_page_blocks` / `get_outline` returns zero blocks or "no parsed blocks",
+   the parse failed for that page — fall back to pdf-tools and
+   `get_page_image` **for that page**, and do not keep calling bid-docs on it.
+   A page that returns blocks is a page to read, not a page to photograph: do
+   not abandon the parse for the whole run because one sheet came back empty.
 3. **If missing or empty openings and no `no_scope_reason`:** run deterministic
    extract on sheetmap `door_schedule` **and** `door_schedule_candidate` pages —
    **do not author JSON from scratch**:
@@ -52,21 +65,27 @@ Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/e
        python .claude/skills/extract-door-schedule/scripts/parse_schedule.py <pdf> \
          --page <n> --openings --json
 
-   For every `door_schedule_candidate` or `text_poor` page (e.g. sheet `A4.0`
-   with almost no extractable text), call `get_page_image` **before** concluding
-   there is no schedule. Title-block-only text is normal on CAD exports; the
-   schedule body is often invisible to `extract_text` / `search_pdf`.
+   For a `door_schedule_candidate` or `text_poor` page, check
+   `get_page_blocks` first — LlamaParse reads many sheets that
+   `extract_text` / `search_pdf` cannot. Only when that comes back empty does
+   the page need your eyes, and `_visual_pages.json` will already list it.
 
-   **Text-poor schedule visual protocol (mandatory):**
-   1. First call `get_page_image(page, dpi=200)` **full page** (no region crop),
-      or `Read` the `_visual_pages.json` image when present.
-   2. If the image shows a DOOR SCHEDULE / HARDWARE LEGEND with data rows,
-      author openings from that image. Empty `parse_schedule` / `extract_tables`
-      output is expected on CAD text-poor sheets — it is **not** proof the
-      schedule is empty.
-   3. Do **not** declare the schedule a "blank template" after failed crops.
-      If a low-DPI or wrong-region crop is unreadable, re-read the **full page
-      at dpi≥200**. Wrong crops are agent error, not empty scope.
+   **Schedule visual protocol, for pages the parser could not read:**
+   1. `Read` the `_visual_pages.json` image, or call `get_page_image(page)`.
+      The image comes back with the reply — you do not need a second `Read`.
+   2. If it shows a DOOR SCHEDULE / HARDWARE LEGEND with data rows, author
+      openings from it. Empty `parse_schedule` / `extract_tables` output on a
+      text-poor CAD sheet is **not** proof the schedule is empty.
+   3. **Crop from a coordinate, not by trial.** A full sheet renders at about
+      0.6 px/pt against the 1568px cap and will be unreadable — that is
+      expected, not a failure to retry blindly. If a seeded opening on this page
+      already carries a `bbox`, crop that rectangle. Otherwise use the block
+      `bbox` from `get_page_blocks`. Check `legible` and `px_per_pt` in the
+      reply rather than guessing from the picture. Re-cropping by eye until
+      something reads is how one take-off spent 24 renders on two sheets and ran
+      out of turns before it finished checking.
+   4. Do **not** declare the schedule a "blank template" because a crop was
+      unreadable. An unreadable crop is a wrong rectangle, not empty scope.
    4. HM / WD rows on the door schedule are **CBC in-scope openings**, even when
       a landlord work letter also lists them. Landlord letters do **not** move
       scheduled HM doors out of CBC scope. Only ALUM/storefront marks are OOS
@@ -99,10 +118,12 @@ Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/e
    confidence below 0.75:
    1. Identify the page(s) to check (schedule `source_page`, HARDWARE GROUPS,
       Div 08 specs, floor plan from sheetmap / `search_pdf`).
-   2. Call `search_blocks` / `get_page_blocks` or `extract_tables` /
-      `extract_text` on **that** page. Crop with `get_page_image(region=bbox)`
-      when the text is ambiguous — do not skip to a flag because the parser left
-      the field null. On `text_poor` pages, start with full-page `get_page_image`.
+   2. Call `search_blocks` / `get_page_blocks` on **that** page — on a table the
+      `cells` give you the column the value sits in, which is what you cite.
+      Crop with `get_page_image(region=bbox)` only when the blocks are genuinely
+      ambiguous, and crop the block's own `bbox`. Do not skip to a flag because
+      the parser left the field null. On a page the parser could not read at
+      all, start from the `_visual_pages.json` image.
    3. Write what you checked into `evidence_note` (page + short excerpt, or
       "searched pages N,M — not found").
    4. Only then fill the value **or** leave null with `*_missing`.
@@ -134,21 +155,28 @@ Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/e
    this file.
 10. **On schema rejection:** fix the named fields (max **2** retries). Do not
    bypass with Write.
-11. **Before `no_scope_reason`:** you must have opened `get_page_image` at
-    **dpi≥200 full page** (or Read the `_visual_pages.json` PNG) on every sheetmap
-    `door_schedule` / `door_schedule_candidate` page **and** every page listed in
-    `_visual_pages.json`. Zero text hits for "door schedule" is not enough when
-    candidates exist. A schedule with visible HM/WD rows must never become
+11. **Before `no_scope_reason`:** you must have *checked* every sheetmap
+    `door_schedule` / `door_schedule_candidate` page and every page listed in
+    `_visual_pages.json` — read the blocks where the parser read them, and the
+    image where it could not. Zero text hits for "door schedule" is not enough
+    when candidates exist. A schedule with visible HM/WD rows must never become
     `openings: []`.
 
 ## How to read an architectural PDF
-Prefer **bid-docs** when GPU-parsed **and** page blocks exist **and** the page is
-**not** in `_visual_pages.json`: `get_outline` → `search_blocks` →
-`get_page_blocks`. If outline/block counts are zero despite `parsed`, or the page
-is listed for visual read, fall back immediately to pdf-tools + images. Crop with
-`get_page_image(region=bbox)` when unclear **or** when you are about to flag a
-field missing. Unparsed / text-poor / `_visual_pages.json` documents use
-pdf-tools and full-page images first.
+**bid-docs first, always:** `get_outline` → `search_blocks` → `get_page_blocks`.
+The set is parsed before you start, and on a table the blocks carry `cells` and
+`cell_boxes` — the row *and* the coordinate of the column a value came from,
+which is exactly what the estimator clicks to verify. That is better evidence
+than a crop, and it costs one call.
+
+Fall back to pdf-tools and images only when the parse cannot answer: zero blocks
+on a page the sheet map says carries a schedule, a page listed in
+`_visual_pages.json` (the parser could not verify those), or **handing**, which
+is read off the door swing and printed as text nowhere.
+
+When you do render, crop a rectangle you already have — a seeded opening's
+`bbox`, or a block's `bbox` — rather than hunting for one. The image comes back
+with the reply; there is no second `Read`.
 Do not write inline Python parsers for rows.
 
 ## Closed-world openings

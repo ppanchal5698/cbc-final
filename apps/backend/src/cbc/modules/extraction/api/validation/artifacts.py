@@ -316,10 +316,22 @@ def _visual_manifest_schedule_pages(project: str) -> list[tuple[str, int]]:
     Delegates to ``visual_pages.schedule_visual_keys`` so the validator and the
     take-off wave draw the required pages from one function - the wave now hands
     the leg every page this check will hold it to.
+
+    A page the parser read and verified is **not** required as an image. This
+    check used to hold every schedule page to a rendered PNG, which is what kept
+    the render-and-crop loop alive after LlamaParse replaced MinerU: the prompt
+    could stop asking for pictures, but the validator still failed the run
+    without them. The requirement is that the page was *checked*, not that it was
+    photographed - `visual_pages_checked` accepts a block citation for a verified
+    page (see ``visual_pages.prompt_checklist``).
     """
     from cbc.modules.extraction.infrastructure import visual_pages
 
-    return visual_pages.schedule_visual_keys(project)
+    return [
+        (str(page.get("path") or ""), int(page["source_page"]))
+        for page in visual_pages.pages_needing_vision(project)
+        if page.get("source_page") is not None
+    ]
 
 
 def _visual_pages_checked_keys(payload: Any) -> set[tuple[str, int]]:
@@ -481,7 +493,8 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
         if missing:
             problems.append(
                 f"{project}: line_items.json is missing visual_pages_checked "
-                f"coverage for mandatory vision page(s) {missing}. Read each "
+                f"coverage for vision page(s) {missing} - the parser could not "
+                "read these, so they have to be looked at. Read each "
                 "`_visual_pages.json` image and record "
                 "{path, source_page, image_path, finding} before save / no_scope "
                 "— one `propose_patch` with path `visual_pages_checked` does it; "

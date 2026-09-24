@@ -41,13 +41,16 @@ description: >
    - **Finish:** row, HW group, or sheet note ("ALL HARDWARE SHALL BE US32D").
    - **Storefront / AL+AL:** flag `out_of_scope_storefront`; do not quote as CBC
      HM/WD lines (Matrix 2.3).
-4. **PDF verify before present (mandatory).** Before emitting any `*_missing`
-   flag, filling an unsure value, or saving an opening that drops cells from
-   `raw_row`, open the **specific** PDF page(s):
-   `search_blocks` / `get_page_blocks` or `extract_tables` / `extract_text`,
-   crop with `get_page_image(region=bbox)` when ambiguous. Cite page + excerpt
-   (or "searched pages … — not found") in `evidence_note`. See
-   .claude/guides/extraction.md. Parser null ≠ sheet silent.
+4. **Verify before present (mandatory).** Before emitting any `*_missing` flag,
+   filling an unsure value, or saving an opening that drops cells from
+   `raw_row`, check the **specific** page: `search_blocks` → `get_page_blocks`.
+   On a table the blocks carry `cells` and `cell_boxes`, so you get the value
+   *and* the coordinate of the column it sits in — that is the citation the
+   estimator clicks. Crop with `get_page_image(region=bbox)` only when the
+   blocks are genuinely ambiguous, and crop a `bbox` you already have rather
+   than hunting for one. Cite page + excerpt (or "searched pages … — not found")
+   in `evidence_note`. See .claude/guides/extraction.md. Parser null ≠ sheet
+   silent.
 5. Persist with `mcp__artifact-storage__save_artifact` only — never Write/Edit.
 6. On schema error: repair named fields (≤2 retries). Do not bypass validation.
 
