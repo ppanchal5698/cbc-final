@@ -466,6 +466,156 @@ def seeded_row_regions(slug: str) -> dict[int, list[tuple[str, list[float]]]]:
     return out
 
 
+# Handing is the one field that is genuinely a picture.
+#
+# It is read off the door swing on a floor plan and printed as text nowhere, so
+# no amount of parsing produces it - which is why the take-off went hunting. On
+# one 24-page bid it rendered the same floor plan six times looking for doors it
+# could already have been pointed at: the marks are printed on the plan, in the
+# text layer, as their own small tags.
+#
+# 300pt renders at about 4.2 px/pt against the 1568px cap, which is enough to
+# read a swing arc and the leaf. Marks cluster - four doors of that bid sit
+# inside one 300pt square - so overlapping crops are merged and one picture
+# answers several openings.
+HANDING_CROP = 300.0
+HANDING_MAX_REGIONS = 8
+
+
+def _mark_positions(page: "fitz.Page", marks: set[str]) -> list[tuple[str, list[float]]]:
+    """Where each opening's mark is printed on this sheet, as its own tag.
+
+    Whole-cell matches only. A door tag is its own cell; `05` inside `5'-0"` or a
+    dimension string is not a door, and matching loosely would send the estimator
+    to a random dimension line with the confidence of a measurement.
+    """
+    found: list[tuple[str, list[float]]] = []
+    for row in pdfrows.rows_from_words(page):
+        for cell, box in zip(row.get("cells") or [], row.get("cell_boxes") or []):
+            text = (cell or "").strip()
+            if text in marks:
+                found.append((text, [float(v) for v in box]))
+    return found
+
+
+def _merge(
+    spots: list[tuple[str, list[float]]], bounds: tuple[float, float]
+) -> list[dict[str, Any]]:
+    """Square crops around each mark, merged where they overlap.
+
+    Kept inside the sheet: a mark near an edge centres a box that runs off it,
+    and a crop with a negative corner renders as somewhere else entirely.
+
+    ponytail: O(n^2) over the marks on one sheet - a schedule has tens, not
+    thousands. Sort-and-sweep if a bid ever arrives with hundreds.
+    """
+    width, height = bounds
+    regions: list[dict[str, Any]] = []
+    for mark, box in spots:
+        half = HANDING_CROP / 2
+        cx = min(max((box[0] + box[2]) / 2, half), max(width - half, half))
+        cy = min(max((box[1] + box[3]) / 2, half), max(height - half, half))
+        rect = [
+            max(cx - half, 0.0),
+            max(cy - half, 0.0),
+            min(cx + half, width),
+            min(cy + half, height),
+        ]
+        for region in regions:
+            other = region["region"]
+            if rect[0] < other[2] and other[0] < rect[2] and rect[1] < other[3] and other[1] < rect[3]:
+                # Keep the box the size it was; a merged crop that grows stops
+                # being legible, which is the whole point of the size.
+                region["marks"].append(mark)
+                break
+        else:
+            regions.append({"region": rect, "marks": [mark]})
+    for region in regions:
+        region["region"] = [round(v, 1) for v in region["region"]]
+        region["marks"] = sorted(set(region["marks"]))
+    return regions
+
+
+def handing_regions(slug: str) -> list[dict[str, Any]]:
+    """Floor-plan crops showing the swing of every opening still missing handing.
+
+    Returns `[{path, page, region, marks}]`, ordered by how many openings each
+    crop answers, so the first picture is the one worth taking.
+    """
+    from cbc.shared.pass_files import read_json
+    from cbc.shared.storage import project_dir
+
+    root = project_dir(slug)
+    payload = read_json(root / "extracted" / "line_items.json")
+    if isinstance(payload, dict):
+        openings = payload.get("openings") or payload.get("lines") or []
+    elif isinstance(payload, list):
+        openings = payload
+    else:
+        return []
+
+    marks = {
+        str(o.get("door_number") or o.get("mark") or "").strip()
+        for o in openings
+        if isinstance(o, dict)
+        and not str(o.get("handing") or "").strip()
+        and o.get("in_scope") is not False
+    }
+    marks.discard("")
+    if not marks:
+        return []
+
+    sheetmap = read_json(root / "extracted" / "_sheetmap.json")
+    if not isinstance(sheetmap, dict):
+        return []
+
+    out: list[dict[str, Any]] = []
+    for entry in sheetmap.get("files") or []:
+        pages = [
+            page.get("source_page")
+            for page in (entry.get("pages") or [])
+            if "floor_plan" in {str(r).lower() for r in (page.get("roles") or [])}
+        ]
+        if not pages:
+            continue
+        try:
+            document = fitz.open(_resolve_pdf(str(entry.get("path") or "")))
+        except Exception:  # a missing upload is not worth failing a prompt over
+            continue
+        try:
+            for number in sorted(p for p in pages if isinstance(p, int)):
+                if not 0 <= number - 1 < document.page_count:
+                    continue
+                page = document[number - 1]
+                spots = _mark_positions(page, marks)
+                for region in _merge(spots, (page.rect.width, page.rect.height)):
+                    out.append(
+                        {
+                            "path": entry.get("path"),
+                            "page": number,
+                            "region": region["region"],
+                            "marks": region["marks"],
+                        }
+                    )
+        finally:
+            document.close()
+
+    # The fewest pictures that show every opening. A mark is usually printed on
+    # several sheets, so listing every place it appears reproduces the hunt this
+    # exists to end - on one real bid it was eight crops where the first one
+    # already showed all four doors.
+    out.sort(key=lambda r: (-len(r["marks"]), r["page"]))
+    covered: set[str] = set()
+    chosen: list[dict[str, Any]] = []
+    for region in out:
+        if set(region["marks"]) - covered:
+            covered.update(region["marks"])
+            chosen.append(region)
+        if covered >= marks:
+            break
+    return chosen[:HANDING_MAX_REGIONS]
+
+
 def prompt_checklist(slug: str) -> str:
     """Injected into the extract prompt: read the parse, look only where it failed.
 
@@ -493,7 +643,8 @@ def prompt_checklist(slug: str) -> str:
         "",
         "**Look at the sheet when, and only when:**",
         "- the field is **handing** - it is read off the door swing on a floor plan",
-        "  and printed as text nowhere, so it is always a vision read;",
+        "  and printed as text nowhere, so it is always a vision read. The crops",
+        "  are listed below: do not go looking for the plan;",
         "- the page is listed below, where the parser found no text layer to verify",
         "  against, or scored too low to trust;",
         "- `get_page_blocks` returns zero blocks on a page the sheet map says",
@@ -526,6 +677,28 @@ def prompt_checklist(slug: str) -> str:
         lines += [
             "**No schedule page on this bid needs a vision read.** The parser",
             "verified every one of them. Cite the block you read.",
+            "",
+        ]
+
+    swings = handing_regions(slug)
+    if swings:
+        lines += [
+            "**Handing: these crops show the swings.** Each opening's mark is",
+            "printed on the plan as its own tag, so the rectangle around it has",
+            "been measured for you. This is the fewest pictures that cover every",
+            "opening still missing handing - usually one.",
+            "",
+        ]
+        for spot in swings:
+            covers = ", ".join(spot["marks"])
+            lines.append(
+                f"- doors {covers}: `get_page_image({spot['page']}, region={spot['region']})`"
+            )
+        lines += [
+            "",
+            "Read the swing off the arc and the leaf. If a door is not legible in",
+            "its crop, say so and leave `handing` null with `handing_missing` - a",
+            "guessed hand is a door that opens the wrong way on site.",
             "",
         ]
 
