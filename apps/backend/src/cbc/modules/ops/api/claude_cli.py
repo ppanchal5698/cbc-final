@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -94,6 +95,9 @@ class RunResult:
     # defect: retrying on the queue's 30s/60s ladder just burns the attempt
     # budget against a window that has hours left on it.
     retry_at: datetime | None = None
+    # The CLI session this pass ran in, so a retry can resume it instead of
+    # starting over. Reported on the result event of every recorded run.
+    session_id: str | None = None
 
 
 # `claude --output-format stream-json` emits one of these whenever the rate-limit
@@ -174,6 +178,7 @@ def run_claude(
     on_heartbeat: Callable[[], None] | None = None,
     heartbeat_seconds: float = 30,
     cwd: Path | None = None,
+    resume_session_id: str | None = None,
 ) -> RunResult:
     """Run one headless Claude Code pass in the repo root.
 
@@ -222,6 +227,7 @@ def run_claude(
             settings=settings,
             system_prompt=system_prompt,
             workdir=workdir,
+            resume_session_id=resume_session_id,
         )
     finally:
         watchdog.stop()
@@ -241,6 +247,7 @@ def _execute_claude(
     settings: dict[str, Any] | None,
     system_prompt: str | None,
     workdir: Path,
+    resume_session_id: str | None = None,
 ) -> RunResult:
     scope: list[str] = []
     if system_prompt:
@@ -251,6 +258,14 @@ def _execute_claude(
         scope += toolsets.flags_for(job_type)
     if max_turns:
         scope += ["--max-turns", str(max_turns)]
+    # Pick the failed pass up where it stopped instead of re-deriving it.
+    #
+    # A retry is a whole new conversation today, so it re-reads the sheets, rebuilds
+    # the schedule and rediscovers the thing that broke. Measured across the recorded
+    # runs, eight cold retries cost $14.24 over 269 turns - one take-off retry alone
+    # was $6.53 for 74 turns, against a first attempt that had already done the work.
+    if resume_session_id:
+        scope += ["--resume", resume_session_id]
     settings_flags = _settings_argv(settings)
 
     # `--` first: the prompt carries project names, file names and text lifted
@@ -304,14 +319,21 @@ def _execute_claude(
             returncode, raw = None, f"[terminal recording unavailable: {exc}]"
         if returncode is not None:
             text, failure = streaming.summarise(raw)
+            # Carried on every outcome, including the cancelled one: a pass that
+            # was stopped is the pass a retry most wants to pick up from.
+            session = session_id_from_stream(raw)
             if cancel_check and cancel_check():
                 return RunResult(
                     ok=False,
                     output=secrets.redact(text[-MAX_LOG_CHARS:], redact_values),
                     error="cancelled by estimator",
                     returncode=130,
+                    session_id=session,
                 )
-            return _interpret(text, failure, returncode, timeout, redact_values)
+            return replace(
+                _interpret(text, failure, returncode, timeout, redact_values),
+                session_id=session,
+            )
 
     try:
         completed = subprocess.run(
@@ -388,6 +410,25 @@ def _bedrock_failure(lowered: str) -> tuple[str, str] | None:
         if any(marker in lowered for marker in markers):
             return message, code
     return None
+
+
+# Deliberately not pinned to UUID shape. The id is opaque - it is handed straight
+# back to `--resume` - and a pattern that assumes a format silently returns None
+# the day the CLI changes one, which reads as "no session to resume" rather than
+# as a bug.
+_SESSION_ID = re.compile(r'"session_id"\s*:\s*"([^"\s]+)"')
+
+
+def session_id_from_stream(raw: str) -> str | None:
+    """The CLI session this run used, read off its own stream-json output.
+
+    Every event carries it and they all agree, so the first match is the answer -
+    which means a run that was killed mid-pass still yields one, and that is
+    exactly the run a retry wants to resume. Waiting for the result event would
+    give up the id on the timeouts and cancellations that matter most.
+    """
+    match = _SESSION_ID.search(raw or "")
+    return match.group(1) if match else None
 
 
 def _interpret(

@@ -410,6 +410,7 @@ def run_claude_docker(
     on_heartbeat=None,
     heartbeat_seconds: float = 30,
     cwd: Path | None = None,
+    resume_session_id: str | None = None,
     **_ignored,
 ):
     """Run Claude in a one-shot read-only container bound only to the scratch dir.
@@ -454,6 +455,11 @@ def run_claude_docker(
                 "max_turns": max_turns,
                 "settings": settings,
                 "recording": str(rec_inside),
+                # Carried through the request file like every other flag. A
+                # one-shot container mounts the session store read-write at
+                # $HOME/.claude, so a resumed id resolves the same way it does in
+                # process mode; if it does not, claude_pass falls back to cold.
+                "resume_session_id": resume_session_id,
             }
         ),
         encoding="utf-8",
@@ -551,6 +557,7 @@ def run_claude_docker(
             returncode=int(payload.get("returncode") or completed.returncode),
             permanent=bool(payload.get("permanent")),
             error_code=payload.get("error_code"),
+            session_id=payload.get("session_id"),
         )
     err = (completed.stderr or completed.stdout or "sandbox container produced no result")[-4000:]
     return RunResult(

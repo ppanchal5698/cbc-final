@@ -42,6 +42,7 @@ def main() -> int:
         settings=request.get("settings"),
         cwd=workspace,
         on_heartbeat=None,
+        resume_session_id=request.get("resume_session_id"),
     )
     (workspace / "_sandbox_result.json").write_text(
         json.dumps(
@@ -52,6 +53,9 @@ def main() -> int:
                 "returncode": result.returncode,
                 "permanent": result.permanent,
                 "error_code": result.error_code,
+                # Without this the sandbox path never reports which session it
+                # ran in, so a docker-mode retry has nothing to resume.
+                "session_id": result.session_id,
             }
         ),
         encoding="utf-8",

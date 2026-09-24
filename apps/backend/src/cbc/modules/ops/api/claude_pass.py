@@ -125,6 +125,53 @@ def limits_for(job_type: str) -> tuple[int, int]:
     return LIMITS.get(job_type, (JOB_TIMEOUT, MAX_TURNS))
 
 
+# A retry may pick up the session its own leg left behind, and only that one.
+RESUME_RETRIES = os.environ.get("WORKER_RESUME_RETRIES", "1").strip() not in ("", "0", "false")
+
+# What the resumed pass is told before its brief is repeated. Without it the leg
+# reads its own instruction a second time with no account of why, and starts over
+# inside a conversation that already holds the work.
+RESUME_PREAMBLE = (
+    "The previous attempt at this pass was interrupted - it timed out, was "
+    "cancelled, or hit an error. Everything above is your own work from that "
+    "attempt.\n\n"
+    "Do not start over. Read back what you already established, check which "
+    "artifacts you already wrote, and carry on from there. Re-read a page only "
+    "if you actually need it again. The brief follows, unchanged.\n\n"
+    "---\n\n"
+)
+
+# How the CLI reports a session id it cannot open.
+_SESSION_GONE = ("no conversation found", "session not found", "no such session")
+
+
+def _session_gone(outcome: Any) -> bool:
+    haystack = f"{getattr(outcome, 'error', '') or ''} {getattr(outcome, 'output', '') or ''}".lower()
+    return any(needle in haystack for needle in _SESSION_GONE)
+
+
+def sessions_from(job: dict[str, Any]) -> dict[str, str]:
+    """Session id per leg label from the attempt before this one.
+
+    Empty on a first attempt, so nothing is resumed and behaviour is unchanged.
+
+    Only the *same leg* of the *same job* is resumed. Carrying a session across
+    domain jobs was measured and is a losing trade: the take-off leg's
+    conversation sits at ~146k tokens per turn, so handing it to pricing adds
+    ~$1.17 of cache reads to a job that costs $1.87 - to save the three or four
+    turns it spends reading the artifacts. The phases talk to each other through
+    files on disk, not through the conversation, which is what makes them cheap
+    to start cold and expensive to carry.
+    """
+    if not RESUME_RETRIES or max(int(job.get("attempts") or 1), 1) < 2:
+        return {}
+    out: dict[str, str] = {}
+    for entry in job.get("waveLegs") or []:
+        if isinstance(entry, dict) and entry.get("sessionId"):
+            out[str(entry.get("label") or "")] = str(entry["sessionId"])
+    return out
+
+
 async def _record_runmetrics(
     job: dict,
     legs: list["WavePass"],
@@ -303,24 +350,51 @@ async def run(
         except Exception as exc:  # noqa: BLE001
             log.warning("wrapper heartbeat for job %s failed: %s", job["_id"], exc)
 
+    prior_sessions = sessions_from(job)
+
     def run_leg(leg: WavePass, leg_recording: Path):
-        kwargs = dict(
-            prompt=leg.prompt,
-            timeout=timeout,
-            env=env,
-            redact_values=provider.secret_values(config),
-            recording=leg_recording,
-            job_type=job["type"],
-            max_turns=leg_max_turns,
-            cancel_check=cancel_event.is_set,
-            settings=provider.claude_settings_overlay(config),
-            on_heartbeat=ping,
-            heartbeat_seconds=ops_worker.HEARTBEAT_SECONDS,
-            cwd=sandbox_ws,
+        resume = prior_sessions.get(leg.label or "")
+
+        def _go(session: str | None, prompt: str):
+            kwargs = dict(
+                prompt=prompt,
+                timeout=timeout,
+                env=env,
+                redact_values=provider.secret_values(config),
+                recording=leg_recording,
+                job_type=job["type"],
+                max_turns=leg_max_turns,
+                cancel_check=cancel_event.is_set,
+                settings=provider.claude_settings_overlay(config),
+                on_heartbeat=ping,
+                heartbeat_seconds=ops_worker.HEARTBEAT_SECONDS,
+                cwd=sandbox_ws,
+                resume_session_id=session,
+            )
+            if sandbox_mod.mode() == "docker":
+                return sandbox_mod.run_claude_docker(**kwargs)
+            return runner.run_claude(**kwargs)
+
+        if not resume:
+            return _go(None, leg.prompt)
+
+        log.info(
+            "%s%s: resuming session %s from the previous attempt",
+            job["type"], f" [{leg.label}]" if leg.label else "", resume,
         )
-        if sandbox_mod.mode() == "docker":
-            return sandbox_mod.run_claude_docker(**kwargs)
-        return runner.run_claude(**kwargs)
+        outcome = _go(resume, RESUME_PREAMBLE + leg.prompt)
+        if outcome.ok or not _session_gone(outcome):
+            return outcome
+        # The session store is keyed on the working directory and lives outside
+        # it, so it normally survives the sandbox being rebuilt - but a pruned
+        # store, a changed cwd or a different host all lose it. Falling back to a
+        # cold run costs what a retry used to cost; failing here would cost the
+        # whole job, which is strictly worse than not having resumed at all.
+        log.warning(
+            "%s%s: session %s is gone, retrying cold (%s)",
+            job["type"], f" [{leg.label}]" if leg.label else "", resume, outcome.error,
+        )
+        return _go(None, leg.prompt)
 
     watcher = asyncio.create_task(watch_cancel())
     heartbeat = asyncio.create_task(
@@ -373,11 +447,20 @@ async def run(
         # The job still fails and retries; the retry re-clones from a live bid
         # that now holds the succeeded work and skips those legs.
         wave_only: set[str] | None = None
+        # Recorded for a single pass too, not just a wave. A one-leg job carries
+        # the label "" and is the case a retry most needs: match_and_price and
+        # build_proposal have no wave to skip forward through, so without the
+        # session id their retry is a cold start over the whole job.
+        wave_leg_records = [
+            {
+                "label": leg.label,
+                "ok": bool(res.ok),
+                "error": res.error,
+                "sessionId": res.session_id,
+            }
+            for leg, res in zip(legs, leg_results)
+        ]
         if len(legs) > 1:
-            wave_leg_records = [
-                {"label": leg.label, "ok": bool(res.ok), "error": res.error}
-                for leg, res in zip(legs, leg_results)
-            ]
             if result is not None and not result.ok:
                 wave_only = {
                     prompts.WAVE_LEGS[leg.label]["artifact"]
