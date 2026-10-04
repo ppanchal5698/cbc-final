@@ -12,6 +12,7 @@ from typing import Any
 from cbc.modules.pricing.api import reference_library
 from cbc.modules.pricing.domain import calc as quote_calc
 from cbc.shared import storage
+from cbc.shared.hardware_sets import SET_KEYS
 from cbc.shared.pass_files import read_json, write_json
 
 # The catalog lookup is a *port*, not an import.
@@ -65,7 +66,7 @@ def _collect_items(node: Any, out: list[dict[str, Any]]) -> None:
                 if isinstance(item, dict):
                     out.append(item)
                     _collect_items(item, out)
-        for key in ("hardware_sets", "openings", "groups"):
+        for key in (*SET_KEYS, "openings"):
             child = node.get(key)
             if isinstance(child, list):
                 for row in child:

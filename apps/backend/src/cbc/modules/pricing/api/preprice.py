@@ -33,6 +33,7 @@ from typing import Any
 
 from cbc.modules.pricing.api import catalog_baseline_backfill, p21, pricing, reference_library
 from cbc.shared import storage
+from cbc.shared.hardware_sets import SET_KEYS
 from cbc.shared.pass_files import read_json, write_json
 
 log = logging.getLogger("cbc.worker")
@@ -70,10 +71,16 @@ def _seeded_by_us(path) -> bool:
         return False
 
 
+def _line_count(path) -> int:
+    payload = read_json(path) if path.is_file() else None
+    rows = payload.get("lines") if isinstance(payload, dict) else payload
+    return len(rows) if isinstance(rows, list) else 0
+
+
 def _sets(payload: Any) -> list[dict[str, Any]]:
     if not isinstance(payload, dict):
         return []
-    for key in ("hardware_sets", "sets"):
+    for key in SET_KEYS:
         rows = payload.get(key)
         if isinstance(rows, list):
             return [row for row in rows if isinstance(row, dict)]
@@ -306,6 +313,13 @@ def seed_line_items(slug: str, *, client: p21.P21Client | None = None) -> dict[s
     except Exception:
         log.exception("preprice: building lines failed for %s", slug)
         return {"written": False, "note": "seed raised"}
+
+    # A seed that read no sets must not replace lines that exist. A patched
+    # MANUAL line keeps this seed's stamp, so a re-price whose hardware file
+    # this reader could not see used to write an empty file over the agent's work.
+    if not lines and _line_count(path):
+        log.warning("preprice: no hardware sets read for %s; kept the existing priced lines", slug)
+        return {"written": False, "note": "no hardware sets read; existing lines kept"}
 
     payload = {
         "source": SOURCE,
