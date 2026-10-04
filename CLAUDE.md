@@ -11,18 +11,15 @@ docker compose -f infra/docker-compose.yml up -d --build
 
 ## Where things are
 
-Index and reading order: [`docs/README.md`](docs/README.md).
+There is no separate doc set; the code and its tests are the reference.
 
 | | |
 |---|---|
-| The system in one sitting | [`docs/system-design.md`](docs/system-design.md) |
-| Modules, layering rule, dependency graph | [`docs/backend/modules.md`](docs/backend/modules.md) |
-| Routes, startup, middleware | [`docs/backend/api.md`](docs/backend/api.md) |
-| Job lifecycle and Claude passes | [`docs/backend/worker.md`](docs/backend/worker.md) |
-| Data model | [`docs/collections.mongodb.md`](docs/collections.mongodb.md) |
-| Estimating process | [`docs/pipeline/README.md`](docs/pipeline/README.md) |
-| Running it | [`docs/operations/running.md`](docs/operations/running.md) |
-| Open items | [`docs/data_stewardship.md`](docs/data_stewardship.md) |
+| Modules and the layering rule | [`apps/backend/src/cbc/modules`](apps/backend/src/cbc/modules), enforced by [`tests/architecture/test_layering.py`](apps/backend/tests/architecture/test_layering.py) |
+| Routes, startup, middleware | [`apps/backend/src/cbc/app/main.py`](apps/backend/src/cbc/app/main.py) |
+| Job lifecycle and Claude passes | [`ops/api/worker.py`](apps/backend/src/cbc/modules/ops/api/worker.py), [`ops/api/claude_pass.py`](apps/backend/src/cbc/modules/ops/api/claude_pass.py) |
+| Estimating process and its prompts | [`worker_kit/prompts.py`](apps/backend/src/cbc/worker_kit/prompts.py) and [`.claude/agents/`](.claude/agents) |
+| Running it | [`infra/docker-compose.yml`](infra/docker-compose.yml), [`apps/backend/README.md`](apps/backend/README.md) |
 
 ## Agent configuration
 

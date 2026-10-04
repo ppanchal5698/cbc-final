@@ -25,9 +25,6 @@ for the phase you are in:
 - **One phase only** → `guides/`, and add a row above.
 - **Reference data, not an instruction** → `.claude/memory/`. Never `@`-inline
   it from a rule; that drags it into every session and defeats the point.
-- **Reports project status rather than steering behaviour** → `docs/`.
 
 State a constant **once** and point at its owner from elsewhere. A duplicated
 threshold is a threshold that will disagree with itself.
-
-Open items and known defects: `docs/data_stewardship.md`.

@@ -174,23 +174,12 @@ def test_every_path_named_in_a_doc_exists() -> None:
     )
 
 
-def test_the_doc_set_has_an_index_and_its_entry_points() -> None:
-    """The four documents everything else is reached from."""
-    for rel in (
-        "docs/README.md",
-        "docs/system-design.md",
-        "docs/pipeline/README.md",
-        "docs/collections.mongodb.md",
-    ):
-        assert (ROOT / rel).is_file(), f"missing entry point: {rel}"
-
-
 def test_the_checker_would_catch_a_dangling_path() -> None:
     """The check above is only worth having if it actually fails."""
-    docs = ROOT / "docs"
-    assert _in_repo(docs, "README.md")
-    assert not _in_repo(docs, "nope.md")
-    assert _in_repo(ROOT, "docs/pipeline")  # a directory, via its children
+    rules = ROOT / ".claude" / "rules"
+    assert _in_repo(rules, "README.md")
+    assert not _in_repo(rules, "nope.md")
+    assert _in_repo(ROOT, ".claude/rules")  # a directory, via its children
 
 
 def test_prose_is_not_mistaken_for_a_path() -> None:

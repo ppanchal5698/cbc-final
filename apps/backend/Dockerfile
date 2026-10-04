@@ -105,7 +105,6 @@ COPY --chown=cbc:cbc .mcp.json /app/.mcp.json
 COPY --chown=cbc:cbc .claude /app/.claude
 # The agent runtime IS .claude — one source, copied to the path the runtime expects.
 RUN cp -a /app/.claude /app/agent-runtime && chown -R cbc:cbc /app/agent-runtime
-COPY --chown=cbc:cbc docs /app/docs
 
 # `[ocr]` pulls pytesseract; the tesseract binary is installed on `base` so
 # pdf-tools OCR assist works instead of always returning ocr_unavailable.

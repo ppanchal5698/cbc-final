@@ -99,17 +99,12 @@ def context_hashes(prompt: str | None = None, runtime: Any = None) -> dict[str, 
     skills: dict[str, str | None] = {}
     for skill_md in sorted((ROOT / ".claude" / "skills").glob("*/SKILL.md")):
         skills[skill_md.parent.name] = _sha256_file(skill_md)
-    # The process flow used to be one file. It is a directory now - an index
-    # plus one document per phase - so hash the set the way rules are hashed.
-    flow_blob = b"".join(
-        path.read_bytes()
-        for path in sorted((ROOT / "docs" / "pipeline").glob("*.md"))
-        if path.is_file()
-    )
     return {
         "prompt": _sha256_text(prompt or ""),
         "claudeMd": _sha256_file(ROOT / "CLAUDE.md"),
-        "processFlow": _sha256_bytes(flow_blob) if flow_blob else None,
+        # The phase docs are gone; the flow is the prompt's DELEGATION_RULE (hashed
+        # with the prompt) plus this pointer, which is what an agent is told to read.
+        "processFlow": _sha256_file(ROOT / ".claude" / "memory" / "process_flow.md"),
         "rules": _sha256_bytes(rules_blob) if rules_blob else None,
         "agents": agents,
         "skills": skills,
