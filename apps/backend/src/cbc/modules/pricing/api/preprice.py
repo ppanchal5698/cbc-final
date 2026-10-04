@@ -23,11 +23,17 @@ answers, so catalog must precede list×:
   3. Catalog baseline and
   4. list × multiplier -> the two existing backfills, in order, after the write.
   5. everything else -> MANUAL, ``price_status`` NEEDS_JUDGMENT, flag naming the rung.
+
+The lines are every one the take-off supports: each item of a hardware group an
+opening cites, one MANUAL line for a cited group nobody itemised, and the
+Division 10 / FRP rows of ``extracted/line_items.json``. The pass can only patch
+lines that exist, so a line not seeded here never reaches the quote.
 """
 from __future__ import annotations
 
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -130,6 +136,124 @@ def _seed_line(set_id: str, index: int, item: dict[str, Any], source_page: Any) 
     }
 
 
+def _group_key(text: Any) -> str | None:
+    """`GROUP 1`, `SET 01` and `1` are one group; None when the callout has no number."""
+    match = re.search(r"([0-9]{1,3})([A-Z]?)\s*$", str(text or "").strip().upper())
+    return f"{int(match.group(1))}{match.group(2)}" if match else None
+
+
+def _take_off_rows(slug: str) -> list[dict[str, Any]]:
+    """The estimator-confirmed take-off: openings and specialty rows alike."""
+    payload = read_json(storage.project_dir(slug) / "extracted" / "line_items.json")
+    rows = payload.get("openings") if isinstance(payload, dict) else payload
+    return [
+        row for row in (rows if isinstance(rows, list) else [])
+        if isinstance(row, dict) and row.get("in_scope") is not False
+    ]
+
+
+def _cited_groups(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """The hardware groups the openings cite, by group number."""
+    cited: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        key = _group_key(row.get("hardware_set"))
+        if key is None:
+            continue
+        group = cited.setdefault(key, {
+            "name": str(row["hardware_set"]).strip(),
+            "doors": [],
+            "source_page": row.get("source_page"),
+        })
+        group["doors"].append(str(row.get("door_number") or row.get("mark") or "?"))
+    return cited
+
+
+def _group_line(set_id: str, source_page: Any, openings: list[str], why: str) -> dict[str, Any]:
+    """One MANUAL line standing for a hardware group nobody itemised.
+
+    Without it a bid whose legend would not parse seeded no lines at all. An empty
+    seed is patch-only with nothing to patch, so the pass could neither add the
+    hardware nor write the file, and the job died on validation.
+    """
+    return {
+        "line_id": f"{set_id}-SET",
+        "group": set_id,
+        "group_type": "door",
+        "hw_set": set_id,
+        "part_number": None,
+        "description": f"Hardware {set_id} (opening {', '.join(openings) or '-'}) - {why}",
+        "quantity": float(len(openings) or 1),
+        "unit": "set",
+        "source_page": source_page,
+        "cost": None,
+        "cost_source": "MANUAL",
+        "cost_source_detail": f"{why}; price it from the sheet, or confirm who supplies it",
+        "price_status": "NEEDS_JUDGMENT",
+        "flags": ["hardware_group_not_itemised"],
+    }
+
+
+# Schedule wording for an item another party supplies. The Dutch Bros accessory
+# schedule marks most of its items "(OFCI)" - owner furnished, contractor installed.
+_BY_OTHERS = re.compile(
+    r"\b(?:OFCI|O\.F\.C\.I|N\.I\.C|NIC|BY\s+OTHERS"
+    r"|OWNER[\s-]+(?:FURNISHED|SUPPLIED|PROVIDED)"
+    r"|(?:PROVIDED|FURNISHED|SUPPLIED)\s+BY\s+(?:THE\s+)?(?:OWNER|TENANT|LANDLORD))\b",
+    re.I,
+)
+
+
+def _specialty_lines(rows: list[dict[str, Any]]) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    """Division 10 and FRP rows as quote lines, each with the row it came from.
+
+    specialty_takeoffs imports them as line items so pricing reads one file, and
+    then nothing seeded a line for them: the quote dropped Division 10 entirely.
+    A row with no quantity (an FRP run nobody has measured) has nothing to price.
+    """
+    out: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    used: set[str] = set()
+    for row in rows:
+        division = str(row.get("division") or "").strip()
+        qty = row.get("qty")
+        if not division.startswith(("10", "06")):
+            continue
+        if isinstance(qty, bool) or not isinstance(qty, (int, float)) or qty <= 0:
+            continue
+        spec = row.get("specialty") if isinstance(row.get("specialty"), dict) else {}
+        part = str(spec.get("specifiedModel") or "").strip() or None
+        base = f"{division[:2]}-{row.get('mark') or row.get('door_number') or part or len(out) + 1}"
+        line_id, n = base, 2
+        while line_id in used:
+            line_id, n = f"{base}-{n}", n + 1
+        used.add(line_id)
+        accessory = division.startswith("10")
+        line = {
+            "line_id": line_id,
+            "group": spec.get("room") or ("Division 10" if accessory else "FRP"),
+            "group_type": "accessories" if accessory else "frp",
+            "division": division,
+            "part_number": part,
+            "description": row.get("description") or part,
+            "quantity": float(qty),
+            "unit": spec.get("unit"),
+            "manufacturer": row.get("manufacturer"),
+            "source_page": row.get("source_page"),
+            "cost": None,
+            "cost_source": "MANUAL",
+            "price_status": "NEEDS_JUDGMENT",
+            "flags": [],
+        }
+        by_others = _BY_OTHERS.search(str(row.get("notes") or ""))
+        if by_others:
+            line["cost_source_detail"] = (
+                f"the schedule says {by_others.group(0)!r} - another party may supply "
+                "this; confirm it is CBC's scope before pricing it"
+            )
+            _flag(line, catalog_baseline_backfill.SUPPLIED_BY_OTHERS)
+        out.append((line, row))
+    return out
+
+
 def _flag(line: dict[str, Any], flag: str) -> None:
     flags = line.setdefault("flags", [])
     if flag not in flags:
@@ -210,7 +334,8 @@ def _apply_ladder(line: dict[str, Any], item: dict[str, Any], client: p21.P21Cli
     # backfills. Rung 5 (MANUAL / NEEDS_JUDGMENT) is the skeleton's default.
 
 
-def _build_lines(slug: str, client: p21.P21Client) -> list[dict[str, Any]]:
+def _build_lines(slug: str, client: p21.P21Client) -> tuple[list[dict[str, Any]], list[str]]:
+    """Every line the take-off supports, and envelope notes on what was left out."""
     payload = read_json(storage.project_dir(slug) / "extracted" / "hardware_sets.json")
     # Stamped on every line before any rung prices it. Each rung - P21, special
     # net, catalog, list x, and a patched MANUAL line - prices with the line's own
@@ -218,24 +343,67 @@ def _build_lines(slug: str, client: p21.P21Client) -> list[dict[str, Any]]:
     meta = read_json(storage.project_dir(slug) / "extracted" / "scope_metadata.json")
     meta = meta if isinstance(meta, dict) else {}
     special = pricing.special_margin(meta.get("gc"), meta.get("brand"))
+    rows = _take_off_rows(slug)
+    cited = _cited_groups(rows)
     lines: list[dict[str, Any]] = []
+    notes: list[str] = []
+
+    def price(line: dict[str, Any], item: dict[str, Any]) -> None:
+        if special:
+            # A recorded reason, so a special margin below its band is the
+            # estimator's known call rather than a blocking review flag.
+            line["margin"], line["margin_override_reason"] = special
+            line["margin_overridden"] = True
+        _apply_ladder(line, item, client)
+        lines.append(line)
+
+    seen: set[str | None] = set()
     for hw_set in _sets(payload):
         set_id = str(
             hw_set.get("set_id") or hw_set.get("hardware_set") or hw_set.get("name") or "SET"
         ).strip() or "SET"
-        source_page = hw_set.get("source_page")
-        for index, item in enumerate(hw_set.get("items") or []):
-            if not isinstance(item, dict):
-                continue
-            line = _seed_line(set_id, index, item, source_page)
-            if special:
-                # A recorded reason, so a special margin below its band is the
-                # estimator's known call rather than a blocking review flag.
-                line["margin"], line["margin_override_reason"] = special
-                line["margin_overridden"] = True
-            _apply_ladder(line, item, client)
+        key = _group_key(set_id)
+        if cited and key not in cited:
+            # A legend group no opening cites. On the sheet that prompted this,
+            # an omitted office door's group was still drawn, struck through.
+            notes.append(
+                f"legend_group_unused — {set_id} is in the hardware legend but no "
+                "opening cites it; not priced"
+            )
+            continue
+        seen.add(key)
+        # A set built from the schedule's callouts carries its page on each
+        # opening, not on itself; the page that cites the group is the drawing
+        # page an estimator opens to find it.
+        doors = [door for door in hw_set.get("openings") or [] if isinstance(door, dict)]
+        source_page = next(
+            (page for page in (
+                hw_set.get("source_page"),
+                *(door.get("source_page") for door in doors),
+                (cited.get(key) or {}).get("source_page"),
+            ) if page is not None),
+            None,
+        )
+        items = [item for item in hw_set.get("items") or [] if isinstance(item, dict)]
+        if not items:
+            openings = (cited.get(key) or {}).get("doors") or []
+            lines.append(_group_line(set_id, source_page, openings, "its items were not read from the legend"))
+        for index, item in enumerate(items):
+            price(_seed_line(set_id, index, item, source_page), item)
+
+    for key, group in cited.items():
+        if key not in seen:
+            lines.append(_group_line(
+                group["name"], group["source_page"], group["doors"],
+                "it is not in the hardware legend that was read",
+            ))
+
+    for line, row in _specialty_lines(rows):
+        if catalog_baseline_backfill.SUPPLIED_BY_OTHERS in line["flags"]:
             lines.append(line)
-    return lines
+        else:
+            price(line, row)
+    return lines, notes
 
 
 def _summary(lines: list[dict[str, Any]]) -> dict[str, Any]:
@@ -309,7 +477,7 @@ def seed_line_items(slug: str, *, client: p21.P21Client | None = None) -> dict[s
         # One P21Client per seed: its cache and breaker are per-bid, so a lookup
         # never leaks across customers and priced_at stays honest.
         pass_client = client or p21.P21Client()
-        lines = _build_lines(slug, pass_client)
+        lines, notes = _build_lines(slug, pass_client)
     except Exception:
         log.exception("preprice: building lines failed for %s", slug)
         return {"written": False, "note": "seed raised"}
@@ -321,11 +489,21 @@ def seed_line_items(slug: str, *, client: p21.P21Client | None = None) -> dict[s
         log.warning("preprice: no hardware sets read for %s; kept the existing priced lines", slug)
         return {"written": False, "note": "no hardware sets read; existing lines kept"}
 
+    # Nor may it write an empty file. The stamp makes the file patch-only, and an
+    # empty one has nothing to patch: the pass could neither add a line nor
+    # save the file, and the job died on "must contain a non-empty lines array".
+    if not lines:
+        try:
+            path.unlink(missing_ok=True)  # only ever our own seed - checked above
+        except OSError:
+            log.exception("preprice: could not remove the empty seed for %s", slug)
+        return {"written": False, "note": "nothing in the take-off to seed"}
+
     payload = {
         "source": SOURCE,
         "seeded_at": _now(),
         "lines": lines,
-        "flags": _envelope_flags(lines),
+        "flags": _envelope_flags(lines) + notes,
         "summary": _summary(lines),
     }
     try:
@@ -380,9 +558,15 @@ def prompt_block(slug: str) -> str:
     if needs:
         by_reason: dict[str, int] = {}
         for ln in needs:
-            reason = "allegion" if any(
-                str(f).startswith("allegion") for f in (ln.get("flags") or [])
-            ) else "needs distributor / RFQ / judgment"
+            flags = [str(f) for f in (ln.get("flags") or [])]
+            if any(f.startswith("allegion") for f in flags):
+                reason = "allegion"
+            elif "hardware_group_not_itemised" in flags:
+                reason = "hardware group with no items read - leave it MANUAL"
+            elif catalog_baseline_backfill.SUPPLIED_BY_OTHERS in flags:
+                reason = "supplied by others per the schedule - do not price"
+            else:
+                reason = "needs distributor / RFQ / judgment"
             by_reason[reason] = by_reason.get(reason, 0) + 1
         owed = ", ".join(f"{count} {reason}" for reason, count in sorted(by_reason.items()))
         parts.append(

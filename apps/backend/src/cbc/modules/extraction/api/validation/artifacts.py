@@ -901,14 +901,20 @@ def check_pricing(project: str, *, require_hardware_sets: bool = False) -> tuple
 
     hw_path = root / "extracted" / "hardware_sets.json"
     if hw_path.exists():
+        from cbc.shared.hardware_sets import SET_KEYS
+
         try:
             groups = json.loads(hw_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             groups = []
+        # Every writer wraps its sets in an object under one of SET_KEYS. Reading
+        # only a bare list meant this check never saw a single set.
+        if isinstance(groups, dict):
+            groups = [entry for key in SET_KEYS for entry in (groups.get(key) or [])]
         specified = {
-            str(entry.get("hardware_set"))
+            str(entry.get("hardware_set") or entry.get("set_id"))
             for entry in (groups if isinstance(groups, list) else [])
-            if entry.get("hardware_set")
+            if isinstance(entry, dict) and (entry.get("hardware_set") or entry.get("set_id"))
         }
         quoted = {str(line.get("group")) for line in lines if line.get("group")}
         for missing in sorted(specified - quoted):

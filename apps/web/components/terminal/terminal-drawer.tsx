@@ -14,6 +14,7 @@ import { endpoints } from "@/lib/endpoints";
 import {
   isAdminRole,
   jobTypeLabel,
+  stageForJobType,
   translateJobError,
 } from "@/lib/job-error";
 import { errorMessage, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
@@ -153,6 +154,7 @@ function statusColor(status: JobStatus): string {
     case "done":
       return "var(--color-status-success)";
     case "failed":
+    case "dead":
     case "cancelled":
       return "var(--color-status-error)";
     default:
@@ -166,7 +168,10 @@ function statusLabel(status: JobStatus): string {
       return "running";
     case "done":
       return "done";
+    // `dead` is a failure that will not be retried. It fell through to the
+    // default and showed as "queued" beside its own error banner.
     case "failed":
+    case "dead":
       return "failed";
     case "cancelled":
       return "cancelled";
@@ -208,7 +213,10 @@ export function TerminalDrawer({ code }: { code: string | null }) {
     active && (active.status === "queued" || active.status === "running");
   const failureSummary =
     active?.status === "failed" || active?.status === "dead"
-      ? translateJobError(active.error, userRole, { errorCode: active.errorCode })
+      ? translateJobError(active.error, userRole, {
+          errorCode: active.errorCode,
+          stage: stageForJobType(active.type),
+        })
       : null;
 
   async function cancelActiveJob() {

@@ -75,6 +75,10 @@ KNOWN_MANUFACTURERS = {
     "WORLD DRYER": "World Dryer", "MARLITE": "Marlite", "SARGENT": "Sargent",
     "CORBIN": "Corbin", "YALE": "Yale", "BEST": "Best", "STANLEY": "Stanley",
     "MCKINNEY": "McKinney", "TUBELITE": "Tubelite",
+    # How the Dutch Bros prototype sheets spell it. Mapped so the Allegion gate
+    # still sees a Von Duprin device; an unrecognised name would let it be priced
+    # off a list.
+    "VON DURPIN": "Von Duprin",
 }
 
 LEGEND_MARKERS = (
@@ -270,6 +274,205 @@ def _is_item_row(cells: list[str]) -> bool:
     return bool(joined) and bool(UNIT.search(joined) or QTY.match(joined))
 
 
+# A legend drawn as one table - `#: | DESCRIPTION | MFR. | MODEL & FINISH` - with
+# each group's name written vertically up a merged first column ("GROUP 1 - BACK
+# DOOR"). No row holds a group header and no row carries a quantity or unit, so
+# the column-of-sets reader above finds neither a set nor an item on it.
+_DESCRIPTION_HEAD = re.compile(r"^DESCRIPTION\b", re.I)
+_MFR_HEAD = re.compile(r"^(?:MFR|MFG|MANUFACTURER)\.?$", re.I)
+_MODEL_HEAD = re.compile(r"^MODEL\b", re.I)
+_LABEL_START = re.compile(r"^(?:SET|GROUP|HW)$", re.I)
+_COUNT = re.compile(r"^\((\d+)\)\s*")  # "(3) 5BB1, 4.5, NRP, 626"
+_COLUMN_TOLERANCE = 12.0
+_LABEL_COLUMN_WIDTH = 40.0
+
+
+def _matrix_header(rows: list[dict[str, Any]]) -> tuple[float, float, float] | None:
+    """(header bottom, table left, table right) from the DESCRIPTION / MFR. / MODEL row.
+
+    Only the outer edges are taken. Headers are centred over their columns and the
+    values under them are left-aligned - MFR. sits 18pt right of the names below
+    it - so a value is placed by its order in the row, not matched to a header x.
+    """
+    for row in rows:
+        found: dict[str, list[float]] = {}
+        for cell, box in zip(row.get("cells") or [], row.get("cell_boxes") or []):
+            text = _text(cell)
+            for key, pattern in (("desc", _DESCRIPTION_HEAD), ("mfr", _MFR_HEAD), ("model", _MODEL_HEAD)):
+                if key not in found and pattern.match(text):
+                    found[key] = [float(v) for v in box]
+        if "desc" in found and "mfr" in found:
+            bottom = max(box[3] for box in found.values())
+            right = (found.get("model") or found["mfr"])[2]
+            return bottom, found["desc"][0], right
+    return None
+
+
+def _vertical_labels(words: list[tuple], left: float, right: float, top: float) -> list[dict[str, Any]]:
+    """Group names written up (or down) the first column, each with its y-span.
+
+    A rotated label comes out of the text layer one word per box, so it is read by
+    position: bottom to top, each SET / GROUP word starting a new label. Text
+    turned the other way reads top to bottom, and is tried second.
+    """
+    column = [w for w in words if w[1] >= top and left <= (w[0] + w[2]) / 2 <= right]
+    for ordered in (
+        sorted(column, key=lambda w: -w[3]),
+        sorted(column, key=lambda w: w[1]),
+    ):
+        labels: list[list[tuple]] = []
+        for word in ordered:
+            if _LABEL_START.match(str(word[4])):
+                labels.append([word])
+            elif labels:
+                labels[-1].append(word)
+        found = []
+        for words_in in labels:
+            header = SET_HEADER.search(" ".join(str(w[4]) for w in words_in))
+            if header:
+                found.append({
+                    "set_id": header.group(1).upper(),
+                    "specified": _text(header.group(2)) or None,
+                    "top": min(w[1] for w in words_in),
+                    "bottom": max(w[3] for w in words_in),
+                    "bbox": pdfrows.union_bbox(words_in),
+                })
+        if found:
+            return sorted(found, key=lambda label: label["top"])
+    return []
+
+
+def _split_by_labels(rows: list[tuple[float, float]], centers: list[float]) -> list[int] | None:
+    """Split rows (top, bottom), in order, into len(centers) consecutive groups.
+
+    A merged cell centres its label, so the split chosen is the one whose groups'
+    middles sit nearest their labels. Splitting halfway between two labels is
+    wrong whenever the groups differ in size: on the sheet that prompted this a
+    nine-row group above a seven-row one put the boundary on the last row.
+    """
+    n, k = len(rows), len(centers)
+    if not k or n < k:
+        return None
+    inf = float("inf")
+    best = [[inf] * (n + 1) for _ in range(k + 1)]
+    cut = [[0] * (n + 1) for _ in range(k + 1)]
+    best[0][0] = 0.0
+    for j in range(1, k + 1):
+        for end in range(j, n + 1):
+            for start in range(j - 1, end):
+                if best[j - 1][start] == inf:
+                    continue
+                middle = (rows[start][0] + rows[end - 1][1]) / 2
+                cost = best[j - 1][start] + abs(middle - centers[j - 1])
+                if cost < best[j][end]:
+                    best[j][end], cut[j][end] = cost, start
+    groups = [0] * n
+    end = n
+    for j in range(k, 0, -1):
+        start = cut[j][end]
+        for index in range(start, end):
+            groups[index] = j - 1
+        end = start
+    return groups
+
+
+def classify_matrix_item(description: str, manufacturer: str, model: str) -> dict[str, Any]:
+    """One row of a DESCRIPTION | MFR. | MODEL & FINISH legend. Unsure fields stay null.
+
+    The model cell leads with the part and ends with the finish - `700 83", 630`,
+    `(3) 5BB1, 4.5, NRP, 626` - and a leading `(n)` is the only quantity it states.
+    """
+    upper = _text(manufacturer).upper()
+    text = _text(model)
+    qty = None
+    count = _COUNT.match(text)
+    if count:
+        qty, text = count.group(1), text[count.end():]
+    # "630. AT INTERIOR": a sentence's full stop is not part of the finish.
+    tokens = [t.strip(",;:()") for t in text.replace(",", " ").split()]
+    tokens = [t[:-1] if t.endswith(".") and t[:-1].isdigit() else t for t in tokens]
+    head = tokens[0] if tokens else ""
+    part = head if _HAS_DIGIT.search(head) and len(head) >= 2 else None
+    finishes = [t for t in tokens[1:] if FINISH.match(t.upper())]
+    item: dict[str, Any] = {
+        "qty": qty, "unit": None, "description": _text(description) or None,
+        "part": part, "finish": finishes[-1] if finishes else None,
+        "manufacturer": KNOWN_MANUFACTURERS.get(upper),
+        "supplied_by": None,
+        "raw_row": " | ".join(t for t in (_text(description), _text(manufacturer), _text(model)) if t),
+        "flags": [],
+    }
+    for field, flag in (("part", "part_missing"), ("manufacturer", "manufacturer_missing"),
+                        ("qty", "qty_missing")):
+        if item[field] is None:
+            item["flags"].append(flag)
+    return item
+
+
+def _matrix_sets(
+    rows: list[dict[str, Any]], words: list[tuple], page_number: int, page_size: dict[str, float]
+) -> list[dict[str, Any]]:
+    """Every group in a one-table legend whose group names run vertically."""
+    header = _matrix_header(rows)
+    if header is None:
+        return []
+    top, left, right = header
+
+    items: list[tuple[float, float, dict[str, Any]]] = []
+    for row in sorted(rows, key=lambda r: float(r.get("y") or 0.0)):
+        y = float(row.get("y") or 0.0)
+        if y <= top:
+            continue
+        # Description, manufacturer, model, in that order, between the table's
+        # edges - the vertical group name to the left and the next drawing to the
+        # right are outside them.
+        inside = [
+            (_text(cell), [float(v) for v in box])
+            for cell, box in zip(row.get("cells") or [], row.get("cell_boxes") or [])
+            if left - _COLUMN_TOLERANCE <= float(box[0]) < right and _text(cell)
+        ]
+        if len(inside) < 2:
+            continue
+        # The table has ended once the rows stop coming at its own pace.
+        if len(items) >= 3:
+            gaps = sorted(b[0] - a[0] for a, b in zip(items, items[1:]))
+            if y - items[-1][0] > 3 * gaps[len(gaps) // 2]:
+                break
+        model = " ".join(text for text, _ in inside[2:])
+        bottom = max(box[3] for _, box in inside)
+        items.append((y, bottom, classify_matrix_item(inside[0][0], inside[1][0], model)))
+
+    labels = _vertical_labels(words, left - _LABEL_COLUMN_WIDTH, left - 1.0, top)
+    groups = _split_by_labels([(y, bottom) for y, bottom, _ in items], [
+        (label["top"] + label["bottom"]) / 2 for label in labels
+    ])
+    if groups is None:
+        return []
+
+    sets: list[dict[str, Any]] = []
+    for index, label in enumerate(labels):
+        members = [entry for entry, group in zip(items, groups) if group == index]
+        entry: dict[str, Any] = {
+            "hardware_set": label["set_id"],
+            "set_id": label["set_id"],
+            "specified": label["specified"],
+            "source_page": page_number,
+            "page_size": page_size,
+            "bbox": label["bbox"],
+            "items": [item for _, _, item in members],
+            "flags": [],
+        }
+        # The split is by position. If a group's rows do not straddle its label,
+        # say so rather than hand over a confident wrong grouping.
+        if members:
+            middle = (members[0][0] + members[-1][1]) / 2
+            row_height = (members[-1][1] - members[0][0]) / len(members)
+            if abs(middle - (label["top"] + label["bottom"]) / 2) > row_height:
+                entry["flags"].append("group_rows_uncertain")
+        sets.append(entry)
+    return sets
+
+
 def _carries_information(item: dict[str, Any]) -> bool:
     """Whether a parsed row says anything an estimator could act on.
 
@@ -288,12 +491,19 @@ def groups_on_page(pdf: Path, page_number: int) -> dict[str, Any]:
         page = doc[page_number - 1]
         shift = pdfrows.detect_shift(doc, str(pdf))
         rows = pdfrows.rows_from_words(page, shift=shift)
+        words = pdfrows.to_display_space(page, page.get_text("words"))
+        if shift:
+            words = [(*w[:4], pdfrows.shift_text(w[4], shift), *w[5:]) for w in words]
         page_size = {"width": round(page.rect.width, 2), "height": round(page.rect.height, 2)}
     finally:
         doc.close()
 
-    bands = _column_bands(rows)
-    if not bands:
+    sets = _column_sets(rows, _column_bands(rows), page_number, page_size)
+    if not any(entry["items"] for entry in sets):
+        # Nothing itemised: the legend may be one table with its group names
+        # written vertically, which the column reader cannot see.
+        sets = _matrix_sets(rows, words, page_number, page_size) or sets
+    if not sets:
         return {
             "source_file": pdf.name,
             "source_page": page_number,
@@ -302,6 +512,25 @@ def groups_on_page(pdf: Path, page_number: int) -> dict[str, Any]:
             "no_legend_reason": "no SET / GROUP header on this page",
         }
 
+    for entry in sets:
+        if not entry["items"]:
+            entry["flags"].append("no_items_read")
+
+    return {
+        "source_file": pdf.name,
+        "source_page": page_number,
+        "page_size": page_size,
+        "sets": sets,
+    }
+
+
+def _column_sets(
+    rows: list[dict[str, Any]],
+    bands: list[tuple[float, float]],
+    page_number: int,
+    page_size: dict[str, float],
+) -> list[dict[str, Any]]:
+    """Sets laid out in columns side by side, each headed `SET 01 - ...`."""
     per_column: dict[int, list[tuple[float, list[str], list[Any]]]] = {
         index: [] for index in range(len(bands))
     }
@@ -350,17 +579,7 @@ def groups_on_page(pdf: Path, page_number: int) -> dict[str, Any]:
                 # inventing an item around it.
                 continue
             current["items"].append(item)
-
-    for entry in sets:
-        if not entry["items"]:
-            entry["flags"].append("no_items_read")
-
-    return {
-        "source_file": pdf.name,
-        "source_page": page_number,
-        "page_size": page_size,
-        "sets": sets,
-    }
+    return sets
 
 
 def groups_envelope(pdf: Path, pages: list[int] | None = None) -> dict[str, Any]:

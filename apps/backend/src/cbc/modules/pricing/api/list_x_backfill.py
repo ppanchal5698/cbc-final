@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from cbc.modules.pricing.api import hager_list_price, reference_library
+from cbc.modules.pricing.api.catalog_baseline_backfill import SUPPLIED_BY_OTHERS
 from cbc.modules.pricing.domain import calc as quote_calc
 from cbc.shared import storage
 from cbc.shared.hardware_sets import SET_KEYS
@@ -13,7 +14,6 @@ from cbc.shared.pass_files import read_json, write_json
 _PART = re.compile(r"[A-Z0-9]+", re.I)
 _BLOCK_SOURCES = frozenset({"DISTRIBUTOR_MANUAL", "VENDOR_RFQ"})
 _ALLEGIION = ("von duprin", "lcn", "schlage", "ives", "allegion")
-_THRESH_WEATHER_MULT = 0.4
 
 
 def _norm_part(value: str | None) -> str:
@@ -117,7 +117,7 @@ def _is_allegion(line: dict[str, Any], hw: dict[str, Any] | None) -> bool:
 
 
 def _should_backfill(line: dict[str, Any], hw: dict[str, Any] | None) -> bool:
-    if line.get("cost") is not None:
+    if line.get("cost") is not None or SUPPLIED_BY_OTHERS in (line.get("flags") or []):
         return False
     line_source = str(line.get("cost_source") or "").upper()
     hw_source = str((hw or {}).get("cost_source") or "").upper()
@@ -151,7 +151,7 @@ def _apply_list_x(
     line: dict[str, Any],
     *,
     hw: dict[str, Any] | None,
-    multiplier: float,
+    multiplier: float | None,
 ) -> bool:
     matched = (hw or {}).get("matched") if isinstance((hw or {}).get("matched"), dict) else {}
     specified = (hw or {}).get("specified")
@@ -190,6 +190,15 @@ def _apply_list_x(
         note = f"list× {ngp_code} skipped — Hager {tier_key} multiplier effective {effective} is past review"
         line["cost_source_detail"] = "; ".join(filter(None, [line.get("cost_source_detail"), note]))
         return False
+    # The multiplier is the tier record's own. A typed-in 0.4 used to stand in,
+    # so a changed tier sheet priced at the old rate under the new sheet's date.
+    if multiplier is None:
+        multiplier = tier.get("multiplier")
+    if multiplier is None:
+        return False
+    multiplier = float(multiplier)
+
+    from cbc.modules.pricing.api import pricing
 
     list_price = float(quote["list_price"])
     cost = round(list_price * multiplier, 2)
@@ -197,9 +206,9 @@ def _apply_list_x(
     page = quote["source_page"]
     margin = line.get("margin")
     try:
-        margin_f = float(margin) if margin is not None else 0.27
+        margin_f = float(margin) if margin is not None else pricing.default_margin(line.get("division"))
     except (TypeError, ValueError):
-        margin_f = 0.27
+        margin_f = pricing.default_margin(line.get("division"))
     priced = quote_calc.calculate_line(cost=cost, margin=margin_f, quantity=qty)
     drawing_page = line.get("source_page")
     line["cost"] = priced["cost"]
@@ -290,12 +299,8 @@ def backfill_priced_lines(slug: str) -> dict[str, int]:
         if not _should_backfill(line, hw):
             continue
         attempted += 1
-        multiplier = float(
-            line.get("multiplier")
-            or (hw or {}).get("multiplier")
-            or _THRESH_WEATHER_MULT
-        )
-        if _apply_list_x(line, hw=hw, multiplier=multiplier):
+        known = line.get("multiplier") or (hw or {}).get("multiplier")
+        if _apply_list_x(line, hw=hw, multiplier=float(known) if known else None):
             filled += 1
         else:
             skipped += 1

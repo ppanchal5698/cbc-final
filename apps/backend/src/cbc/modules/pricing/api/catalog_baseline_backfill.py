@@ -52,6 +52,9 @@ _SKIP_SOURCES = {
     "CATALOG_BASELINE",
     "LIST_X_MULTIPLIER",
 }
+# A line the schedule says someone else supplies. Pricing it would put an
+# owner-furnished item on CBC's quote; the estimator confirms scope first.
+SUPPLIED_BY_OTHERS = "supplied_by_others_noted"
 
 
 def _norm_part(value: str | None) -> str:
@@ -141,7 +144,7 @@ def _is_allegion(line: dict[str, Any], hw: dict[str, Any] | None) -> bool:
 
 
 def _should_backfill(line: dict[str, Any], hw: dict[str, Any] | None) -> bool:
-    if line.get("cost") is not None:
+    if line.get("cost") is not None or SUPPLIED_BY_OTHERS in (line.get("flags") or []):
         return False
     source = str(line.get("cost_source") or "").upper()
     if source in _SKIP_SOURCES:
@@ -177,8 +180,12 @@ def _default_margin(row: dict[str, Any], line: dict[str, Any]) -> float:
             return float(dm)
         except (TypeError, ValueError):
             pass
+    from cbc.modules.pricing.api import pricing
+
     division = str(row.get("division") or line.get("division") or "")
     vendor = str(row.get("vendorKey") or "").lower()
+    # The bands come from their owner. These were 0.56 and 0.27 typed in, which
+    # stay put when the estimators change the bands in /settings.
     if division.startswith("10 28") or vendor in {
         "bobrick",
         "gamco",
@@ -186,8 +193,8 @@ def _default_margin(row: dict[str, Any], line: dict[str, Any]) -> float:
         "bradley",
         "world_dryer",
     }:
-        return 0.56
-    return 0.27
+        return pricing.default_margin("10 28")
+    return pricing.default_margin(division or None)
 
 
 def _apply_catalog(line: dict[str, Any], row: dict[str, Any]) -> bool:

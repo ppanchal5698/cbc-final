@@ -4,6 +4,7 @@ import {
   classifyJobError,
   isAdminRole,
   recordingUnavailableMessage,
+  stageForJobType,
   translateJobError,
 } from "./job-error";
 
@@ -45,6 +46,29 @@ describe("translateJobError", () => {
     );
     expect(result?.actions.some((a) => a.href === "/settings")).toBe(true);
     expect(result?.message).toContain("Configure the provider");
+  });
+
+  it("words a pricing failure for pricing, not for a read", () => {
+    // CBC-260001: a pricing job that failed its checks said "Automatic read
+    // didn't finish ... try running the read again".
+    const result = translateJobError(
+      "artifact validation failed: test_bid: priced/line_items.json must contain a non-empty lines array",
+      "admin",
+      { errorCode: "artifact_validation", stage: stageForJobType("match_and_price") },
+    );
+    expect(result?.title).toBe("Pricing finished, but its output failed the checks");
+    expect(result?.message).not.toMatch(/read/i);
+    expect(result?.actions.some((a) => a.label === "Re-run pricing")).toBe(true);
+  });
+
+  it("recognises a validation failure from its text when no code was stored", () => {
+    expect(classifyJobError("artifact validation failed: x")).toBe("artifact_validation");
+  });
+
+  it("maps each job type to its bid stage", () => {
+    expect(stageForJobType("match_and_price")).toBe("quote");
+    expect(stageForJobType("build_proposal")).toBe("proposal");
+    expect(stageForJobType("rerun_extraction")).toBe("extraction");
   });
 
   it("routes estimators to notify admin for auth failures", () => {

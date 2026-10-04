@@ -106,6 +106,104 @@ def test_no_headers_means_no_bands() -> None:
     assert hg._column_bands([]) == []
 
 
+# ── one table, group names written vertically ───────────────────────────────
+#
+# The Dutch Bros prototype sheet (A2.2): `#: | DESCRIPTION | MFR. | MODEL & FINISH`
+# with "GROUP 1 - BACK DOOR" written up a merged first column. No row holds a group
+# header or a quantity, so the column reader found nothing and the bid reached
+# pricing with no hardware at all. Coordinates below are the ones measured on it.
+
+def _row(y: float, *cells: tuple[str, float]) -> dict:
+    return {
+        "y": y,
+        "cells": [text for text, _ in cells],
+        "cell_boxes": [[x, y, x + 6 * len(text), y + 9] for text, x in cells],
+    }
+
+
+def _vertical(x: float, bottom: float, text: str) -> list[tuple]:
+    """A label written bottom to top, one box per word, as the text layer gives it."""
+    words, y = [], bottom
+    for word in text.split():
+        height = 6 * len(word)
+        words.append((x, y - height, x + 10, y, word))
+        y -= height + 3
+    return words
+
+
+def _legend(first: list[tuple[str, str, str]], second: list[tuple[str, str, str]]) -> tuple[list, list]:
+    rows = [_row(726, ("#:", 542), ("DESCRIPTION", 564), ("MFR.", 683), ("MODEL & FINISH", 786))]
+    y = 753.0
+    spans = []
+    for group in (first, second):
+        start = y
+        for description, maker, model in group:
+            rows.append(_row(y, (description, 564), (maker, 665), (model, 748)))
+            y += 23.5
+        spans.append((start + y - 23.5 + 9) / 2)
+    words = _vertical(542, spans[0] + 51, "GROUP 1 - BACK DOOR")
+    words += _vertical(542, spans[1] + 63, "GROUP 3 - RESTROOM DOOR")
+    return rows, words
+
+
+BACK_DOOR = [
+    ("HINGE", "IVES", '700 83", 630'), ("DOOR CLOSER", "LCN", "4040XP RW/PA ALUM."),
+    ("LOCKSET", "ALARM LOCK", "ETDL27R1G/26DV 99"), ("PANIC HARDWARE", "VON DURPIN", '99EO 42" 626'),
+    ("KICK PLATE", "IVES", '8400, 40"x30", 630, AT INTERIOR'), ("THRESHOLD", "PEMKO", '275A, 42"'),
+    ("DOOR SHOE", "ZERO", '39A SWEEP, 42"'), ("DOOR SEAL", "ZERO", "188S BK, 18'"),
+    ("FLOOR STOP", "IVES", "FS43, 626"),
+]
+OFFICE_DOOR = [
+    ("HINGES", "IVES", "(3) 5BB1, 4.5, NRP, 626"), ("LOCKSET", "SCHLAGE", "ND10S RHO, 626"),
+    ("KICK PLATE", "IVES", '8400, 34"x12", 630'), ("FLOOR STOP", "IVES", "FS43, 626"),
+]
+
+
+def test_a_vertical_group_name_is_read_bottom_to_top() -> None:
+    labels = hg._vertical_labels(_vertical(542, 902, "GROUP 1 - BACK DOOR"), 524, 563, 735)
+    assert [(label["set_id"], label["specified"]) for label in labels] == [("1", "BACK DOOR")]
+
+
+def test_a_one_table_legend_splits_into_its_groups() -> None:
+    """Nine rows over four. Splitting halfway between the two labels put the first
+    group's last row (the floor stop) in the second group."""
+    rows, words = _legend(BACK_DOOR, OFFICE_DOOR)
+    sets = hg._matrix_sets(rows, words, 15, {"width": 2592, "height": 1728})
+
+    assert [s["set_id"] for s in sets] == ["1", "3"]
+    assert [len(s["items"]) for s in sets] == [9, 4]
+    assert sets[0]["items"][-1]["description"] == "FLOOR STOP"
+    assert sets[1]["items"][0]["description"] == "HINGES"
+    assert all(not s["flags"] for s in sets)
+
+
+def test_rows_below_the_table_are_not_hardware() -> None:
+    rows, words = _legend(BACK_DOOR, OFFICE_DOOR)
+    rows.append(_row(1400, ("REFERENCE DOOR SCHEDULE", 564), ("FOR SIZES", 665)))
+    sets = hg._matrix_sets(rows, words, 15, {"width": 2592, "height": 1728})
+    assert [len(s["items"]) for s in sets] == [9, 4]
+
+
+@pytest.mark.parametrize(
+    "model,qty,part,finish",
+    [
+        ("(3) 5BB1, 4.5, NRP, 626", "3", "5BB1", "626"),
+        ('700 83", 630', None, "700", "630"),
+        ("4040XP RW/PA ALUM.", None, "4040XP", "ALUM."),
+        ('8400, 34"x30", 630. AT INTERIOR', None, "8400", "630"),
+        ("ETDL27R1G/26DV 99", None, "ETDL27R1G/26DV", None),
+    ],
+)
+def test_a_model_cell_gives_its_part_count_and_finish(model, qty, part, finish) -> None:
+    item = hg.classify_matrix_item("HINGES", "IVES", model)
+    assert (item["qty"], item["part"], item["finish"]) == (qty, part, finish)
+
+
+def test_the_misspelt_von_duprin_still_reaches_the_allegion_gate() -> None:
+    """An unrecognised maker would let a Von Duprin device be priced off a list."""
+    assert hg.classify_matrix_item("PANIC HARDWARE", "VON DURPIN", "99EO")["manufacturer"] == "Von Duprin"
+
+
 # ── the real sheet ──────────────────────────────────────────────────────────
 
 requires_wendys = pytest.mark.skipif(
