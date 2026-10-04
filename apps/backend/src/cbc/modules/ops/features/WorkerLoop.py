@@ -72,13 +72,13 @@ DOMAIN_JOB_TYPES: dict[str, frozenset[str]] = {
             "index_catalog",
             "delete_catalog",
             "ingest_pricebook",
-            "parse_catalog",
-            "parse_multiplier",
         }
     ),
-    # GPU parse waits must not hold the Claude worker's single concurrency slot.
-    # Bid parse only — catalog MinerU jobs stay on the catalog claim set so a
-    # 700-page book cannot starve bid parse_document on the GPU worker.
+    # A LlamaParse window is ~97% waiting on the API. The main worker runs
+    # WORKER_CLAIM_ALL with WORKER_CONCURRENCY=1, and defer_if_parsing requeues
+    # extract_bid_set every 15s behind a parse_document in that one slot, which
+    # is a livelock. The lane is the concurrency slot, not the GPU that used to
+    # be here. Do not delete it for the reason the old comment gave.
     "parsing": frozenset({"parse_document"}),
 }
 

@@ -13,7 +13,7 @@ description: >
 
 ## Deterministic-first (mandatory)
 
-1. Read `extracted/door_schedule.json` if it exists (worker pretakeoff /
+1. Read `extracted/line_items.json` if it exists (worker pretakeoff /
    `parse_schedule.py` often already wrote it).
 2. If missing → **run the script or MCP** on sheetmap `door_schedule` pages.
    Do **not** freehand-author openings:
@@ -41,13 +41,16 @@ description: >
    - **Finish:** row, HW group, or sheet note ("ALL HARDWARE SHALL BE US32D").
    - **Storefront / AL+AL:** flag `out_of_scope_storefront`; do not quote as CBC
      HM/WD lines (Matrix 2.3).
-4. **PDF verify before present (mandatory).** Before emitting any `*_missing`
-   flag, filling an unsure value, or saving an opening that drops cells from
-   `raw_row`, open the **specific** PDF page(s):
-   `search_blocks` / `get_page_blocks` or `extract_tables` / `extract_text`,
-   crop with `get_page_image(region=bbox)` when ambiguous. Cite page + excerpt
-   (or "searched pages … — not found") in `evidence_note`. See
-   .claude/guides/extraction.md. Parser null ≠ sheet silent.
+4. **Verify before present (mandatory).** Before emitting any `*_missing` flag,
+   filling an unsure value, or saving an opening that drops cells from
+   `raw_row`, check the **specific** page: `search_blocks` → `get_page_blocks`.
+   On a table the blocks carry `cells` and `cell_boxes`, so you get the value
+   *and* the coordinate of the column it sits in — that is the citation the
+   estimator clicks. Crop with `get_page_image(region=bbox)` only when the
+   blocks are genuinely ambiguous, and crop a `bbox` you already have rather
+   than hunting for one. Cite page + excerpt (or "searched pages … — not found")
+   in `evidence_note`. See .claude/guides/extraction.md. Parser null ≠ sheet
+   silent.
 5. Persist with `mcp__artifact-storage__save_artifact` only — never Write/Edit.
 6. On schema error: repair named fields (≤2 retries). Do not bypass validation.
 
@@ -113,7 +116,7 @@ Emit **only** these properties on each opening (Pydantic `Opening`,
 ```
 
 - **Must** be an object with numeric `width` and `height`.
-- **Never** `[2448.0, 1584.0]` (MinerU array shape).
+- **Never** `[2448.0, 1584.0]` (bare array shape).
 - Prefer parser output or `mcp__pdf-tools__get_page_size`.
 
 ### Unknown schedule columns
@@ -137,7 +140,7 @@ See `references/schedule_anatomy.md`.
 ## Output schema
 
 Save via **`mcp__artifact-storage__save_artifact`** to
-`projects/{project}/extracted/door_schedule.json`:
+`projects/{project}/extracted/line_items.json`:
 
 ```json
 {

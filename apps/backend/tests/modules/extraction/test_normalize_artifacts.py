@@ -10,7 +10,7 @@ from cbc.modules.extraction.api.artifact_schema import (
 from cbc.modules.extraction.api.claude_output import Div10Takeoff, DoorSchedule, Opening
 from cbc.modules.extraction.api.normalize_artifacts import (
     normalize_div10_takeoff_payload,
-    normalize_door_schedule_payload,
+    normalize_line_items_payload,
     normalize_opening_dict,
     normalize_page_size,
     normalize_priced_quote_payload,
@@ -50,7 +50,7 @@ def test_opening_model_accepts_coerced_shapes() -> None:
 
 def test_true_hallucination_still_fails_schema() -> None:
     problems = validate_artifact_path(
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {"openings": [{"door_number": "101", "hallucinated_price": "12.00"}]},
     )
     assert problems
@@ -67,8 +67,8 @@ def test_thickness_and_array_page_size_pass_after_normalize() -> None:
             }
         ]
     }
-    normalized = normalize_door_schedule_payload(raw)
-    assert validate_artifact_path("extracted/door_schedule.json", normalized) == []
+    normalized = normalize_line_items_payload(raw)
+    assert validate_artifact_path("extracted/line_items.json", normalized) == []
     DoorSchedule.parse_payload(raw)  # before-validator path
 
 
@@ -84,7 +84,7 @@ def test_prepare_artifact_text_rewrites_payload() -> None:
             ]
         }
     )
-    cleaned, problems = prepare_artifact_text("extracted/door_schedule.json", content)
+    cleaned, problems = prepare_artifact_text("extracted/line_items.json", content)
     assert problems == []
     data = json.loads(cleaned)
     assert "thickness" not in data["openings"][0]
@@ -93,7 +93,7 @@ def test_prepare_artifact_text_rewrites_payload() -> None:
 
 def test_page_size_schema_requires_width_height() -> None:
     problems = validate_artifact_path(
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
         {"openings": [{"door_number": "1", "page_size": {"units": "pt"}}]},
     )
     assert problems

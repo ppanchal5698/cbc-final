@@ -104,7 +104,7 @@ Eight phases, each owned by a subagent, each writing a named artifact:
 |---|---|---|
 | 0/1 intake | `intake-coordinator` | `extracted/scope_metadata.json` |
 | 2 spec scope | `spec-scope-analyst` | `extracted/scope_summary.json` |
-| 3 take-off | `takeoff-engineer` | `extracted/door_schedule.json` |
+| 3 take-off | `takeoff-engineer` | `extracted/line_items.json` |
 | 3b FRP | `frp-specialist` | `extracted/frp_takeoff.json` |
 | 3c Div 10 | `div10-specialist` | `extracted/div10_takeoff.json` |
 | 4 match | `product-matcher` | `extracted/hardware_sets.json` |

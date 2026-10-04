@@ -23,12 +23,12 @@ def phase(tmp_path, name, relative, content="{}"):
 @pytest.mark.parametrize("job_type", ["match_and_price", "build_proposal", "run_full_pipeline"])
 async def test_split_jobs_inherit_validated_artifacts(tmp_path, monkeypatch, job_type):
     monkeypatch.setenv("STORAGE_ROOT", str(tmp_path))
-    state = phase(tmp_path, "extraction", "extracted/door_schedule.json")
+    state = phase(tmp_path, "extraction", "extracted/line_items.json")
     project = {"_id": "bid-id", "slug": "bid", "code": "CBC-7"}
     monkeypatch.setattr(pipeline.lookup, "get", AsyncMock(return_value=project))
     monkeypatch.setattr(pipeline.storage, "scaffold", lambda _: None)
     monkeypatch.setattr(pipeline.saga, "set_state", AsyncMock())
-    for name in ("defer_if_bid_busy", "defer_if_parsing", "defer_if_catalog_parsing"):
+    for name in ("defer_if_bid_busy", "defer_if_parsing"):
         monkeypatch.setattr(pipeline.ops_worker, name, AsyncMock(return_value=None))
     monkeypatch.setattr(pipeline.ops_jobs, "previous_phase_state", AsyncMock(return_value={"phaseState": state}))
     saved = AsyncMock()
@@ -46,7 +46,7 @@ async def test_split_jobs_inherit_validated_artifacts(tmp_path, monkeypatch, job
 @pytest.mark.asyncio
 async def test_later_pass_keeps_upstream_state_but_drops_failed_and_stale_phases(tmp_path, monkeypatch):
     monkeypatch.setenv("STORAGE_ROOT", str(tmp_path))
-    extraction = phase(tmp_path, "extraction", "extracted/door_schedule.json")
+    extraction = phase(tmp_path, "extraction", "extracted/line_items.json")
     pricing = phase(tmp_path, "pricing", "priced/line_items.json")
     proposal = phase(tmp_path, "proposal", "quotation.html")
     saved = AsyncMock()
@@ -58,7 +58,7 @@ async def test_later_pass_keeps_upstream_state_but_drops_failed_and_stale_phases
 
     await passes._persist_phase_state(job, "bid", pricing)
     assert job["phaseState"] == {**extraction, **pricing}
-    (tmp_path / "bid/extracted/door_schedule.json").write_text('{"changed":true}')
+    (tmp_path / "bid/extracted/line_items.json").write_text('{"changed":true}')
     await passes._persist_phase_state(job, "bid", pricing)
     assert job["phaseState"] == pricing
 

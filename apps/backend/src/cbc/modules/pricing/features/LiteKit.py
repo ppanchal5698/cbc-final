@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 
 from cbc.modules.ops.api import audit
 from cbc.modules.pricing.api import reference_library as reflib
-from cbc.modules.pricing.domain.reference_updates import LiteKitReplace
+from cbc.modules.pricing.domain.reference_updates import LiteKitCell, LiteKitReplace
 from cbc.modules.pricing.infrastructure.reference_io import audit_family, run_sync
 from cbc.shared.auth import Actor, AdminActor
 
@@ -50,14 +50,41 @@ async def put_lite_kit(body: LiteKitReplace, actor: AdminActor) -> dict[str, Any
     return after
 
 
+def _set_cell(document: dict[str, Any], body: LiteKitCell) -> tuple[dict[str, Any], Any]:
+    """Write one price into one table. Returns (document, the price it replaced)."""
+    tables = document.get("tables") or []
+    if body.table >= len(tables):
+        raise HTTPException(404, f"no lite-kit table {body.table} ({len(tables)} on file)")
+    prices = tables[body.table].setdefault("prices", {})
+    row = prices.setdefault(str(body.height), {})
+    before = row.get(str(body.width))
+    row[str(body.width)] = body.price
+    return document, before
+
+
 @router.patch("/lite-kit")
-async def patch_lite_kit(body: LiteKitReplace, actor: AdminActor) -> dict[str, Any]:
-    """Replace the document (same as PUT) — structured cell UI can deepen later."""
-    after = await run_sync(reflib.update_lite_kit_prices, body.data)
+async def patch_lite_kit(body: LiteKitCell, actor: AdminActor) -> dict[str, Any]:
+    """Set one list price, addressed by table and size.
+
+    The PUT beside this replaces the whole document, which is what the settings
+    screen used to send for a single cell: its audit entry could record only a
+    table count, so "who changed this price, and from what?" had no answer, and
+    two people editing different tables overwrote each other because each posted
+    back the copy they had loaded. PUT stays for a bulk re-import.
+    """
+    document = await run_sync(reflib.load_lite_kit_prices)
+    document, before = _set_cell(document, body)
+    after = await run_sync(reflib.update_lite_kit_prices, document)
     await audit.record(
-        "reference.lite_kit.update",
+        "reference.lite_kit.cell",
         actor,
         audit_family("lite_kit_prices"),
-        after={"tableCount": len(after.get("tables") or [])},
+        before={"price": before},
+        after={
+            "table": body.table,
+            "width": body.width,
+            "height": body.height,
+            "price": body.price,
+        },
     )
     return after

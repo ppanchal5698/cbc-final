@@ -106,38 +106,12 @@ async def upload_price_book_file(
         actor=actor,
     )
 
-    # MinerU block parse (catalogPages / multiplierPages) — parallel to bid
-    # parse_document. Soft: skipped when PARSER_URL is empty.
-    from cbc.modules.ops.api import parsing_config
-
-    parse_resolved = await parsing_config.load_stored()
-    parse_job = None
-    if parsing_config.enabled(parse_resolved):
-        kind = (book.get("kind") or "price_book").strip().lower()
-        parse_type = (
-            "parse_multiplier" if kind == "multiplier_sheet" else "parse_catalog"
-        )
-        await price_books().update_one(
-            {"_id": book["_id"]},
-            {"$set": {"parse": {"state": "queued"}, "updatedAt": _now()}},
-        )
-        parse_job = await jobs.enqueue(
-            parse_type,
-            payload={
-                "priceBookId": str(book["_id"]),
-                "filename": target.name,
-                "fileSha": file_sha,
-                "catalogId": book.get("catalogId")
-                or catalog_store.catalog_id_for(target.name),
-            },
-            actor=actor,
-        )
-
+    # No block parse is queued for catalogs. `parse_catalog` / `parse_multiplier`
+    # went with MinerU; catalog PDFs are read by their own MCP server. Until that
+    # lands, `catalog-docs` falls back to the pageIndex path, which is what it
+    # already did whenever a book's parse_state was not `parsed`.
     await audit.record("price_book.upload", actor, {"priceBookId": book["_id"]}, after=target.name)
-    response: dict[str, Any] = {
+    return {
         "priceBook": await decorate(await price_books().find_one({"_id": book["_id"]})),
         "job": serialise(job),
     }
-    if parse_job is not None:
-        response["parseJob"] = serialise(parse_job)
-    return response

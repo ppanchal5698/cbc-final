@@ -1,6 +1,6 @@
 """Tool definitions for the catalog-docs MCP server.
 
-Read MinerU-parsed blocks for vendor price books and multiplier PDFs. Cropping
+Read parsed blocks for vendor price books and multiplier PDFs. Cropping
 still goes through pdf-tools.get_page_image with a block's bbox — this server
 never writes.
 """
@@ -12,7 +12,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "list_catalogs_parsed",
         "description": (
-            "Price books / multiplier sheets with MinerU parse state and page "
+            "Price books / multiplier sheets with parse state and page "
             "counts. Prefer catalog-docs.search_blocks when parse_state is parsed; "
             "fall back to catalog.find_pages when parse is missing or failed."
         ),

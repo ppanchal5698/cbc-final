@@ -28,8 +28,11 @@ def test_the_catalog_local_jobs_are_registered(wired_worker) -> None:
     importlib.reload(WorkerLoop)
     assert "index_catalog" in wired_worker._handlers
     assert "delete_catalog" in wired_worker._handlers
-    assert "parse_catalog" in wired_worker._handlers
-    assert "parse_multiplier" in wired_worker._handlers
+    # `parse_catalog` / `parse_multiplier` went with MinerU. Catalog PDFs are read
+    # by their own MCP server; `catalog-docs` serves the pageIndex path meanwhile,
+    # which is what it already did whenever a book was not in `parsed` state.
+    assert "parse_catalog" not in wired_worker._handlers
+    assert "parse_multiplier" not in wired_worker._handlers
     assert callable(WorkerLoop.main)
 
 

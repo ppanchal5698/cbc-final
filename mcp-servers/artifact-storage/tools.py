@@ -17,7 +17,7 @@ TOOLS: list[dict[str, Any]] = [
                 "project": {"type": "string", "description": "Project directory name"},
                 "path": {
                     "type": "string",
-                    "description": "Path relative to the project, e.g. extracted/door_schedule.json",
+                    "description": "Path relative to the project, e.g. extracted/line_items.json",
                 },
                 "content": {"type": "string"},
                 "version_note": {"type": "string", "description": "Optional label for this version"},
@@ -41,7 +41,10 @@ TOOLS: list[dict[str, Any]] = [
                 "project": {"type": "string"},
                 "path": {
                     "type": "string",
-                    "description": "e.g. extracted/door_schedule.json - must already exist",
+                    "description": (
+                        "e.g. extracted/line_items.json or priced/line_items.json "
+                        "- must already exist"
+                    ),
                 },
                 "patches": {
                     "type": "array",
@@ -53,19 +56,27 @@ TOOLS: list[dict[str, Any]] = [
                             "path": {
                                 "type": "string",
                                 "description": (
-                                    "openings/<door number>/<field>, e.g. openings/05/handing. "
-                                    "The door number, never a list index."
+                                    "openings/<door number>/<field> (e.g. openings/05/handing), "
+                                    "or lines/<line_id>/<field> / items/<line_id>/<field> for a "
+                                    "priced line or div10 item. The door number or line_id, never "
+                                    "a list index."
                                 ),
                             },
                             "value": {},
                             "evidence": {
                                 "type": "object",
+                                "description": (
+                                    "A drawing value cites {source_page, excerpt}; a cost "
+                                    "(cost/margin/sale_ea/multiplier) cites {cost_source, "
+                                    "cost_source_detail} instead - a cost has no drawing page."
+                                ),
                                 "properties": {
                                     "source_page": {"type": "integer"},
                                     "excerpt": {"type": "string"},
                                     "bbox": {"type": "array", "items": {"type": "number"}},
+                                    "cost_source": {"type": "string"},
+                                    "cost_source_detail": {"type": "string"},
                                 },
-                                "required": ["source_page", "excerpt"],
                             },
                         },
                         "required": ["path", "value"],
@@ -78,13 +89,24 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "get_artifact",
-        "description": "Read an artifact, either the live file or a specific stored version hash.",
+        "description": (
+            "Read an artifact, either the live file or a specific stored version hash. "
+            "Returns at most max_chars characters with total_chars and next; when next "
+            "is set the reply is a slice, not the whole file - continue from it rather "
+            "than parsing what you have as complete JSON."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "project": {"type": "string"},
                 "path": {"type": "string"},
                 "version": {"type": "string", "description": "Optional SHA-256 prefix"},
+                "start": {"type": "integer", "default": 0, "description": "Character offset to read from"},
+                "max_chars": {
+                    "type": "integer",
+                    "default": 20000,
+                    "description": "Characters per call (ceiling 200000)",
+                },
             },
             "required": ["project", "path"],
         },

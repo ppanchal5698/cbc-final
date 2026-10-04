@@ -44,9 +44,23 @@ SUCCESS_STATE: dict[str, ChainState] = {
 }
 
 # maybe_continue_chain may enqueue the next domain job only from these states.
+#
+# `extraction_needs_review` advances too, and that is not a weakening of the
+# human gate. The gate is at delivery: `delivery-agent` halts with "Draft ready
+# for estimator review" and `pre_send_quote` makes sending impossible whatever a
+# pass decides. Pricing a take-off that needs review sends nothing to anyone, and
+# hands the estimator the one thing that makes the review tractable - what the
+# gaps are worth.
+#
+# Stopping here also could not be satisfied on a real bid. The verdict needs
+# fire_rating and handing on every opening, and the first production set prints
+# neither: no FIRE RATING column exists on that schedule and handing is drawn as
+# a swing arc, not written. So the chain halted forever on a take-off that was
+# correct, and "run the whole bid" could never finish. `reviewRequired` carries
+# the flag forward so nothing is hidden by moving on.
 ADVANCE_FROM: dict[str, frozenset[str]] = {
-    "extract_bid_set": frozenset({"extraction_done"}),
-    "rerun_extraction": frozenset({"extraction_done"}),
+    "extract_bid_set": frozenset({"extraction_done", "extraction_needs_review"}),
+    "rerun_extraction": frozenset({"extraction_done", "extraction_needs_review"}),
     "match_and_price": frozenset({"pricing"}),
 }
 
@@ -130,6 +144,14 @@ async def set_state(
         sets["$unset"] = {"pipelineNote": ""}
     if state in DISABLE_AUTOPILOT:
         update["autopilot"] = False
+    # `chainState` is one value and it moves on; "this take-off needs an
+    # estimator's eyes" has to outlive it, or advancing to pricing would quietly
+    # erase the reason the estimator was being called. Set here, and cleared only
+    # by a later extraction that comes back clean.
+    if state == "extraction_needs_review":
+        update["reviewRequired"] = True
+    elif state == "extraction_done":
+        update["reviewRequired"] = False
     await bid_requests().update_one({"_id": project_id}, sets)
 
 

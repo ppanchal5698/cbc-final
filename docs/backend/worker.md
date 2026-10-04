@@ -33,7 +33,7 @@ types; `ops` owns the queue itself.
 | `extraction` | `extract_bid_set`, `rerun_extraction` |
 | `pricing` | `match_and_price` |
 | `quoting` | `build_proposal` |
-| `catalog` | `index_catalog`, `delete_catalog`, `ingest_pricebook`, `parse_catalog`, `parse_multiplier` |
+| `catalog` | `index_catalog`, `delete_catalog`, `ingest_pricebook` |
 | `parsing` | `parse_document` |
 
 Selection happens in `_claimable()`:
@@ -48,11 +48,14 @@ Selection happens in `_claimable()`:
 Two traps worth knowing:
 
 **`WORKER_CLAIM_ALL=1` is not "all".** It deliberately excludes `parsing`, so a
-single-worker dev setup never runs `parse_document`. MinerU parsing is meant for
-a GPU worker started with `WORKER_DOMAIN=parsing`. Note the asymmetry inside
-`catalog`: the catalog MinerU jobs (`parse_catalog`, `parse_multiplier`) stay on
-the catalog set so a 700-page price book cannot starve bid `parse_document` on
-the GPU worker.
+single-worker dev setup never runs `parse_document`; that lane is served by the
+`parser` service with `WORKER_DOMAIN=parsing`.
+
+The reason is the concurrency slot, not the GPU it used to protect. The main
+worker runs `WORKER_CONCURRENCY=1`, so a long document parked in the one slot
+would block unrelated extractions — and `defer_if_parsing` requeues
+`extract_bid_set` every 15s behind a `parse_document`, which in a shared slot is
+a livelock waiting to be found.
 
 **`CLAIMABLE_TYPES` is resolved once, at module import.** Changing
 `WORKER_DOMAIN` or `WORKER_CLAIM_ALL` needs a process restart, and tests that
@@ -122,11 +125,11 @@ Three gates put a claimed job straight back with a 15s `nextAttemptAt` **and
 | Gate | Holds until |
 |---|---|
 | `defer_if_bid_busy` | no other `EXCLUSIVE_JOB_TYPES` job is running for this bid — one Claude session per bid |
-| `defer_if_parsing` | MinerU has finished parsing the document |
-| `defer_if_catalog_parsing` | opt-in via `CATALOG_PARSE_WAIT=1` |
+| `defer_if_parsing` | the document has finished parsing |
+| `defer_if_catalog_parsing` | opt-in via `CATALOG_PARSE_WAIT=1` (no catalog parse jobs remain) |
 
 `PARSER_WAIT_MAX_SECONDS` only changes the log line — **it does not release
-`defer_if_parsing`**. A stuck MinerU parse holds the Claude job indefinitely.
+`defer_if_parsing`**. A stuck parse holds the Claude job indefinitely.
 That is deliberate and documented in the function's docstring, but it reads like
 a timeout and is not one.
 
@@ -145,8 +148,8 @@ on_provider, needs_catalog, wave)`, for the reasoning jobs:
    deploy.
 2. `provider.build_env(config)` and `provider.describe(config)`;
    `provider.supports_subagents(config)` decides whether the prompt gets the
-   delegation rule. Five provider modes: `subscription`, `anthropic_api`,
-   `bedrock`, `gateway`, `ollama`.
+   delegation rule. Four provider modes: `subscription`, `anthropic_api`,
+   `bedrock`, `ollama` — see [provider switching](#provider-switching).
 3. `prompts.build(job, project, delegates=delegates)`.
 4. If `needs_catalog` and `readonly_uri()` is falsy, the job finishes
    immediately with `error_code="catalog_unavailable"` rather than running and
@@ -169,6 +172,45 @@ on_provider, needs_catalog, wave)`, for the reasoning jobs:
 missing CLI binary or a Bedrock foundation-id refusal is permanent and must not
 burn three attempts.
 
+### Provider switching
+
+Four modes, and `apps/backend/src/cbc/modules/ops/api/provider.py` is the only
+place a stored choice becomes an environment. The variables are not
+interchangeable — the wrong one fails as a 401 rather than as anything
+descriptive:
+
+| Mode | Credential | Notes |
+|---|---|---|
+| `subscription` | `CLAUDE_CODE_OAUTH_TOKEN` | browser sign-in, local development |
+| `anthropic_api` | `ANTHROPIC_API_KEY` (`x-api-key`) | requires a key |
+| `bedrock` | `AWS_BEARER_TOKEN_BEDROCK`, or the task role | no key needed on Fargate |
+| `ollama` | none — a dummy bearer only | requires a model; no subagents |
+
+Three rules make a switch clean, and each exists because it once did not:
+
+- **`build_env` starts from the process environment minus `MANAGED`**, so a
+  credential from the mode you left cannot survive into the one you picked.
+- **Saving scopes the document to the chosen mode.** `model`, `smallFastModel`
+  and `baseUrl` appear in more than one mode, so a blank field is only carried
+  forward when the mode is unchanged — otherwise a Bedrock inference-profile id
+  arrived as an Ollama model name. Fields belonging to the mode being left are
+  `$unset` rather than left to accumulate.
+- **Signing in is a switch too.** The OAuth path clears the previous mode's
+  fields and rewrites `.env`, which it previously did not — so a sign-in used to
+  leave the document saying `subscription` while `.env` still said
+  `CLAUDE_CODE_USE_BEDROCK=1`.
+
+A mode that cannot run is refused at save time by
+`provider.missing_requirement`, rather than reporting success and failing on the
+first job. Only two things are required: an API key for `anthropic_api`, and a
+model for `ollama`. Bedrock is exempt because the Fargate task role is the
+normal production path, and subscription is exempt because choosing it is how
+you reach the sign-in button.
+
+`gateway` and `cloudflare` are retired. `provider.RETIRED_MODES` resolves a
+stored value naming either to `subscription`, and `claude_config.load_config`
+rewrites the document so the dead credential does not sit encrypted for ever.
+
 ### Waves
 
 `wave: list[WavePass]` runs several prompts concurrently in **one shared
@@ -176,7 +218,7 @@ sandbox** with disjoint artifacts, gathered and merged by `_combine` (every
 failure is named; the result is `permanent` only if all legs are).
 
 `WAVE_LEGS` defines the three concurrent take-off legs — `takeoff` →
-`extracted/door_schedule.json`, `frp` → `frp_takeoff.json`, `div10` →
+`extracted/line_items.json`, `frp` → `frp_takeoff.json`, `div10` →
 `div10_takeoff.json` — each told what its siblings own.
 
 Waves exist because delegation is not reliably parallel: asked to parallelise, a
@@ -202,7 +244,7 @@ entirely rather than being refused at call time.
 |---|---|
 | `extract_bid_set`, `rerun_extraction`, `ingest_addendum` | `pdf-tools`, `artifact-storage`, `reference`, `bid-docs` |
 | `match_and_price` | `catalog`, `catalog-docs`, `reference`, `pdf-tools`, `calc-engine`, `p21-connector`, `artifact-storage` |
-| `build_proposal` | `calc-engine`, `reference`, `artifact-storage` |
+| `build_proposal` | `calc-engine`, `reference`, `artifact-storage`, `bid-docs`, `pdf-tools` |
 | `ingest_pricebook` | `catalog`, `reference`, `pdf-tools`, `artifact-storage` |
 | `run_full_pipeline` | everything |
 | `preflight` | none |

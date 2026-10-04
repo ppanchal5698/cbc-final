@@ -24,11 +24,13 @@ from cbc.modules.ops.infrastructure import secrets
 from cbc.modules.ops.api import audit
 from cbc.modules.ops.features.ClaudeOAuth.terminal import (
     URL_PATTERN,
+    WINDOW_COLUMNS,
+    WINDOW_ROWS,
     _DONE_PATTERN,
     _OAUTH_ERROR,
     _PROMPT_PATTERN,
-    _TOKEN_PATTERN,
     _clean,
+    _token_candidates,
     _read_until,
 )
 from cbc.modules.ops.infrastructure.claude_config import DOC_ID, load_config
@@ -130,16 +132,25 @@ async def oauth_start() -> dict[str, Any]:
 
     controller, follower = pty.openpty()
 
-    # A pty defaults to 80 columns and the CLI hard-wraps to it, which puts a
-    # CRLF into the middle of both the authorization URL and anything else long.
-    # The URL survived only because the terminal hyperlink escape carries an
-    # unwrapped copy - not something to rely on. Give it a wide window instead.
+    # A pty defaults to 80x24 and both dimensions corrupt the read.
+    #
+    # Columns: the CLI hard-wraps to the width, which puts a CRLF into the middle
+    # of the authorization URL and anything else long. The URL survived only
+    # because the terminal hyperlink escape carries an unwrapped copy - not
+    # something to rely on.
+    #
+    # Rows: a terminal scrolls once the cursor leaves the bottom, and everything
+    # drawn so far shifts up a line. `render_screen` replays the cursor moves
+    # onto a buffer that only ever grows, so a single scroll puts the rest of a
+    # frame one row away from the part already drawn - which is how the token
+    # lost the character the CLI redrew over. Give it more rows than the flow can
+    # ever print and the question never arises.
     try:
         import fcntl
         import struct
         import termios
 
-        fcntl.ioctl(follower, termios.TIOCSWINSZ, struct.pack("HHHH", 50, 400, 0, 0))
+        fcntl.ioctl(follower, termios.TIOCSWINSZ, struct.pack("HHHH", WINDOW_ROWS, WINDOW_COLUMNS, 0, 0))
     except (ImportError, OSError):
         pass  # cosmetic; extraction still has the hyperlink copy to fall back on
 
@@ -233,19 +244,34 @@ async def oauth_code(body: OAuthCode, actor: Actor) -> dict[str, Any]:
     # character short and rejected as an invalid bearer token, with nothing in the
     # UI to suggest anything but a bad credential. The complete rendering is the
     # longest one, and the only way to be sure is to make Claude Code use it.
-    candidates = sorted(set(_TOKEN_PATTERN.findall(readable)), key=len, reverse=True)
+    # Read from the raw output, not from `readable`. Stripping escapes is what
+    # damages a token: a bare `ESC [` in front of a letter takes the letter with
+    # it, which is how a 108-character sk-ant-oat01-… arrived as a
+    # 107-character sk-ant-at01-… and was refused as "not logged in".
+    candidates = _token_candidates(output)
     match = await _first_working_token(candidates)
     if not match:
         failure = _OAUTH_ERROR.search(readable)
         if candidates and not failure:
             _close(body.session)
+            # Say what was extracted. A token is scraped out of a redrawing
+            # terminal, and a rendering split or overwritten mid-token yields a
+            # truncated candidate that is rejected for being wrong rather than
+            # for being unauthorised - indistinguishable from a bad credential
+            # unless the shapes are shown. Lengths and ends only; never the body.
+            shapes = ", ".join(
+                f"{len(c)} chars {c[:12]}…{c[-4:]}" for c in candidates[:4]
+            )
             raise HTTPException(
                 502,
                 {
                     "message": "The CLI issued a token but Claude Code would not "
                     "accept it. It has to be generated again - the CLI shows it only "
                     "once.",
-                    "hint": "Start the sign-in again.",
+                    "hint": f"Tried {len(candidates)} reading(s): {shapes}. "
+                    f"Claude Code said: {_LAST_VERIFY_ERROR['reason']!r}. "
+                    f"Raw bytes at the token: {_token_context(output)}. "
+                    "Start the sign-in again.",
                 },
             )
 
@@ -289,18 +315,29 @@ async def oauth_code(body: OAuthCode, actor: Actor) -> dict[str, Any]:
     await oauth_sessions().delete_one({"_id": body.session})
 
     token = match
+    document = {
+        "mode": provider.SUBSCRIPTION,
+        "oauthToken": secrets.encrypt(token),
+        "updatedAt": _now(),
+        "updatedBy": actor,
+    }
+    # Signing in is a provider switch, so it has to clear the provider being
+    # left. `$set` merges: without the `$unset` a Bedrock key and region stayed
+    # on the document, and without persist_env_file the .env file still said
+    # CLAUDE_CODE_USE_BEDROCK=1 afterwards. The saved-settings path does both;
+    # this one did neither, so a sign-in left the two disagreeing.
+    stale = {
+        field
+        for mode in provider.MODES
+        for field in provider.FIELDS[mode]
+        if field not in provider.FIELDS[provider.SUBSCRIPTION]
+    }
     await settings_collection().update_one(
         {"_id": DOC_ID},
-        {
-            "$set": {
-                "mode": provider.SUBSCRIPTION,
-                "oauthToken": secrets.encrypt(token),
-                "updatedAt": _now(),
-                "updatedBy": actor,
-            }
-        },
+        {"$set": document, "$unset": {field: "" for field in sorted(stale)}},
         upsert=True,
     )
+    await asyncio.to_thread(provider.persist_env_file, document)
     await audit.record(
         "settings.claude.oauth",
         actor,
@@ -313,6 +350,27 @@ async def oauth_code(body: OAuthCode, actor: Actor) -> dict[str, Any]:
     return {**provider.public_config(saved), "signedIn": True}
 
 
+# Why the last candidate was refused. Set by `_first_working_token` so the
+# failure can say whether the token was rejected as unauthorised - meaning it
+# was scraped wrong - or whether the check itself never got an answer.
+_LAST_VERIFY_ERROR: dict[str, str | None] = {"reason": None}
+
+
+def _token_context(raw: str) -> str:
+    """The bytes either side of where a token starts, escapes made visible.
+
+    A candidate can come out the right length and still be wrong, because
+    something in the stream removed a character rather than truncating. The only
+    way to see which escape did it is to look at the stream. Shows the 16 bytes
+    before `sk-ant-` and the 14 after - enough to cover the prefix and whatever
+    sits inside it, far short of a usable credential.
+    """
+    at = raw.find("sk-ant-")
+    if at < 0:
+        return "no sk-ant- in the stream"
+    return repr(raw[max(0, at - 16) : at + 14])
+
+
 async def _first_working_token(candidates: list[str]) -> str | None:
     """Return the first candidate Claude Code actually accepts, or None.
 
@@ -322,8 +380,21 @@ async def _first_working_token(candidates: list[str]) -> str | None:
     """
     from cbc.modules.ops.api import claude_cli as runner
 
+    _LAST_VERIFY_ERROR["reason"] = None
     for candidate in candidates:
-        env, _ = provider.build_env({"mode": provider.SUBSCRIPTION, "oauthToken": candidate})
-        if await asyncio.to_thread(runner.preflight, env, [candidate]) is None:
+        env, _ = provider.build_env(
+            {"mode": provider.SUBSCRIPTION, "oauthToken": candidate}, prefer_config=True
+        )
+        # `build_env` answers "what would run", where the process environment and
+        # then `.env` outrank the stored value. That is right everywhere except
+        # here, where the question is whether *this* candidate works: a
+        # CLAUDE_CODE_OAUTH_TOKEN left in `.env` by an earlier attempt would be
+        # checked over and over instead, and a stale token reports exactly what a
+        # mangled one does - "Not logged in - Please run /login". Every reading
+        # then fails identically no matter how well it was scraped.
+        env[provider.FIELDS[provider.SUBSCRIPTION]["oauthToken"][0]] = candidate
+        problem = await asyncio.to_thread(runner.preflight, env, [candidate])
+        if problem is None:
             return candidate
+        _LAST_VERIFY_ERROR["reason"] = problem
     return None

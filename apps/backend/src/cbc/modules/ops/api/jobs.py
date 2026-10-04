@@ -45,6 +45,9 @@ class JobRef(TypedDict, total=False):
     startedAt: datetime
     stragglerPending: bool
     traceId: str
+    # Per-leg wave outcome, written by claude_pass; read by extraction_wave so a
+    # retry skips the legs a prior attempt already promoted (W3c).
+    waveLegs: list[dict[str, Any]]
 
 
 # Published with job= once a retry has put a dead or failed job back on the queue.
@@ -138,13 +141,9 @@ def coalesce_note(job: dict[str, Any] | None) -> str | None:
 # fallback for jobs enqueued before fileSha existed.
 COALESCE_BY_PAYLOAD = {
     "index_catalog": "fileSha",
-    "parse_catalog": "fileSha",
-    "parse_multiplier": "fileSha",
 }
 COALESCE_FALLBACK = {
     "index_catalog": "filename",
-    "parse_catalog": "filename",
-    "parse_multiplier": "filename",
 }
 
 
@@ -428,7 +427,13 @@ async def retry(job_id: ObjectId, actor: str = "estimator") -> dict[str, Any]:
                 "retriedBy": actor,
                 "retriedAt": _now(),
                 "note": "requeued from dead-letter",
-            }
+            },
+            # `attempts` goes back to 0 so the job gets a fresh budget, which
+            # made the run's metrics key - {jobId}:{attempt} - collide with the
+            # failed run it is replacing. A dead-letter retry silently erased
+            # the record of the failure it was retrying, out of the one
+            # collection the spend page and the cost caps read.
+            "$inc": {"retryGeneration": 1},
         },
         return_document=ReturnDocument.AFTER,
     )

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""bid-docs MCP server — query MinerU-parsed blocks for uploaded bid PDFs.
+"""bid-docs MCP server — query parsed blocks for uploaded bid PDFs.
 
 READ-ONLY: MONGODB_READONLY_URI only; no write tools; no fallback to the
 writable application URI.
@@ -238,19 +238,35 @@ def get_page_blocks(
         if index < start:
             continue
         text = str(block.get("text") or "")
-        if sliced and chars + len(text) > max_chars:
+        kind = str(block.get("type") or "").lower()
+        entry: dict[str, Any] = {
+            "n": block.get("n"),
+            "type": block.get("type"),
+            "text": text,
+            "bbox": block.get("bbox"),
+            "html": block.get("html"),
+        }
+        # Per-cell text and geometry, on tables only. Without it an agent could
+        # read a schedule row but not say which column a value came from, and the
+        # only way left to tell was to render the page and look - which is what
+        # turned two sheets into twenty-four renders on one bid. Restricted to
+        # tables and counted against `max_chars` because sending it on every
+        # block would re-create the context bloat this exists to remove.
+        if kind == "table":
+            cells = block.get("cells")
+            boxes = block.get("cell_boxes") or block.get("cellBoxes")
+            if cells:
+                entry["cells"] = cells
+            if boxes:
+                entry["cell_boxes"] = boxes
+        cost = len(text) + sum(
+            len(str(entry.get(key) or "")) for key in ("cells", "cell_boxes")
+        )
+        if sliced and chars + cost > max_chars:
             next_start = index
             break
-        sliced.append(
-            {
-                "n": block.get("n"),
-                "type": block.get("type"),
-                "text": text,
-                "bbox": block.get("bbox"),
-                "html": block.get("html"),
-            }
-        )
-        chars += len(text)
+        sliced.append(entry)
+        chars += cost
 
     return {
         "document_id": document_id,

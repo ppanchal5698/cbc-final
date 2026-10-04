@@ -1,4 +1,4 @@
-"""Extraction waits for MinerU when PARSER_URL is set; otherwise Claude runs immediately."""
+"""Extraction waits for parsing when a key is set; otherwise Claude runs immediately."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -42,7 +42,7 @@ async def test_defer_while_parse_job_queued():
     ):
         settings_col.return_value.find_one = AsyncMock(return_value={})
         resolve.return_value = (
-            {"url": "http://mineru:8000", "waitMaxSeconds": 1800},
+            {"apiKey": "llx-test", "waitMaxSeconds": 1800},
             {},
         )
         jobs = MagicMock()
@@ -54,13 +54,13 @@ async def test_defer_while_parse_job_queued():
         assert other is parse_job
         jobs.update_one.assert_awaited()
         note = jobs.update_one.await_args.args[1]["$set"]["note"]
-        assert "waiting for MinerU to parse plans.pdf" in note
+        assert "waiting for plans.pdf to be parsed" in note
         assert jobs.update_one.await_args.args[1]["$inc"]["attempts"] == -1
 
 
 @pytest.mark.asyncio
 async def test_still_waits_after_wait_max_while_parse_running():
-    """Claude must not start while MinerU is still working, even past wait_max."""
+    """Claude must not start while a parse is still working, even past wait_max."""
     job = {
         "_id": "extract1",
         "type": "extract_bid_set",
@@ -85,7 +85,7 @@ async def test_still_waits_after_wait_max_while_parse_running():
     ):
         settings_col.return_value.find_one = AsyncMock(return_value={})
         resolve.return_value = (
-            {"url": "http://mineru:8000", "waitMaxSeconds": 1800},
+            {"apiKey": "llx-test", "waitMaxSeconds": 1800},
             {},
         )
         jobs = MagicMock()
@@ -97,7 +97,7 @@ async def test_still_waits_after_wait_max_while_parse_running():
         assert other is parse_job
         jobs.update_one.assert_awaited()
         note = jobs.update_one.await_args.args[1]["$set"]["note"]
-        assert "waiting for MinerU to parse plans.pdf" in note
+        assert "waiting for plans.pdf to be parsed" in note
 
 
 @pytest.mark.asyncio
@@ -122,7 +122,7 @@ async def test_defer_while_document_parse_incomplete_even_without_job():
         patch("cbc.modules.ops.api.parsing_config.enabled", return_value=True),
     ):
         settings_col.return_value.find_one = AsyncMock(return_value={})
-        resolve.return_value = ({"url": "http://mineru:8000", "waitMaxSeconds": 1800}, {})
+        resolve.return_value = ({"apiKey": "llx-test", "waitMaxSeconds": 1800}, {})
         jobs = MagicMock()
         jobs.find_one = AsyncMock(return_value=None)
         jobs.update_one = AsyncMock()
@@ -131,7 +131,7 @@ async def test_defer_while_document_parse_incomplete_even_without_job():
         other = await worker.defer_if_parsing(job)
         assert other is not None
         note = jobs.update_one.await_args.args[1]["$set"]["note"]
-        assert "waiting for MinerU to parse A1.pdf" in note
+        assert "waiting for A1.pdf to be parsed" in note
 
 
 @pytest.mark.asyncio
@@ -171,7 +171,7 @@ async def test_no_defer_when_parse_finished():
         patch("cbc.modules.ops.api.parsing_config.enabled", return_value=True),
     ):
         settings_col.return_value.find_one = AsyncMock(return_value={})
-        resolve.return_value = ({"url": "http://mineru:8000", "waitMaxSeconds": 1800}, {})
+        resolve.return_value = ({"apiKey": "llx-test", "waitMaxSeconds": 1800}, {})
         jobs = MagicMock()
         jobs.find_one = AsyncMock(return_value=None)  # no active parse job
         jobs.update_one = AsyncMock()

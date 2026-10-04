@@ -6,7 +6,7 @@ from typing import Any
 
 from cbc.modules.intake.infrastructure.collections import documents
 
-# parse.state values that mean MinerU is not finished yet — Claude must wait.
+# parse.state values that mean parsing is not finished yet — Claude must wait.
 _PARSE_INCOMPLETE = frozenset({"queued", "running"})
 
 
@@ -33,7 +33,7 @@ async def count_received_after(project_id: Any, uploaded_after: datetime | None)
 
 
 async def incomplete_parses(project_id: Any) -> list[dict[str, Any]]:
-    """Documents on this bid whose MinerU parse is still queued or running.
+    """Documents on this bid whose parse is still queued or running.
 
     Used by the extract worker so Claude does not start until GPU parsing finishes
     when PARSER_URL is set. Failed / missing parse fields are not incomplete —
@@ -53,8 +53,8 @@ async def count_by_project(ids: list[Any]) -> dict[Any, int]:
     return {row["_id"]: row["n"] for row in rows}
 
 
-async def mineru_signals_by_path(project_id: Any, slug: str) -> dict[str, dict[int, dict[str, Any]]]:
-    """Per raw-PDF path, per page: whether MinerU verified it and how many blocks it read.
+async def parse_signals_by_path(project_id: Any, slug: str) -> dict[str, dict[int, dict[str, Any]]]:
+    """Per raw-PDF path, per page: whether the parser verified it and how many blocks it read.
 
     Extraction routes pages to a vision read from this, and used to reach into
     `intake.infrastructure.collections` to get it - past intake's api, which the
@@ -91,7 +91,7 @@ async def mineru_signals_by_path(project_id: Any, slug: str) -> dict[str, dict[i
             except (KeyError, TypeError, ValueError):
                 continue
             blocks = row.get("blocks") or []
-            # Always include `verified` (even None) so the caller sees a MinerU
+            # Always include `verified` (even None) so the caller sees a parser
             # signal at all rather than mistaking absence for "not verified".
             found[f"projects/{slug}/uploads/raw/{name}"] = found.get(
                 f"projects/{slug}/uploads/raw/{name}", {}

@@ -27,8 +27,9 @@ from typing import Any
 
 from cbc.shared import envfile, logs
 from cbc.modules.ops.api.provider import MANAGED
+from cbc.modules.ops.api import parsing_config
 
-envfile.apply_to_environ(skip=MANAGED)
+envfile.apply_to_environ(skip=MANAGED | parsing_config.MANAGED)
 
 from cbc.shared.config import settings  # noqa: E402  - must follow apply_to_environ
 from cbc.modules import catalog, extraction, intake, ops, pricing, projects, quoting  # noqa: E402

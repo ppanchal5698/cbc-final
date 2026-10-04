@@ -100,27 +100,50 @@ def _ocr_assist(
     return clipped or None, True, None
 
 
-def _rel_image_path(image_path: str) -> str:
-    """Prefer a repo-relative path for prompts when the file is under the repo."""
+def _visual_image_dir(slug: str) -> Path:
+    """Where a pre-rendered vision page is written: inside the project.
+
+    It used to go to the shared render cache and be recorded relative to the
+    repository root. Claude never runs there. Each job clones the project into
+    `_scratch/{job}/workspace` and runs with its cwd on that clone, so a
+    repo-relative `.cache/pdf-pages/x.png` resolves under the workspace, where
+    nothing was ever copied - every mandatory visual `Read` failed and the agent
+    fell back to re-rendering, which is the escape hatch, not the path. In
+    docker-sandbox mode it is worse: the cache is not mounted at all and the
+    container is read-only, so the fallback cannot work either.
+
+    `extracted/` is where extraction output belongs and it is cloned with the
+    project, so the same path resolves in both modes.
+    """
+    return storage_root() / slug / "extracted" / "_visual_pages"
+
+
+def _project_image_path(image_path: str) -> str:
+    """The rendered page as Claude addresses it: `projects/{slug}/...`.
+
+    The same spelling `path` already uses on every row, and the one
+    `_resolve_pdf` reverses.
+    """
     path = Path(image_path)
     try:
-        return str(path.resolve().relative_to(ROOT.resolve())).replace("\\", "/")
+        inside = path.resolve().relative_to(storage_root().resolve())
     except ValueError:
         return str(path).replace("\\", "/")
+    return f"projects/{inside.as_posix()}"
 
 
-def apply_mineru_signals(
+def apply_parse_signals(
     sheetmap_payload: dict[str, Any],
-    mineru_by_path: dict[str, dict[int, dict[str, Any]]] | None,
+    signals_by_path: dict[str, dict[int, dict[str, Any]]] | None,
 ) -> dict[str, Any]:
-    """Re-annotate pages with optional MinerU verified / block_count signals."""
-    if not mineru_by_path:
+    """Re-annotate pages with optional parser verified / block_count signals."""
+    if not signals_by_path:
         return sheetmap_payload
     for file_row in sheetmap_payload.get("files") or []:
         path = str(file_row.get("path") or "")
-        by_page = mineru_by_path.get(path) or mineru_by_path.get(Path(path).name) or {}
+        by_page = signals_by_path.get(path) or signals_by_path.get(Path(path).name) or {}
         pages = list(file_row.get("pages") or [])
-        sheetmap.annotate_visual_flags(pages, mineru_by_page=by_page)
+        sheetmap.annotate_visual_flags(pages, signals_by_page=by_page)
         file_row["pages"] = pages
         file_row["needs_visual_read_pages"] = sorted(
             {int(p["source_page"]) for p in pages if p.get("needs_visual_read")}
@@ -132,7 +155,7 @@ def build_visual_pages(
     slug: str,
     *,
     openings_seeded: int = 0,
-    mineru_by_path: dict[str, dict[int, dict[str, Any]]] | None = None,
+    signals_by_path: dict[str, dict[int, dict[str, Any]]] | None = None,
     cap: int = sheetmap.VISUAL_PAGE_CAP,
 ) -> dict[str, Any]:
     """Render capped vision targets and write ``extracted/_visual_pages.json``.
@@ -153,15 +176,15 @@ def build_visual_pages(
         return payload
 
     sheetmap_payload = sheetmap.build_sheetmap(slug)  # no-op rewrite when SHA matches
-    sheetmap_payload = apply_mineru_signals(sheetmap_payload, mineru_by_path)
+    sheetmap_payload = apply_parse_signals(sheetmap_payload, signals_by_path)
 
     force: set[tuple[str, int]] = set()
     if int(openings_seeded or 0) <= 0:
         force = _schedule_force_pages(sheetmap_payload)
 
-    # Persist re-annotated needs_visual_read back onto the sheetmap when MinerU
+    # Persist re-annotated needs_visual_read back onto the sheetmap when parser
     # or pretakeoff force expands the set.
-    if mineru_by_path or force:
+    if signals_by_path or force:
         for file_row in sheetmap_payload.get("files") or []:
             path = str(file_row.get("path") or "")
             pages = list(file_row.get("pages") or [])
@@ -208,9 +231,16 @@ def build_visual_pages(
             rendered.append(entry)
             continue
         try:
-            hit = pdfpages.page_image(pdf, source_page, dpi=VISUAL_DPI)
-            entry["image_path"] = _rel_image_path(hit["image_path"])
+            hit = pdfpages.page_image(
+                pdf, source_page, dpi=VISUAL_DPI, out_dir=_visual_image_dir(slug)
+            )
+            entry["image_path"] = _project_image_path(hit["image_path"])
             entry["dpi"] = hit.get("dpi")
+            # dpi alone reads as reassuring and is not. A 2448pt sheet at the
+            # 1568px vision cap is 46 dpi - 0.64 px/pt - which shows that a
+            # table exists and will not yield a single row of it.
+            entry["px_per_pt"] = hit.get("px_per_pt")
+            entry["legible"] = hit.get("legible")
         except Exception as exc:
             log.warning("visual page render failed %s p%s: %s", path, source_page, exc)
             entry["error"] = str(exc)
@@ -283,10 +313,18 @@ def load_visual_pages(slug: str) -> dict[str, Any] | None:
     return raw if isinstance(raw, dict) else None
 
 
-# Roles / reasons that gate door_schedule.json visual_pages_checked.
+# Roles / reasons that gate line_items.json visual_pages_checked.
 # Bare "hardware" / "frp" / "finish" are specialist pages — not this checklist.
 DOOR_SCHEDULE_VISUAL_ROLES = frozenset({"door_schedule", "door_schedule_candidate"})
-DOOR_SCHEDULE_VISUAL_REASONS = frozenset({"door_schedule_candidate", "pretakeoff_empty"})
+# `pretakeoff_empty` is not on this list, though it reads like it belongs. It is
+# stamped on *every* forced page when the take-off seeded nothing, so it says the
+# run found no openings - not that this sheet is door-schedule work. With it in,
+# an FRP / finish sheet joined the door-schedule checklist on the strength of an
+# empty take-off, and the block handed to Claude listed a page directly under the
+# sentence telling it FRP and finish pages are not on the checklist. A genuine
+# schedule page never needs it: `_schedule_force_pages` only forces pages that
+# already carry a door-schedule role or the candidate reason.
+DOOR_SCHEDULE_VISUAL_REASONS = frozenset({"door_schedule_candidate"})
 
 
 def is_door_schedule_visual_page(page: dict[str, Any]) -> bool:
@@ -298,37 +336,410 @@ def is_door_schedule_visual_page(page: dict[str, Any]) -> bool:
     )
 
 
-def prompt_checklist(slug: str) -> str:
-    """Block injected into the extract prompt listing mandatory vision pages.
+def schedule_visual_keys(slug: str) -> list[tuple[str, int]]:
+    """Schedule/candidate ``(path, source_page)`` pairs from the visual manifest.
 
-    Only schedule / candidate pages — same filter as door_schedule validation.
-    FRP / finish / bare-hardware MinerU-null sheets are omitted here.
+    `check_extraction` requires every one of these in `visual_pages_checked`,
+    uncapped - so the take-off wave must be handed all of them, not just the first
+    `MAX_WAVE_PAGES` the sheet map ranked. Shared by that validator (through
+    `_visual_manifest_schedule_pages`) and by `extraction_wave`, so the leg is
+    never validated on a page it was never handed.
     """
     payload = load_visual_pages(slug)
-    if not payload:
-        return ""
-    pages = [
-        p
-        for p in (payload.get("pages") or [])
-        if isinstance(p, dict) and is_door_schedule_visual_page(p)
+    hits: list[tuple[str, int]] = []
+    for page in (payload.get("pages") or []) if isinstance(payload, dict) else []:
+        if not isinstance(page, dict) or not is_door_schedule_visual_page(page):
+            continue
+        try:
+            hits.append((str(page.get("path") or ""), int(page["source_page"])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return sorted(set(hits))
+
+
+
+# `verified` is `verify_page`'s score for how much of what the parser claimed
+# actually sits on real text. MinerU rarely cleared this on a CAD schedule, which
+# is why the old checklist told the model to ignore the parse and read pixels.
+# LlamaParse clears it comfortably - 0.849 and 0.913 on the two sheets of the
+# first real bid - so the picture is now the fallback, not the first read.
+PARSE_TRUSTED_FLOOR = 0.60
+
+
+def parse_can_answer(page: dict[str, Any]) -> bool:
+    """True when the parser read this page well enough to skip the image.
+
+    False for a sheet with no text layer (`verified` is None, reason
+    `parser_verified_null`), for a text-poor sheet, and for anything scoring
+    below the floor. Those keep the vision path they have always had.
+    """
+    reasons = {str(r).lower() for r in (page.get("reasons") or [])}
+    if "parser_verified_null" in reasons or "text_poor" in reasons:
+        return False
+    verified = page.get("verified")
+    if not isinstance(verified, (int, float)):
+        return False
+    return float(verified) >= PARSE_TRUSTED_FLOOR
+
+
+def pages_needing_vision(slug: str) -> list[dict[str, Any]]:
+    """Schedule pages the parser could not answer for, so the model must look."""
+    payload = load_visual_pages(slug)
+    pages = (payload.get("pages") or []) if isinstance(payload, dict) else []
+    return [
+        page
+        for page in pages
+        if isinstance(page, dict)
+        and is_door_schedule_visual_page(page)
+        and not parse_can_answer(page)
     ]
-    if not pages:
-        return ""
+
+
+# A row box is about 8pt tall. Cropping it exactly renders a sliver, so the
+# region is padded into a band: enough sheet above and below to carry the column
+# headers and the neighbouring rows that prove the alignment.
+CROP_PAD_Y = 40.0
+CROP_PAD_X = 12.0
+CROP_ROWS_PER_PAGE = 12
+# The vision cap is 1568px on the long edge, so a crop's width sets its
+# resolution: 550pt renders at ~2.85 px/pt and reads cleanly, 1900pt at 0.84 and
+# does not. A row measured wider than this is handed over in bands rather than as
+# one unreadable strip - three of six Wendys rows span nearly the full sheet,
+# because a note in the right margin shares their y-band.
+CROP_MAX_WIDTH = 550.0
+CROP_MAX_BANDS = 2
+
+
+def seeded_row_regions(slug: str) -> dict[int, list[tuple[str, list[float]]]]:
+    """Ready-to-crop regions for seeded rows, keyed by page.
+
+    The seed measures every row it reads before the model sees anything, and the
+    checklist then told the model to "crop that rectangle" without ever saying
+    what it was. So it hunted: on one bid, six crops of a floor plan and five of
+    a schedule sheet whose rows were already boxed in the artifact next to it.
+
+    Naming the rectangle costs one line per row and removes the hunt.
+    """
+    from cbc.shared.pass_files import read_json
+    from cbc.shared.storage import project_dir
+
+    payload = read_json(project_dir(slug) / "extracted" / "line_items.json")
+    if isinstance(payload, dict):
+        rows = payload.get("openings") or payload.get("lines") or []
+    elif isinstance(payload, list):
+        rows = payload
+    else:
+        return {}
+
+    out: dict[int, list[tuple[str, list[float]]]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        bbox = row.get("bbox")
+        page = row.get("source_page")
+        if not (isinstance(page, int) and isinstance(bbox, list) and len(bbox) == 4):
+            continue
+        try:
+            x0, y0, x1, y1 = (float(v) for v in bbox)
+        except (TypeError, ValueError):
+            continue
+        mark = str(row.get("door_number") or row.get("mark") or "?")
+        left, top = x0 - CROP_PAD_X, round(y0 - CROP_PAD_Y, 1)
+        bottom, right = round(y1 + CROP_PAD_Y, 1), x1 + CROP_PAD_X
+        for band in range(CROP_MAX_BANDS):
+            start = left + band * CROP_MAX_WIDTH
+            # A sliver left over past the last full band is one column edge, not
+            # a reading - the padding alone accounts for most of it.
+            if right - start < (CROP_MAX_WIDTH / 4 if band else 1):
+                break
+            out.setdefault(page, []).append(
+                (
+                    mark if band == 0 else f"{mark} (cont.)",
+                    [
+                        round(start, 1),
+                        top,
+                        round(min(start + CROP_MAX_WIDTH, right), 1),
+                        bottom,
+                    ],
+                )
+            )
+    return out
+
+
+# Handing is the one field that is genuinely a picture.
+#
+# It is read off the door swing on a floor plan and printed as text nowhere, so
+# no amount of parsing produces it - which is why the take-off went hunting. On
+# one 24-page bid it rendered the same floor plan six times looking for doors it
+# could already have been pointed at: the marks are printed on the plan, in the
+# text layer, as their own small tags.
+#
+# 300pt renders at about 4.2 px/pt against the 1568px cap, which is enough to
+# read a swing arc and the leaf. Marks cluster - four doors of that bid sit
+# inside one 300pt square - so overlapping crops are merged and one picture
+# answers several openings.
+HANDING_CROP = 300.0
+HANDING_MAX_REGIONS = 8
+
+
+def _mark_positions(page: "fitz.Page", marks: set[str]) -> list[tuple[str, list[float]]]:
+    """Where each opening's mark is printed on this sheet, as its own tag.
+
+    Whole-cell matches only. A door tag is its own cell; `05` inside `5'-0"` or a
+    dimension string is not a door, and matching loosely would send the estimator
+    to a random dimension line with the confidence of a measurement.
+    """
+    found: list[tuple[str, list[float]]] = []
+    for row in pdfrows.rows_from_words(page):
+        for cell, box in zip(row.get("cells") or [], row.get("cell_boxes") or []):
+            text = (cell or "").strip()
+            if text in marks:
+                found.append((text, [float(v) for v in box]))
+    return found
+
+
+def _merge(
+    spots: list[tuple[str, list[float]]], bounds: tuple[float, float]
+) -> list[dict[str, Any]]:
+    """Square crops around each mark, merged where they overlap.
+
+    Kept inside the sheet: a mark near an edge centres a box that runs off it,
+    and a crop with a negative corner renders as somewhere else entirely.
+
+    ponytail: O(n^2) over the marks on one sheet - a schedule has tens, not
+    thousands. Sort-and-sweep if a bid ever arrives with hundreds.
+    """
+    width, height = bounds
+    regions: list[dict[str, Any]] = []
+    for mark, box in spots:
+        half = HANDING_CROP / 2
+        cx = min(max((box[0] + box[2]) / 2, half), max(width - half, half))
+        cy = min(max((box[1] + box[3]) / 2, half), max(height - half, half))
+        rect = [
+            max(cx - half, 0.0),
+            max(cy - half, 0.0),
+            min(cx + half, width),
+            min(cy + half, height),
+        ]
+        for region in regions:
+            other = region["region"]
+            if rect[0] < other[2] and other[0] < rect[2] and rect[1] < other[3] and other[1] < rect[3]:
+                # Keep the box the size it was; a merged crop that grows stops
+                # being legible, which is the whole point of the size.
+                region["marks"].append(mark)
+                break
+        else:
+            regions.append({"region": rect, "marks": [mark]})
+    for region in regions:
+        region["region"] = [round(v, 1) for v in region["region"]]
+        region["marks"] = sorted(set(region["marks"]))
+    return regions
+
+
+def handing_regions(slug: str) -> list[dict[str, Any]]:
+    """Floor-plan crops showing the swing of every opening still missing handing.
+
+    Returns `[{path, page, region, marks}]`, ordered by how many openings each
+    crop answers, so the first picture is the one worth taking.
+    """
+    from cbc.shared.pass_files import read_json
+    from cbc.shared.storage import project_dir
+
+    root = project_dir(slug)
+    payload = read_json(root / "extracted" / "line_items.json")
+    if isinstance(payload, dict):
+        openings = payload.get("openings") or payload.get("lines") or []
+    elif isinstance(payload, list):
+        openings = payload
+    else:
+        return []
+
+    marks = {
+        str(o.get("door_number") or o.get("mark") or "").strip()
+        for o in openings
+        if isinstance(o, dict)
+        and not str(o.get("handing") or "").strip()
+        and o.get("in_scope") is not False
+    }
+    marks.discard("")
+    if not marks:
+        return []
+
+    sheetmap = read_json(root / "extracted" / "_sheetmap.json")
+    if not isinstance(sheetmap, dict):
+        return []
+
+    out: list[dict[str, Any]] = []
+    for entry in sheetmap.get("files") or []:
+        pages = [
+            page.get("source_page")
+            for page in (entry.get("pages") or [])
+            if "floor_plan" in {str(r).lower() for r in (page.get("roles") or [])}
+        ]
+        if not pages:
+            continue
+        try:
+            document = fitz.open(_resolve_pdf(str(entry.get("path") or "")))
+        except Exception:  # a missing upload is not worth failing a prompt over
+            continue
+        try:
+            for number in sorted(p for p in pages if isinstance(p, int)):
+                if not 0 <= number - 1 < document.page_count:
+                    continue
+                page = document[number - 1]
+                spots = _mark_positions(page, marks)
+                for region in _merge(spots, (page.rect.width, page.rect.height)):
+                    out.append(
+                        {
+                            "path": entry.get("path"),
+                            "page": number,
+                            "region": region["region"],
+                            "marks": region["marks"],
+                        }
+                    )
+        finally:
+            document.close()
+
+    # The fewest pictures that show every opening. A mark is usually printed on
+    # several sheets, so listing every place it appears reproduces the hunt this
+    # exists to end - on one real bid it was eight crops where the first one
+    # already showed all four doors.
+    out.sort(key=lambda r: (-len(r["marks"]), r["page"]))
+    covered: set[str] = set()
+    chosen: list[dict[str, Any]] = []
+    for region in out:
+        if set(region["marks"]) - covered:
+            covered.update(region["marks"])
+            chosen.append(region)
+        if covered >= marks:
+            break
+    return chosen[:HANDING_MAX_REGIONS]
+
+
+def prompt_checklist(slug: str) -> str:
+    """Injected into the extract prompt: read the parse, look only where it failed.
+
+    This block used to say "Read the `image_path` PNG first" and "do **not**
+    prefer bid-docs / extract_text as the first read on these pages". That was
+    right for MinerU, which could not be trusted on a CAD schedule. LlamaParse
+    verifies at 0.85-0.91 on those same sheets and carries per-cell boxes, but
+    the instruction survived the swap: on one 24-page bid the take-off rendered
+    two sheets twenty-four times, hit its 80-turn cap and produced a single
+    patch, while the door schedule sat parsed in Mongo one `get_page_blocks`
+    call away.
+
+    Only pages the parser could not answer for are listed now.
+    """
+    needs_vision = pages_needing_vision(slug)
+
     lines = [
-        "**Mandatory visual reads (worker pre-rendered).** These pages are",
-        "door schedule / schedule-candidate sheets with weak text. For each",
-        "row: `Read` the `image_path` PNG first (or call `get_page_image` if",
-        "the file is missing). Do **not** prefer bid-docs / extract_text as the",
-        "first read on these pages. Record every page in `visual_pages_checked`",
-        "on `door_schedule.json` before save / no_scope. FRP / finish / bare",
-        "hardware vision pages are specialist work — not this checklist.",
+        "**Read the parse before you render anything.** This bid set is parsed:",
+        "`get_page_blocks(document_id, page)` returns blocks with `text`, a `bbox`,",
+        "and on tables the `cells` and `cell_boxes`. A schedule row you can read in",
+        "`cells` is a row you do not need a picture of - and the cell box is a",
+        "better citation than anything you could crop by eye.",
+        "",
+        "`search_blocks` finds the page; `get_page_blocks` reads it.",
+        "",
+        "**Look at the sheet when, and only when:**",
+        "- the field is **handing** - it is read off the door swing on a floor plan",
+        "  and printed as text nowhere, so it is always a vision read. The crops",
+        "  are listed below: do not go looking for the plan;",
+        "- the page is listed below, where the parser found no text layer to verify",
+        "  against, or scored too low to trust;",
+        "- `get_page_blocks` returns zero blocks on a page the sheet map says",
+        "  carries a schedule.",
         "",
     ]
-    for page in pages:
-        reasons = ", ".join(str(r) for r in (page.get("reasons") or []) if r) or "unreadable"
-        image = page.get("image_path") or "(render failed — call get_page_image)"
-        lines.append(
-            f"- `{page.get('path')}` page {page.get('source_page')}: "
-            f"reasons=[{reasons}]; image=`{image}`"
-        )
+
+    if needs_vision:
+        lines += [
+            "**These pages need your eyes - the parser could not read them.**",
+            "",
+            "A full architectural sheet renders at about 0.6 px/pt against the",
+            "1568px vision cap: enough to see *that* a schedule is there, nowhere",
+            "near enough to read a row. Crop with",
+            "`get_page_image(page, region=[x0,y0,x1,y1])` over about 350-550pt.",
+            "More `dpi` does nothing - the cap is on pixels. The reply carries",
+            "`px_per_pt` and `legible`; read those rather than guessing from the",
+            "picture. Do not re-crop blind - the rectangles below are measured.",
+            "",
+        ]
+        for page in needs_vision:
+            reasons = ", ".join(str(r) for r in (page.get("reasons") or []) if r) or "unreadable"
+            image = page.get("image_path") or "(render failed - call get_page_image)"
+            lines.append(
+                f"- `{page.get('path')}` page {page.get('source_page')}: "
+                f"reasons=[{reasons}]; image=`{image}`"
+            )
+        lines.append("")
+    else:
+        lines += [
+            "**No schedule page on this bid needs a vision read.** The parser",
+            "verified every one of them. Cite the block you read.",
+            "",
+        ]
+
+    swings = handing_regions(slug)
+    if swings:
+        lines += [
+            "**Handing: these crops show the swings.** Each opening's mark is",
+            "printed on the plan as its own tag, so the rectangle around it has",
+            "been measured for you. This is the fewest pictures that cover every",
+            "opening still missing handing - usually one.",
+            "",
+        ]
+        for spot in swings:
+            covers = ", ".join(spot["marks"])
+            lines.append(
+                f"- doors {covers}: `get_page_image({spot['page']}, region={spot['region']})`"
+            )
+        lines += [
+            "",
+            "Read the swing off the arc and the leaf. If a door is not legible in",
+            "its crop, say so and leave `handing` null with `handing_missing` - a",
+            "guessed hand is a door that opens the wrong way on site.",
+            "",
+        ]
+
+    regions = seeded_row_regions(slug)
+    if regions:
+        lines += [
+            "**When you do need to look at a seeded row, the rectangle is already",
+            "measured.** Paste it - do not search for it by eye:",
+            "",
+        ]
+        for page in sorted(regions):
+            for mark, region in regions[page][:CROP_ROWS_PER_PAGE]:
+                lines.append(
+                    f"- door {mark}: `get_page_image({page}, region={region})`"
+                )
+            extra = len(regions[page]) - CROP_ROWS_PER_PAGE
+            if extra > 0:
+                lines.append(
+                    f"- ...and {extra} more row(s) on page {page}, each with a `bbox`"
+                    " in the seeded artifact."
+                )
+        lines += [
+            "",
+            "A row you can read in `cells` still does not need a picture at all.",
+            "",
+        ]
+
+    lines += [
+        "Record what you checked with **one patch**, before save / no_scope - the",
+        "artifact is seeded, so this is a patch and not a whole-file write:",
+        "",
+        "    propose_patch(project, 'extracted/line_items.json', [{",
+        '      "op": "set", "path": "visual_pages_checked",',
+        '      "value": [{"path": …, "source_page": …, "image_path": …,',
+        '                 "finding": "what you found"}, …]}])',
+        "",
+        "A page you answered from parsed blocks belongs in that list too - give the",
+        "block number in place of an `image_path`. The gate is that you checked the",
+        "page, not that you rendered it.",
+        "",
+        "`visual_pages_checked` is the one top-level path a patch may set. A row",
+        "reading is still `openings/<door number>/<field>`.",
+    ]
     return "\n".join(lines)

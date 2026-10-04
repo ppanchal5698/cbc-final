@@ -1,4 +1,4 @@
-"""GET /api/projects/{code}/documents/{id}/pages/{n}/blocks - MinerU page blocks."""
+"""GET /api/projects/{code}/documents/{id}/pages/{n}/blocks - parsed page blocks."""
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query

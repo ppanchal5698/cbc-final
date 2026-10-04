@@ -41,15 +41,21 @@ writing the email draft, reading a price book, and `ls`. CI runs it.
 
 ### 2. The session guard — `cbc.worker_kit.tool_session`
 
-Stops the orchestrator racing its own subagents. On an `Agent` call it records
-which paths that subagent owns (`_DELEGATION_PATHS`); if the orchestrator then
-reads one of those paths while the subagent is still running, the call is
-blocked with `Do not duplicate subagent work`. Locks expire after 120 seconds
-and are released by the PostToolUse side when the `Agent` call returns. A
-duplicate read of the same path within 60 seconds warns but is allowed.
+Warns when a run reads the same path twice within 60 seconds, so a subagent
+reuses the result it already holds instead of re-fetching it. It **never blocks**
+— `check` always returns 0.
 
-State lives in `.cbc_tool_session.json` at the project root (gitignored). The
-import is wrapped so that a broken guard never fails a tool call.
+It once also tried to stop the orchestrator racing its subagents by locking each
+subagent's output paths on the `Agent` call. That guard blocked the harmless case
+(`_tool_path` only ever resolved `Read` and `get_artifact`, never a write) and
+self-collided (the lock the orchestrator wrote was tripped by the subagent's own
+first `get_artifact`, the call every prompt orders it to make first), so it was
+removed. Single-writer safety comes from `pre_delete_guard`'s checkpoint rules and
+from the disjoint wave outputs promoted with nothing to reconcile.
+
+State lives in `.cbc_tool_session.json` at the project root (gitignored) and is
+written atomically, since concurrent wave legs share the file. The import is
+wrapped so that a broken guard never fails a tool call.
 
 ### 3. `pre_delete_guard.py` — file safety
 
@@ -59,7 +65,7 @@ The largest hook, 634 lines. Every block names its rule tag in the message:
 |---|---|
 | `protected-write-tool` · `protected-mcp-write` · `protected-bash-write` · `protected-python-write` | any write resolving inside `pricebooks/`, `reference-library/`, `data/pricebooks/`, `data/reference-library/` or `.claude/` |
 | `checkpoint-save-artifact` | a bare `Write`/`Edit` to any checkpoint artifact |
-| `checkpoint-propose-patch` | a whole-file `save_artifact` over an already-seeded `extracted/door_schedule.json` |
+| `checkpoint-propose-patch` | a whole-file `save_artifact` over an already-seeded `extracted/line_items.json` |
 | `reference-library` | deletes touching reference data |
 | `nfr-5` | any `mcp__p21-connector__*` tool whose name contains a write verb |
 | `rm-rf-outside-projects` · `remove-item` · `erase-item` | recursive deletes outside `projects/` |
@@ -71,7 +77,7 @@ The checkpoint artifacts are:
 ```
 extracted/scope_metadata.json   extracted/frp_takeoff.json     priced/line_items.json
 extracted/scope_summary.json    extracted/div10_takeoff.json
-extracted/door_schedule.json    extracted/hardware_sets.json
+extracted/line_items.json    extracted/hardware_sets.json
 ```
 
 They must be written with `mcp__artifact-storage__save_artifact`, which
@@ -99,30 +105,26 @@ be allowed. CI runs it.
 
 ## PostToolUse — `post_tool_use.py`
 
-Four steps, of which only one can block.
+Three steps, of which only one can block.
 
 1. **`log_audit_trail.py`** — appends one JSONL record per tool call to
    `projects/{project}/audit_trail.jsonl`. This is NFR-3: months later, an
    estimator can answer "where did this number come from?". Always exits 0; a
    failure here must never fail the tool call.
-2. **`tool_session.clear_active_agent`** — releases the lock on `save_artifact`,
-   `Write` or `Agent`. For `Agent` it clears **only that subagent**, because
-   take-off, FRP and Div 10 run concurrently and clearing all three when the
-   first returns would unlock files the other two are still writing.
-3. **`post_extraction_validate.py`** — the only PostToolUse step that can
+2. **`post_extraction_validate.py`** — the only PostToolUse step that can
    **block (exit 2)**. It does so when any of these fails
    `validate_artifact_text`:
 
    ```
    extracted/scope_metadata.json
    extracted/scope_summary.json
-   extracted/door_schedule.json
+   extracted/line_items.json
    ```
 
    Everything else under `extracted/` or `priced/` runs `check_extraction` /
    `check_pricing(require_hardware_sets=True)` and only warns. Blocking here
    stops a malformed checkpoint from propagating into pricing.
-4. **`post_quote_format.py`** — tidies `quotation.html`. Never blocks.
+3. **`post_quote_format.py`** — tidies `quotation.html`. Never blocks.
 
 `_artifact_path.py` is the shared helper both entry points load first. It maps
 either a `save_artifact` `{project, path}` pair or a `file_path` matching

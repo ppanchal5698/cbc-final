@@ -48,7 +48,20 @@ def database():
         shared_mongo._client = None
 
 
-def test_needs_review_does_not_enqueue_pricing(database) -> None:
+def test_needs_review_still_enqueues_pricing(database) -> None:
+    """A take-off needing review is priced; it is not sent. Those are different gates.
+
+    This asserted the opposite, and it made autopilot unable to finish a real bid.
+    The verdict needs fire_rating and handing on every opening, and the first
+    production set prints neither - no FIRE RATING column on that schedule, and
+    handing drawn as a swing arc rather than written. So the chain parked forever
+    on a take-off that was correct.
+
+    Nothing reaches a customer either way: `delivery-agent` halts at "Draft ready
+    for estimator review" and `pre_send_quote` blocks a send whatever a pass
+    decides (NFR-1). What the estimator gains is the gaps priced, which is what
+    makes reviewing them tractable.
+    """
     from cbc.modules.projects.api import autopilot as orchestrator
 
     project_id = ObjectId()
@@ -61,8 +74,50 @@ def test_needs_review_does_not_enqueue_pricing(database) -> None:
         "payload": {"orchestrate": True},
         "createdBy": "test",
     }
+    queued = run(orchestrator.maybe_continue_chain(job))
+
+    assert queued is not None and queued["type"] == "match_and_price"
+
+
+def test_autopilot_off_still_stops_the_chain(database) -> None:
+    """Advancing through needs_review must not override the estimator's own switch."""
+    from cbc.modules.projects.api import autopilot as orchestrator
+
+    project_id = ObjectId()
+    database[names.BID_REQUESTS].insert_one(
+        {
+            "_id": project_id, "code": "CH-1b", "slug": "ch1b",
+            "chainState": "extraction_needs_review", "autopilot": False,
+        }
+    )
+    job = {
+        "type": "extract_bid_set",
+        "projectId": project_id,
+        "payload": {"orchestrate": True},
+        "createdBy": "test",
+    }
     assert run(orchestrator.maybe_continue_chain(job)) is None
     assert database["jobs"].count_documents({}) == 0
+
+
+def test_the_review_flag_outlives_the_state_that_set_it(database) -> None:
+    """`chainState` moves on to pricing, so the reason for review needs its own field."""
+    from cbc.modules.projects.api import saga
+
+    project_id = ObjectId()
+    database[names.BID_REQUESTS].insert_one({"_id": project_id, "code": "CH-1c", "slug": "ch1c"})
+
+    run(saga.set_state(project_id, "extraction_needs_review"))
+    assert database[names.BID_REQUESTS].find_one({"_id": project_id})["reviewRequired"] is True
+
+    run(saga.set_state(project_id, "pricing"))
+    doc = database[names.BID_REQUESTS].find_one({"_id": project_id})
+    assert doc["chainState"] == "pricing"
+    assert doc["reviewRequired"] is True, "moving on must not erase the reason"
+
+    # A later clean extraction clears it.
+    run(saga.set_state(project_id, "extraction_done"))
+    assert database[names.BID_REQUESTS].find_one({"_id": project_id})["reviewRequired"] is False
 
 
 def test_extraction_done_enqueues_pricing(database) -> None:

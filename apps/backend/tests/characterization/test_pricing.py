@@ -107,7 +107,21 @@ def test_lite_kit(client, snapshots) -> None:
     response = snapshots.pin("GET /api/reference/lite-kit", _ok(client.get(f"{REF}/lite-kit")))
     data = response.json()["data"]
     snapshots.pin("PUT /api/reference/lite-kit", _ok(client.put(f"{REF}/lite-kit", json={"data": data})))
-    snapshots.pin("PATCH /api/reference/lite-kit", _ok(client.patch(f"{REF}/lite-kit", json={"data": data})))
+
+    # PATCH now addresses one cell rather than replacing the document, so the
+    # settings grid can save a price without posting several thousand others
+    # back. Written at its current value: a characterization test pins the shape
+    # of the reply, and should not leave a changed price behind it.
+    table = data["tables"][0]
+    height, row = next(iter(table["prices"].items()))
+    width, price = next(iter(row.items()))
+    cell = {"table": 0, "height": int(height), "width": int(width), "price": price}
+    snapshots.pin("PATCH /api/reference/lite-kit", _ok(client.patch(f"{REF}/lite-kit", json=cell)))
+    snapshots.pin(
+        "PATCH /api/reference/lite-kit",
+        client.patch(f"{REF}/lite-kit", json={**cell, "table": 999}),
+        variant="no such table",
+    )
 
 
 def test_stock_lists(client, snapshots) -> None:

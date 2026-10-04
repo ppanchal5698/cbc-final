@@ -1781,6 +1781,12 @@
   },
   "status": 200
  },
+ "PATCH /api/reference/lite-kit #no such table": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
  "PATCH /api/reference/margins": {
   "body": {
    "accessoriesDerived": "number",

@@ -38,7 +38,7 @@ def test_upload_a_bid_set(client, bid, snapshots) -> None:
     response = snapshots.pin(
         op,
         client.post(_url(DOCS, bid), files={"file": ("plans.pdf", data, "application/pdf")}),
-        # Present only when MinerU is reachable to parse the upload.
+        # Present only when parsing is enabled for the upload.
         drop=("body.document.parse",),
     )
     assert response.json()["document"]["pages"] == 2
@@ -75,7 +75,7 @@ def test_page_size(client, bid, snapshots) -> None:
 
 
 def test_page_blocks(client, bid, snapshots) -> None:
-    """MinerU blocks for one page. Empty until a parse has run, which is the
+    """Parsed blocks for one page. Empty until a parse has run, which is the
     normal state on a freshly uploaded bid - and the answer must still be a
     shaped 200, because extraction falls back to pdf-tools on an empty read."""
     op = "GET /api/projects/{code}/documents/{document_id}/pages/{page_number}/blocks"

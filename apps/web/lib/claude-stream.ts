@@ -94,9 +94,12 @@ export interface DoneEntry extends BaseEntry {
   isError: boolean;
 }
 
+export type RateLimitStatus = "allowed" | "allowed_warning" | "rejected";
+
 export interface RateLimitEntry extends BaseEntry {
   kind: "rate_limit";
-  subtype: string;
+  status: RateLimitStatus;
+  text: string;
 }
 
 export interface PlainEntry extends BaseEntry {
@@ -345,18 +348,72 @@ function parseEvent(
       break;
     }
     case "rate_limit_event": {
-      out.push({
-        id: nextId(),
-        kind: "rate_limit",
-        time,
-        subtype: String(event.subtype ?? "rate limit"),
-      });
+      const limit = describeRateLimit(event.rate_limit_info);
+      if (limit) {
+        out.push({ id: nextId(), kind: "rate_limit", time, ...limit });
+      }
       break;
     }
     default:
       break;
   }
   return out;
+}
+
+const RATE_LIMIT_WINDOWS: Record<string, string> = {
+  five_hour: "5-hour",
+  seven_day: "weekly",
+  seven_day_opus: "weekly Opus",
+  seven_day_sonnet: "weekly Sonnet",
+  seven_day_overage_included: "weekly (overage included)",
+  overage: "overage",
+};
+
+function rateLimitPercent(value: unknown): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  // The CLI clamps the header it reads this from to 1, so it is a fraction; the
+  // server-side shape carries a percent under the same name. Treat <= 1 as a
+  // fraction and anything above it as already scaled.
+  return `${Math.round(value <= 1 ? value * 100 : value)}%`;
+}
+
+function rateLimitReset(value: unknown): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
+  const when = new Date(value > 1e11 ? value : value * 1000);
+  return Number.isNaN(when.getTime())
+    ? null
+    : when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+/**
+ * The CLI emits `rate_limit_event` "when rate limit info changes" - which is
+ * mostly while everything is fine, since `status` is `allowed` far more often
+ * than not.
+ *
+ * The payload is `rate_limit_info`. This read `event.subtype`, a field the event
+ * has never carried, so every one of them fell through to the literal string
+ * "rate limit" and rendered as "rate limit: rate limit" in warning yellow -
+ * ordinary telemetry looking exactly like a run being throttled.
+ */
+export function describeRateLimit(
+  raw: unknown,
+): { status: RateLimitStatus; text: string } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const info = raw as Record<string, unknown>;
+  const reported = String(info.status ?? "");
+  const status: RateLimitStatus =
+    reported === "rejected" || reported === "allowed_warning" ? reported : "allowed";
+
+  const window = RATE_LIMIT_WINDOWS[String(info.rateLimitType ?? "")] ?? "usage";
+  const used = rateLimitPercent(info.utilization);
+  const resets = rateLimitReset(info.resetsAt);
+  const tail = resets ? `, resets ${resets}` : "";
+
+  if (status === "rejected") return { status, text: `${window} limit reached${tail}` };
+  return {
+    status,
+    text: used ? `${window} window ${used} used${tail}` : `${window} window${tail}`,
+  };
 }
 
 /** Pair tool results onto their matching tool_use rows. */
@@ -543,7 +600,7 @@ export function formatEntryForCopy(entry: LogEntry): string {
       return `${copyPrefix(entry.time)} DONE ${entry.turns} turns in ${entry.seconds}s${cost}${err}`;
     }
     case "rate_limit":
-      return `${copyPrefix(entry.time)} RATE LIMIT ${entry.subtype}`;
+      return `${copyPrefix(entry.time)} USAGE ${entry.text}`;
     case "plain":
       return `${copyPrefix(entry.time)} ${entry.text}`;
     default:
@@ -624,7 +681,11 @@ function renderEvent(event: Record<string, unknown>): string[] {
       break;
     }
     case "rate_limit_event": {
-      out.push(`${at} ${YELLOW}limit${RESET}   ${String(event.subtype ?? "rate limit")}`);
+      const limit = describeRateLimit(event.rate_limit_info);
+      if (limit) {
+        const colour = limit.status === "allowed" ? DIM : YELLOW;
+        out.push(`${at} ${colour}usage${RESET}   ${limit.text}`);
+      }
       break;
     }
     default:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from cbc.modules.extraction.api import door_schedule
+from cbc.modules.extraction.api import line_items
 from cbc.modules.extraction.infrastructure.collections import openings
 from cbc.modules.ops.api import audit
 from cbc.modules.ops.api.jobs import enqueue_pipeline
@@ -23,7 +23,7 @@ async def continue_to_quote(code: str, actor: Actor) -> dict:
     outstanding = await openings().count_documents(
         {"projectId": project["_id"], "status": "needs_look"}
     )
-    await door_schedule.export_line_items(project)
+    await line_items.export_line_items(project)
 
     job = await enqueue_pipeline("match_and_price", project["_id"], actor=actor)
     await audit.record(

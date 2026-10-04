@@ -381,10 +381,13 @@ export function LineItemRow({
           {item.size ?? "—"}
         </span>
         <span className="tnum text-[12.5px] font-medium text-tx-muted">
-          {item.qty}
+          {item.qty ?? "—"}
+          {item.specialty?.unit ? ` ${item.specialty.unit}` : ""}
         </span>
         <span className="text-[12.5px] font-medium text-tx-muted">
-          {item.hwSet ?? "—"}
+          {/* A specialty line has no hardware set; the spec section it is
+              priced under is the useful thing to show in its place. */}
+          {item.hwSet ?? item.division ?? "—"}
         </span>
 
         <span className="flex justify-end">

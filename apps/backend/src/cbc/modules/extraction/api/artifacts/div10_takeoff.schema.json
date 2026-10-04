@@ -123,6 +123,24 @@
               "string",
               "null"
             ]
+          },
+          "bbox": {
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "cell_boxes": {
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "page_size": {
+            "type": [
+              "object",
+              "null"
+            ]
           }
         }
       }

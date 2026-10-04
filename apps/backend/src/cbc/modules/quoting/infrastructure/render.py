@@ -50,6 +50,7 @@ TIMEOUT_SECONDS = 180
 class RenderResult:
     ok: bool
     detail: str
+    unchanged: bool = False
 
     def __bool__(self) -> bool:
         return self.ok
@@ -159,7 +160,7 @@ def render_quotation(slug: str) -> RenderResult:
     html = _project_root(slug) / "quotation.html"
     key = _quotation_key(slug)
     if _stamp_matches(html, key):
-        return RenderResult(True, "quotation: unchanged")
+        return RenderResult(True, "quotation: unchanged", unchanged=True)
     result = _run(QUOTE_SCRIPT, slug, "quotation")
     if result.ok:
         _write_stamp(html, key)
@@ -171,7 +172,7 @@ def render_review_summary(slug: str) -> RenderResult:
     html = _project_root(slug) / "review" / "review_summary.html"
     key = _review_key(slug)
     if _stamp_matches(html, key):
-        return RenderResult(True, "review summary: unchanged")
+        return RenderResult(True, "review summary: unchanged", unchanged=True)
     result = _run(REVIEW_SCRIPT, slug, "review summary")
     if result.ok:
         _write_stamp(html, key)

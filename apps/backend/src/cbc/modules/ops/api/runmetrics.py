@@ -56,8 +56,35 @@ def _sha256_file(path: Path) -> str | None:
     return _sha256_bytes(path.read_bytes())
 
 
-def context_hashes(prompt: str | None = None) -> dict[str, Any]:
-    """SHA-256 of the files a run actually followed. Recorded, never reused."""
+def _hooks_digest() -> str | None:
+    """SHA-256 of hook *source* only. Never settings.local.json - that is
+    per-developer, and folding it in would fragment cohorts one per machine."""
+    blob = b"".join(
+        path.read_bytes()
+        for path in sorted((ROOT / ".claude" / "hooks").glob("*.py"))
+        if path.is_file()
+    )
+    return _sha256_bytes(blob) if blob else None
+
+
+def _tool_profiles_digest() -> str | None:
+    """SHA-256 of the whole toolset map. Any profile change moves the digest, so
+    a run that saw a different tool surface lands in a different cohort."""
+    try:
+        from cbc.modules.ops.api import toolsets
+
+        payload = json.dumps(toolsets.PROFILES, sort_keys=True, default=list)
+    except Exception:
+        return None
+    return _sha256_text(payload)
+
+
+def context_hashes(prompt: str | None = None, runtime: Any = None) -> dict[str, Any]:
+    """SHA-256 of the files a run actually followed. Recorded, never reused.
+
+    `runtime` is the `limits_for()` result, passed in rather than imported:
+    `claude_pass` owns it and importing it here would be a cycle inside ops/api.
+    """
     rules_dir = ROOT / ".claude" / "rules"
     rules_blob = b"".join(
         path.read_bytes()
@@ -86,6 +113,11 @@ def context_hashes(prompt: str | None = None) -> dict[str, Any]:
         "rules": _sha256_bytes(rules_blob) if rules_blob else None,
         "agents": agents,
         "skills": skills,
+        "toolProfiles": _tool_profiles_digest(),
+        "hooks": _hooks_digest(),
+        "runtime": _sha256_text(json.dumps(runtime, sort_keys=True, default=str))
+        if runtime is not None
+        else None,
     }
 
 
@@ -118,6 +150,11 @@ def parse_recording(source: str | Path) -> dict[str, Any]:
     tools = _tools_from_events(events)
     return {
         "sessionId": result.get("session_id"),
+        # The CLI reports this on the result event and it was thrown away, so the
+        # one number that explains a run's cost - how many times the whole
+        # conversation was resent - existed only in the web stream renderer. A
+        # take-off leg ran 81 turns against an 80 cap before anyone could see it.
+        "numTurns": result.get("num_turns"),
         "durationApiMs": result.get("duration_api_ms"),
         "totalCostUsd": result.get("total_cost_usd"),
         "modelUsage": model_usage,
@@ -249,10 +286,19 @@ def _tools_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
     result_chars: list[int] = []
     image_chars = 0
     tool_times: list[datetime] = []
+    exposed: list[str] = []
 
     for event in events:
         kind = event.get("type")
         stamp = _parse_ts(event.get("timestamp"))
+        if kind == "system" and event.get("subtype") == "init":
+            # The CLI names every tool it handed the model on this event. That is
+            # the number the cohort rig compares against cold prefix writes - a
+            # profile that exposes ten more tools rewrites a longer prefix on
+            # every cold turn - and it was recorded as a hardcoded 0.
+            names = event.get("tools")
+            if isinstance(names, list):
+                exposed = [str(n) for n in names if str(n).startswith("mcp__")]
         if kind == "assistant":
             for block in _content_blocks(event):
                 if block.get("type") != "tool_use":
@@ -305,9 +351,9 @@ def _tools_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
             "meanInterCallGapMs": round(sum(gaps) / len(gaps)) if gaps else None,
         },
         "mcp": {
-            "exposed": [],
+            "exposed": exposed,
             "invoked": invoked,
-            "toolsExposed": 0,
+            "toolsExposed": len(exposed),
             "toolsInvoked": sum(1 for name in by_name if name.startswith("mcp__")),
         },
         "subagents": {
@@ -344,6 +390,50 @@ def parse_recording_name(name: str) -> tuple[str, int]:
     return stem, 1
 
 
+def _metrics_id(job_id: str, attempt: int, generation: Any, leg: Any = None) -> str:
+    """One id per run: the runs a retry replaces, and the legs of a wave.
+
+    `leg` is appended only when truthy, so leg 0 - a single pass, or a wave's first
+    leg - keeps the id byte-identical to what was written before waves recorded
+    every leg. `set_estimator_corrections` keys on that same `{jobId}:{attempt}`.
+    """
+    try:
+        number = int(generation or 0)
+    except (TypeError, ValueError):
+        number = 0
+    base = f"{job_id}:{attempt}" if number <= 0 else f"{job_id}:r{number}:{attempt}"
+    try:
+        leg_no = int(leg or 0)
+    except (TypeError, ValueError):
+        leg_no = 0
+    return base if leg_no <= 0 else f"{base}:leg{leg_no}"
+
+
+def _as_utc(value: Any) -> datetime | None:
+    """A timestamp Mongo can actually compare.
+
+    These used to be written with `.isoformat()`. Mongo sorts and ranges String
+    and Date in separate BSON type brackets, so every `{"startedAt": {"$gte":
+    <datetime>}}` query silently matched nothing - which disabled the spend page
+    *and* `cost_budget.spend_usd`, so WORKER_MAX_COST_USD_PER_DAY never fired on
+    a pipeline that was being reported as too expensive to run.
+
+    A string still arrives from the recording's own events, so parse it here
+    rather than trusting the caller.
+    """
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc)
+    if isinstance(value, str) and value.strip():
+        try:
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    return None
+
+
 def document_for(
     job: dict[str, Any],
     parsed: dict[str, Any],
@@ -353,6 +443,8 @@ def document_for(
     provider: dict[str, Any] | None = None,
     outcome_status: str | None = None,
     error_code: str | None = None,
+    runtime: Any = None,
+    leg: Any = None,
 ) -> dict[str, Any]:
     job_id = _job_id_str(job)
     attempt = max(int(job.get("attempts") or 1), 1)
@@ -365,18 +457,20 @@ def document_for(
     except Exception:
         exposed = []
     mcp = dict(parsed.get("mcp") or {})
-    mcp["exposed"] = exposed or mcp.get("invoked") or []
-    mcp["toolsExposed"] = mcp.get("toolsExposed") or 0
+    # The recording's own init event is authoritative - it names what the CLI
+    # actually handed the model. PROFILES is the intent, and stands in only when
+    # there was no recording to read.
+    mcp["exposed"] = mcp.get("exposed") or exposed or mcp.get("invoked") or []
+    mcp["toolsExposed"] = mcp.get("toolsExposed") or len(mcp["exposed"])
 
-    started = job.get("startedAt") or parsed.get("startedAt")
-    finished = job.get("finishedAt") or parsed.get("finishedAt")
-    if isinstance(started, datetime):
-        started = started.astimezone(timezone.utc).isoformat()
-    if isinstance(finished, datetime):
-        finished = finished.astimezone(timezone.utc).isoformat()
+    started = _as_utc(job.get("startedAt") or parsed.get("startedAt"))
+    finished = _as_utc(job.get("finishedAt") or parsed.get("finishedAt"))
 
     return {
-        "_id": f"{job_id}:{attempt}",
+        # {jobId}:{attempt} alone collides after a dead-letter retry, which
+        # resets `attempts`. The generation keeps earlier runs on disk, and is
+        # left out at 0 so every id written before this stays as it was.
+        "_id": _metrics_id(job_id, attempt, job.get("retryGeneration"), leg),
         "jobId": job_id,
         "attempt": attempt,
         "projectId": str(job["projectId"]) if job.get("projectId") else None,
@@ -389,13 +483,21 @@ def document_for(
         "startedAt": started,
         "finishedAt": finished,
         "durationApiMs": parsed.get("durationApiMs"),
+        "numTurns": parsed.get("numTurns"),
+        # A leg that stopped because it ran out of turns did not finish its
+        # verification; that is a quality signal, not a cost one.
+        "hitTurnCap": (
+            parsed.get("numTurns") is not None
+            and runtime is not None
+            and parsed["numTurns"] >= (runtime[1] if isinstance(runtime, tuple) else 0)
+        ),
         "tokens": parsed.get("tokens") or {},
         "modelUsage": parsed.get("modelUsage") or {},
         "totalCostUsd": parsed.get("totalCostUsd"),
         "tools": parsed.get("tools") or {},
         "mcp": mcp,
         "subagents": parsed.get("subagents") or {},
-        "contextHashes": context_hashes(prompt),
+        "contextHashes": context_hashes(prompt, runtime),
         "outcome": {
             "status": outcome_status or job.get("status") or "unknown",
             "errorCode": error_code or job.get("errorCode"),
@@ -421,6 +523,8 @@ async def record(
     provider: dict[str, Any] | None = None,
     outcome_status: str | None = None,
     error_code: str | None = None,
+    runtime: Any = None,
+    leg: Any = None,
 ) -> dict[str, Any] | None:
     """Upsert one runMetrics document. Missing recordings still write hashes."""
     parsed: dict[str, Any] = {}
@@ -434,6 +538,8 @@ async def record(
         provider=provider,
         outcome_status=outcome_status,
         error_code=error_code,
+        runtime=runtime,
+        leg=leg,
     )
     await run_metrics_collection().replace_one({"_id": document["_id"]}, document, upsert=True)
     return document

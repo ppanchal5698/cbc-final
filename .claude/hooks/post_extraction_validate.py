@@ -23,7 +23,7 @@ SCHEMA_PATHS = frozenset(
     {
         "extracted/scope_metadata.json",
         "extracted/scope_summary.json",
-        "extracted/door_schedule.json",
+        "extracted/line_items.json",
     }
 )
 

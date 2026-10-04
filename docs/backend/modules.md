@@ -43,7 +43,7 @@ and indexes are specified in [`../collections.mongodb.md`](../collections.mongod
 | **catalog** | Parts and vendor price books, page indexing, match learning | `catalogItems`, `priceBooks`, `catalogPages`, `multiplierPages`, `matchLearning`, `pageIndex` |
 | **extraction** | Openings, alternates, FRP and Div 10 take-offs, estimator corrections | `openings`, `failedExtractions`, `takeoffs`, `feedbackEvents` |
 | **quoting** | Priced lines, totals, the proposal, vendor RFQs and RFIs. Renders and routes, never sends | `estimateLines`, `quotes`, `proposals`, `vendorRfqs`, `rfis` |
-| **intake** | Document upload, page render, MinerU parse, addendum versions | `documents`, `documentPages`, `estimateVersions` |
+| **intake** | Document upload, page render, LlamaParse parse, addendum versions | `documents`, `documentPages`, `estimateVersions` |
 
 `pageIndex` is the one exception to the pattern: it is owned by
 `catalog/api/pageindex/store.py` rather than by `collections.py`.
@@ -63,12 +63,18 @@ intake    →  extraction, ops, projects, quoting
 ```
 
 `ops` sits at the bottom and imports no other module — it is the platform every
-other module runs on. **`intake` sits at the top**, which is the one surprise in
-the graph: "upload a PDF" depends on quoting. The two edges are real,
-`intake/features/RunFullPipeline.py:16` and
-`intake/infrastructure/snapshot.py:11`. `run_full_pipeline` is a retired job
-type that `POST /api/jobs` refuses, so the first edge is probably vestigial;
-treat it as something to confirm rather than as a designed relationship.
+other module runs on. **`intake` sits at the top**, which reads as a surprise:
+"upload a PDF" depending on quoting. Both edges are deliberate.
+
+`intake/infrastructure/snapshot.py` freezes a bid's openings *and quote lines*
+into an addendum version, so it needs `quoting.api.lines` by definition.
+
+`intake/features/RunFullPipeline.py` backs the retired `run_full_pipeline` job.
+`POST /api/jobs` refuses it, but a job queued before it was retired still runs,
+and it is placed here precisely because intake is the one module permitted to
+import every part it touches. `WorkerLoop._CLAIM_ALL_EXTRA` keeps that job type
+claimable for the same reason. Two places support it on purpose — deleting the
+feature would strand a requeued historical job.
 
 The graph is acyclic, and that is checked two ways: by
 `test_the_module_graph_has_no_cycles`, and independently by the knowledge-graph

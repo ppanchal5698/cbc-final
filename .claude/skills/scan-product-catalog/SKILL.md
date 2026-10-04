@@ -22,7 +22,7 @@ of the part codes carried no letter and effective dates were recorded as parts.
 1. **Learn the book** - `mcp__catalog__get_catalog_overview` when the vendor is
    unfamiliar. A few hundred tokens on how that publisher organises things, and it
    saves opening the wrong pages. Optionally `mcp__catalog-docs__list_catalogs_parsed`
-   to see which books have MinerU blocks.
+   to see which books have parsed blocks.
 2. **Find the evidence** - Prefer `mcp__catalog-docs__search_blocks` with the part
    number, series or description (and `vendor` / `catalog_id`). Hits include block
    text/html, `bbox`, `file_path`, and `pdf_page`. Read the list price from the

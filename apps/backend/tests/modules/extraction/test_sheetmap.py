@@ -175,7 +175,7 @@ def test_text_rich_page_without_schedule_role_not_forced() -> None:
     assert pages[0]["visual_reasons"] == []
 
 
-def test_mineru_empty_blocks_force_visual_read() -> None:
+def test_parser_empty_blocks_force_visual_read() -> None:
     page = {
         "source_page": 9,
         "roles": ["door_schedule"],
@@ -183,11 +183,11 @@ def test_mineru_empty_blocks_force_visual_read() -> None:
         "text_poor": False,
     }
     needs, reasons = sheetmap.page_needs_visual_read(
-        page, mineru={"verified": None, "block_count": 0}
+        page, signals={"verified": None, "block_count": 0}
     )
     assert needs is True
-    assert "mineru_verified_null" in reasons
-    assert "mineru_empty_blocks" in reasons
+    assert "parser_verified_null" in reasons
+    assert "parser_empty_blocks" in reasons
 
 
 def test_select_visual_targets_caps_and_prioritises() -> None:
@@ -321,3 +321,58 @@ def test_extract_prompt_includes_visual_checklist(tmp_path, monkeypatch) -> None
     assert "page 16" in text
     assert "visual_pages_checked" in text
 
+
+
+def test_an_edited_parser_is_picked_up_without_a_restart(tmp_path, monkeypatch):
+    """`.claude` is a bind mount and the worker is long-lived.
+
+    The loader cached on the module name alone, so an edit to
+    `parse_schedule.py` landed on disk under a process that had already
+    imported it and was served the pre-edit module for the life of the worker.
+    Observed exactly that: a fix to the schedule row parser was applied, a bid
+    re-run, and the rows came back byte-identical with nothing in any log to
+    say why.
+    """
+    import sys
+
+    from cbc.modules.extraction.infrastructure import sheetmap
+
+    skill = tmp_path / ".claude" / "skills" / "extract-door-schedule" / "scripts"
+    skill.mkdir(parents=True)
+    target = skill / "parse_schedule.py"
+    target.write_text("VERSION = 'before'\n", encoding="utf-8")
+    monkeypatch.setattr(sheetmap, "ROOT", tmp_path)
+    sys.modules.pop("cbc_parse_schedule", None)
+    try:
+        assert sheetmap._load_parse_schedule().VERSION == "before"
+
+        # Same path, new contents - what editing the skill actually looks like.
+        target.write_text("VERSION = 'after'\n", encoding="utf-8")
+        import os
+
+        stamp = target.stat().st_mtime_ns + 1_000_000
+        os.utime(target, ns=(stamp, stamp))
+
+        assert sheetmap._load_parse_schedule().VERSION == "after", (
+            "the loader served a stale module after the file changed"
+        )
+    finally:
+        sys.modules.pop("cbc_parse_schedule", None)
+
+
+def test_an_unchanged_parser_is_not_re_imported(tmp_path, monkeypatch):
+    """Re-importing on every call would cost a file read per sheet-map build."""
+    import sys
+
+    from cbc.modules.extraction.infrastructure import sheetmap
+
+    skill = tmp_path / ".claude" / "skills" / "extract-door-schedule" / "scripts"
+    skill.mkdir(parents=True)
+    (skill / "parse_schedule.py").write_text("VERSION = 'x'\n", encoding="utf-8")
+    monkeypatch.setattr(sheetmap, "ROOT", tmp_path)
+    sys.modules.pop("cbc_parse_schedule", None)
+    try:
+        first = sheetmap._load_parse_schedule()
+        assert sheetmap._load_parse_schedule() is first
+    finally:
+        sys.modules.pop("cbc_parse_schedule", None)

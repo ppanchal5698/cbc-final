@@ -44,6 +44,12 @@ HEARTBEAT_SECONDS = int(os.environ.get("WORKER_HEARTBEAT_SECONDS", "30"))
 # seconds burns its whole attempt budget in six.
 RETRY_BASE_SECONDS = int(os.environ.get("WORKER_RETRY_BASE_SECONDS", "30"))
 
+# How far out a provider's usage-limit reset may be and still be worth waiting
+# for. A five-hour subscription window fits; a weekly one does not. Past this the
+# job fails so the estimator sees it, rather than sitting queued for days with
+# nothing on screen - which is what the CLI does with its own waiting mode.
+RATE_LIMIT_MAX_WAIT_HOURS = int(os.environ.get("WORKER_RATE_LIMIT_MAX_WAIT_HOURS", "24"))
+
 
 # Identifies this process when claiming jobs. A stale reaper can hand the same
 # job to another worker; finish() only writes when workerId and claimGeneration
@@ -73,7 +79,7 @@ _handlers: dict[str, Handler] = {}
 _after: dict[str, AfterFinish] = {}
 _after_finish: AfterFinish | None = None
 _on_dead: OnDead | None = None
-# Bound by intake: documents still queued/running for MinerU on a bid.
+# Bound by intake: documents still queued/running for parsing on a bid.
 _incomplete_parses: IncompleteParses | None = None
 
 
@@ -98,7 +104,7 @@ def bind(*, after_finish: AfterFinish, on_dead: OnDead) -> None:
 
 
 def bind_parse_status(*, incomplete_parses: IncompleteParses) -> None:
-    """Intake supplies which bid documents still need MinerU before Claude may run."""
+    """Intake supplies which bid documents still need parsing before Claude may run."""
     global _incomplete_parses
     _incomplete_parses = incomplete_parses
 
@@ -207,6 +213,27 @@ async def job_cancelled(job_id) -> bool:
     return bool(doc and doc.get("status") == "cancelled")
 
 
+def rate_limit_wait(retry_at: datetime | None) -> datetime | None:
+    """When to come back after a provider usage limit, or None to not wait.
+
+    A usage limit is a clock, not a defect, and the provider says exactly when
+    capacity returns - so this replaces the backoff ladder rather than adding to
+    it. The ladder runs 30s, then 60s, then dead-letters: under two minutes,
+    against a five-hour window.
+
+    Past `RATE_LIMIT_MAX_WAIT_HOURS` it is a weekly limit rather than a pause,
+    and the job fails instead. A bid sitting queued for days with nothing on
+    screen is worse than one that failed and said why - and it is what the CLI
+    does with its own waiting mode.
+    """
+    if retry_at is None:
+        return None
+    now = _now()
+    if retry_at - now > timedelta(hours=RATE_LIMIT_MAX_WAIT_HOURS):
+        return None
+    return max(retry_at, now)
+
+
 async def finish(
     job: dict,
     ok: bool,
@@ -215,6 +242,7 @@ async def finish(
     note: str = "",
     permanent: bool = False,
     error_code: str | None = None,
+    retry_at: datetime | None = None,
 ) -> None:
     current = await jobs_collection().find_one(
         {"_id": job["_id"]},
@@ -270,12 +298,19 @@ async def finish(
 
     attempts = job.get("attempts", 1)
     retryable = not ok and not permanent and attempts < MAX_ATTEMPTS
+    wait_until = rate_limit_wait(retry_at)
+    if retry_at and wait_until is None:
+        retryable = False  # the window reopens too far out to sit on the queue for
     if ok:
         status = "done"
     elif retryable:
         status = "queued"
     else:
         status = "dead"
+    backoff = RETRY_BASE_SECONDS * 2 ** max(attempts - 1, 0)
+    next_attempt = None
+    if retryable:
+        next_attempt = wait_until or _now() + timedelta(seconds=backoff)
 
     await jobs_collection().update_one(
         {
@@ -291,11 +326,7 @@ async def finish(
                     "log": (output or "")[-8000:],
                 "note": note or None,
                 "heartbeatAt": None,
-                "nextAttemptAt": (
-                    _now() + timedelta(seconds=RETRY_BASE_SECONDS * 2 ** max(attempts - 1, 0))
-                    if retryable
-                    else None
-                ),
+                "nextAttemptAt": next_attempt,
                 "finishedAt": None if retryable else _now(),
             }
         },
@@ -320,9 +351,13 @@ async def finish(
     )
     if retryable:
         entry.warning(
-            "job %s failed, retrying in %ss (attempt %s): %s",
+            "job %s failed, retrying %s (attempt %s): %s",
             job["type"],
-            RETRY_BASE_SECONDS * 2 ** max(attempts - 1, 0),
+            (
+                f"at {next_attempt.isoformat(timespec='minutes')} (provider usage limit)"
+                if wait_until
+                else f"in {backoff}s"
+            ),
             attempts,
             error,
         )
@@ -419,14 +454,14 @@ async def defer_if_bid_busy(job: dict[str, Any]) -> dict[str, Any] | None:
     return other
 
 
-# Job types that must wait for MinerU before reading the PDF with pdf-tools /
+# Job types that must wait for parsing before reading the PDF with pdf-tools /
 # starting Claude. When PARSER_URL is empty, defer_if_parsing is a no-op and
 # Claude extracts via pdf-tools as before.
 _WAIT_FOR_PARSE = frozenset({"extract_bid_set", "rerun_extraction", "ingest_addendum"})
 
 
 async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
-    """Hold Claude extract until MinerU has finished every in-flight parse on this bid.
+    """Hold Claude extract until every in-flight parse on this bid has finished.
 
     When PARSER_URL is unset, returns None immediately — Claude handles the PDF
     with pdf-tools. When parsing is on, requeues (15s, no attempt spent) while
@@ -471,7 +506,7 @@ async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
     wait_max = int(resolved.get("waitMaxSeconds") or 1800)
     if waited >= wait_max:
         log.warning(
-            "job %s still waiting for MinerU after %ss (PARSER_WAIT_MAX_SECONDS=%s); "
+            "job %s still waiting for the parser after %ss (PARSER_WAIT_MAX_SECONDS=%s); "
             "Claude will not start until parse finishes or fails",
             job["_id"],
             waited,
@@ -485,7 +520,7 @@ async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
         filename = pending_docs[0].get("filename") or "document"
         blocker = {"_id": pending_docs[0].get("_id"), "type": "parse_document", "status": "document"}
 
-    note = f"waiting for MinerU to parse {filename}"
+    note = f"waiting for {filename} to be parsed"
     if waited > 0:
         note = f"{note} ({waited}s so far)"
 
@@ -511,63 +546,3 @@ async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
     return blocker
 
 
-# Optional: hold match_and_price until catalog MinerU finishes. Default is off —
-# agents fall back to find_pages / pageIndex. Set CATALOG_PARSE_WAIT=1 to wait.
-_WAIT_FOR_CATALOG_PARSE = frozenset({"match_and_price"})
-
-
-async def defer_if_catalog_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
-    """Hold pricing until parse_catalog / parse_multiplier finish (opt-in).
-
-    When CATALOG_PARSE_WAIT is unset, returns None — match_and_price uses
-    catalog-docs when ready and find_pages otherwise. Never watches bid
-    parse_document.
-    """
-    import os
-
-    if (
-        job["type"] not in _WAIT_FOR_CATALOG_PARSE
-        or job.get("status") != "running"
-        or os.environ.get("CATALOG_PARSE_WAIT", "").strip().lower()
-        not in {"1", "true", "yes"}
-    ):
-        return None
-
-    from cbc.modules.ops.api import parsing_config
-
-    stored = await settings_collection().find_one({"_id": parsing_config.DOC_ID}) or {}
-    resolved, _ = parsing_config.resolve(stored)
-    if not parsing_config.enabled(resolved):
-        return None
-
-    other = await jobs_collection().find_one(
-        {
-            "type": {"$in": ["parse_catalog", "parse_multiplier"]},
-            "status": {"$in": ["queued", "running"]},
-        }
-    )
-    if other is None:
-        return None
-
-    filename = (other.get("payload") or {}).get("filename") or "price book"
-    note = f"waiting for MinerU to parse catalog {filename}"
-    await jobs_collection().update_one(
-        {
-            "_id": job["_id"],
-            "status": "running",
-            "workerId": job.get("workerId"),
-            "claimGeneration": job.get("claimGeneration"),
-        },
-        {
-            "$set": {
-                "status": "queued",
-                "startedAt": None,
-                "heartbeatAt": None,
-                "workerId": None,
-                "nextAttemptAt": _now() + timedelta(seconds=15),
-                "note": note,
-            },
-            "$inc": {"attempts": -1},
-        },
-    )
-    return other

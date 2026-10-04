@@ -132,7 +132,7 @@ export interface BidDocument {
   contentSha?: string | null;
   state: string;
   uploadedAt: string;
-  /** MinerU parse progress when PARSER_URL is set; absent means read via pdf-tools. */
+  /** Parse progress when PARSER_API_KEY is set; absent means read via pdf-tools. */
   parse?: {
     state?: string;
     pages?: number;
@@ -201,6 +201,25 @@ export interface LineItem {
   inScope?: boolean | null;
   scopeRule?: string | null;
   scopeReason?: string | null;
+  /**
+   * Set on Division 10 and FRP lines. They are line items like any other -
+   * `division` routes them to the right quote block (`10 21`, `10 28`, `06 64`)
+   * and this carries what a door row has no column for.
+   */
+  specialty?: {
+    kind: "div10" | "frp";
+    productType?: string | null;
+    specifiedModel?: string | null;
+    unit?: string | null;
+    drawingRef?: string | null;
+    room?: string | null;
+    perimeterLf?: number | null;
+    insideCorners?: number | null;
+    outsideCorners?: number | null;
+    wallHeightFt?: number | null;
+    drawingScale?: string | null;
+    status?: string | null;
+  } | null;
   evidence?: Evidence | null;
   duplicateOf?: string | null;
   duplicateReason?: string | null;
@@ -228,7 +247,24 @@ export interface SpecialtyTakeoff {
   status?: string | null;
   notes?: string | null;
   flags?: string[];
-  sourceRef?: { sourcePage?: number | null; sourceFile?: string | null } | null;
+  /** Set once an estimator corrects the row; survives the next re-extraction. */
+  editedBy?: string | null;
+  editedAt?: string | null;
+  /**
+   * Measured against the sheet by the extraction pass, never typed. `bbox` is
+   * null when the row could not be pinned to exactly one printed line - the
+   * reason is in `bboxNote` / the `bbox_*` flag, and the panel says "no
+   * highlight" rather than pointing at a rectangle nobody measured.
+   */
+  sourceRef?: {
+    sourcePage?: number | null;
+    sourceFile?: string | null;
+    bbox?: number[] | null;
+    cellBoxes?: number[][] | null;
+    pageSize?: { width: number; height: number } | null;
+    bboxNote?: string | null;
+    evidenceNote?: string | null;
+  } | null;
 }
 
 export interface TakeoffsResponse {
@@ -407,7 +443,7 @@ export interface ProductSearchResponse {
   pagesNote?: string | null;
 }
 
-/** MinerU parse progress on a price book (mirrors BidDocument.parse). */
+/** Legacy parse progress on a price book (mirrors BidDocument.parse). */
 export interface PriceBookParse {
   state?: string;
   pages?: number;
@@ -533,7 +569,7 @@ export interface ProviderField {
 }
 
 export interface ClaudeSettings {
-  mode: "subscription" | "anthropic_api" | "bedrock" | "gateway" | "ollama";
+  mode: "subscription" | "anthropic_api" | "bedrock" | "ollama" | "nim";
   modes: string[];
   fields: Record<string, ProviderField>;
   /** Field shape for every mode, so an unsaved provider still renders a form. */
@@ -552,30 +588,11 @@ export interface ParsingField {
   locked: boolean;
 }
 
-export interface ParsingPreset {
-  backend: string;
-  effort: string | null;
-  method: string;
-  lang: string;
-  tables: boolean;
-  formulas: boolean;
-  imageAnalysis: boolean;
-  windowPages: number;
-  windowTimeoutSeconds: number;
-  waitMaxSeconds: number;
-  hardware: string;
-}
-
 export interface ParsingSettings {
   enabled: boolean;
   fields: Record<string, ParsingField>;
-  presets: Record<string, ParsingPreset>;
-  backends: string[];
-  efforts: string[];
-  methods: string[];
-  profiles: string[];
-  /** MinerU GET /health body, or `{ error }` when unreachable / parsing off. */
-  mineru?: Record<string, unknown> & { error?: string };
+  /** cost_effective | agentic | agentic_plus. `fast` is excluded: no bboxes. */
+  tiers: string[];
   updatedAt?: string | null;
   updatedBy?: string | null;
 }
@@ -584,8 +601,12 @@ export interface ParsingTestResult {
   ok: boolean;
   seconds: number | null;
   blocks: number | null;
-  version: string | null;
-  backend?: string;
+  tier?: string;
+  /**
+   * Share of returned boxes landing on text actually present on the sample page.
+   * Null when there was no text layer to score against.
+   */
+  verified?: number | null;
   error: string | null;
 }
 
@@ -874,9 +895,17 @@ export interface VendorTierRow {
   key: string;
   name?: string;
   categories?: Record<string, number>;
+  /** Present on the wire and needed on screen: a multiplier without its
+   *  effective date and price book is a number nobody can audit (NFR-3). */
+  discounts?: Record<string, string>;
   multiplier?: number | null;
   tier?: string | null;
   note?: string | null;
+  account?: string | null;
+  effective_date?: string | null;
+  price_book?: string | null;
+  source?: string | null;
+  share_of_volume?: number | null;
 }
 
 export interface VendorTierDoc {
@@ -905,10 +934,48 @@ export interface LiteKitTableMeta {
   heightCount: number;
 }
 
+/** One National Guard price table: a width x height grid, keyed height then width. */
+export interface LiteKitTable {
+  pdf_page?: number | null;
+  printed_page?: number | null;
+  models?: string;
+  rules?: string[];
+  widths?: number[];
+  /** `prices[height][width]` - both keys arrive as strings over the wire. */
+  prices?: Record<string, Record<string, number>>;
+  cell_count?: number;
+}
+
+export interface LiteKitDoc {
+  description?: string;
+  source?: string;
+  price_basis?: string;
+  note?: string;
+  sizing_rule?: string;
+  tables?: LiteKitTable[];
+}
+
 export interface LiteKitResponse {
   tableCount: number;
   tables: LiteKitTableMeta[];
-  data: Record<string, unknown>;
+  data: LiteKitDoc;
+}
+
+/** The CUSTOM / OTHER option matrix: named option lists plus prose (NR-13). */
+export interface CustomOtherMatrixDoc {
+  description?: string;
+  design_principle?: string;
+  cost_path?: string;
+  keying_note?: string;
+  functions?: string[];
+  backsets?: string[];
+  finishes?: string[];
+  levers?: string[];
+  keyways?: string[];
+  strikes?: string[];
+  electrified?: string[];
+  preps?: string[];
+  hard_manual_triggers?: string[];
 }
 
 export interface StockListDoc {
@@ -918,7 +985,7 @@ export interface StockListDoc {
   source?: string;
 }
 
-export type CustomOtherMatrix = Record<string, unknown>;
+export type CustomOtherMatrix = CustomOtherMatrixDoc & Record<string, unknown>;
 
 export interface AuditEntry {
   id: string;
@@ -1013,6 +1080,35 @@ export interface SpendSummary {
     cacheHitRatio: number | null;
     startedAt?: string | null;
     finishedAt?: string | null;
+  }[];
+}
+
+/** One statistic over a cohort's runs. */
+export interface CohortStat {
+  median: number;
+  mean: number;
+  n: number;
+}
+
+/** `GET /api/ops/cohorts` — LLM spend grouped by config cohort (W1b). */
+export interface CohortSummary {
+  days: number;
+  since: string;
+  jobType: string | null;
+  cohorts: {
+    cohortId: string;
+    jobType: string;
+    context: Record<string, unknown>;
+    runs: number;
+    costUsd: CohortStat;
+    durationApiMs: CohortStat;
+    toolCalls: CohortStat;
+    firstRun?: string | null;
+    lastRun?: string | null;
+    changedFrom: {
+      keys: string[];
+      deltaPct: { costUsd?: number };
+    } | null;
   }[];
 }
 

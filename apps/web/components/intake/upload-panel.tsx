@@ -27,7 +27,7 @@ function parseStateLabel(document: BidDocument): {
     return { text: "Not parsed — read directly", tone: "muted" };
   }
   if (parse.state === "queued") {
-    return { text: "Queued for GPU", tone: "running" };
+    return { text: "Queued for parsing", tone: "running" };
   }
   if (parse.state === "running") {
     const done = parse.pagesDone ?? 0;

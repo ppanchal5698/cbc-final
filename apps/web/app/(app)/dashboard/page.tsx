@@ -16,6 +16,7 @@ import {
 import { StatusBadge, type StatusBadgeVariant } from "@/components/ui/status-badge";
 import { api } from "@/lib/api";
 import { formatMoneyShort } from "@/lib/format";
+import { BLOCKED_CHAIN } from "@/lib/run-pill";
 import type { Project } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -37,14 +38,7 @@ function greeting(name?: string | null): string {
 
 /** What this bid is actually waiting on, in the estimator's words. */
 function waitingOn(project: Project): { tag: string; colourClass: string; softClass: string; variant: StatusBadgeVariant } {
-  const blocked = new Set([
-    "extraction_needs_review",
-    "pricing_failed",
-    "quoting_failed",
-    "awaiting_manual_retry",
-    "dead",
-  ]);
-  if (project.chainState && blocked.has(project.chainState))
+  if (project.chainState && BLOCKED_CHAIN.has(project.chainState))
     return { tag: "Needs attention", colourClass: "text-status-error", softClass: "bg-status-error-soft", variant: "review" };
   if (project.activeJob)
     return { tag: "Claude is reading", colourClass: "text-status-warning", softClass: "bg-status-warning-soft", variant: "progress" };

@@ -15,12 +15,16 @@ the scope of work from the bid documents. Reading the specs and drawings is the
 single largest time cost in every bid - your job is to make that cheap and to
 make the boundaries explicit.
 
-When the upload was GPU-parsed, start with bid-docs (`get_outline` →
-`search_blocks` → `get_page_blocks`) **unless** the page is listed in
-`extracted/_visual_pages.json` — then `Read` the pre-rendered image first (or
-`get_page_image`). Crop a block bbox when a value is unclear **or** when you are
-about to say a section / rating / hardware block is absent. Unparsed documents
-still use pdf-tools.
+Start with bid-docs: `get_outline` → `search_blocks` → `get_page_blocks`. The
+set is parsed before you start, and `search_blocks` searches the parsed text
+across the whole document — reach for it rather than walking pages with
+`search_pdf`, which re-scans the PDF each call and returns less.
+
+Use pdf-tools and images only where the parse cannot answer: a page listed in
+`extracted/_visual_pages.json` (the parser could not verify those), or zero
+blocks on a page you have reason to believe carries content. Crop a block's own
+`bbox` when a value is unclear **or** when you are about to say a section /
+rating / hardware block is absent.
 
 Obey the extraction guide (see .claude/guides/extraction.md): never present "not found" /
 "no fire ratings" / empty scope without checking the specific PDF pages you
@@ -45,7 +49,7 @@ searched, and cite those pages in `fire_rating_note` / `unparsed_sections` /
 5. Extract **hardware-set callouts** (`HW-1`, `GROUP 1`, `HDW-01`) and record
    **which pages** carry the HARDWARE GROUPS block in `hardware_group_pages`.
    **Do not parse the block item by item** - `takeoff-engineer` owns that, and
-   writes it into `extracted/door_schedule.json`. Your output has one field for
+   writes it into `extracted/line_items.json`. Your output has one field for
    this and it holds page numbers, so parsing here produces a second copy of the
    hardware with nowhere to put it and no way to reconcile it against the first.
    Find it and say where it is; the take-off reads it.

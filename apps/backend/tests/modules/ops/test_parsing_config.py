@@ -1,98 +1,102 @@
-"""Unit tests for MinerU parsing_config resolution and validation."""
-from __future__ import annotations
+"""parsing_config resolution and validation.
 
-import pytest
+The precedence chain (process env → .env → saved document → default) is the part
+worth guarding: an operator pinning a value in the environment must not be able
+to have it silently overwritten from the Settings screen.
+"""
+from __future__ import annotations
 
 from cbc.modules.ops.api import parsing_config
 
 
-def test_resolve_prefers_process_env(monkeypatch, tmp_path):
+def _isolate(monkeypatch, tmp_path, contents: str = ""):
     env_file = tmp_path / ".env"
-    env_file.write_text("PARSER_BACKEND=pipeline\nPARSER_PROFILE=low\n", encoding="utf-8")
+    env_file.write_text(contents, encoding="utf-8")
     monkeypatch.setenv("CBC_ENV_FILE", str(env_file))
-    monkeypatch.setenv("PARSER_BACKEND", "vlm-engine")
-    monkeypatch.delenv("PARSER_URL", raising=False)
+    for key in parsing_config.FIELDS.values():
+        monkeypatch.delenv(key, raising=False)
 
-    resolved, sources = parsing_config.resolve({"backend": "hybrid-engine", "profile": "medium"})
-    assert resolved["backend"] == "vlm-engine"
-    assert sources["backend"] == "env"
+
+def test_resolve_prefers_process_env(monkeypatch, tmp_path):
+    _isolate(monkeypatch, tmp_path, "PARSER_TIER=cost_effective\n")
+    monkeypatch.setenv("PARSER_TIER", "agentic_plus")
+
+    resolved, sources = parsing_config.resolve({"tier": "agentic"})
+    assert resolved["tier"] == "agentic_plus"
+    assert sources["tier"] == "env"
+    assert parsing_config.public_config({"tier": "agentic"})["fields"]["tier"]["locked"] is True
 
 
 def test_resolve_dotenv_before_db(monkeypatch, tmp_path):
-    env_file = tmp_path / ".env"
-    env_file.write_text(
-        "PARSER_BACKEND=pipeline\nPARSER_PROFILE=low\nPARSER_URL=http://mineru:8000\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setenv("CBC_ENV_FILE", str(env_file))
-    monkeypatch.delenv("PARSER_BACKEND", raising=False)
-    monkeypatch.delenv("PARSER_URL", raising=False)
+    _isolate(monkeypatch, tmp_path, "PARSER_TIER=cost_effective\nPARSER_API_KEY=llx-from-file\n")
 
-    resolved, sources = parsing_config.resolve({"backend": "hybrid-engine", "url": "http://other"})
-    assert resolved["backend"] == "pipeline"
-    assert sources["backend"] == "dotenv"
-    assert resolved["url"] == "http://mineru:8000"
-    assert sources["url"] == "dotenv"
+    resolved, sources = parsing_config.resolve({"tier": "agentic", "apiKey": "llx-from-db"})
+    assert resolved["tier"] == "cost_effective"
+    assert sources["tier"] == "dotenv"
+    assert resolved["apiKey"] == "llx-from-file"
 
 
 def test_resolve_prefer_config_beats_dotenv(monkeypatch, tmp_path):
-    env_file = tmp_path / ".env"
-    env_file.write_text("PARSER_BACKEND=pipeline\n", encoding="utf-8")
-    monkeypatch.setenv("CBC_ENV_FILE", str(env_file))
-    monkeypatch.delenv("PARSER_BACKEND", raising=False)
+    """The Settings Test button tries what is on screen, not what is saved."""
+    _isolate(monkeypatch, tmp_path, "PARSER_TIER=cost_effective\n")
 
-    resolved, sources = parsing_config.resolve(
-        {"backend": "hybrid-engine", "profile": "medium", "effort": "medium"},
-        prefer_config=True,
-    )
-    assert resolved["backend"] == "hybrid-engine"
-    assert sources["backend"] == "db"
+    resolved, sources = parsing_config.resolve({"tier": "agentic"}, prefer_config=True)
+    assert resolved["tier"] == "agentic"
+    assert sources["tier"] == "db"
 
 
-def test_resolve_falls_back_to_profile_preset(monkeypatch, tmp_path):
-    env_file = tmp_path / ".env"
-    env_file.write_text("", encoding="utf-8")
-    monkeypatch.setenv("CBC_ENV_FILE", str(env_file))
-    for key in list(parsing_config.FIELDS.values()):
-        monkeypatch.delenv(key, raising=False)
+def test_resolve_falls_back_to_defaults(monkeypatch, tmp_path):
+    _isolate(monkeypatch, tmp_path)
 
-    resolved, sources = parsing_config.resolve({"profile": "high"})
-    assert resolved["backend"] == "hybrid-engine"
-    assert resolved["effort"] == "high"
-    assert resolved["windowPages"] == 32
-    assert resolved["imageAnalysis"] is True
-    assert sources["backend"] == "profile"
+    resolved, sources = parsing_config.resolve({})
+    assert resolved["tier"] == parsing_config.DEFAULT_TIER
+    assert resolved["windowPages"] == 8
+    assert resolved["windowTimeoutSeconds"] == 1800
+    assert sources["tier"] == "default"
 
 
-def test_validate_rejects_bad_backend():
-    problems = parsing_config.validate({"backend": "http-client", "profile": "low"})
-    assert any("backend" in p for p in problems)
+def test_validate_rejects_fast_tier_by_name():
+    """`fast` is cheap and useless here: no granular boxes means no evidence."""
+    problems = parsing_config.validate({"tier": "fast"})
+    assert problems
+    assert any("granular" in p for p in problems)
 
 
-def test_validate_rejects_effort_without_hybrid():
-    problems = parsing_config.validate(
-        {"backend": "pipeline", "effort": "medium", "profile": "low"}
-    )
-    assert any("effort" in p for p in problems)
+def test_validate_rejects_unknown_tier():
+    problems = parsing_config.validate({"tier": "turbo"})
+    assert any("tier" in p for p in problems)
+
+
+def test_validate_accepts_every_supported_tier():
+    for tier in parsing_config.TIERS:
+        assert parsing_config.validate({"tier": tier}) == []
 
 
 def test_validate_rejects_out_of_range_window():
-    problems = parsing_config.validate({"windowPages": 0, "profile": "low", "backend": "pipeline"})
-    assert any("windowPages" in p for p in problems)
-    problems = parsing_config.validate(
-        {"windowPages": 201, "profile": "low", "backend": "pipeline"}
-    )
-    assert any("windowPages" in p for p in problems)
+    assert any("windowPages" in p for p in parsing_config.validate({"windowPages": 0}))
+    assert any("windowPages" in p for p in parsing_config.validate({"windowPages": 201}))
 
 
-def test_enabled_requires_url(monkeypatch, tmp_path):
-    env_file = tmp_path / ".env"
-    env_file.write_text("", encoding="utf-8")
-    monkeypatch.setenv("CBC_ENV_FILE", str(env_file))
-    for key in list(parsing_config.FIELDS.values()):
-        monkeypatch.delenv(key, raising=False)
+def test_enabled_requires_an_api_key(monkeypatch, tmp_path):
+    """The key is the on/off switch PARSER_URL used to be."""
+    _isolate(monkeypatch, tmp_path)
 
     resolved, _ = parsing_config.resolve({})
     assert parsing_config.enabled(resolved) is False
-    resolved["url"] = "http://mineru:8000"
+    resolved["apiKey"] = "llx-abc"
     assert parsing_config.enabled(resolved) is True
+
+
+def test_public_config_never_returns_the_key(monkeypatch, tmp_path):
+    """This payload goes to the browser and into snapshots."""
+    _isolate(monkeypatch, tmp_path)
+
+    payload = parsing_config.public_config({"apiKey": "llx-super-secret-value"})
+    assert payload["fields"]["apiKey"]["value"] == "set"
+    assert "llx-super-secret-value" not in str(payload)
+    assert payload["enabled"] is True
+    assert payload["tiers"] == list(parsing_config.TIERS)
+
+    blank = parsing_config.public_config({})
+    assert blank["fields"]["apiKey"]["value"] == ""
+    assert blank["enabled"] is False

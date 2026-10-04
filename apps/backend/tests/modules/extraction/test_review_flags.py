@@ -43,7 +43,7 @@ def _fields(flags):
 
 def test_a_missing_rating_handing_or_size_is_flagged_high(project) -> None:
     slug, directory = project
-    _write(directory, "extracted/door_schedule.json", {
+    _write(directory, "extracted/line_items.json", {
         "openings": [
             {"door_number": "101", "source_page": 4, "bbox": [1, 2, 3, 4],
              "fire_rating": None, "handing": "LH", "size": "3070"},
@@ -60,7 +60,7 @@ def test_a_missing_rating_handing_or_size_is_flagged_high(project) -> None:
 def test_an_opening_with_no_bbox_is_flagged_for_traceability(project) -> None:
     """NFR-3: a record the estimator cannot find on the drawing is not traceable."""
     slug, directory = project
-    _write(directory, "extracted/door_schedule.json", {
+    _write(directory, "extracted/line_items.json", {
         "openings": [{"door_number": "102", "fire_rating": "90", "handing": "RH",
                       "size": "3070", "source_page": 4}]
     })
@@ -69,7 +69,7 @@ def test_an_opening_with_no_bbox_is_flagged_for_traceability(project) -> None:
 
 def test_low_confidence_is_flagged_at_the_documented_floor(project) -> None:
     slug, directory = project
-    _write(directory, "extracted/door_schedule.json", {
+    _write(directory, "extracted/line_items.json", {
         "openings": [
             {"door_number": "A", "confidence": 0.74, "fire_rating": "90",
              "handing": "LH", "size": "3070", "bbox": [1, 2, 3, 4]},
@@ -138,7 +138,7 @@ def test_an_out_of_scope_item_is_reported_but_not_priced(project) -> None:
 def test_the_same_input_gives_the_same_flags(project) -> None:
     """The property the whole module exists for."""
     slug, directory = project
-    _write(directory, "extracted/door_schedule.json", {
+    _write(directory, "extracted/line_items.json", {
         "openings": [{"door_number": str(n), "source_page": 4} for n in range(20)]
     })
     first = review.derive_flags(slug)
@@ -177,7 +177,7 @@ def test_a_bare_array_priced_file_still_derives_flags(project) -> None:
 def test_write_flags_is_idempotent(project) -> None:
     """It reads what it wrote last time; running twice must not double the file."""
     slug, directory = project
-    _write(directory, "extracted/door_schedule.json", {
+    _write(directory, "extracted/line_items.json", {
         "openings": [{"door_number": "101", "source_page": 4}]
     })
     first = review.write_flags(slug)

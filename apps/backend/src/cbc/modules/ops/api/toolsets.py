@@ -35,7 +35,7 @@ SERVERS = {
 }
 
 # Reading drawings and writing what was found. Reference for finishes / frame
-# depths / FRP constants during take-off; bid-docs for MinerU blocks; no pricing.
+# depths / FRP constants during take-off; bid-docs for parsed blocks; no pricing.
 _READING = ["pdf-tools", "artifact-storage", "reference", "bid-docs"]
 
 # Costing a confirmed schedule: the catalog for what things cost, calc-engine for
@@ -75,8 +75,19 @@ PROFILES: dict[str, list[str]] = {
     "rerun_extraction": _READING,
     "ingest_addendum": _READING,
     "match_and_price": _PRICING,
-    # The proposal totals an already-priced quote; it reads no drawings.
-    "build_proposal": ["calc-engine", "reference", "artifact-storage"],
+    # The proposal totals an already-priced quote, but the `quality-reviewer` that
+    # runs in this phase verifies unclear findings against the specific PDF page -
+    # so it needs `bid-docs` (parsed blocks) and `pdf-tools` (open the sheet). This
+    # is the _PRICING / ingest_pricebook trap again: an agent told to check the
+    # drawing, given no tool that reads one. `build_proposal` declared three
+    # bid-docs and four pdf-tools tools in its own frontmatter that never started.
+    "build_proposal": [
+        "calc-engine",
+        "reference",
+        "artifact-storage",
+        "bid-docs",
+        "pdf-tools",
+    ],
     # Ingest reads a vendor sheet and writes what it found. `pdf-tools` is the
     # only way to read it - the same trap as _PRICING above, and here it was
     # total: the profile gave a job whose entire purpose is "read this PDF" no

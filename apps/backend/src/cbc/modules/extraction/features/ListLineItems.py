@@ -35,7 +35,16 @@ async def list_line_items(
     query: dict[str, Any] = {"projectId": project["_id"], **FILTERS[filter]}
     if alternate is not None:
         query["alternateGroup"] = alternate or None
-    items = await openings().find(query).sort([("mark", 1), ("createdAt", 1)]).to_list(MAX_OPENINGS_LISTED)
+    # Doors first, then Division 10 and FRP. Sorting on `specialty` does it:
+    # the field is absent on an opening and Mongo orders a missing field lowest,
+    # so an FRP area - which has no mark and would otherwise sort above door 1 -
+    # lands after the schedule it belongs behind.
+    items = (
+        await openings()
+        .find(query)
+        .sort([("specialty", 1), ("mark", 1), ("createdAt", 1)])
+        .to_list(MAX_OPENINGS_LISTED)
+    )
 
     counts_raw = await openings().aggregate(
         [{"$match": {"projectId": project["_id"]}}, {"$group": {"_id": "$status", "n": {"$sum": 1}}}]

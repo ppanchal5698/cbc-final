@@ -171,16 +171,23 @@ def test_the_reader_refuses_without_a_read_only_credential(monkeypatch) -> None:
     reader.reset()
 
 
-def test_the_read_only_uri_authenticates_where_the_user_was_made() -> None:
+def test_the_read_only_uri_authenticates_where_the_user_was_made(monkeypatch) -> None:
     """The two were built together and never run, so they had drifted apart.
 
     `ensure_readonly_user` creates the user in the application database while
     `readonly_uri` inherited `authSource=admin` from the root connection string.
     The first real connection failed authentication.
+
+    The env var is cleared because this is about the *derived* URI. An explicit
+    `MONGODB_READONLY_URI` short-circuits the derivation, so with one set the
+    assertion below examines whatever string it was handed - which is how this
+    came to compare one suite's database name against another suite's leaked
+    URI, and to pass or fail on test order alone.
     """
     from cbc.shared.config import settings
     from cbc.shared.mongo import readonly_uri
 
+    monkeypatch.delenv("MONGODB_READONLY_URI", raising=False)
     uri = readonly_uri()
     if not uri:
         pytest.skip("no mongodb configured here")

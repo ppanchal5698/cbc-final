@@ -7,10 +7,10 @@ import {
   ArrowSquareOut,
   CheckCircle,
   Cloud,
+  Cpu,
   HardDrives,
   Key,
   Lock,
-  Plugs,
   UserCircle,
   Warning,
 } from "@phosphor-icons/react/dist/ssr";
@@ -73,16 +73,16 @@ const MODES: {
     Icon: Cloud,
   },
   {
-    key: "gateway",
-    label: "Gateway / self-hosted",
-    blurb: "Any endpoint that speaks the Anthropic Messages API.",
-    Icon: Plugs,
-  },
-  {
     key: "ollama",
     label: "Ollama (local dev)",
     blurb: "Host-installed Ollama — local or :cloud models.",
     Icon: HardDrives,
+  },
+  {
+    key: "nim",
+    label: "NVIDIA NIM",
+    blurb: "Uses local LiteLLM proxy with automatic RPM backoffs.",
+    Icon: Cpu,
   },
 ];
 
@@ -93,11 +93,6 @@ const FIELD_LABELS: Record<string, { label: string; hint?: string; placeholder?:
     placeholder: "sk-ant-oat…",
   },
   apiKey: { label: "API key", placeholder: "sk-ant-api03-…" },
-  authToken: {
-    label: "Bearer token",
-    hint: "Sent as Authorization: Bearer — not as x-api-key.",
-    placeholder: "sk-…",
-  },
   bedrockApiKey: {
     label: "Bedrock API key",
     hint: "Optional. Leave empty on Fargate — the task role is used instead.",
@@ -148,6 +143,22 @@ function fieldMeta(
         label: "Background model",
         placeholder: "global.anthropic.claude-haiku-4-5-20251001-v1:0",
         hint: "Optional. Haiku for session titles; leave empty to reuse the main model. Maps to the haiku alias.",
+      };
+    }
+  }
+  if (mode === "nim") {
+    if (key === "apiKey") {
+      return {
+        label: "NIM API key",
+        placeholder: "nvapi-...",
+        hint: "Saved to the repo `.env` as NVIDIA_NIM_API_KEY (gitignored).",
+      };
+    }
+    if (key === "model") {
+      return {
+        label: "Model",
+        placeholder: "nvidia_nim/meta/llama-3.1-70b-instruct",
+        hint: "The LiteLLM model string to request through the proxy.",
       };
     }
   }
@@ -202,6 +213,7 @@ export function ClaudeSettingsClient() {
   const [result, setResult] = useState<ProviderTest | null>(null);
   const [signIn, setSignIn] = useState<{ session: string; url: string } | null>(null);
   const [code, setCode] = useState("");
+  const [finishing, setFinishing] = useState(false);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
 
@@ -336,15 +348,40 @@ export function ClaudeSettingsClient() {
   }
 
   async function finishSignIn() {
-    if (!signIn || !code.trim()) return;
+    // One exchange per code. The submit is wired to both Enter and the button,
+    // and an authorization code is single-use: the first call consumes the
+    // session, so a second reaches a backend that has already closed it and
+    // comes back without a `message`. That is what surfaces as the bare
+    // "That code was not accepted" fallback below - a report of the double
+    // submit rather than of anything wrong with the code the estimator pasted.
+    if (!signIn || !code.trim() || finishing) return;
+    setFinishing(true);
+    try {
+      return await exchangeCode(signIn);
+    } finally {
+      setFinishing(false);
+    }
+  }
+
+  async function exchangeCode(session: { session: string; url: string }) {
     const response = await proxyFetch(endpoints.claudeOauthCode(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session: signIn.session, code: code.trim() }),
+      body: JSON.stringify({ session: session.session, code: code.trim() }),
     });
+    // Whether the body was JSON at all. A proxy between the browser and the API
+    // can answer for it: a Cloudflare tunnel replaces a 5xx body with its own
+    // HTML page, so `.json()` throws, `detail` is empty, and every distinct
+    // failure collapsed into the generic message below. The real error was
+    // invisible - the API had said exactly what was wrong and nothing survived
+    // to show it.
+    let parsed = true;
     const body: { detail?: string | OauthCodeError } = await response
       .json()
-      .catch(() => ({}) as { detail?: string | OauthCodeError });
+      .catch(() => {
+        parsed = false;
+        return {} as { detail?: string | OauthCodeError };
+      });
     if (!response.ok) {
       // A rejected code makes the CLI start a fresh authorization, so the link
       // on screen is already dead. Swap it for the new one rather than leaving
@@ -352,11 +389,18 @@ export function ClaudeSettingsClient() {
       const detail = body.detail ?? {};
       const structured: OauthCodeError = typeof detail === "string" ? { message: detail } : detail;
       if (structured.url) {
-        setSignIn({ session: signIn.session, url: structured.url });
+        setSignIn({ session: session.session, url: structured.url });
         setCode("");
       }
-      toast.error(structured.message || "That code was not accepted", {
-        description: structured.hint,
+      const fallback = parsed
+        ? "That code was not accepted"
+        : `The sign-in failed with ${response.status}, and something between this page and the API replaced the explanation.`;
+      toast.error(structured.message || fallback, {
+        description:
+          structured.hint ??
+          (parsed
+            ? undefined
+            : "Try again over the local address rather than a tunnel - the API's own message will come through."),
       });
       return;
     }
@@ -454,14 +498,15 @@ export function ClaudeSettingsClient() {
         />
       )}
 
-      {mode === "gateway" && (
+      {mode === "nim" && (
         <ModeNotice
-          summary="A gateway can front Ollama, NVIDIA NIM, or OpenRouter. Non-Claude models may degrade tool-call fidelity — verify extraction output against the drawing."
+          summary="Ensure the local LiteLLM proxy is running. Claude Code rate limiting retries are configured automatically."
           advanced={
-            <p>
-              Start the bundled gateway with{" "}
-              <code>docker compose --profile oss up -d litellm</code>.
-            </p>
+            <>
+              <p>
+                Run <code>docker compose --profile oss up -d litellm</code> to start the proxy. NIM has a strict 40 requests-per-minute limit on free tier.
+              </p>
+            </>
           }
         />
       )}
@@ -503,9 +548,10 @@ export function ClaudeSettingsClient() {
                 />
                 <button
                   onClick={finishSignIn}
-                  className="rounded-md px-4 py-2 text-[13px] font-semibold bg-brand-primary text-white shadow-sm hover:bg-brand-primary/90 transition-colors"
+                  disabled={finishing}
+                  className="rounded-md px-4 py-2 text-[13px] font-semibold bg-brand-primary text-white shadow-sm hover:bg-brand-primary/90 transition-colors disabled:opacity-60"
                 >
-                  Finish
+                  {finishing ? "Checking…" : "Finish"}
                 </button>
               </div>
             </div>

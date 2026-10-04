@@ -193,5 +193,23 @@ class LiteKitReplace(BaseModel):
     data: dict
 
 
+class LiteKitCell(BaseModel):
+    """One list price in one table, addressed by table index and size.
+
+    A price grid edited a cell at a time should be written a cell at a time. The
+    whole-document replace this sits beside cannot say what changed - its audit
+    entry records only a table count - and two people editing different tables
+    overwrite each other, because each sends back the copy they loaded.
+
+    Sizes are inches and the price is list, not cost: the NGP vendor multiplier
+    is applied downstream, so this is never a cost being typed in by hand.
+    """
+
+    table: int = Field(ge=0)
+    width: int = Field(ge=1, le=200)
+    height: int = Field(ge=1, le=200)
+    price: float = Field(ge=0, le=1_000_000)
+
+
 class CustomOtherMatrixReplace(BaseModel):
     data: dict

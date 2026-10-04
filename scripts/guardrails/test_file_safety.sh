@@ -63,9 +63,20 @@ check "separated rm flags"         2 '{"tool_name":"Bash","tool_input":{"command
 check "long rm flags"              2 '{"tool_name":"Bash","tool_input":{"command":"rm --recursive --force /etc/important"}}'
 check "a comment naming projects/" 2 '{"tool_name":"Bash","tool_input":{"command":"rm -rf /etc/important # projects/"}}'
 
+# A command chained before inline python used to skip the body checks entirely:
+# _is_inline_python_prefix read `cd repo && python` as one command, saw `cd`, and
+# gave up. A bare `python - <<PY` was blocked the whole time, so the hole only
+# opened when someone wrote the `cd` that nearly everyone writes.
+check "chained && before heredoc" 2 '{"tool_name": "Bash", "tool_input": {"command": "cd /repo && python - <<PY\nfrom pathlib import Path\nPath(\".claude/settings.json\").write_text(\"x\")\nPY"}}'
+check "chained ; before heredoc" 2 '{"tool_name": "Bash", "tool_input": {"command": "cd /repo ; python - <<PY\nfrom pathlib import Path\nPath(\".claude/settings.json\").write_text(\"x\")\nPY"}}'
+check "chained && before -c" 2 '{"tool_name": "Bash", "tool_input": {"command": "cd /repo && python -c \"from pathlib import Path; Path(\\\".claude/x.md\\\").write_text(\\\"y\\\")\""}}'
+
 echo
 echo "pre_delete_guard.py - must ALLOW (exit 0):"
 check "rm -rf inside projects" 0 '{"tool_name":"Bash","tool_input":{"command":"rm -rf projects/demo/uploads/processed"}}'
+# Projects moved under data/ and the guard did not follow, so tidying a real
+# project directory came back as "outside project scope".
+check "rm -rf inside data/projects" 0 '{"tool_name":"Bash","tool_input":{"command":"rm -rf data/projects/demo/uploads/processed"}}'
 check "read a price book"      0 '{"tool_name":"Bash","tool_input":{"command":"cat pricebooks/index.json"}}'
 check "list files"             0 '{"tool_name":"Bash","tool_input":{"command":"ls -la"}}'
 check "git status"             0 '{"tool_name":"Bash","tool_input":{"command":"git status"}}'

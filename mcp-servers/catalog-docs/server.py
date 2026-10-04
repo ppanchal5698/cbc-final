@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""catalog-docs MCP server — query MinerU-parsed blocks for price books.
+"""catalog-docs MCP server — query parsed blocks for price books.
 
 READ-ONLY: MONGODB_READONLY_URI only; no write tools; no fallback to the
 writable application URI.
@@ -152,7 +152,7 @@ def get_outline(
     if not pages:
         return {
             "error": "no parsed pages",
-            "note": "Use catalog.find_pages until parse_catalog finishes.",
+            "note": "Use catalog.find_pages — catalog page search is page-index based.",
         }
     outline = []
     for page in pages:

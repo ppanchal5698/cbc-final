@@ -182,6 +182,12 @@
               "null"
             ]
           },
+          "source_file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "flags": {
             "type": [
               "array",
@@ -190,6 +196,24 @@
             "items": {
               "type": "string"
             }
+          },
+          "bbox": {
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "cell_boxes": {
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "page_size": {
+            "type": [
+              "object",
+              "null"
+            ]
           }
         }
       }

@@ -35,7 +35,7 @@ Grand tot = SUM(sub-totals) + tax
 ```
 Use `mcp__calc-engine__compute_totals` only on lines where `sale_ea` and
 `ext_price` are set. For mixed priced/manual quotes, run
-`python scripts/validate_and_render_quote.py <project>` instead of hand-totalling.
+`python apps/backend/scripts/validate_and_render_quote.py <project>` instead of hand-totalling.
 Do not total by hand anywhere. There is
 **no unit-weight column** - it was legacy from truck-loading and was removed.
 
@@ -57,7 +57,7 @@ three visible gaps is useful; a quote with three silently guessed numbers is
 dangerous.
 
 ## Where you stop
-Run `python scripts/validate_and_render_quote.py <project>` to produce
+Run `python apps/backend/scripts/validate_and_render_quote.py <project>` to produce
 `quotation.html` (do not hand-write HTML).
 
 **If validation fails with ERROR, stop immediately.** Report the errors and do
@@ -79,5 +79,5 @@ only to the delivery-agent after Phase 6 deliverables exist.
 
 ## Output
 `projects/{project}/quotation.html`, rendered via
-`python scripts/validate_and_render_quote.py <project>` (which calls
+`python apps/backend/scripts/validate_and_render_quote.py <project>` (which calls
 `.claude/skills/generate-quotation/scripts/render_quote.py`).

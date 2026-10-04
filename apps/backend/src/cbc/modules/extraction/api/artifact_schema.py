@@ -17,10 +17,13 @@ SCHEMA_DIR = Path(__file__).resolve().parent / "artifacts"
 PATH_SCHEMAS: dict[str, str] = {
     "extracted/scope_metadata.json": "scope_metadata.schema.json",
     "extracted/scope_summary.json": "scope_summary.schema.json",
-    "extracted/door_schedule.json": "door_schedule.schema.json",
+    "extracted/line_items.json": "extracted_line_items.schema.json",
     "extracted/frp_takeoff.json": "frp_takeoff.schema.json",
     "extracted/div10_takeoff.json": "div10_takeoff.schema.json",
-    "priced/line_items.json": "line_items.schema.json",
+    # Qualified by directory: `extracted/line_items.json` (what the drawings
+    # say) and `priced/line_items.json` (what it costs) are different shapes
+    # under the same basename, so neither schema may be called line_items.
+    "priced/line_items.json": "priced_line_items.schema.json",
 }
 
 
@@ -130,7 +133,7 @@ def validate_artifact_text(rel_path: str, content: str) -> list[str]:
     from cbc.modules.extraction.api.normalize_artifacts import (
         normalize_artifact_text,
         normalize_div10_takeoff_payload,
-        normalize_door_schedule_payload,
+        normalize_line_items_payload,
     )
 
     content = normalize_artifact_text(rel_path, content)
@@ -139,8 +142,8 @@ def validate_artifact_text(rel_path: str, content: str) -> list[str]:
     except json.JSONDecodeError as exc:
         return [f"{rel_path}: not valid JSON ({exc})"]
     key = rel_path.replace("\\", "/").lstrip("/")
-    if key == "extracted/door_schedule.json":
-        data = normalize_door_schedule_payload(data)
+    if key == "extracted/line_items.json":
+        data = normalize_line_items_payload(data)
     elif key == "extracted/div10_takeoff.json":
         data = normalize_div10_takeoff_payload(data)
     elif key == "priced/line_items.json":

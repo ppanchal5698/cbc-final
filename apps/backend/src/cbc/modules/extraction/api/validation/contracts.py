@@ -24,7 +24,7 @@ from cbc.modules.extraction.api.validation.review import CONFIDENCE_FLOOR, REQUI
 ROOT = repo_root()
 
 EXTRACT_REL = (
-    ("extracted/door_schedule.json", "door_schedule"),
+    ("extracted/line_items.json", "door_schedule"),
     ("extracted/scope_metadata.json", "scope_metadata"),
     ("extracted/scope_summary.json", "scope_summary"),
     ("extracted/hardware_sets.json", "hardware_sets"),
@@ -134,7 +134,7 @@ def _absurd_qty(schedule: DoorSchedule) -> list[str]:
 
 def extraction_review_verdict(slug: str) -> ReviewVerdict:
     """ok / needs_review for a parsed door schedule. reject is handled by check_contracts."""
-    path = _project_root(slug) / "extracted" / "door_schedule.json"
+    path = _project_root(slug) / "extracted" / "line_items.json"
     if not path.is_file():
         return "ok"
     try:
@@ -142,7 +142,14 @@ def extraction_review_verdict(slug: str) -> ReviewVerdict:
         schedule = DoorSchedule.parse_payload(raw)
     except (OSError, json.JSONDecodeError, ValidationError, ValueError):
         return "needs_review"
-    openings = schedule.openings
+    # An opening CBC is not quoting cannot make the take-off incomplete.
+    #
+    # Aluminium storefront is deliberately out of scope, and the pass marks it so
+    # - then those rows were scored for fire rating, handing and finish like any
+    # other, and dragged the whole bid under the floor. On the first real set two
+    # of six openings were storefront, so the gate was judging the take-off on
+    # doors it had correctly decided not to price.
+    openings = [o for o in schedule.openings if getattr(o, "in_scope", None) is not False]
     if not openings:
         return "ok"
     complete = 0

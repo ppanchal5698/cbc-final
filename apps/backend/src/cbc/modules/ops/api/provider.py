@@ -25,10 +25,10 @@ from cbc.modules.ops.infrastructure import secrets
 SUBSCRIPTION = "subscription"
 ANTHROPIC_API = "anthropic_api"
 BEDROCK = "bedrock"
-GATEWAY = "gateway"
 OLLAMA = "ollama"
+NIM = "nim"
 
-MODES = (SUBSCRIPTION, ANTHROPIC_API, BEDROCK, GATEWAY, OLLAMA)
+MODES = (SUBSCRIPTION, ANTHROPIC_API, BEDROCK, OLLAMA, NIM)
 
 # Which stored field feeds which variable, and whether it holds a credential.
 FIELDS: dict[str, dict[str, tuple[str, bool]]] = {
@@ -46,12 +46,13 @@ FIELDS: dict[str, dict[str, tuple[str, bool]]] = {
         "model": ("ANTHROPIC_MODEL", False),
         "smallFastModel": ("ANTHROPIC_DEFAULT_HAIKU_MODEL", False),
     },
-    GATEWAY: {
-        "baseUrl": ("ANTHROPIC_BASE_URL", False),
-        "authToken": ("ANTHROPIC_AUTH_TOKEN", True),
-        "model": ("ANTHROPIC_MODEL", False),
-    },
     OLLAMA: {
+        "baseUrl": ("ANTHROPIC_BASE_URL", False),
+        "model": ("ANTHROPIC_MODEL", False),
+        "smallFastModel": ("ANTHROPIC_DEFAULT_HAIKU_MODEL", False),
+    },
+    NIM: {
+        "apiKey": ("NVIDIA_NIM_API_KEY", True),
         "baseUrl": ("ANTHROPIC_BASE_URL", False),
         "model": ("ANTHROPIC_MODEL", False),
         "smallFastModel": ("ANTHROPIC_DEFAULT_HAIKU_MODEL", False),
@@ -89,6 +90,8 @@ MANAGED = {
     "ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES",
     "ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES",
+    "CLAUDE_CODE_MAX_RETRIES",
+    "CLAUDE_CODE_RETRY_WATCHDOG",
 }
 
 # Claude Code aliases. A value that is one of these is left as-is; a concrete
@@ -108,6 +111,56 @@ _INDIA_REGIONS = frozenset({"ap-south-1", "ap-south-2"})
 # catalog server, and it is given its own read-only string through the MCP
 # config instead (see cbc_core/toolsets.py).
 WITHHELD = {"MONGODB_URI", "MONGODB_READONLY_URI", "MONGODB_READONLY_PASSWORD"}
+
+# What a mode cannot work without, named by the variable rather than the field
+# so the check sees a value wherever it came from - the form, `.env`, or the
+# process environment.
+#
+# Deliberately short. Bedrock is absent because the Fargate task role supplies
+# the credential and an empty key is the normal production case, and
+# subscription is absent because picking it is how you get to the sign-in
+# button - requiring the token first would make the mode unreachable.
+REQUIRED_FIELDS: dict[str, tuple[str, str]] = {
+    ANTHROPIC_API: ("apiKey", "an API key"),
+    OLLAMA: ("model", "a model"),
+    NIM: ("apiKey", "an API key"),
+}
+
+# `.env` does not count towards a requirement. `persist_env_file` owns these
+# keys and rewrites them on every save, so a value there was written by the
+# provider being replaced and is about to be overwritten - it says nothing about
+# whether the incoming one can run. A process-environment value does count: that
+# is the Fargate / Secrets Manager path, and it is what `locked` marks in the UI.
+_STALE_SOURCE = "dotenv"
+
+
+def missing_requirement(config: dict[str, Any] | None) -> str | None:
+    """The human-readable thing this provider still needs, or None.
+
+    Saving a provider that cannot run is worse than refusing the save: it
+    reports success and then fails on the first job, a long way from the screen
+    where it was set. `ollama` with no model was the live case - no model means
+    no alias pins, so every `model: sonnet` subagent resolved to an Anthropic
+    catalog id that Ollama cannot serve.
+
+    The first version of this asked `build_env` for the resolved variable, which
+    let a Bedrock inference-profile id still sitting in `.env` satisfy Ollama's
+    need for a model - the very cross-provider bleed the check exists to stop.
+    """
+    mode = resolve_mode(config)
+    requirement = REQUIRED_FIELDS.get(mode)
+    if requirement is None:
+        return None
+    field, described = requirement
+    variable, _ = FIELDS[mode][field]
+    # prefer_config, so a value in the config being saved outranks `.env`.
+    # Without it the check went the other way and rejected a model that had
+    # just been typed in, because the file still shadowed it.
+    env, sources = build_env(config, prefer_config=True)
+    if sources.get(field) == _STALE_SOURCE:
+        return described
+    return None if env.get(variable) else described
+
 
 DEFAULT: dict[str, Any] = {"mode": SUBSCRIPTION}
 
@@ -165,10 +218,15 @@ def default_config() -> dict[str, Any]:
     return dict(DEFAULT)
 
 
+# Modes that no longer exist. A stored value naming one is treated as unset
+# rather than as a corrupt document: the operator picks again from the four that
+# remain, and nothing runs against a provider the code can no longer configure.
+RETIRED_MODES = frozenset({"cloudflare", "gateway"})
+
+
 def resolve_mode(config: dict[str, Any] | None) -> str:
     mode = (config or {}).get("mode") or SUBSCRIPTION
-    # Cloudflare was removed; treat any leftover settings as unset.
-    if mode == "cloudflare":
+    if mode in RETIRED_MODES:
         return SUBSCRIPTION
     return mode if mode in MODES else SUBSCRIPTION
 
@@ -416,6 +474,20 @@ def build_env(
         if env.get("ANTHROPIC_MODEL"):
             _pin_model_aliases(env, pin_haiku=True)
 
+    if mode == NIM:
+        if "ANTHROPIC_AUTH_TOKEN" not in env:
+            env["ANTHROPIC_AUTH_TOKEN"] = os.environ.get("LITELLM_MASTER_KEY", "sk-cbc-local-dev")
+        env["ANTHROPIC_API_KEY"] = ""
+        if "ANTHROPIC_BASE_URL" not in env:
+            env["ANTHROPIC_BASE_URL"] = os.environ.get(
+                "NIM_PROXY_BASE_URL", "http://litellm:4000"
+            )
+        env["CLAUDE_CODE_MAX_RETRIES"] = "20"
+        env["CLAUDE_CODE_RETRY_WATCHDOG"] = "1"
+        _apply_non_catalog_model_compat(env, max_context_tokens=128000)
+        if env.get("ANTHROPIC_MODEL"):
+            _pin_model_aliases(env, pin_haiku=True)
+
     return env, sources
 
 
@@ -467,7 +539,8 @@ _PERSISTED = frozenset(
         "ANTHROPIC_VERTEX_PROJECT_ID",
         "CLOUD_ML_REGION",
         "CLAUDE_CODE_SKIP_VERTEX_AUTH",
-                    }
+        "NVIDIA_NIM_API_KEY",
+    }
 )
 
 
@@ -506,7 +579,7 @@ def supports_subagents(config: dict[str, Any] | None) -> bool:
     """
     cfg = config or default_config()
     mode = resolve_mode(cfg)
-    if mode == OLLAMA:
+    if mode in (OLLAMA, NIM):
         return False
     return True
 
@@ -528,12 +601,12 @@ def describe(config: dict[str, Any] | None, *, prefer_config: bool = False) -> d
                 f"Foundation model ID {typed!r} was rewritten to inference profile "
                 f"{model!r} for {env.get('AWS_REGION')}."
             )
-    if mode == OLLAMA:
+    if mode in (OLLAMA, NIM):
         warnings.append(
-            "Ollama/local models may fail Agent-tool delegation; Anthropic Sonnet "
+            f"{mode.title()}/local models may fail Agent-tool delegation; Anthropic Sonnet "
             "is recommended for pipeline jobs."
         )
-        if model and ("cloud" in model.lower() or "gemma" in model.lower()):
+        if mode == OLLAMA and model and ("cloud" in model.lower() or "gemma" in model.lower()):
             warnings.append(
                 f"Model {model!r} may be unrecognized by Claude Code "
                 "(watch for claude-code:unrecognized_model in job logs)."

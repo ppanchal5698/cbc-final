@@ -14,7 +14,7 @@ see [Solo runs](#solo-runs) below.
 |---|---|---|---|
 | `intake-coordinator` | 0/1 | haiku | `extracted/scope_metadata.json` |
 | `spec-scope-analyst` | 2 | haiku | `extracted/scope_summary.json` |
-| `takeoff-engineer` | 3 | **sonnet** | patches to `extracted/door_schedule.json` |
+| `takeoff-engineer` | 3 | **sonnet** | patches to `extracted/line_items.json` |
 | `frp-specialist` | 3b | haiku | `extracted/frp_takeoff.json` |
 | `div10-specialist` | 3c | haiku | `extracted/div10_takeoff.json` |
 | `product-matcher` | 4 | **sonnet** | `extracted/hardware_sets.json` |

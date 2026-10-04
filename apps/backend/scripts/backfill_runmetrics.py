@@ -6,6 +6,12 @@
 
 Safe to re-run: each document is keyed `{jobId}:{attempt}` and upserted. An operator
 script rather than a module, it reads the collections it reconciles by name.
+
+`contextHashes` is written with `$setOnInsert`, never `$set`: `document_for` computes
+it from disk at call time, so a plain re-run would stamp historical runs with today's
+config and merge distinct cohorts into one confident-but-wrong number. A real run's
+hashes are the truth and are left untouched; a purely historical recording gets today's
+config once, on first insert, and never again.
 """
 from __future__ import annotations
 
@@ -69,8 +75,14 @@ async def backfill(*, dry_run: bool = False) -> int:
             f"cost={document.get('totalCostUsd')}  {path}"
         )
         if not dry_run:
-            await database()[names.RUN_METRICS].replace_one(
-                {"_id": document["_id"]}, document, upsert=True
+            # $setOnInsert contextHashes so a re-run never overwrites a real run's
+            # hashes with today's config. Everything else is refreshed with $set.
+            doc_id = document.pop("_id")
+            context_hashes = document.pop("contextHashes", None)
+            await database()[names.RUN_METRICS].update_one(
+                {"_id": doc_id},
+                {"$set": document, "$setOnInsert": {"contextHashes": context_hashes}},
+                upsert=True,
             )
         written += 1
     print(f"{'would write' if dry_run else 'wrote'} {written} runMetrics document(s)")

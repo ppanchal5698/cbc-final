@@ -19,7 +19,6 @@ from pathlib import Path
 
 from pymongo import MongoClient
 
-from cbc.modules.ops.api.parsing_config import enabled as parsing_enabled
 from cbc.shared import storage
 from cbc.shared.paths import pricebook_dir
 
@@ -174,26 +173,17 @@ async def enqueue_jobs(ids: dict[str, str], *, do_index: bool, do_parse: bool) -
                 actor="admin@cbc.com",
             )
             print(f"queued  index_catalog {job['_id']} for {filename}")
-        if do_parse and entry.get("parse") and parsing_enabled():
-            kind = (
-                "parse_multiplier"
-                if entry["kind"] == "multiplier_sheet"
-                else "parse_catalog"
-            )
-            job = await enqueue(
-                kind,
-                payload={"priceBookId": book_id, "filename": filename},
-                actor="admin@cbc.com",
-            )
-            print(f"queued  {kind} {job['_id']} for {filename}")
-        elif do_parse and entry.get("parse") and not parsing_enabled():
-            print(f"skip    parse for {filename} (PARSER_URL unset / parsing disabled)")
+        if do_parse and entry.get("parse"):
+            # `parse_catalog` / `parse_multiplier` went with MinerU, and enqueuing
+            # a type no worker registers leaves the job queued forever. Catalog
+            # search runs off the page index built by `index_catalog` above.
+            print(f"skip    block parse for {filename} (catalog parsing is page-index only)")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--no-index", action="store_true", help="Mongo + files only")
-    parser.add_argument("--no-parse", action="store_true", help="Skip MinerU parse jobs")
+    parser.add_argument("--no-parse", action="store_true", help="Skip block parse jobs")
     parser.add_argument("--uri", default=None)
     args = parser.parse_args()
 

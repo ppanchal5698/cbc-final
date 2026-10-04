@@ -155,6 +155,18 @@
   },
   "status": 401
  },
+ "GET /api/ops/cohorts #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "GET /api/ops/cohorts #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "GET /api/ops/spend #estimator": {
   "body": {
    "detail": "str"
@@ -1117,6 +1129,11 @@
   {
    "admin": false,
    "op": "GET /api/jobs/{job_id}/terminal/stream",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "GET /api/ops/cohorts",
    "status": 200
   },
   {

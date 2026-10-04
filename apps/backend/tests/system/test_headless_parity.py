@@ -17,6 +17,7 @@ import re
 import pytest
 
 from cbc.modules.ops.api import toolsets
+from cbc.modules.pricing.api import preprice
 from tests.shared import PKG, ROOT
 
 WORKFLOWS = ROOT / "workflows"
@@ -107,7 +108,10 @@ def test_the_scope_guard_cannot_fail_open(name: str) -> None:
     )
 
 
-@pytest.mark.parametrize("name,turns", [("_phase.sh", "60"), ("run_full_pipeline.sh", "200")])
+@pytest.mark.parametrize(
+    "name,turns",
+    [("_phase.sh", '"${CBC_MAX_TURNS:-60}"'), ("run_full_pipeline.sh", "200")],
+)
 def test_headless_spawn_sets_max_turns(name: str, turns: str) -> None:
     spawn = re.search(r'"\$\{CLAUDE_BIN\}"[^\n]*', SPAWNING_SCRIPTS[name])
     assert spawn, f"{name} no longer spawns the CLI"
@@ -156,6 +160,15 @@ def test_job_type_cli_prints_extract_and_match_bodies() -> None:
         env=env,
         check=True,
     )
-    assert "find_pages" in match.stdout
+    # The cost ladder the CLI prints follows PREPRICE_SEED, exactly as the worker's
+    # does - `test_prompts.test_the_flag_selects_the_cost_ladder` pins the switch
+    # itself; this asserts the headless path honours it rather than a fixed body.
+    # Asserting `find_pages` unconditionally encoded the pre-seed prompt and broke
+    # the moment the seed shipped on by default.
+    if preprice.preprice_seed_enabled():
+        assert "ran the deterministic" in match.stdout
+        assert "find_pages" not in match.stdout
+    else:
+        assert "find_pages" in match.stdout
 
 

@@ -7,9 +7,9 @@ module logs. tests/architecture/test_composition_root.py checks the first.
 from __future__ import annotations
 
 from cbc.shared import envfile, logs
-from cbc.modules.ops.api import provider
+from cbc.modules.ops.api import parsing_config, provider
 
-envfile.apply_to_environ(skip=provider.MANAGED)
+envfile.apply_to_environ(skip=provider.MANAGED | parsing_config.MANAGED)
 logs.configure("cbc.worker")
 
 from cbc.modules import catalog, extraction, intake, ops, projects, quoting  # noqa: E402

@@ -135,7 +135,7 @@ export function PriceBooksClient() {
     toastedJobs.current.add(parseJob.id);
     if (parseJob.status === "done") {
       toast.success("Sheet parse finished", {
-        description: "MinerU page blocks are available for this program.",
+        description: "Parsed page blocks are available for this program.",
       });
     } else if (parseJob.status === "failed" || parseJob.status === "dead") {
       toast.error("Sheet parse failed", { description: parseJob.error ?? parseJob.status });
@@ -165,8 +165,8 @@ export function PriceBooksClient() {
       const parseQueued = Boolean(result.parseJob);
       toast.success("Sheet uploaded", {
         description: parseQueued
-          ? "Queued page index and MinerU parse for this sheet."
-          : "Queued page index for catalog search. MinerU parse skipped (parser off).",
+          ? "Queued page index for this sheet."
+          : "Queued page index for catalog search.",
       });
       mutate();
       mutateDetail();
@@ -846,8 +846,8 @@ export function PriceBooksClient() {
               Uploading a sheet queues <span className="font-semibold">index_catalog</span> for
               page search
               {selected.kind === "multiplier_sheet"
-                ? ", and parse_multiplier when MinerU is enabled"
-                : ", and parse_catalog when MinerU is enabled"}
+                ? ""
+                : ""}
               .
             </p>
 

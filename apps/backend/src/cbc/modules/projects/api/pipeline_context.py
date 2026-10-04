@@ -13,7 +13,7 @@ from cbc.shared.pass_files import read_json, write_json
 CONTEXT_REL = "extracted/_pipeline_context.json"
 
 _TRACKED = (
-    "extracted/door_schedule.json",
+    "extracted/line_items.json",
     "extracted/scope_metadata.json",
     "extracted/scope_summary.json",
     "extracted/hardware_sets.json",
@@ -46,7 +46,7 @@ def write_context(slug: str) -> dict[str, Any]:
         if digest:
             artifacts[rel] = digest
 
-    schedule = read_json(root / "extracted" / "door_schedule.json") or {}
+    schedule = read_json(root / "extracted" / "line_items.json") or {}
     openings = schedule.get("openings") if isinstance(schedule, dict) else []
     if not isinstance(openings, list):
         openings = []
@@ -89,7 +89,7 @@ def write_context(slug: str) -> dict[str, Any]:
         "sheetmap_sha": artifacts.get("extracted/_sheetmap.json"),
         "artifacts": artifacts,
         "note": (
-            "Prefer this summary over re-reading door_schedule / scope_* unless "
+            "Prefer this summary over re-reading line_items / scope_* unless "
             "you need field-level detail. Artifact SHA digests prove continuity."
         ),
     }
@@ -123,7 +123,7 @@ def prompt_block(slug: str) -> str:
         lines.append(f"  - `{rel}` → `{sha[:12]}…`")
     lines.append(
         "Read `extracted/_pipeline_context.json` if you need the full block. "
-        "Do **not** re-Read door_schedule / scope_summary / scope_metadata solely "
+        "Do **not** re-Read line_items / scope_summary / scope_metadata solely "
         "to rebuild this summary."
     )
     return "\n".join(lines) + "\n"

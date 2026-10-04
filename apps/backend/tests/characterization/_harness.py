@@ -100,7 +100,7 @@ class Snapshots:
         """`op` is the route template, e.g. "POST /api/projects/{code}/line-items".
 
         `drop` removes dotted paths from the recorded shape - for keys whose
-        very presence depends on an optional service being up. MinerU answers
+        very presence depends on an optional service being up. The parser answers
         on a developer machine and not in CI, so a response that carries
         `parseJob` on one and not the other is describing the environment, not
         the contract. Pinning it either way makes the snapshot fail wherever it

@@ -101,6 +101,32 @@ def _as_tool(spec: dict[str, Any]) -> types.Tool:
     )
 
 
+def result_content(payload: Any) -> list[Any]:
+    """Tool result blocks: a real image when the handler rendered one.
+
+    A handler that renders returns the bytes under `_image`, and they leave here
+    as `ImageContent` rather than a file path. Returning only a path made seeing
+    a page cost two turns - render, then `Read` the PNG - and on one 24-page bid
+    that was 48 of the take-off leg's 80 tool calls, twenty-four renders across
+    two sheets, and a leg that hit its turn cap with the check unfinished.
+
+    `_image` is transport, so it is removed from the text payload rather than
+    serialised into it twice.
+    """
+    content: list[Any] = []
+    image = payload.pop("_image", None) if isinstance(payload, dict) else None
+    if isinstance(image, dict) and image.get("data"):
+        content.append(
+            types.ImageContent(
+                type="image",
+                data=image["data"],
+                mime_type=image.get("mimeType") or "image/png",
+            )
+        )
+    content.append(types.TextContent(type="text", text=dump_payload(payload)))
+    return content
+
+
 def build_server(name: str, tools: list[dict[str, Any]], handlers: dict[str, Handler]) -> Server:
     async def on_list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
         return types.ListToolsResult(tools=[_as_tool(t) for t in tools])
@@ -118,11 +144,7 @@ def build_server(name: str, tools: list[dict[str, Any]], handlers: dict[str, Han
             except Exception as exc:  # surfaced to the agent, never swallowed
                 payload = {"error": str(exc), "tool": params.name, "arguments": arguments}
                 is_error = True
-        text = dump_payload(payload)
-        return types.CallToolResult(
-            content=[types.TextContent(type="text", text=text)],
-            is_error=is_error,
-        )
+        return types.CallToolResult(content=result_content(payload), is_error=is_error)
 
     return Server(name, on_list_tools=on_list_tools, on_call_tool=on_call_tool)
 

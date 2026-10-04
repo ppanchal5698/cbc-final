@@ -121,14 +121,14 @@ def test_import_extraction_aborts_when_the_lease_was_stolen(database, monkeypatc
     from bson import ObjectId
 
     from cbc.shared.config import settings
-    from cbc.modules.extraction.api import door_schedule
+    from cbc.modules.extraction.api import line_items
     from cbc.shared import storage
 
     previous = settings.storage_root
     settings.storage_root = tmp_path
     slug = "lease_stolen"
     storage.scaffold(slug)
-    path = tmp_path / slug / "extracted" / "door_schedule.json"
+    path = tmp_path / slug / "extracted" / "line_items.json"
     path.write_text(
         '{"openings":[{"door_number":"101","size":"3070","source_page":1}]}',
         encoding="utf-8",
@@ -151,7 +151,7 @@ def test_import_extraction_aborts_when_the_lease_was_stolen(database, monkeypatc
     project = {"_id": project_id, "slug": slug, "code": "LS-1"}
     try:
         counts = run(
-            door_schedule.import_extraction(
+            line_items.import_extraction(
                 project,
                 job={"_id": job_id, "workerId": "a", "claimGeneration": 1},
             )
@@ -788,6 +788,11 @@ def test_the_three_takeoffs_run_at_the_same_time(database, monkeypatch, tmp_path
     monkeypatch.setattr(sandbox, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(sandbox, "ensure_workspace_trusted", lambda workspace: True)
     monkeypatch.setattr(sandbox, "mode", lambda: "process")
+    # This test is about concurrency, not about the prefix-cache head start. With
+    # the real 8s stagger a 0.25s stubbed leg 0 has long finished before legs 1-2
+    # begin, so "every leg started before any finished" cannot hold and the wall
+    # clock is 8s, not 0.5s. The stagger has its own test below.
+    monkeypatch.setattr(claude_pass, "WAVE_STAGGER_SECONDS", 0.0)
 
     spans: list[tuple[str, float, float]] = []
     lock = threading.Lock()
@@ -837,6 +842,72 @@ def test_the_three_takeoffs_run_at_the_same_time(database, monkeypatch, tmp_path
     # One recording per leg, so three sessions are not interleaved into one log.
     assert {entry["label"] for entry in stored["recordings"]} == {"takeoff", "frp", "div10"}
     assert len({name for name, _s, _e in spans}) == 3, spans
+
+
+def test_the_first_leg_gets_a_head_start(database, monkeypatch, tmp_path) -> None:
+    """Legs after the first are delayed so they read leg 0's ~32k prefix.
+
+    Started in the same instant all three miss the prompt cache and all three pay
+    to write the same prefix; measured on this CLI a warm prefix cost $0.0056
+    against $0.0404 cold. Nothing covered this, so deleting the stagger - or
+    zeroing it, as the concurrency test above does - was silent.
+    """
+    import threading
+    import time
+
+    from bson import ObjectId
+
+    from cbc.modules.ops.api.claude_cli import RunResult
+    from cbc.modules.ops.api import claude_pass, worker
+    from cbc.modules.projects.api import pipeline
+    from cbc.worker_kit import sandbox
+
+    monkeypatch.setattr(settings, "storage_root", tmp_path / "projects")
+    monkeypatch.setattr(claude_pass, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sandbox, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sandbox, "ensure_workspace_trusted", lambda workspace: True)
+    monkeypatch.setattr(sandbox, "mode", lambda: "process")
+    monkeypatch.setattr(claude_pass, "WAVE_STAGGER_SECONDS", 0.4)
+
+    starts: dict[str, float] = {}
+    lock = threading.Lock()
+
+    def fake_claude(**kwargs):
+        with lock:
+            starts[kwargs["recording"].name] = time.monotonic()
+        return RunResult(ok=True, output="ran", error=None, returncode=0)
+
+    monkeypatch.setattr(claude_pass.runner, "run_claude", fake_claude)
+
+    project_id = ObjectId()
+    database[names.BID_REQUESTS].insert_one(
+        {"_id": project_id, "code": "CBC-STAG", "slug": "stagger_smoke", "name": "Stagger"}
+    )
+    job = {
+        "_id": ObjectId(),
+        "type": "extract_bid_set",
+        "projectId": project_id,
+        "status": "running",
+        "attempts": 1,
+        "workerId": worker.WORKER_ID,
+        "claimGeneration": 1,
+        "payload": {},
+        "createdAt": _now(),
+    }
+    database["jobs"].insert_one(job)
+
+    async def sync(job, project):
+        return "synced"
+
+    legs = [("takeoff", "one"), ("frp", "two"), ("div10", "three")]
+    run(pipeline.run_pass(job, sync=sync, wave_for=lambda _job, _project: legs))
+
+    assert len(starts) == 3, starts
+    first = next(t for name, t in starts.items() if "takeoff" in name)
+    rest = [t for name, t in starts.items() if "takeoff" not in name]
+    assert min(rest) - first >= 0.3, starts
+    # Only the first leg waits - the rest go together once the prefix exists.
+    assert max(rest) - min(rest) < 0.3, starts
 
 
 def test_a_wave_is_a_failure_when_any_leg_is(database, monkeypatch, tmp_path) -> None:

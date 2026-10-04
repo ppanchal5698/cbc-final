@@ -358,6 +358,25 @@ def _corroborant_needles(value: str) -> list[str]:
     return needles
 
 
+def _carries_another_mark(cell: str, other_marks: set[str]) -> bool:
+    """Is a second opening's mark stacked into this cell?
+
+    `rows_from_words` buckets words by y, so two schedule rows closer than
+    ROW_TOLERANCE collapse into one - and because the marks then sit within
+    COLUMN_GAP of each other in x, they land in the *same cell*: `5 6 | DINING
+    WASHING | ...`. That is the shape a clustering failure actually takes, and
+    the first cell is the only place it shows.
+
+    Tokens are matched whole. Dutch Bros glues the width onto the mark
+    (`01 3' - 6"`), and `3'` is not a mark however many door 3s exist.
+    """
+    tokens = (cell or "").split()
+    return any(
+        token in other_marks and re.fullmatch(r"\d{1,3}[A-Z]?", token, re.IGNORECASE)
+        for token in tokens[1:]
+    )
+
+
 def _row_matches_opening(
     row: dict[str, Any],
     number: str,
@@ -377,14 +396,17 @@ def _row_matches_opening(
     )
     if hits < 2:
         return False
-    # Refuse a row that also carries another opening's mark as its own cell.
-    for cell in cells[1:]:
-        mark = _first_cell_mark(cell)
-        if mark and mark in other_marks and re.fullmatch(
-            r"\d{1,3}[A-Z]?", cell.strip(), re.IGNORECASE
-        ):
-            return False
-    return True
+    # Refuse a row that runs several openings together - a wrong highlight is
+    # worse than none, because it looks checked.
+    #
+    # Only the first cell is examined, because that is where a merge lands.
+    # Scanning the whole row instead refused rows that were never merged: a
+    # schedule prints the hardware group and the frame type as bare two-digit
+    # numbers, so door 03's row reads `03 | VESTIBULE | ... | 02 | G-3 | A | ...`
+    # and that `02` is group 02, not door 02. On the Wendys set marks 03 and 09
+    # lost their measured rectangle to their neighbours' group numbers and
+    # reached the estimator with no highlight at all.
+    return not _carries_another_mark(cells[0], other_marks)
 
 
 def attach_measured_bboxes(
@@ -477,6 +499,115 @@ def attach_measured_bboxes(
             note = (
                 "bbox_row_ambiguous" if len(hits) > 1 else "bbox_row_not_found"
             )
+            if note not in flags:
+                flags.append(note)
+    return attached, unmatched
+
+
+# Division 10 and FRP rows are not door rows. A door schedule prints the mark in
+# the first cell, which is what `_row_matches_opening` keys on; an accessory
+# schedule prints the model wherever the vendor column happens to fall -
+# `... | B-290 1 X PAPER TOWEL DISPENSER | BOBRICK B-262`. So the needle is
+# looked for anywhere in the row, and ambiguity is resolved by corroborants
+# rather than by position.
+#
+# Corroborants are deliberately model-, tag- and digit-shaped rather than
+# descriptive. On the first real bid set the description text layer comes out of
+# the CAD export shifted - "POS COUNTER SHROUD" reads as "POS CRXQWHU SKURXG" -
+# so matching on words finds nothing while matching on `B-262` and `1` works.
+# Anything that depends on prose being readable would pass here and fail on the
+# next set.
+_SPECIALTY_CORROBORATING = ("qty", "unit", "manufacturer", "room", "location", "drawing_ref")
+
+
+def _specialty_needles(item: dict[str, Any]) -> list[str]:
+    """Identifiers worth searching a row for, most distinctive first."""
+    out: list[str] = []
+    for key in ("specified_model", "model_series", "drawing_ref", "product_type"):
+        text = str(item.get(key) or "").strip()
+        if text and text.lower() not in {"other", "accessory", "item"}:
+            out.append(text)
+    return out
+
+
+
+def attach_specialty_bboxes(
+    items: list[dict[str, Any]],
+    page: fitz.Page,
+    shift: int = 0,
+    *,
+    overwrite: bool = False,
+) -> tuple[int, int]:
+    """Measure Div 10 / FRP rows on the sheet they were read from.
+
+    Same contract as `attach_measured_bboxes`, and the same refusal: an item that
+    cannot be pinned to exactly one row keeps a null bbox and is flagged. An
+    invented highlight is worse than none, because it looks checked.
+
+    Not every specialty item has a row to find. A Div 10 accessory usually does -
+    it comes off a printed schedule. FRP geometry often does not: "Kitchen /
+    back-of-house, 13 interior elevation views" is derived from elevations, not
+    copied off a line of text, and there is nothing on the sheet to box. Those
+    keep `bbox: None` with `bbox_row_not_found`, which is the honest answer.
+
+    Returns (attached, unmatched).
+    """
+    rows = rows_from_words(page, shift=shift)
+    size = {"width": round(page.rect.width, 2), "height": round(page.rect.height, 2)}
+    attached = unmatched = 0
+
+    for item in items:
+        if overwrite:
+            item.pop("bbox", None)
+            item.pop("cell_boxes", None)
+            flags = item.get("flags")
+            if isinstance(flags, list):
+                item["flags"] = [
+                    f for f in flags
+                    if f not in ("bbox_row_ambiguous", "bbox_row_not_found", "bbox_unavailable")
+                ]
+        elif item.get("bbox"):
+            continue
+
+        hits: list[dict[str, Any]] = []
+        for needle in _specialty_needles(item):
+            found = [
+                row for row in rows
+                if needle.lower() in " | ".join(row.get("cells") or []).lower()
+            ]
+            if len(found) == 1:
+                hits = found
+                break
+            if len(found) > 1:
+                # Narrow with corroborants, the way a door row is narrowed.
+                corroborants = [
+                    str(item.get(key) or "").strip()
+                    for key in _SPECIALTY_CORROBORATING
+                    if str(item.get(key) or "").strip()
+                ]
+                narrowed = [
+                    row for row in found
+                    if sum(
+                        1 for value in corroborants
+                        if value.lower() in " | ".join(row.get("cells") or []).lower()
+                    ) >= 2
+                ]
+                if len(narrowed) == 1:
+                    hits = narrowed
+                    break
+                hits = narrowed or found
+
+        if len(hits) == 1:
+            item["bbox"] = hits[0]["bbox"]
+            item["cell_boxes"] = hits[0]["cell_boxes"]
+            item["page_size"] = size
+            attached += 1
+        else:
+            unmatched += 1
+            item["bbox"] = None
+            item.pop("cell_boxes", None)
+            flags = item.setdefault("flags", [])
+            note = "bbox_row_ambiguous" if len(hits) > 1 else "bbox_row_not_found"
             if note not in flags:
                 flags.append(note)
     return attached, unmatched

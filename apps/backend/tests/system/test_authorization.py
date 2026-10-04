@@ -109,12 +109,15 @@ def test_an_estimator_still_does_their_own_job(client, as_role) -> None:
 
 
 def _put_base_url(client, url: str):
+    # These cases are about the host allowlist, not about any one provider.
+    # anthropic_api is the surviving mode that takes both a base URL and a
+    # credential, which is the pairing that makes a bad URL dangerous.
     return client.put(
         "/api/settings/claude",
         json={
-            "mode": "gateway",
+            "mode": "anthropic_api",
             "baseUrl": url,
-            "authToken": "sk-or-abcdefghijklmnopqrstuvwxyz",
+            "apiKey": "sk-ant-abcdefghijklmnopqrstuvwxyz",
         },
     )
 

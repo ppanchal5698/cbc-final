@@ -197,6 +197,148 @@ def test_the_patched_artifact_still_passes_its_schema_gate(artifact) -> None:
         {"op": "set", "path": "openings/05/thickness", "value": "1 3/4\"", "evidence": CITE},
     ])
     _, problems = prepare_artifact_text(
-        "extracted/door_schedule.json", json.dumps(out)
+        "extracted/line_items.json", json.dumps(out)
     )
     assert problems == [], problems
+
+
+def test_the_coverage_record_a_run_is_failed_for_can_actually_be_written():
+    """`check_extraction` requires `visual_pages_checked` on line_items.json.
+
+    `line_items.json` is seeded, so the prompts steer every correction
+    through `propose_patch` — and a patch path had to read
+    `openings/<door>/<field>`. `visual_pages_checked` is top-level, so there was
+    no way to write the very field the artifact is failed for.
+
+    Three real runs died on it. The recording shows the agent doing the work and
+    then hitting the wall: 54 turns, 16 page images read, 13 patches applied,
+    and "1 rejected as expected - top-level fields aren't patchable". It treated
+    the refusal as normal and saved nothing.
+    """
+    from cbc.modules.extraction.api.patching import apply_patches
+
+    seed = {"openings": [{"door_number": "01"}], "source": "pretakeoff"}
+    rows = [
+        {
+            "path": "projects/x/uploads/raw/set.pdf",
+            "source_page": 20,
+            "image_path": "projects/x/extracted/_visual_pages/a.png",
+            "finding": "roof plan, no door schedule",
+        }
+    ]
+
+    updated, results = apply_patches(
+        seed, [{"op": "set", "path": "visual_pages_checked", "value": rows}]
+    )
+    assert results[0]["applied"], results[0]["reason"]
+    assert updated["visual_pages_checked"] == rows
+    assert updated["openings"] == seed["openings"], "the rows are untouched"
+
+    grown, _ = apply_patches(
+        updated,
+        [{"op": "append", "path": "visual_pages_checked", "value": [dict(rows[0], source_page=23)]}],
+    )
+    assert len(grown["visual_pages_checked"]) == 2
+
+
+def test_no_other_top_level_field_became_patchable():
+    """The opening is the audited unit; a reading belongs on its row.
+
+    Widening this to "any top-level key" would let a patch set `openings`
+    wholesale and bypass every per-field contract the module exists to enforce.
+    """
+    from cbc.modules.extraction.api import patching
+
+    assert patching.TOP_LEVEL_PATCHABLE == {"visual_pages_checked"}
+
+    for path in ("no_scope_reason", "openings", "source"):
+        _, results = patching.apply_patches(
+            {"openings": []}, [{"op": "set", "path": path, "value": "x"}]
+        )
+        assert not results[0]["applied"], f"{path} must not be patchable"
+
+
+# ── W5: priced lines are patched by line_id, priced by pricing evidence ──────
+
+def _priced_line(**over):
+    return {
+        "line_id": "HW-1-00",
+        "group": "HW-1",
+        "group_type": "door",
+        "quantity": 1,
+        "cost_source": "MANUAL",
+        "source_page": 4,
+        **over,
+    }
+
+
+PRICE_CITE = {"cost_source": "DISTRIBUTOR_MANUAL", "cost_source_detail": "Banner quote 2026-09-01"}
+
+
+def test_a_priced_line_is_patched_by_line_id() -> None:
+    out, results = patching.apply_patches(
+        {"lines": [_priced_line()]},
+        [{"op": "set", "path": "lines/HW-1-00/cost", "value": 42.0, "evidence": PRICE_CITE}],
+    )
+    assert results[0]["applied"] is True
+    assert out["lines"][0]["cost"] == 42.0
+
+
+def test_a_patch_for_an_unknown_line_id_is_rejected_not_raised() -> None:
+    """by_mark.get(...) returns None -> a legible rejection that names the missing
+    key and lists the keys the artifact has, never a raise or a silent no-op."""
+    out, results = patching.apply_patches(
+        {"lines": [_priced_line()]},
+        [{"op": "set", "path": "lines/NOPE-99/cost", "value": 42.0, "evidence": PRICE_CITE}],
+    )
+    assert results[0]["applied"] is False
+    assert "NOPE-99" in results[0]["reason"]
+    assert "HW-1-00" in results[0]["reason"], "it must list the keys it does have"
+
+
+def test_a_cost_needs_pricing_evidence_not_a_drawing_page() -> None:
+    """A cost has no drawing page; demanding {source_page, excerpt} invents one."""
+    _, results = patching.apply_patches(
+        {"lines": [_priced_line()]},
+        [{"op": "set", "path": "lines/HW-1-00/cost", "value": 42.0,
+          "evidence": {"source_page": 16, "excerpt": "a row"}}],
+    )
+    assert results[0]["applied"] is False
+    assert "cost_source" in results[0]["reason"]
+
+
+def test_a_quantity_still_takes_the_drawing_form() -> None:
+    """A quantity is drawing-derived: it takes source_page + excerpt, not a cost source."""
+    _, wrong = patching.apply_patches(
+        {"lines": [_priced_line()]},
+        [{"op": "set", "path": "lines/HW-1-00/quantity", "value": 3, "evidence": PRICE_CITE}],
+    )
+    assert wrong[0]["applied"] is False
+    out, right = patching.apply_patches(
+        {"lines": [_priced_line()]},
+        [{"op": "set", "path": "lines/HW-1-00/quantity", "value": 3,
+          "evidence": {"source_page": 4, "excerpt": "3 EA"}}],
+    )
+    assert right[0]["applied"] is True
+    assert out["lines"][0]["quantity"] == 3
+
+
+def test_a_lines_payload_via_openings_root_does_not_land_on_lines() -> None:
+    """_rows picks by the path's root, so a lines row is not reachable as openings."""
+    _, results = patching.apply_patches(
+        {"lines": [_priced_line()]},
+        [{"op": "set", "path": "openings/HW-1-00/handing", "value": "RH", "evidence": CITE}],
+    )
+    assert results[0]["applied"] is False  # there are no openings to resolve against
+
+
+def test_a_div10_item_is_validated_against_div10_not_opening() -> None:
+    """The live bug: items were gated against Opening. product_type is a Div10Item
+    field and not an Opening field, so gating it correctly is what lets it land."""
+    out, results = patching.apply_patches(
+        {"items": [{"line_id": "D1", "product_type": "grab bar", "flags": []}]},
+        [{"op": "set", "path": "items/D1/manufacturer", "value": "Bobrick",
+          "evidence": {"source_page": 5, "excerpt": "Bobrick B-6806"}}],
+    )
+    assert results[0]["applied"] is True
+    assert out["items"][0]["manufacturer"] == "Bobrick"

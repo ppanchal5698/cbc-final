@@ -5,7 +5,7 @@ import useSWR from "swr";
 import { FetchError } from "@/components/ui/fetch-error";
 import { endpoints } from "@/lib/endpoints";
 import { proxyFetcher } from "@/lib/proxy-fetcher";
-import type { SpendSummary } from "@/lib/types";
+import type { CohortSummary, SpendSummary } from "@/lib/types";
 import { jobTypeLabel } from "@/lib/job-error";
 import { cn } from "@/lib/utils";
 
@@ -19,11 +19,21 @@ function pct(ratio: number | null | undefined): string {
   return `${(ratio * 100).toFixed(0)}%`;
 }
 
+function signedPct(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
 export function SpendOpsPanel() {
   const { data, error, isLoading, mutate } = useSWR<SpendSummary>(
     endpoints.opsSpend(24),
     proxyFetcher,
     { refreshInterval: 30_000, keepPreviousData: true },
+  );
+  const { data: cohorts } = useSWR<CohortSummary>(
+    endpoints.opsCohorts(30, 20),
+    proxyFetcher,
+    { refreshInterval: 60_000, keepPreviousData: true },
   );
 
   return (
@@ -208,6 +218,83 @@ export function SpendOpsPanel() {
                       </td>
                       <td className="px-4 py-3 tabular-nums text-tx-muted">
                         {pct(row.cacheHitRatio)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </section>
+
+          <section className="overflow-hidden rounded-xl border border-subtle bg-panel shadow-sm">
+            <div className="border-b border-subtle px-5 py-4">
+              <h2 className="text-[15px] font-bold text-tx-primary">Cohorts</h2>
+              <p className="mt-1 text-[13px] font-medium text-tx-secondary">
+                Runs grouped by config (prompts, agents, tool profiles, hooks,
+                runtime). `Changed from` names what moved since the previous cohort
+                of the same job type and the cost delta it moved with.
+              </p>
+            </div>
+            <table className="w-full border-collapse text-left text-[13px]">
+              <thead className="border-b border-subtle bg-panel-muted text-[11px] font-bold uppercase tracking-widest text-tx-muted">
+                <tr>
+                  <th className="px-4 py-3">Type</th>
+                  <th className="px-4 py-3">Cohort</th>
+                  <th className="px-4 py-3">Runs</th>
+                  <th className="px-4 py-3">Median</th>
+                  <th className="px-4 py-3">Mean</th>
+                  <th className="px-4 py-3">Tool calls</th>
+                  <th className="px-4 py-3">Changed from</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!cohorts || cohorts.cohorts.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-6 text-tx-muted">
+                      No cohorts in the last {cohorts?.days ?? 30} days.
+                    </td>
+                  </tr>
+                ) : (
+                  cohorts.cohorts.map((row) => (
+                    <tr key={row.cohortId} className="border-b border-subtle last:border-0">
+                      <td className="px-4 py-3 text-tx-secondary">
+                        {jobTypeLabel(row.jobType)}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-[12px] text-tx-muted">
+                        {row.cohortId}
+                      </td>
+                      <td className="px-4 py-3 tabular-nums text-tx-primary">{row.runs}</td>
+                      <td className="px-4 py-3 tabular-nums font-semibold text-tx-primary">
+                        {usd(row.costUsd.median)}
+                      </td>
+                      <td className="px-4 py-3 tabular-nums text-tx-secondary">
+                        {usd(row.costUsd.mean)}
+                      </td>
+                      <td className="px-4 py-3 tabular-nums text-tx-secondary">
+                        {row.toolCalls.median}
+                      </td>
+                      <td className="px-4 py-3 text-[12px] text-tx-secondary">
+                        {row.changedFrom ? (
+                          <span>
+                            <span className="font-medium">
+                              {row.changedFrom.keys.join(", ")}
+                            </span>
+                            {row.changedFrom.deltaPct.costUsd !== undefined && (
+                              <span
+                                className={cn(
+                                  "ml-2 font-semibold tabular-nums",
+                                  row.changedFrom.deltaPct.costUsd < 0
+                                    ? "text-status-success"
+                                    : "text-status-error",
+                                )}
+                              >
+                                {signedPct(row.changedFrom.deltaPct.costUsd)}
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                     </tr>
                   ))

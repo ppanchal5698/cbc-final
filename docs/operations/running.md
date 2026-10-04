@@ -5,8 +5,13 @@ cp .env.example .env
 docker compose -f infra/docker-compose.yml up -d --build
 ```
 
-- Web UI — http://localhost:3000
-- API health — http://127.0.0.1:8001/api/health
+- Web UI — **http://localhost/**
+- API health — http://localhost/api/health
+
+Both go through nginx, which publishes 80 and 443. `web` and `platform`
+are `expose:` only, so `localhost:3000` and `localhost:8001` refuse the
+connection — that is the design, not a fault. Only CI publishes them, through
+`infra/docker-compose.ci.yml`, so Playwright can reach them without nginx.
 
 The root `docker-compose.yml` is a three-line shim that includes
 `infra/docker-compose.yml`. Everything real is in the latter, which uses YAML
@@ -25,9 +30,8 @@ keep the API and worker environments identical.
 | `web` | `apps/web` | `expose: 3000` | Next.js standalone |
 | `nginx` | `nginx:1.27-alpine` | **`80:80`, `443:443`** | the only published ports |
 | `certbot` | `certbot/certbot:v3.1.0` | — | renew loop |
-| `litellm` | `ghcr.io/berriai/litellm` | `expose: 4000` | profile `oss` |
-| `mineru` | `infra/mineru` | — | profile `gpu`, needs an NVIDIA device |
-| `parser` | worker image | none | profile `gpu`, `WORKER_DOMAIN=parsing` |
+| `litellm` | `ghcr.io/berriai/litellm` | `expose: 4000` | profile `oss` — **no provider mode uses it since `gateway` was retired** |
+| `parser` | worker image | none | `WORKER_DOMAIN=parsing` — claims `parse_document` |
 | `tunnel` | `cloudflared` | — | optional public URL |
 
 **Only nginx publishes host ports.** Everything else is `expose:`, reachable
@@ -38,9 +42,73 @@ standing up nginx — which would crash-loop anyway, because
 `infra/nginx/default.conf` references
 `/etc/letsencrypt/live/<MY_DOMAIN>/` as a literal unsubstituted placeholder.
 
-Two profiles keep optional weight out of a default `up`: `oss` (the LiteLLM
-gateway, for running against Ollama or OpenRouter) and `gpu` (MinerU plus a
-dedicated parsing worker).
+### Reaching it from another device
+
+Three ways in, and all of them are port 80 - never 3000.
+
+| From | URL |
+|---|---|
+| this machine | `http://localhost/` |
+| another device on the same network | `http://<this-host-lan-ip>/` |
+| anywhere | the Cloudflare tunnel hostname |
+
+nginx binds `0.0.0.0:80`, so a device on the same network needs only the host's
+LAN address and the firewall to allow inbound 80. On Windows, Docker Desktop
+installs its own inbound rules for `com.docker.backend.exe`, but **scoped to one
+network profile** - check that the profile of the active adapter matches:
+
+```powershell
+Get-NetConnectionProfile | Select-Object InterfaceAlias,NetworkCategory
+```
+
+If the connection is Private and Docker's rules are Public, the port is open on
+the host and closed to the network, which looks identical to the app being down.
+Guest and corporate Wi-Fi also commonly isolate clients from each other, in which
+case no firewall change helps and the tunnel is the way in.
+
+**The tunnel is a quick tunnel by default** and comes with two properties worth
+knowing before relying on it: the hostname is random and changes on every start,
+and it has no uptime guarantee. When Cloudflare drops it the process does not
+exit - it retries the same tunnel id forever with `Unauthorized: Tunnel not
+found`, so the container stays "Up" and `restart: unless-stopped` never fires.
+Read the log rather than the container status:
+
+```bash
+docker logs cbc-final-tunnel --tail 5
+```
+
+`Registered tunnel connection` means it is live; a wall of `Unauthorized` means
+the URL is dead and only `docker restart cbc-final-tunnel` will get a new one -
+which is a different URL again.
+
+For a hostname that survives restarts, create a named tunnel in the Cloudflare
+dashboard and put its token in `.env`:
+
+```
+CLOUDFLARED_ARGS=run --token eyJhIjoi...
+```
+
+### Talking to the running stack
+
+Pass `-p cbc-final`. Compose derives the project name from the directory of the
+`-f` file, so `docker compose -f infra/docker-compose.yml ps` reports an **empty
+table** while ten containers are running, and an `up` under that name builds a
+second, parallel stack rather than replacing the one you have.
+
+```bash
+docker compose -p cbc-final -f infra/docker-compose.yml ps
+```
+
+CI sets `COMPOSE_PROJECT_NAME=cbc-final` for the same reason.
+
+One profile keeps optional weight out of a default `up`: `oss` (the LiteLLM
+gateway — used by the `nim` and `ollama` provider modes; Ollama can also talk to
+its own daemon directly).
+
+The `gpu` profile is gone. Parsing is a cloud call now, so the `parser` service
+starts by default — it has to, or `parse_document` jobs would queue with nothing
+to claim them and `defer_if_parsing` would hold every extraction behind a parse
+that never begins.
 
 Networks: `default` (named `cbc-final`) and `llm` (named `cbc-final-llm`,
 **`internal: true`**) — the latter is what `CBC_SANDBOX_NETWORK` points at, so a
@@ -88,6 +156,7 @@ credentials:
 | `MALWARE_SCAN` | `clamd` | upload scanning |
 | `STORAGE_BACKEND` | `local` | or `s3` |
 | `MAX_UPLOAD_MB` | 200 | matched by nginx `client_max_body_size` and Next's `proxyClientMaxBodySize` |
+| `AUTH_URL` | `http://localhost` | the origin NextAuth builds redirects from — **pins one origin**, see below |
 
 `INTERNAL_AUTH` differing by layer is intentional — `token` is for local pytest,
 `jwt` for anything with a network between the tiers — but it is easy to trip
@@ -99,6 +168,25 @@ rotated without downtime.
 which case it is derived from `MONGODB_URI`. Set it when the cluster owner
 provisions the read-only user instead — an explicit value always wins. See
 [`../mcp/servers.md`](../mcp/servers.md#the-read-only-credential).
+
+### Signing out redirects to `AUTH_URL`
+
+NextAuth v5 builds every redirect from a single base URL. Without `AUTH_URL` the
+standalone server falls back to its own bind address, and signing out lands on
+`http://0.0.0.0:3000` — a dead page. `trustHost: true` is set in
+`apps/web/auth.ts` and nginx forwards both `Host` and `X-Forwarded-Host`, but
+neither is consulted for the base: posting a sign-out with a valid CSRF token
+and an explicit `callbackUrl` still came back as `0.0.0.0:3000` until `AUTH_URL`
+was set.
+
+It pins **one** origin. The app is reachable on all three paths regardless —
+localhost, the LAN address and the tunnel all serve and sign in — but a
+*sign-out* redirects to whatever `AUTH_URL` says. Set it to the origin people
+actually use:
+
+```
+AUTH_URL=https://<your-tunnel-or-domain>
+```
 
 ## The project directory
 
@@ -115,12 +203,12 @@ The layout, with the agent that writes each file:
 
 ```
 uploads/raw/<bid-set>.pdf              immutable input — never written over
-uploads/processed/mineru/<docId>/      MinerU block batches, p1-8.json, p9-16.json, …
+uploads/processed/parsed/<docId>/      LlamaParse block batches, p1-8.json, p9-16.json, …
 uploads/final/                         delivery-agent copies
 
 extracted/scope_metadata.json          intake-coordinator    schema-gated, blocking
 extracted/scope_summary.json           spec-scope-analyst    schema-gated, blocking
-extracted/door_schedule.json           takeoff-engineer      schema-gated, patch-only once seeded
+extracted/line_items.json           takeoff-engineer      schema-gated, patch-only once seeded
 extracted/door_schedule.extracted.json deterministic pre-take-off seed
 extracted/frp_takeoff.json             frp-specialist
 extracted/div10_takeoff.json           div10-specialist

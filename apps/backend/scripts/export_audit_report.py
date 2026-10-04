@@ -141,7 +141,7 @@ def _demo() -> None:
     try:
         trail.write_text(
             '{"timestamp":"2026-08-26T12:00:00Z","tool_name":"Write","agent_name":"takeoff-engineer",'
-            '"tool_input_summary":"file_path=extracted/door_schedule.json"}\n'
+            '"tool_input_summary":"file_path=extracted/line_items.json"}\n'
             "not json at all\n",
             encoding="utf-8",
         )

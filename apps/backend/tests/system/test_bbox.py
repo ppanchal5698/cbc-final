@@ -174,7 +174,13 @@ def test_a_row_is_grouped_as_it_appears_on_screen(tmp_path):
 
 
 def _schedule_sheet(tmp_path):
-    """Two schedule rows and one row that runs several doors together."""
+    """Two schedule rows, plus two drawn a point apart so they merge into one.
+
+    Rows closer than ROW_TOLERANCE fall in the same y-bucket, and their marks are
+    then within COLUMN_GAP of each other in x - so a merge shows up as `5 6` in
+    the *first cell*. Drawn rather than hand-written, so the test exercises the
+    clustering that produces that shape instead of assuming it.
+    """
     import fitz
 
     doc = fitz.open()
@@ -184,7 +190,8 @@ def _schedule_sheet(tmp_path):
     for y, fields in (
         (200, ["1", "DINING", "3'-0\"", "7'-0\"", "A"]),
         (220, ["2", "LOBBY", "6'-0\"", "7'-0\"", "B"]),
-        (240, ["5", "6'-0\"", "4", "3", "WASHING", "3'-6\""]),
+        (240, ["5", "WASHING", "6'-0\"", "7'-0\"", "C"]),
+        (241, ["6", "PREP", "3'-6\"", "7'-0\"", "D"]),
     ):
         for column, text in enumerate(fields):
             page.insert_text((72 + column * 60, y), text, fontsize=9)
@@ -292,10 +299,9 @@ def test_glued_mark_and_four_digit_size_still_match(tmp_path):
 def test_a_row_holding_several_doors_is_refused(tmp_path):
     """A wrong highlight is worse than none, because it looks checked.
 
-    Door 5's row on the real sheet reads "5 | 6'-0" | 4 | 3 | WASHING | ..." -
-    three openings the clustering could not separate. Its box spans nearly the
-    full sheet, so highlighting it would point the estimator at three doors and
-    claim to have verified one.
+    Doors 5 and 6 are drawn a point apart, so the clustering collapses them into
+    `5 6 | WASHING PREP | ...` - one box spanning two openings. Highlighting it
+    would point the estimator at both and claim to have verified one.
     """
     import fitz
 
@@ -303,13 +309,48 @@ def test_a_row_holding_several_doors_is_refused(tmp_path):
 
     doc = fitz.open(_schedule_sheet(tmp_path))
     openings = [
-        {"door_number": "3"},
-        {"door_number": "4"},
         {"door_number": "5", "width": "6'-0\"", "room_name": "WASHING"},
+        {"door_number": "6", "width": "3'-6\"", "room_name": "PREP"},
     ]
     attached, unmatched = attach_measured_bboxes(openings, doc[0])
 
-    assert attached == 0, "a row carrying three door numbers must not be claimed by one"
+    assert attached == 0, "a row carrying two door numbers must not be claimed by one"
     assert all(o.get("bbox") is None for o in openings)
     assert any("bbox_row_not_found" in o.get("flags", []) for o in openings)
+    doc.close()
+
+
+def test_a_hardware_group_that_reads_like_a_door_number_keeps_its_bbox(tmp_path):
+    """A schedule prints the HW group as a bare two-digit number, in its own column.
+
+    On the Wendys set door 03's row is `03 | VESTIBULE | 3'-0" | 7'-0" | 02 | A`,
+    where `02` is hardware group 02 - and door 02 exists. The multi-door guard
+    scanned the whole row for a neighbour's mark, so marks 03 and 09 were refused
+    their own rectangle by their neighbours' group numbers and reached the
+    estimator with no highlight. A merge lands in cell 0; a column collision
+    never does.
+    """
+    import fitz
+
+    from cbc.shared.pdfrows import attach_measured_bboxes
+
+    doc = fitz.open()
+    page = doc.new_page(width=612, height=792)
+    for y, mark in ((200, "02"), (220, "03")):
+        fields = [mark, "VESTIBULE", "3'-0\"", "7'-0\"", "02", "A"]
+        for column, text in enumerate(fields):
+            page.insert_text((72 + column * 60, y), text, fontsize=9)
+    path = tmp_path / "groups.pdf"
+    doc.save(path)
+    doc.close()
+
+    doc = fitz.open(path)
+    openings = [
+        {"door_number": m, "room_name": "VESTIBULE", "width": "3'-0\"", "height": "7'-0\""}
+        for m in ("02", "03")
+    ]
+    attached, unmatched = attach_measured_bboxes(openings, doc[0])
+
+    assert (attached, unmatched) == (2, 0), "a group number is not a second door"
+    assert openings[0]["bbox"] != openings[1]["bbox"]
     doc.close()

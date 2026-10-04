@@ -21,7 +21,7 @@ def test_derived_and_agent_flags_are_served_without_writing_and_an_unknown_bid_i
             root = storage.project_dir(project["slug"])
             (root / "extracted").mkdir(parents=True, exist_ok=True)
             (root / "review").mkdir(parents=True, exist_ok=True)
-            (root / "extracted" / "door_schedule.json").write_text(json.dumps({"openings": [
+            (root / "extracted" / "line_items.json").write_text(json.dumps({"openings": [
                 {"door_number": "101", "source_page": 4, "bbox": [1, 2, 3, 4], "handing": "LH", "size": "3070"},
             ]}), encoding="utf-8")
             written = [{"opening": "Door 101", "field": "count_reconciliation", "severity": "medium",

@@ -4,7 +4,7 @@
   version snapshot and the proposal; counts for the board; failed payloads.
 - `feedback` - record an estimator's correction (FR-13) from any screen, and drain
   the unconsumed queue (`unapplied`, `mark_applied`) for the learning pass.
-- `door_schedule` - the door schedule on disk, both ways: a pass's openings loaded in,
+- `line_items` - the extracted line items on disk, both ways: a pass's openings loaded in,
   the estimator's confirmed ones written back down.
 - `claude_output`, `artifact_schema`, `artifact_contracts` - the contract for what a pass
   writes: the models, the JSON Schemas generated from them (`artifacts/`), and the

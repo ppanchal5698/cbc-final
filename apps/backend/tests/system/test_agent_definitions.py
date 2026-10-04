@@ -98,6 +98,22 @@ def test_the_delegation_rule_names_agents_that_exist() -> None:
     assert "quote-builder" not in names
 
 
+@pytest.mark.parametrize("path", AGENTS, ids=lambda p: p.stem)
+def test_frontmatter_is_delimited(path) -> None:
+    """Every other check here uses re.search(..., re.MULTILINE) against raw text,
+    so all of them pass on a file whose opening fence is broken. A missing
+    ``---\n`` leaves the frontmatter unparsed - name, model and tools all ignored
+    - and pasted syntax-highlighter HTML (``class="token"``) is how that happened.
+    """
+    text = path.read_text(encoding="utf-8")
+    assert text.startswith("---\n"), (
+        f"{path.stem} does not open with a --- frontmatter fence"
+    )
+    assert 'class="token' not in text, (
+        f"{path.stem} contains pasted syntax-highlighter HTML"
+    )
+
+
 def test_mechanical_agents_declare_haiku_and_judgment_stays_sonnet() -> None:
     def model_of(stem: str) -> str:
         text = (AGENT_DIR / f"{stem}.md").read_text(encoding="utf-8")
@@ -105,10 +121,24 @@ def test_mechanical_agents_declare_haiku_and_judgment_stays_sonnet() -> None:
         assert match, stem
         return match.group(1)
 
-    for name in ("intake-coordinator", "delivery-agent", "pricebook-ingestor"):
+    judgment = ("takeoff-engineer", "product-matcher", "pricing-engineer")
+    mechanical = (
+        "intake-coordinator",
+        "spec-scope-analyst",
+        "frp-specialist",
+        "div10-specialist",
+        "quality-reviewer",
+        "quote-builder",
+        "delivery-agent",
+        "pricebook-ingestor",
+    )
+    for name in mechanical:
         assert model_of(name) == "haiku", name
-    for name in ("takeoff-engineer", "product-matcher", "pricing-engineer"):
+    for name in judgment:
         assert model_of(name) == "sonnet", name
+
+    # Cover all 11 stems: a new agent must be classified here or this fails.
+    assert set(judgment) | set(mechanical) == {p.stem for p in AGENTS}
 
 
 def test_no_agent_claims_a_server_the_deleted_alias_used_to_serve() -> None:

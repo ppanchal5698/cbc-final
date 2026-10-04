@@ -217,6 +217,15 @@
   },
   "status": 200
  },
+ "GET /api/ops/cohorts": {
+  "body": {
+   "cohorts": [],
+   "days": "number",
+   "jobType": "str",
+   "since": "datetime"
+  },
+  "status": 200
+ },
  "GET /api/ops/spend": {
   "body": {
    "byProject": [],
@@ -415,8 +424,8 @@
       "variable": "str"
      }
     },
-    "gateway": {
-     "authToken": {
+    "nim": {
+     "apiKey": {
       "configured": "bool",
       "locked": "bool",
       "secret": "bool",
@@ -431,6 +440,13 @@
       "variable": "str"
      },
      "model": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "smallFastModel": {
       "configured": "bool",
       "locked": "bool",
       "secret": "bool",
@@ -499,59 +515,29 @@
  },
  "GET /api/settings/parsing": {
   "body": {
-   "backends": [
-    "str"
-   ],
-   "efforts": [
-    "str"
-   ],
    "enabled": "bool",
    "fields": {
-    "backend": {
+    "apiKey": {
      "locked": "bool",
      "source": "str",
      "value": "str"
-    },
-    "effort": {
-     "locked": "bool",
-     "source": "str"
-    },
-    "formulas": {
-     "locked": "bool",
-     "source": "str",
-     "value": "bool"
-    },
-    "imageAnalysis": {
-     "locked": "bool",
-     "source": "str",
-     "value": "bool"
     },
     "lang": {
      "locked": "bool",
      "source": "str",
      "value": "str"
     },
-    "method": {
-     "locked": "bool",
-     "source": "str",
-     "value": "str"
-    },
-    "profile": {
-     "locked": "bool",
-     "source": "str",
-     "value": "str"
-    },
-    "tables": {
-     "locked": "bool",
-     "source": "str",
-     "value": "bool"
-    },
-    "url": {
+    "tier": {
      "locked": "bool",
      "source": "str",
      "value": "str"
     },
     "waitMaxSeconds": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    },
+    "windowConcurrency": {
      "locked": "bool",
      "source": "str",
      "value": "number"
@@ -567,51 +553,7 @@
      "value": "number"
     }
    },
-   "methods": [
-    "str"
-   ],
-   "presets": {
-    "high": {
-     "backend": "str",
-     "effort": "str",
-     "formulas": "bool",
-     "hardware": "str",
-     "imageAnalysis": "bool",
-     "lang": "str",
-     "method": "str",
-     "tables": "bool",
-     "waitMaxSeconds": "number",
-     "windowPages": "number",
-     "windowTimeoutSeconds": "number"
-    },
-    "low": {
-     "backend": "str",
-     "effort": "null",
-     "formulas": "bool",
-     "hardware": "str",
-     "imageAnalysis": "bool",
-     "lang": "str",
-     "method": "str",
-     "tables": "bool",
-     "waitMaxSeconds": "number",
-     "windowPages": "number",
-     "windowTimeoutSeconds": "number"
-    },
-    "medium": {
-     "backend": "str",
-     "effort": "str",
-     "formulas": "bool",
-     "hardware": "str",
-     "imageAnalysis": "bool",
-     "lang": "str",
-     "method": "str",
-     "tables": "bool",
-     "waitMaxSeconds": "number",
-     "windowPages": "number",
-     "windowTimeoutSeconds": "number"
-    }
-   },
-   "profiles": [
+   "tiers": [
     "str"
    ],
    "updatedAt": "null",
@@ -800,6 +742,7 @@
    "projectId": "null",
    "retriedAt": "datetime",
    "retriedBy": "str",
+   "retryGeneration": "number",
    "status": "str",
    "type": "str",
    "workerId": "null"
@@ -1096,8 +1039,8 @@
       "variable": "str"
      }
     },
-    "gateway": {
-     "authToken": {
+    "nim": {
+     "apiKey": {
       "configured": "bool",
       "locked": "bool",
       "secret": "bool",
@@ -1112,6 +1055,13 @@
       "variable": "str"
      },
      "model": {
+      "configured": "bool",
+      "locked": "bool",
+      "secret": "bool",
+      "value": "null",
+      "variable": "str"
+     },
+     "smallFastModel": {
       "configured": "bool",
       "locked": "bool",
       "secret": "bool",
@@ -1201,59 +1151,29 @@
  },
  "PUT /api/settings/parsing": {
   "body": {
-   "backends": [
-    "str"
-   ],
-   "efforts": [
-    "str"
-   ],
    "enabled": "bool",
    "fields": {
-    "backend": {
+    "apiKey": {
      "locked": "bool",
      "source": "str",
      "value": "str"
-    },
-    "effort": {
-     "locked": "bool",
-     "source": "str"
-    },
-    "formulas": {
-     "locked": "bool",
-     "source": "str",
-     "value": "bool"
-    },
-    "imageAnalysis": {
-     "locked": "bool",
-     "source": "str",
-     "value": "bool"
     },
     "lang": {
      "locked": "bool",
      "source": "str",
      "value": "str"
     },
-    "method": {
-     "locked": "bool",
-     "source": "str",
-     "value": "str"
-    },
-    "profile": {
-     "locked": "bool",
-     "source": "str",
-     "value": "str"
-    },
-    "tables": {
-     "locked": "bool",
-     "source": "str",
-     "value": "bool"
-    },
-    "url": {
+    "tier": {
      "locked": "bool",
      "source": "str",
      "value": "str"
     },
     "waitMaxSeconds": {
+     "locked": "bool",
+     "source": "str",
+     "value": "number"
+    },
+    "windowConcurrency": {
      "locked": "bool",
      "source": "str",
      "value": "number"
@@ -1269,51 +1189,7 @@
      "value": "number"
     }
    },
-   "methods": [
-    "str"
-   ],
-   "presets": {
-    "high": {
-     "backend": "str",
-     "effort": "str",
-     "formulas": "bool",
-     "hardware": "str",
-     "imageAnalysis": "bool",
-     "lang": "str",
-     "method": "str",
-     "tables": "bool",
-     "waitMaxSeconds": "number",
-     "windowPages": "number",
-     "windowTimeoutSeconds": "number"
-    },
-    "low": {
-     "backend": "str",
-     "effort": "null",
-     "formulas": "bool",
-     "hardware": "str",
-     "imageAnalysis": "bool",
-     "lang": "str",
-     "method": "str",
-     "tables": "bool",
-     "waitMaxSeconds": "number",
-     "windowPages": "number",
-     "windowTimeoutSeconds": "number"
-    },
-    "medium": {
-     "backend": "str",
-     "effort": "str",
-     "formulas": "bool",
-     "hardware": "str",
-     "imageAnalysis": "bool",
-     "lang": "str",
-     "method": "str",
-     "tables": "bool",
-     "waitMaxSeconds": "number",
-     "windowPages": "number",
-     "windowTimeoutSeconds": "number"
-    }
-   },
-   "profiles": [
+   "tiers": [
     "str"
    ],
    "updatedAt": "datetime",
@@ -1321,127 +1197,11 @@
   },
   "status": 200
  },
- "PUT /api/settings/parsing #unknown profile": {
+ "PUT /api/settings/parsing #fast tier rejected": {
   "body": {
-   "backends": [
-    "str"
-   ],
-   "efforts": [
-    "str"
-   ],
-   "enabled": "bool",
-   "fields": {
-    "backend": {
-     "locked": "bool",
-     "source": "str",
-     "value": "str"
-    },
-    "effort": {
-     "locked": "bool",
-     "source": "str"
-    },
-    "formulas": {
-     "locked": "bool",
-     "source": "str",
-     "value": "bool"
-    },
-    "imageAnalysis": {
-     "locked": "bool",
-     "source": "str",
-     "value": "bool"
-    },
-    "lang": {
-     "locked": "bool",
-     "source": "str",
-     "value": "str"
-    },
-    "method": {
-     "locked": "bool",
-     "source": "str",
-     "value": "str"
-    },
-    "profile": {
-     "locked": "bool",
-     "source": "str",
-     "value": "str"
-    },
-    "tables": {
-     "locked": "bool",
-     "source": "str",
-     "value": "bool"
-    },
-    "url": {
-     "locked": "bool",
-     "source": "str",
-     "value": "str"
-    },
-    "waitMaxSeconds": {
-     "locked": "bool",
-     "source": "str",
-     "value": "number"
-    },
-    "windowPages": {
-     "locked": "bool",
-     "source": "str",
-     "value": "number"
-    },
-    "windowTimeoutSeconds": {
-     "locked": "bool",
-     "source": "str",
-     "value": "number"
-    }
-   },
-   "methods": [
-    "str"
-   ],
-   "presets": {
-    "high": {
-     "backend": "str",
-     "effort": "str",
-     "formulas": "bool",
-     "hardware": "str",
-     "imageAnalysis": "bool",
-     "lang": "str",
-     "method": "str",
-     "tables": "bool",
-     "waitMaxSeconds": "number",
-     "windowPages": "number",
-     "windowTimeoutSeconds": "number"
-    },
-    "low": {
-     "backend": "str",
-     "effort": "null",
-     "formulas": "bool",
-     "hardware": "str",
-     "imageAnalysis": "bool",
-     "lang": "str",
-     "method": "str",
-     "tables": "bool",
-     "waitMaxSeconds": "number",
-     "windowPages": "number",
-     "windowTimeoutSeconds": "number"
-    },
-    "medium": {
-     "backend": "str",
-     "effort": "str",
-     "formulas": "bool",
-     "hardware": "str",
-     "imageAnalysis": "bool",
-     "lang": "str",
-     "method": "str",
-     "tables": "bool",
-     "waitMaxSeconds": "number",
-     "windowPages": "number",
-     "windowTimeoutSeconds": "number"
-    }
-   },
-   "profiles": [
-    "str"
-   ],
-   "updatedAt": "datetime",
-   "updatedBy": "str"
+   "detail": "str"
   },
-  "status": 200
+  "status": 400
  },
  "PUT /api/settings/pipeline": {
   "body": {

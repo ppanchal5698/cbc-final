@@ -27,7 +27,7 @@ description: >
 
 ## Where you stop
 
-Run `python scripts/validate_and_render_quote.py <project>` to produce
+Run `python apps/backend/scripts/validate_and_render_quote.py <project>` to produce
 `quotation.html`. **If validation exits non-zero, stop** — report errors to
 pricing-engineer; never patch `priced/line_items.json` with ad-hoc scripts.
 

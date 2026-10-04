@@ -85,7 +85,7 @@ def test_low_completeness_is_needs_review(tmp_path, monkeypatch) -> None:
     settings.storage_root = tmp_path
     try:
         storage.scaffold("thin")
-        path = tmp_path / "thin" / "extracted" / "door_schedule.json"
+        path = tmp_path / "thin" / "extracted" / "line_items.json"
         path.write_text(
             '{"openings":[{"door_number":"101"},{"door_number":"102"}]}',
             encoding="utf-8",

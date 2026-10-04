@@ -73,12 +73,36 @@ def allowed_relpath(relative: str) -> bool:
     return bool(SAVE_ALLOW.match(posix))
 
 
-def scratch_root(job_id: str) -> Path:
-    return settings.storage_root / "_scratch" / str(job_id)
+def scratch_root(slug: str) -> Path:
+    """Where a bid's clone lives while a job works on it.
+
+    Keyed by project, not by job. Claude Code's prompt cache is a prefix match
+    and the working directory is part of that prefix, so a path that changes
+    every job makes every run pay to write the same ~32k prefix again. Measured
+    on this CLI with a four-run probe: two runs from one directory, then the
+    same prompt and byte-identical files from a second directory - the second
+    directory cost $0.0404 against $0.0056, 7.2x, and wrote exactly as many
+    cache tokens as the very first cold run.
+
+    The clone is still wiped and re-made in `prepare`, so a job sees what it has
+    always seen: a fresh copy of the live bid. Only the *name* is stable, which
+    is the whole of what the cache keys on.
+    """
+    return settings.storage_root / "_scratch" / str(slug)
 
 
-def workspace_dir(job_id: str) -> Path:
-    return scratch_root(job_id) / "workspace"
+def workspace_dir(slug: str) -> Path:
+    return scratch_root(slug) / "workspace"
+
+
+def quarantine_dir(slug: str, job_id: str) -> Path:
+    """Where a workspace is set aside when its promote failed.
+
+    Under per-job keying a failed clone survived because the next job had its
+    own directory. Now it would be the next job's `rmtree`, so move it out of
+    the way instead of losing the only copy of work that never reached the bid.
+    """
+    return scratch_root(slug) / f"failed-{job_id}"
 
 
 def ensure_workspace_trusted(workspace: Path, *, home: Path | None = None) -> bool:
@@ -109,12 +133,28 @@ def ensure_workspace_trusted(workspace: Path, *, home: Path | None = None) -> bo
     return True
 
 
-def prepare(job_id: str, slug: str) -> Path:
+# Directories that live inside the agent config but are not agent config. A
+# graph-indexer run left 62 cache files in `.claude/`; they are gitignored, which
+# keeps them out of the repository and does nothing about this copy - which
+# happens once per leg, of every job, of every bid.
+AGENT_CONFIG_SKIP = frozenset({"graphify-out", "__pycache__", ".pytest_cache", "node_modules"})
+
+
+def agent_config_ignore():
+    """`shutil.copytree` ignore callback: build output never reaches a sandbox."""
+
+    def ignore(_directory: str, names: list[str]) -> set[str]:
+        return {name for name in names if name in AGENT_CONFIG_SKIP}
+
+    return ignore
+
+
+def prepare(slug: str) -> Path:
     """Clone the bid into an isolated workspace. Returns cwd for Claude."""
     from cbc.shared.storage_backends import hydrate_project
 
     hydrate_project(slug)
-    workspace = workspace_dir(job_id)
+    workspace = workspace_dir(slug)
     if workspace.exists():
         shutil.rmtree(workspace, ignore_errors=True)
     dest_project = workspace / "projects" / slug
@@ -137,7 +177,7 @@ def prepare(job_id: str, slug: str) -> Path:
             continue
         try:
             if origin.is_dir():
-                shutil.copytree(origin, target)
+                shutil.copytree(origin, target, ignore=agent_config_ignore())
             else:
                 shutil.copy2(origin, target)
         except OSError as exc:
@@ -235,17 +275,23 @@ class EmptyPricingPromoteError(ValueError):
     error_code = "sandbox_promote_empty_pricing"
 
 
-def promote(job_id: str, slug: str) -> list[str]:
+def promote(slug: str, *, only: set[str] | None = None) -> list[str]:
     """Copy allowlisted files from the scratch clone back to the live bid.
 
     The audit trail and the versions index are appended to, never replaced; the
     content-addressed version copies are copied. Returns the relative paths that
     were promoted. Anything else is discarded.
 
+    ``only`` restricts the *allowlisted* artifacts promoted to that set of
+    relative paths - used to promote just the succeeded legs of a partially-failed
+    wave, so one failed FRP leg does not discard a finished take-off. The audit
+    trail and version copies (APPEND_ONLY / VERSION_COPY) always promote: they are
+    the whole run's history, not any one leg's.
+
     Rejects promoting an empty ``priced/line_items.json`` over a live file that
     already has lines — that was the session-to-session data-loss failure mode.
     """
-    clone = workspace_dir(job_id) / "projects" / slug
+    clone = workspace_dir(slug) / "projects" / slug
     dest = storage.project_dir(slug)
     dest.mkdir(parents=True, exist_ok=True)
 
@@ -273,8 +319,17 @@ def promote(job_id: str, slug: str) -> list[str]:
             if _append_new_lines(path, target):
                 promoted.append(rel)
             continue
-        if not (allowed_relpath(rel) or VERSION_COPY.match(rel)):
+        if VERSION_COPY.match(rel):
+            target.parent.mkdir(parents=True, exist_ok=True)
+            _copy_replace(path, target)
+            promoted.append(rel)
+            continue
+        if not allowed_relpath(rel):
             discarded.append(rel)
+            continue
+        if only is not None and rel not in only:
+            # A leg that failed (or is not being promoted this pass): its artifact
+            # stays in the clone and is not copied to the live bid.
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
         _copy_replace(path, target)
@@ -296,9 +351,14 @@ def promote(job_id: str, slug: str) -> list[str]:
     return promoted
 
 
-def cleanup(job_id: str) -> None:
-    root = scratch_root(job_id)
-    shutil.rmtree(root, ignore_errors=True)
+def cleanup(slug: str) -> None:
+    """Drop the clone, keeping anything quarantined beside it.
+
+    This used to remove the whole scratch root, which was safe when the root was
+    per-job. Per-project it would take a `failed-*` copy from an earlier job
+    with it.
+    """
+    shutil.rmtree(workspace_dir(slug), ignore_errors=True)
 
 
 def env_for(workspace: Path, base: dict[str, str] | None) -> dict[str, str]:
@@ -366,6 +426,7 @@ def run_claude_docker(
     on_heartbeat=None,
     heartbeat_seconds: float = 30,
     cwd: Path | None = None,
+    resume_session_id: str | None = None,
     **_ignored,
 ):
     """Run Claude in a one-shot read-only container bound only to the scratch dir.
@@ -410,6 +471,11 @@ def run_claude_docker(
                 "max_turns": max_turns,
                 "settings": settings,
                 "recording": str(rec_inside),
+                # Carried through the request file like every other flag. A
+                # one-shot container mounts the session store read-write at
+                # $HOME/.claude, so a resumed id resolves the same way it does in
+                # process mode; if it does not, claude_pass falls back to cold.
+                "resume_session_id": resume_session_id,
             }
         ),
         encoding="utf-8",
@@ -507,6 +573,7 @@ def run_claude_docker(
             returncode=int(payload.get("returncode") or completed.returncode),
             permanent=bool(payload.get("permanent")),
             error_code=payload.get("error_code"),
+            session_id=payload.get("session_id"),
         )
     err = (completed.stderr or completed.stdout or "sandbox container produced no result")[-4000:]
     return RunResult(
