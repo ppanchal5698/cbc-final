@@ -150,7 +150,7 @@ def _writable_target(file_path: Path, out_dir: str | Path | None) -> Path:
     Defaulting to the source PDF's own directory was wrong in two ways that only
     show up in a real run. Rendering a page of a bid set dropped
     `1_Architectural_p12_200dpi.png` into `projects/{slug}/uploads/raw/`, where
-    `.claude/rules/file-safety.md` says the uploads are immutable and extraction
+    `.claude/rules/00-core-constraints.md` says the uploads are immutable and extraction
     output belongs in `uploads/processed/` or `extracted/`. Rendering a page of a
     price book would try to write into `pricebooks/`, which is read-only during a
     run and mounted `:ro` on the worker.
@@ -176,7 +176,7 @@ def _writable_target(file_path: Path, out_dir: str | Path | None) -> Path:
         if target == protected or protected in target.parents:
             raise ValueError(
                 f"refusing to write a rendered page into {protected.name}/ - it is "
-                "read-only reference data (.claude/rules/file-safety.md)"
+                "read-only reference data (.claude/rules/00-core-constraints.md)"
             )
     if target.name == "raw" and target.parent.name == "uploads":
         raise ValueError(

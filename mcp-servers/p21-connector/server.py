@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """p21-connector MCP server - READ-ONLY last-PO cost lookup.
 
-Cost path 1 of three (.claude/memory/cost_sourcing_rules.md).
+The first priced rung of the cost ladder (.claude/memory/cost_sourcing_rules.md).
 
 There are no write tools in this module. That is the guardrail, not an oversight
-(NFR-5, .claude/rules/p21-read-only.md).
+(NFR-5, .claude/guides/pricing.md).
 
 P21 is not integrated yet (NR-10 - feasibility under investigation). Until
 P21_BASE_URL is set, every lookup returns a structured "manual entry required"

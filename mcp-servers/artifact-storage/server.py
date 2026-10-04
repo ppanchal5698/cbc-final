@@ -5,7 +5,7 @@ Every write is content-addressed by SHA-256 and recorded in an append-only index
 so "what did the previous run produce for this opening?" is always answerable
 (NFR-3, .claude/rules/auditability.md).
 
-Writes are confined to projects/{project}/ (.claude/rules/file-safety.md).
+Writes are confined to projects/{project}/ (.claude/rules/00-core-constraints.md).
 """
 from __future__ import annotations
 

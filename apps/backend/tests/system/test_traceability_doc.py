@@ -55,8 +55,7 @@ ROOTED = (
 
 # Paths we know are absent, and are tracked as defects rather than hidden.
 # Removing an entry here is the right move the moment the file comes back;
-# adding one to make this test green without a matching entry in
-# docs/data_stewardship.md is the wrong move.
+# adding one only to make this test green is the wrong move.
 # Directories whose contents are runtime data, not source. A real install has
 # price books and projects in them; a clean checkout does not. The docs should
 # still say where those live, so the roots are named here and not descended

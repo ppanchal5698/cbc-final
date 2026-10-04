@@ -35,8 +35,8 @@ class Bands:
     updated_by: str | None = None
 
     # catalog_stale_* is the price-sheet review window (Matrix 6.3); fresh_* and
-    # discard_after_* are a P21 cost's bands (6.2). data-stewardship.md: moving one
-    # must not move the other, so neither is bounded by the other.
+    # discard_after_* are a P21 cost's bands (6.2). They measure different things:
+    # moving one must not move the other, so neither is bounded by the other.
     fresh_months: int = core.FRESH_MONTHS
     fresh_days: int = core.FRESH_DAYS
 

@@ -105,8 +105,10 @@ the grade.
 Record `null` and flag. Never infer from a neighbouring row.
 
 - **Fire rating** - often absent from the door schedule (GROUP-style and matrix
-  layouts). Search type schedule + Div 08 before finishing. Interim: flag
-  `fire_rating_missing` at high severity; do **not** hard-stop or invent.
+  layouts). Search type schedule + Div 08 before finishing. Then flag
+  `fire_rating_missing` at high severity; do **not** stop the take-off or
+  invent. On a set where `scope_summary.fire_ratings_present` is true the flag
+  blocks proposal approval until the estimator resolves it.
 - **Handing** - when the schedule has no HAND column, **must** try the floor-plan
   swing before leaving `handing_missing` (Matrix 7.4). Never default LH.
 - **Finish** - sheet-level note ("ALL HARDWARE SHALL BE US32D") or per HW item.

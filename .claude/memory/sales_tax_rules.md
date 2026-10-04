@@ -30,4 +30,5 @@ all-inclusive bottom line.
 Hager freight reference (account id in `data/reference-library/multipliers/vendor_tiers.json`): prepaid freight at **$1,500** ($5,000 drop-ship);
 crating $50.00; itemization/tagging $175.00.
 
-See [project_context](project_context.md), [process_flow](process_flow.md).
+See [project_context](project_context.md), and
+[delivery-agent](../agents/delivery-agent.md) for the Phase 6 terms check.

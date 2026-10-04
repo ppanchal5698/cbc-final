@@ -12,7 +12,7 @@ receives - collapsed each section into a single group named after the section, s
 It also dropped `substitution_note`. `_render_proposal_html` built each line dict
 by hand and simply had no key for it, so a direct equal printed as the substituted
 part with no mention that it was a substitution - while
-`.claude/rules/accuracy-trust.md` requires the note "naming what was specified and
+`.claude/guides/extraction.md` requires the note "naming what was specified and
 what is being offered instead" on every one. The template has always had a place
 to print it; the API path never gave it one.
 

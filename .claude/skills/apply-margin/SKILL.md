@@ -12,8 +12,9 @@ description: >
 ## The bands
 
 Use `mcp__reference__get_margin_bands` (or `mcp__calc-engine__validate_margin`).
-Mongo `referenceData/margins` is the live source of truth — do not Read seed JSON
-under `reference-library/` and do not invent band numbers.
+Mongo `referenceData/margins` is the live source of truth — the seed JSON
+(`data/reference-library/margins/margin_framework.json`) is for humans and is not
+in a run's workspace. Do not invent band numbers.
 
 Stable for about 14 years.
 

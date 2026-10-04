@@ -24,7 +24,7 @@ field and citing the page you read it from. A whole-file rewrite of a seeded
 schedule is refused, and one bad key in a rewritten document used to cost the
 whole run.
 
-Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/extraction.md).
+Obey the extraction and take-off guides (see .claude/guides/extraction.md and .claude/guides/takeoff.md).
 
 ## Fixed procedure (do not improvise)
 
@@ -73,7 +73,8 @@ Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/e
    the page need your eyes, and `_visual_pages.json` will already list it.
 
    **Schedule visual protocol, for pages the parser could not read:**
-   1. `Read` the `_visual_pages.json` image, or call `get_page_image(page)`.
+   1. `Read` the `_visual_pages.json` image, or call
+      `get_page_image(file_path, page_number=…)`.
       The image comes back with the reply — you do not need a second `Read`.
    2. If it shows a DOOR SCHEDULE / HARDWARE LEGEND with data rows, author
       openings from it. Empty `parse_schedule` / `extract_tables` output on a
@@ -88,12 +89,12 @@ Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/e
       out of turns before it finished checking.
    4. Do **not** declare the schedule a "blank template" because a crop was
       unreadable. An unreadable crop is a wrong rectangle, not empty scope.
-   4. HM / WD rows on the door schedule are **CBC in-scope openings**, even when
+   5. HM / WD rows on the door schedule are **CBC in-scope openings**, even when
       a landlord work letter also lists them. Landlord letters do **not** move
       scheduled HM doors out of CBC scope. Only ALUM/storefront marks are OOS
       (list them in `out_of_scope_items`, still do not empty the openings array
       when HM/WD rows exist).
-   5. If sheetmap has `door_schedule_candidate` pages and the image shows
+   6. If sheetmap has `door_schedule_candidate` pages and the image shows
       schedule rows, writing `openings: []` will fail artifact validation —
       that is intentional. Extract the rows.
 

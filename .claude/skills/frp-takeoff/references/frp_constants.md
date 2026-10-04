@@ -4,8 +4,8 @@
 
 **These constants do not exist yet.** Open Item 5: CBC (Shanna / Vu360) still owes
 the geometry-to-quantity conversion values. Live values:
-`mcp__reference__get_frp_constants` (Mongo). Seed placeholder:
-reference-library/frp_constants/conversion_constants.json
+`mcp__reference__get_frp_constants` (Mongo). Seed placeholder, for humans only:
+`data/reference-library/frp_constants/conversion_constants.json`.
 
 ## What is needed
 

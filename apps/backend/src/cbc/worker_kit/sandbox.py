@@ -133,15 +133,22 @@ def ensure_workspace_trusted(workspace: Path, *, home: Path | None = None) -> bo
     return True
 
 
-# Directories that live inside the agent config but are not agent config. A
+# Things that live inside the agent config but are not agent config. A
 # graph-indexer run left 62 cache files in `.claude/`; they are gitignored, which
 # keeps them out of the repository and does nothing about this copy - which
 # happens once per leg, of every job, of every bid.
-AGENT_CONFIG_SKIP = frozenset({"graphify-out", "__pycache__", ".pytest_cache", "node_modules"})
+#
+# `settings.local.json` is a developer's own settings for working on this repo.
+# Compose bind-mounts the host's `.claude/`, so without this a local blanket
+# allow, or `disableAllHooks`, reached every pipeline run and could switch the
+# product's guards off. The image already leaves it out (.dockerignore).
+AGENT_CONFIG_SKIP = frozenset(
+    {"graphify-out", "__pycache__", ".pytest_cache", "node_modules", "settings.local.json"}
+)
 
 
 def agent_config_ignore():
-    """`shutil.copytree` ignore callback: build output never reaches a sandbox."""
+    """`shutil.copytree` ignore callback: build output and local settings never reach a sandbox."""
 
     def ignore(_directory: str, names: list[str]) -> set[str]:
         return {name for name in names if name in AGENT_CONFIG_SKIP}

@@ -89,7 +89,7 @@ def reset_pricebooks(pricebook_dir: Path) -> None:
     index = {
         "description": "Inventory of CBC vendor price books. Read-only during a pipeline run.",
         "generated_from": "final_pricebooks/",
-        "refresh_cadence": "UNDEFINED - see .claude/rules/data-stewardship.md (NFR-10, OPEN)",
+        "refresh_cadence": "UNDEFINED (NFR-10, OPEN)",
         "pricebooks": [],
     }
     (pricebook_dir / "index.json").write_text(

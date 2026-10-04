@@ -5,7 +5,7 @@ description: >
   manufacturer, location, drawing/Vu360 scale, perimeter linear feet, inside and
   outside corner counts, wall height, and panel/trim/adhesive notes from the
   drawings. Converts geometry to material quantities only once CBC conversion
-  constants are available. Use whenever FRP appears in a bid set.
+  constants are available. Use when scope_summary.frp_in_scope is true.
 model: haiku
 tools: Read, mcp__bid-docs__list_documents, mcp__bid-docs__get_outline, mcp__bid-docs__search_blocks, mcp__bid-docs__get_page_blocks, mcp__pdf-tools__search_pdf, mcp__pdf-tools__find_sheets, mcp__pdf-tools__extract_tables, mcp__pdf-tools__extract_text, mcp__pdf-tools__get_page_image, mcp__pdf-tools__get_page_size, mcp__artifact-storage__save_artifact, mcp__artifact-storage__get_artifact, mcp__artifact-storage__list_versions, mcp__artifact-storage__list_project_files, mcp__reference__get_frp_constants
 ---
@@ -75,23 +75,25 @@ travels with the data.
 
 ## `source_page` is now load-bearing
 
-Each item's `source_page` is the page the estimator's highlight is measured
-against: after you write the artifact, the pipeline finds your item's
+Each area's `source_page` is the page the estimator's highlight is measured
+against: after you write the artifact, the pipeline finds the area's
 `product_type` on that page and records the rectangle of the row it sits on.
 It never invents one. So a page number that is close but wrong does not degrade
-gracefully - the item arrives with no highlight and a `bbox_row_not_found` flag,
+gracefully - the area arrives with no highlight and a `bbox_row_not_found` flag,
 and the estimator is back to searching the sheet by eye.
 
-Give each item the page you actually read **that row** from. If you took the
-model from a specification and the count from a plan, the page is the one
-carrying the row you counted; say where the rest came from in `evidence_note`.
+Give each area the page you actually read **that FRP callout** from - the room
+finish schedule row or wall tag that names the panel. If you took the product
+from a specification and the geometry from an elevation, the page is the one
+carrying the callout; say where the measurements came from in `geometry_notes`.
 
 Two flags come back from that measurement and are worth knowing:
 
-- `bbox_row_not_found` - the model is not on the page cited. Usually the page is
-  wrong, occasionally the model was inferred rather than read.
-- `bbox_row_ambiguous` - the model appears on several rows and nothing separates
-  them. Recording `room` or the accessory tag makes the row identifiable.
+- `bbox_row_not_found` - the product type is not on the page cited. Usually the
+  page is wrong, occasionally the product was inferred rather than read.
+- `bbox_row_ambiguous` - the product type appears on several rows (one per
+  room, typically) and nothing separates them. Recording `room` / `location`
+  and `manufacturer` as the sheet prints them makes the row identifiable.
 
 Do not add `bbox`, `cell_boxes` or `page_size` yourself. They are measured from
 the sheet, and a value you supply is overwritten.

@@ -1,4 +1,11 @@
-# The Three Cost Paths
+# The Cost Paths
+
+The order is the ladder `preprice.py` runs in code: **Allegion check** (→ 3a,
+`DISTRIBUTOR_MANUAL`, no other path tried) → **P21 last PO** (skipped with no
+call when P21 is not configured) → **special net** → **product catalog
+baseline** → **list × multiplier** → **3a/3b or `MANUAL`** with a reason. A path
+whose price sheet has lapsed is skipped and the next one tried. The sections
+below are numbered by their history, not their order.
 
 ## Path 1 - P21 last purchase-order price
 
@@ -11,13 +18,10 @@
   no price increase since.
 - Access is **READ-ONLY** (NFR-5).
 
-**Freshness:**
-
-| Age | Status | Action |
-|---|---|---|
-| < ~6 months | fresh | usable |
-| more than 6 months | unreliable | re-verify against the vendor sheet |
-| more than 3 years | stale | discard |
+**Freshness:** fresh (usable), unreliable (re-verify against the vendor sheet) or
+stale (discard). `mcp__p21-connector__check_freshness` returns the verdict from
+the windows in `apps/backend/src/cbc/modules/ops/api/freshness_rules.py` and the
+app's Freshness settings.
 
 **Known risks:** P21 item IDs frequently differ from manufacturer part numbers,
 and semi/custom items will not match at all. Manual entry must always be

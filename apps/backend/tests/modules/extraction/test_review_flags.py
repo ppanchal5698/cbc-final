@@ -188,7 +188,7 @@ def test_write_flags_is_idempotent(project) -> None:
 
 
 def test_a_line_priced_from_an_excluded_vendor_is_flagged_out_of_scope(project) -> None:
-    """scope-boundaries: an excluded vendor is flagged whatever price the line carries."""
+    """.claude/guides/takeoff.md: an excluded vendor is flagged whatever price the line carries."""
     reference_store.use_memory({"vendor_tiers": {"data": {"vendors": [], "excluded": [
         {"name": "American Dryer", "reason": "No longer used"},
     ]}}})

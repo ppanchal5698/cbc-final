@@ -3,7 +3,7 @@
 READ-ONLY by construction: the one HTTP helper hardcodes ``method="GET"`` and has
 no body parameter in its signature, so there is no code path that can write - the
 same refusal-by-shape ``pageindex/reader.py`` makes, and the guarantee NFR-5 /
-``.claude/rules/p21-read-only.md`` require. ``__all__`` pins the public surface to
+``.claude/guides/pricing.md`` require. ``__all__`` pins the public surface to
 ``last_po`` alone, so a test fails if a write verb is ever added.
 
 P21 is not integrated yet (NR-10). Until ``P21_BASE_URL`` is set, ``last_po``

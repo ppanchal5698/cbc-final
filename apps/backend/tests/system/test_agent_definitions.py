@@ -167,7 +167,7 @@ def test_takeoff_engineer_is_review_first_and_patch_only() -> None:
     assert "thickness" in body.lower()
     assert "save_artifact" in body
     assert "Never use Write" in body or "never Write" in body.lower()
-    assert "PDF verify" in body or "pdf-verify-before-present" in body
+    assert "PDF verify" in body
     assert "evidence_note" in body
     assert "get_page_blocks" in body or "search_blocks" in body
 
@@ -178,7 +178,7 @@ def test_quality_reviewer_can_open_the_pdf_when_unclear() -> None:
     tools = _frontmatter_tools(text)
     body = _body(text)
     assert any(t.startswith("mcp__pdf-tools__") for t in tools)
-    assert "PDF verify" in body or "pdf-verify-before-present" in body
+    assert "PDF verify" in body
     assert "get_page_blocks" in body or "search_blocks" in body
 
 

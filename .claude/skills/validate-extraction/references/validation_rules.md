@@ -24,8 +24,8 @@
 | wall_type resolvable | medium | Needed to derive frame depth |
 | confidence present, 0.0-1.0 | error | NFR-2 - every match carries a score |
 | confidence below 0.75 | high | Flag for review, never auto-accept |
-| cost_source recorded | error | One of P21_LAST_PO, LIST_X_MULTIPLIER, VENDOR_RFQ, DISTRIBUTOR_MANUAL, MANUAL |
-| margin within band | medium | Below-band flags only; approval routing is deferred |
+| cost_source recorded | error | One of P21_LAST_PO, SPECIAL_NET, CATALOG_BASELINE, LIST_X_MULTIPLIER, VENDOR_RFQ, DISTRIBUTOR_MANUAL, MANUAL |
+| margin within band | medium | Below-band with no `margin_override_reason` blocks approval; with one it is advisory. Approval routing is deferred |
 | out-of-scope item quoted | error | Record it, never price it |
 | opening extra property | error | Closed-world Opening allowlist; relocate Thickness etc. into `notes` |
 | page_size shape | error | Must be `{width, height}` numbers — not `[w, h]` |
@@ -57,9 +57,13 @@ strictly better.
 
 ## Known-pending items that are NOT validation failures
 
-These are flagged but expected, and must not be treated as extraction bugs:
+These are flagged but expected, and must not be treated as extraction bugs. Not a
+bug is not the same as not blocking: the first two still **block proposal
+approval** until the estimator resolves them.
 
-- **Fire rating** - mandatory extract; high review flag when absent/uncertain after PDF verify.
-- **FRP conversion constants** - Open Item 5 still unanswered.
+- **Fire rating** - mandatory extract; high review flag when absent/uncertain after
+  PDF verify. Blocking when `scope_summary.fire_ratings_present` is true.
+- **FRP conversion constants** - Open Item 5 still unanswered. Blocking once FRP has
+  been taken off.
 - **Alternates and addenda handling** - Matrix 4.1 / Open Item 11 still unanswered.
 - **Top-10 stock list** - NR-6, CBC still owes the authoritative list.

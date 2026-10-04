@@ -11,7 +11,10 @@ The rating must never be silently dropped.
 Exact bid-page location varies across sets (door-schedule column, frame
 schedule, notes, or Div 08 text). Always search; when absent or uncertain after
 PDF verify, leave `fire_rating: null` with a **visible** `fire_rating_missing`
-review flag — never invent and never hard-stop the pipeline solely for a null.
+review flag — never invent, and never stop the extraction for a null. When
+`scope_summary.fire_ratings_present` is true, that flag **blocks proposal
+approval** until the estimator resolves it; in a set with no ratings anywhere it
+is advisory.
 
 ## How a real estimator looks for it (mandatory search order)
 

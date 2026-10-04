@@ -2,7 +2,7 @@
 """PreToolUse guardrail: block anything that could send a quotation (NFR-1).
 
 Exit 2 = block the tool call. Exit 0 = allow.
-Rule: .claude/rules/human-in-the-loop.md
+Rule: .claude/rules/00-core-constraints.md
 """
 from __future__ import annotations
 

@@ -8,7 +8,7 @@ the section, and built its line dicts by hand with no key for
 
 So "grouped by door with subtotals" was true only of the path nobody sees, and a
 direct equal printed to a customer as the substituted part with no mention that
-anything had been substituted - while `.claude/rules/accuracy-trust.md` requires
+anything had been substituted - while `.claude/guides/extraction.md` requires
 that note on every one.
 """
 from __future__ import annotations
@@ -34,7 +34,7 @@ def test_lines_are_grouped_by_door_with_a_subtotal_each() -> None:
 
 
 def test_a_substitution_note_survives_into_the_document() -> None:
-    """The accuracy-trust requirement the customer-facing path dropped."""
+    """The extraction guide's requirement the customer-facing path dropped."""
     blocks = layout.blocks([
         line(group="Door 101", division="08 71 00", ext_price=74.0,
              substitution_note="specified Von Duprin 99; offering Hager 4500"),

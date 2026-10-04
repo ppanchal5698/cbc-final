@@ -102,7 +102,7 @@ def apply_margin(
     if override_margin is not None and not override_reason:
         result["warning"] = (
             "Margin overridden with no recorded reason - this is what the "
-            "margin-governance flag exists for."
+            "below-band margin flag exists for (.claude/guides/pricing.md)."
         )
     return result
 

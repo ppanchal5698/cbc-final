@@ -132,7 +132,7 @@ def evaluate(
 
 
 def _score(matched: list[str], failed: list[str], opening: dict[str, Any]) -> float:
-    """Confidence bands from `.claude/rules/accuracy-trust.md`.
+    """Confidence bands from `.claude/guides/extraction.md`.
 
     An ineligible candidate scores 0.0 - not "low", but "not a match at all".
     """

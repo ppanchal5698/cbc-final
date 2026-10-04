@@ -166,7 +166,7 @@ async def proposal_payload(project: dict[str, Any]) -> dict[str, Any]:
         {"projectId": project["_id"], "cost": None}
     )
 
-    # data-stewardship.md: a lapsed sheet means the margin on those lines is not
+    # A lapsed sheet means the margin on those lines is not
     # real, and purchasing has to confirm the cost before the proposal leaves
     # the building. It blocks until purchasing confirms or an override is
     # recorded, which is why the override names who made it.

@@ -1,7 +1,7 @@
 """Tool definitions for the p21-connector MCP server.
 
 READ-ONLY BY DESIGN. There is deliberately no create / update / delete tool here,
-and there never will be in this workstream (NFR-5, .claude/rules/p21-read-only.md).
+and there never will be in this workstream (NFR-5, .claude/guides/pricing.md).
 """
 from __future__ import annotations
 

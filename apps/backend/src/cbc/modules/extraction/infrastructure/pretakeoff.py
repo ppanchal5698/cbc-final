@@ -325,7 +325,7 @@ def seed_hardware_groups(slug: str) -> dict[str, Any]:
 # scope_summary.json. A model that writes neither leaves the estimator with
 # nothing at all, so the worker writes a truthful floor for both and lets the
 # model improve on it. Truthful means: what is actually known goes in, what is
-# not is null with a flag saying so - never a guess (.claude/rules/accuracy-trust.md).
+# not is null with a flag saying so - never a guess (.claude/guides/extraction.md).
 
 
 def seed_scope_summary(slug: str) -> dict[str, Any]:
@@ -384,7 +384,7 @@ def seed_scope_summary(slug: str) -> dict[str, Any]:
         ],
         "divisions": [],
         # What CBC is not covering, decided by the rules rather than by a pass
-        # re-reading `scope-boundaries.md` and agreeing with itself.
+        # re-reading `.claude/guides/takeoff.md` and agreeing with itself.
         "out_of_scope_items": scope_rules.out_of_scope_items(
             (_existing(slug).get("openings") or [])
         ),

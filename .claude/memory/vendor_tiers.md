@@ -37,8 +37,9 @@ at the 50-and-42 discount (0.290) cost is about **$74**.
 | Bobrick / Gamco | HP 2017 program net sheets | net pricing, not list x multiplier |
 | NUDO / Midwest-East Coast | FRP + vinyl moldings sheets eff. 5-11-26 | see [manual_cutoff](manual_cutoff.md) |
 
-## Distributor-bought lines — MANUAL price entry (NR-2)
-Not bought direct, so no multiplier applies. **Always require manual entry** with a
+## Distributor-bought lines — `DISTRIBUTOR_MANUAL` price entry (NR-2)
+Not bought direct, so no multiplier applies. **Always require manual entry**
+(`cost_source: DISTRIBUTOR_MANUAL`, cost null until priced) with a
 "price may be out of date — refresh" prompt:
 - **Allegion** (Von Duprin, LCN, Schlage, Ives) via **Banner Solutions** or **SecLock**
 - Restroom accessories via **J2**
@@ -46,7 +47,7 @@ Not bought direct, so no multiplier applies. **Always require manual entry** wit
 
 ## Adders not shown cleanly in the price book (NR-4)
 Electrification, non-removable-pin (NRP) hinges, premium / lead-time finishes.
-These are added **on top of** the base price — see
-reference-library/adders/manual_adders.json
+These are added **on top of** the base price — from `mcp__reference__get_manual_adders`
+(seed: `data/reference-library/adders/manual_adders.json`).
 
 See [cost_sourcing_rules](cost_sourcing_rules.md), [margin_sheet](margin_sheet.md).

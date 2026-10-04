@@ -1,6 +1,6 @@
 """The confidence below which a match is flagged for an estimator, never auto-accepted.
 
-`.claude/rules/accuracy-trust.md` (NFR-2): every matched line carries a confidence,
+`.claude/guides/extraction.md` (NFR-2): every matched line carries a confidence,
 and below 0.75 it is flagged for review. That one number decides whether
 quoting's matching rules auto-match, whether catalog's match cache keeps a
 decision, whether extraction flags a row and an opening, and how the review

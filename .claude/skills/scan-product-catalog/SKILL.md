@@ -79,7 +79,7 @@ page rather than out of a table nobody checked.
 
 ```
 mcp__catalog__find_pages(query="3510 lock", vendor="hager")
-  -> file_path "pricebooks/hager_price_book_18.pdf", pdf_page 297,
+  -> file_path "data/pricebooks/hager_price_book_18.pdf", pdf_page 297,
      locator "PDF p297 (printed p23)", has_prices true
 
 mcp__pdf-tools__extract_tables(file_path=..., page_range="297")

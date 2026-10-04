@@ -23,7 +23,7 @@ There is no separate doc set; the code and its tests are the reference.
 
 ## Agent configuration
 
-Four directories, each loaded differently. **Read
+Six directories, each loaded differently. **Read
 [`.claude/rules/README.md`](.claude/rules/README.md) before adding to any of
 them** — it says which is which and why it matters.
 

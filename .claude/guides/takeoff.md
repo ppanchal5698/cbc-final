@@ -3,8 +3,6 @@
 Applies during take-off and scoping. Not needed during pricing, quoting or
 intake.
 
-Moved from `scope-boundaries.md`; content unchanged.
-
 Quote what is in scope. **Do not attempt to price anything on the out-of-scope list** — flag
 it as out of scope and move on.
 

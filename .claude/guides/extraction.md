@@ -3,9 +3,6 @@
 Applies during take-off, extraction and product matching. Not needed when
 pricing, quoting or working outside the pipeline.
 
-Merged from `accuracy-trust.md` and `pdf-verify-before-present.md`, which
-already cross-referenced each other.
-
 ---
 
 ## Confidence and review flags
@@ -25,7 +22,8 @@ is it one of these?" That behaviour is the target, not a fully automatic answer.
    `review/review_flags.json`. Silence is not an acceptable way to represent
    "I could not read this".
 5. At the **manual cut-off** (`.claude/memory/manual_cutoff.md`) emit
-   `cost_source: MANUAL` with confidence `0.0` and a plain-language reason.
+   `cost_source: MANUAL` (`DISTRIBUTOR_MANUAL` for a distributor-bought line)
+   with confidence `0.0` and a plain-language reason.
 6. When proposing a direct-equal substitution, always attach a **substitution
    note** naming what was specified and what is being offered instead.
 
@@ -38,8 +36,9 @@ is it one of these?" That behaviour is the target, not a fully automatic answer.
 | 0.40–0.74 | Plausible match, needs a human | **flag** |
 | 0.00–0.39 | No usable match / manual cut-off | **flag, price manually** |
 
-`0.75` is the review floor and is stated here once. `skills/match-hardware-sets`
-and `skills/validate-extraction` restate it; this file is the source.
+The review floor is `CONFIDENCE_FLOOR` in
+`apps/backend/src/cbc/modules/pricing/api/confidence.py`; the review flags are
+derived from that constant, so it is the source and the figures here restate it.
 
 ---
 

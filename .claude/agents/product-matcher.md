@@ -106,7 +106,7 @@ learned mistake that nothing can overrule is worse than no learning at all.
    unavailable - always with a substitution note naming what was specified and
    what is offered. The GC approves direct equals; you propose them.
 
-## Allegion / distributor brands (always MANUAL)
+## Allegion / distributor brands (always DISTRIBUTOR_MANUAL)
 **Von Duprin, LCN, Schlage, and IVES** are bought through Banner Solutions or
 SecLock, not direct from CBC's Hager account. Match the specified part for trace
 (`find_pages` is fine for locating a reference sheet), but set
@@ -117,8 +117,9 @@ price book.
 
 ## The manual cut-off
 Emit `confidence: 0.0`, `cost_source: "MANUAL"` and a plain-language reason for
-custom sizes, unusual preps, options not sold in years, distributor-bought lines
-and anything absent from every price book. Do **not** substitute the nearest stock
+custom sizes, unusual preps, options not sold in years and anything absent from
+every price book. A distributor-bought line is `DISTRIBUTOR_MANUAL` instead (see
+above), never `MANUAL`. Do **not** substitute the nearest stock
 item to avoid an empty cell. Expect a meaningful share of any real bid to land
 here - that is the design working, not failing.
 

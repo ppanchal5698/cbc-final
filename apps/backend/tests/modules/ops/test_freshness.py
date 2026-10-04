@@ -109,7 +109,7 @@ def test_from_document_accepts_admin_months() -> None:
 
 
 def test_the_two_windows_move_independently() -> None:
-    """data-stewardship.md: the ~24-month sheet window and the P21 bands are separate rules.
+    """The ~24-month sheet window and the P21 bands are separate rules.
 
     The stored row carried no fresh band, a review window at or past the discard
     band was refused, and the rule text read the review window as the fresh band -

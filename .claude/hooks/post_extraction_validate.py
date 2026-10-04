@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """PostToolUse: validate extraction/pricing output after it is written.
 
-Scope checkpoint files and door_schedule **block** (exit 2) when schema-invalid
-so the next subagent does not run on garbage. Other extraction/pricing checks
-warn only (exit 0) — the worker's post-session gate is the hard backstop.
-Rule: .claude/rules/accuracy-trust.md
+The checkpoint files in SCHEMA_PATHS (scope_metadata, scope_summary,
+line_items) **block** (exit 2) when schema-invalid so the next subagent does not
+run on garbage. Other extraction/pricing checks warn only (exit 0) — the
+worker's post-session gate is the hard backstop.
+Guide: .claude/guides/extraction.md
 """
 from __future__ import annotations
 

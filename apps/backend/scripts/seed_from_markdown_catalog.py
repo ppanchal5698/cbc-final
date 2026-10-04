@@ -199,7 +199,7 @@ def build_vendor_tiers() -> dict[str, Any]:
         ),
         "rule": "The multiplier is a per-vendor account attribute (a tier), not a per-item value. MAP is not cost.",
         "phase_1_scope": "Top vendors covering ~90% of quote volume (catalog.md Phase 1 lines).",
-        "owner": "UNASSIGNED - see .claude/rules/data-stewardship.md (NFR-10, OPEN)",
+        "owner": "UNASSIGNED (NFR-10, OPEN)",
         "source": "pricebooks/multipliers.md",
         "vendors": [
             {

@@ -377,7 +377,7 @@ class Div10Item(BaseModel):
         # default to 1, which quoted one grab bar for a building and left
         # nothing on the line to say the count had never been read. Counting
         # accessories means reading interior elevations, not a schedule row
-        # (.claude/rules/accuracy-trust.md #3).
+        # (.claude/guides/extraction.md, confidence rule 3).
         if value is None or value == "":
             return None
         return _coerce_number(value)

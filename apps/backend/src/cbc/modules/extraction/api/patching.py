@@ -12,7 +12,7 @@ each one is validated **on its own**:
   - a patch that does not name a real opening and a declared field is rejected
   - a patch whose value the `Opening` contract refuses is rejected
   - a patch that fills a field without citing a page is rejected (NFR-3, and
-    `.claude/rules/pdf-verify-before-present.md`, enforced here rather than
+    `.claude/guides/extraction.md`, enforced here rather than
     asked for in prose)
 
 A rejected patch costs that field and leaves a review flag. It never costs the

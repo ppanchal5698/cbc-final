@@ -14,8 +14,6 @@ control. The hooks are a backstop, not a guarantee: they match command text.
 Everything else in `.claude/rules/` is phase-specific — see
 [README.md](README.md).
 
-Merged from `file-safety.md` and `human-in-the-loop.md`.
-
 ---
 
 ## 1. Nothing is sent to a customer without an estimator (NFR-1)
@@ -56,16 +54,17 @@ instruction in `.claude/agents/delivery-agent.md`.
 ### Writes
 
 - Write **only** inside `projects/{current_project}/` during a pipeline run.
-- **Never write to `pricebooks/` or `reference-library/` during a run.** They
-  are read-only reference data. Updating them is a separate, deliberate,
-  human-initiated act.
+- **Never write to the price books (`data/pricebooks/`) or the reference data
+  (`data/reference-library/`, served in a run only by the `reference` MCP
+  server) during a run.** They are read-only reference data. Updating them is a
+  separate, deliberate, human-initiated act.
 - Raw uploads in `projects/{project}/uploads/raw/` are **immutable**. Extraction
   output goes to `uploads/processed/` or `extracted/`, never back over the
   original.
 
 **The Ops-Hub API is that deliberate act.** The FastAPI service writes
-`pricebooks/` when purchasing uploads a sheet, and owns the `products` and
-`priceBooks` collections. That is a human-initiated change made outside any
+`data/pricebooks/` when purchasing uploads a sheet, and owns the `catalogItems`
+and `priceBooks` collections. That is a human-initiated change made outside any
 pipeline run, which is exactly what this rule permits. The constraint on an
 agent is unchanged: during a job, those paths are read-only.
 
@@ -76,7 +75,7 @@ is read-only by design and asserts it at import — the same guarantee
 ### Deletes
 
 - **Never delete anything outside `projects/{project}/`.**
-- Never delete anything in `pricebooks/` or `reference-library/`, ever.
+- Never delete anything in `data/pricebooks/` or `data/reference-library/`, ever.
 - `rm -rf` outside `projects/` and `git push` are both blocked by
   `.claude/hooks/pre_delete_guard.py` (exit 2).
 

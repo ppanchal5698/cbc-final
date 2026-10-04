@@ -374,7 +374,7 @@ def test_lapsed_prices_are_flagged(client, project):
 
 
 def test_a_lapsed_price_holds_the_hand_off(client, project):
-    """data-stewardship.md: the margin on a lapsed line is not real yet.
+    """The margin on a lapsed line is not real yet.
 
     `test_lapsed_prices_are_flagged` backdated a line on this bid, so the gate
     is live here. It is the only thing on the proposal that blocks - flagged

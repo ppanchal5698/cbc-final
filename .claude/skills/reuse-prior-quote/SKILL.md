@@ -20,7 +20,9 @@ Clearing the previous job's residual rows is the first task, not an afterthought
 
 ## Match priority
 
-Search `reference-library/prior_quotes/` and score candidates:
+Prior quotes are prior bids in the Ops-Hub, not files. The app ranks them by brand,
+architect and GC (`apps/backend/src/cbc/modules/projects/infrastructure/reuse.py`)
+and shows them to the estimator on the bid. The signals an estimator weighs:
 
 | Signal | Weight | Note |
 |---|---|---|
@@ -49,16 +51,16 @@ auto-adopt one.
 ## Reference data
 
 - @.claude/memory/estimator_profiles.md
-- @.claude/memory/process_flow.md - Phase 1 and Phase 5
 
 ## Current state
 
-`reference-library/prior_quotes/` is empty. Until CBC supplies completed quotes,
-this skill reports "no prior quotes available" and the pipeline builds one-off.
-That is the correct behaviour, not a failure - and it is why the directory exists
-now rather than later.
+**No MCP tool serves prior quotes to a pipeline run**, and the seed directory
+`data/reference-library/prior_quotes/` is empty and not in a run's workspace. In
+a run this skill therefore reports "no prior quotes available to this run" and
+the pipeline builds one-off. That is the correct behaviour, not a failure - the
+estimator picks a prior bid in the Ops-Hub, where the ranking lives.
 
 ## Output
 
-Write to `projects/{project}/review/prior_quote_candidates.json`: ranked
-candidates with match scores, matched signals, and the reason each was proposed.
+Nothing to write in a run. When an estimator has adopted a prior bid, the
+"Using the match" rules above still apply to the lines it carried over.

@@ -1,6 +1,6 @@
 """A cost is lapsed when its sheet is past the review window - and only then.
 
-This is the one rule that blocks a hand-off (data-stewardship.md), so it is
+This is the one rule that blocks a hand-off, so it is
 worth pinning on its own: the quote grid marks these lines and the proposal
 gate counts them, from this single function.
 """

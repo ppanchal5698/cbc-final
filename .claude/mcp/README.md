@@ -10,13 +10,13 @@ how they start.
 | Server | What it is for | Writes? |
 |---|---|---|
 | **bid-docs** | The bid set as parsed documents — list documents, get an outline, search or fetch text blocks by page. The structured view of what the GC sent. | no |
-| **pdf-tools** | The same PDFs as raw pages — `search_pdf`, `find_sheets`, `extract_tables`, `extract_text`, `get_page_image`, `get_page_size`. Reach for this when you need to *look at the sheet*, which the extraction guide requires before flagging a field missing. | no |
-| **catalog** | The parts CBC can quote, and the price books they come from — lookup and search catalog items, find the page a part sits on, get a multiplier or special net, check stock. | no — read-only by design, asserted at import |
+| **pdf-tools** | The same PDFs as raw pages — `search_pdf`, `find_sheets`, `extract_tables`, `extract_text`, `get_page_image`, `get_page_size`, and `parse_door_openings` (the deterministic door-schedule parse of one page). Reach for this when you need to *look at the sheet*, which the extraction guide requires before flagging a field missing. | no |
+| **catalog** | The parts CBC can quote, and the price books they come from — `recall_match` (what an estimator already confirmed), `lookup_catalog_item`, `search_catalog_items`, `list_catalogs`, `get_catalog_overview`, `find_pages`, `get_page`, `get_multiplier`, `get_special_net`, `is_stock_item`. | no — read-only by design, asserted at import |
 | **catalog-docs** | The price books as parsed documents, page by page. The `bid-docs` equivalent for vendor sheets. | no |
-| **reference** | Pricing policy, served live: margin bands, tax rates, finish crosswalk, frame depths, vendor tiers, manual adders, FRP constants, lite-kit rates. | no |
-| **calc-engine** | The one implementation of the arithmetic — `calculate_line`, `apply_margin`, `compute_totals`, `validate_margin`, `cost_from_list`. Never re-derive a total by hand when this can do it. | no |
+| **reference** | Pricing policy, served live from `referenceData` — `get_margin_bands`, `get_tax_rates`, `get_finish_crosswalk`, `get_frame_depth`, `get_vendor_tier`, `get_special_net`, `get_special_customer_margin`, `get_manual_adders`, `get_frp_constants`, `lookup_lite_kit`, `is_stock_item`, `get_custom_other_matrix`, plus `list_reference_families` / `get_reference_document` for a whole family. The only way reference data reaches a pipeline run: `data/reference-library/` is seed, and is not in a run's workspace. | no |
+| **calc-engine** | The one implementation of the arithmetic — `calculate_line`, `apply_margin`, `compute_totals`, `validate_margin`, `cost_from_list`, `lookup_lite_kit_list_price`. Never re-derive a total by hand when this can do it. | no |
 | **p21-connector** | Prophet 21 cost history — last-PO price, freshness check, item search. | **no, and it exposes no write tools at all.** See [`../guides/pricing.md`](../guides/pricing.md) |
-| **artifact-storage** | Saving an estimator-facing artifact with schema validation and SHA-256 versions — `save_artifact`, `get_artifact`, `list_versions`, `propose_patch`. | **yes — the only writer.** Confined to `CBC_PROJECTS_ROOT` |
+| **artifact-storage** | Saving an estimator-facing artifact with schema validation and SHA-256 versions — `save_artifact`, `get_artifact`, `list_versions`, `list_project_files`, `propose_patch`. | **yes — the only writer.** Confined to `CBC_PROJECTS_ROOT` |
 
 ## Two things worth knowing
 

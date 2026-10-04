@@ -187,7 +187,8 @@ def div10_envelope(pdf: Path, pages: list[int]) -> dict[str, Any]:
 
     So `items` carries what a schedule identified, and `mentions` carries every
     other row that named an accessory - reported, because silence is not an
-    acceptable way to say "I could not read this" (accuracy-trust rule 4), but
+    acceptable way to say "I could not read this" (.claude/guides/extraction.md,
+    confidence rule 4), but
     never priced.
     """
     items: list[dict[str, Any]] = []

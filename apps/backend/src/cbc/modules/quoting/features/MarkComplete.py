@@ -40,10 +40,9 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
     project = await load(code)
     recipient = (body.recipient if body else None) or project.get("initiator")
 
-    # The gate. A lapsed sheet means the margin on those lines is not real
-    # (data-stewardship.md), so the hand-off waits for purchasing or for a
-    # recorded override; a blocking review flag waits for the estimator to clear
-    # what it names. Exported first so the flags see the latest edits.
+    # The gate. A lapsed sheet means the margin on those lines is not real, so
+    # the hand-off waits for purchasing or for a recorded override; a blocking
+    # review flag waits for the estimator to clear what it names. Exported first so the flags see the latest edits.
     await export_for_review(project)
     readiness = (await proposal_payload(project))["readiness"]
     if readiness.get("blocking"):

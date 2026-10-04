@@ -11,17 +11,28 @@ description: >
 
 ## Matching algorithm
 
-Run in order. Stop at the first tier that produces a match.
+What CBC already decided, then the product catalog, then the PDF. Run in order
+and stop at the first tier that produces a match.
 
 | Tier | Test | Confidence |
 |---|---|---|
-| 1 | Exact part number in the reference library, all attributes agree | 0.95 - 1.00 |
-| 2 | Exact part number, one soft attribute differs (finish, size) | 0.75 - 0.94 |
-| 3 | Series match (e.g. `3500` for `3547`), function inferable | 0.55 - 0.74 |
-| 4 | Fuzzy description match via `mcp__catalog__find_pages` (page index ranking) | 0.40 - 0.54 |
+| 0 | An estimator already confirmed this spec: `mcp__catalog__recall_match(specified)` returns `exact: true` | 0.97 |
+| 1 | Exact part in the product catalog (`mcp__catalog__lookup_catalog_item` / `mcp__catalog__search_catalog_items`), all attributes agree | 0.95 - 1.00 |
+| 2 | Exact part in the product catalog, one soft attribute differs (finish, size) | 0.75 - 0.94 |
+| 3 | Series / prefix match in the product catalog (e.g. `3500` for `3547`), function inferable | 0.55 - 0.74 |
+| 4 | Fuzzy description match off the PDF - `mcp__catalog-docs__search_blocks`, or `mcp__catalog__find_pages` when the parse is not ready | 0.40 - 0.54 |
 | 5 | No usable match, or a MANUAL cut-off trigger | 0.00 |
 
-Catalog `find_pages` routes to vendor PDF pages — it does not return prices.
+A Tier 0 match cites who confirmed it and when in `substitution_note`. A near
+recall (`exact: false`) is a candidate, not an answer: score it on its own tier.
+Fire rating, handing and finish still veto a recalled match.
+
+Pass the part **as the schedule writes it**; the catalog tools normalise it and
+report what they matched on in `matched_on`. A catalog miss is an answer, not a
+reason to search harder - the catalog holds no Allegion and no Zero.
+
+`find_pages` and `search_blocks` route to vendor PDF pages — they do not return
+prices.
 
 Read `extracted/_matchcache.json` when present. Reuse matches at confidence
 ≥ 0.75; rematch only uncached items. Do not reuse a cached entry below 0.75.
@@ -46,15 +57,19 @@ Read `extracted/_matchcache.json` when present. Reuse matches at confidence
    **always with a substitution note** naming what was specified and what is
    offered instead. The GC has to approve a direct equal.
 
-Allegion (Von Duprin, LCN, Schlage, Ives) matches fine but has **no CBC price
-book** - every Allegion line becomes `DISTRIBUTOR_MANUAL`.
+Allegion (Von Duprin, LCN, Schlage, Ives) is bought through Banner Solutions or
+SecLock and the product catalog holds none of it. Carry the specified part across
+for trace, then set `cost_source: "DISTRIBUTOR_MANUAL"`, `confidence: 0.0`,
+`cost: null` and a reason - never a catalog tier or a cost, even when Ives pages
+appear in the Hager price book.
 
 ## MANUAL cut-off
 
 Emit `confidence: 0.0`, `cost_source: "MANUAL"` and a plain-language reason when
-the item is a custom size, an unusual prep, an option not sold in years, a
-distributor-bought line, or simply absent from every price book. Do not
-substitute the nearest stock item to avoid an empty cell.
+the item is a custom size, an unusual prep, an option not sold in years, or
+simply absent from every price book. A distributor-bought line is
+`DISTRIBUTOR_MANUAL` instead (above). Do not substitute the nearest stock item to
+avoid an empty cell.
 
 ## Reference data
 
@@ -66,7 +81,8 @@ substitute the nearest stock item to avoid an empty cell.
 
 ## Output schema
 
-Write to `projects/{project}/extracted/hardware_sets.json`:
+Write to `projects/{project}/extracted/hardware_sets.json`, with the sets under
+`groups`, each keyed by `hardware_set`. Add the match fields to the seeded items.
 
 ```json
 {
@@ -74,7 +90,7 @@ Write to `projects/{project}/extracted/hardware_sets.json`:
   "matched_at": "2026-08-26T12:00:00Z",
   "groups": [
     {
-      "group": "GROUP 1",
+      "hardware_set": "GROUP 1",
       "openings": ["01"],
       "source_page": 14,
       "items": [
@@ -82,15 +98,17 @@ Write to `projects/{project}/extracted/hardware_sets.json`:
           "category": "hinge",
           "specified": { "manufacturer": "IVES", "part_number": "700", "size": "83\"", "finish": "630" },
           "matched": {
-            "vendor": "Allegion",
+            "manufacturer": "IVES",
             "part_number": "700",
-            "source": "referenceData/allegion_stock"
+            "source": "as specified - the product catalog holds no Allegion"
           },
-          "confidence": 0.95,
-          "match_tier": 1,
+          "confidence": 0.0,
+          "match_tier": 5,
           "cost_source": "DISTRIBUTOR_MANUAL",
+          "cost": null,
+          "cost_source_detail": "Allegion (Ives) - distributor quote via Banner Solutions / SecLock; price may be out of date - refresh",
           "substitution_note": null,
-          "flags": []
+          "flags": ["allegion_distributor_manual"]
         }
       ]
     }

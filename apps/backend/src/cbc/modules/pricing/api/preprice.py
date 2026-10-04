@@ -17,7 +17,7 @@ The ladder is load-bearing. ``_priced_off_a_page_the_catalog_already_answers``
 (validation) rejects a quote that priced off a book page the catalog already
 answers, so catalog must precede list×:
 
-  0. Allegion gate  -> MANUAL, cost null, reason names Banner/SecLock. No rung tried.
+  0. Allegion gate  -> DISTRIBUTOR_MANUAL, cost null, reason names Banner/SecLock. No rung tried.
   1. P21 last PO    -> ``p21.P21Client`` (read-only)
   2. Special net    -> ``reference_library.get_special_net`` (pure Python)
   3. Catalog baseline and

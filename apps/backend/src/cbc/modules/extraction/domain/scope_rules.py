@@ -1,6 +1,6 @@
 """What CBC quotes, as data rather than prose.
 
-`.claude/rules/scope-boundaries.md` is the human-readable owner of this list and
+`.claude/guides/takeoff.md` is the human-readable owner of this list and
 stays authoritative. This is the same list in a form the take-off can apply, so
 the decision does not depend on a model reading the rule and agreeing with itself.
 

@@ -178,7 +178,7 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
         page = line.get("source_page")
         source = str(line.get("cost_source") or "").upper()
 
-        # scope-boundaries: an excluded vendor is not quoted at any price. The
+        # .claude/guides/takeoff.md: an excluded vendor is not quoted at any price. The
         # tier sheet's `excluded` list is the record of who that is.
         vendor = str(line.get("vendor") or line.get("manufacturer") or "").lower()
         for entry in excluded or []:
@@ -204,14 +204,14 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
                 note = "Margin {:.0%} is below the {:.0%} floor for {} (NFR-8)".format(
                     margin, verdict["floor"], verdict["product_type"]
                 )
-                # A recorded reason makes it a decision (margin-governance.md);
+                # A recorded reason makes it a decision (.claude/guides/pricing.md);
                 # it stays visible but no longer holds the quote.
                 flags.append(
                     _flag(label, "margin", "medium", note, page,
                           blocking=not line.get("margin_override_reason"))
                 )
 
-            # margin-governance.md: a below-band margin with a recorded reason is
+            # .claude/guides/pricing.md: a below-band margin with a recorded reason is
             # a decision. Without one it is the thing the flag exists for.
             if line.get("margin_overridden") and not line.get("margin_override_reason"):
                 flags.append(

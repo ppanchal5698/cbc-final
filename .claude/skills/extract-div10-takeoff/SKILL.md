@@ -34,10 +34,19 @@ corner guards, signage, lockers — see .claude/guides/takeoff.md.
 
 ## Output schema
 
+The contract is `Div10Takeoff` / `Div10Item` / `Div10Mention` in
+`apps/backend/src/cbc/modules/extraction/api/claude_output.py`; `pretakeoff`
+seeds the file in this shape before you start. An item allows exactly the keys
+shown below plus `source_file` - any other item key is folded into `notes` or
+rejected. `bbox`, `cell_boxes` and `page_size` are measured from the sheet after
+you write; do not supply them.
+
 ```json
 {
   "div10_in_scope": true,
-  "status": "extracted",
+  "status": "EXTRACTED",
+  "source_file": "uploads/raw/1_Architectural.pdf",
+  "pages_read": [22],
   "items": [
     {
       "product_type": "accessory",
@@ -57,10 +66,24 @@ corner guards, signage, lockers — see .claude/guides/takeoff.md.
       "confidence": 0.85
     }
   ],
-  "flags": [],
-  "confidence": 0.85
+  "mentions": [
+    {
+      "product_type": "accessory",
+      "source_page": 23,
+      "excerpt": "CONTRACTOR MAKING FINAL HOOK-UPS",
+      "why_not_an_item": "no manufacturer and model on this row"
+    }
+  ],
+  "flags": ["div10_mentions_need_review"],
+  "confidence": 0.85,
+  "no_scope_reason": null
 }
 ```
+
+`mentions` are rows that name an accessory without a manufacturer and model.
+They are not lines to price; resolve one into an `items` row only when the
+sheets give you the manufacturer and model, otherwise leave it for the
+estimator.
 
 **Shape rules (strict):**
 - Use `items` (not `line_items`). Each row uses `qty` and `specified_model` (not `quantity` / `model`).

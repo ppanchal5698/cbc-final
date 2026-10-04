@@ -11,7 +11,7 @@ not in P21 or on a multiplier sheet.
 ## Rick — his own Excel
 Works from his own spreadsheet rather than either shared workbook.
 Occasionally includes **freight** for customers who demand an all-inclusive bottom line —
-otherwise freight is not quoted at estimate stage (see [process_flow](process_flow.md) Phase 6).
+otherwise freight is not quoted at estimate stage (see [sales_tax_rules](sales_tax_rules.md), Freight).
 
 ## Shanna — templated mode ("start full, delete down")
 Opens a **previous job's workbook** (not a clean template), saves-as, and trims the

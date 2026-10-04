@@ -541,7 +541,8 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
         for field in SOFT_FIELDS:
             if opening.get(field) is None:
                 warnings.append(f"{project}: opening {label} is missing {field}")
-        # pdf-verify-before-present: missing/low-confidence claims need a page citation.
+        # .claude/guides/extraction.md (verify against the sheet before
+        # presenting): missing/low-confidence claims need a page citation.
         flags = opening.get("flags") or []
         if isinstance(flags, list):
             missingish = [
@@ -567,7 +568,7 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
                 warnings.append(
                     f"{project}: opening {label} has unresolved fields or low "
                     "confidence without a PDF page citation in evidence_note "
-                    "(pdf-verify-before-present)"
+                    "(.claude/guides/extraction.md)"
                 )
 
     # Shape is checked above; this checks the numbers are real. It opens the

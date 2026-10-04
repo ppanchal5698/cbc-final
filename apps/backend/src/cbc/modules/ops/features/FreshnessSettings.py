@@ -25,7 +25,7 @@ def _now() -> datetime:
 class FreshnessSettings(BaseModel):
     """A price sheet's review window (Matrix 6.3), and a P21 cost's fresh and discard bands (6.2).
 
-    `.claude/rules/data-stewardship.md`: moving one must not move the other. The
+    They measure different things, so moving one must not move the other. The
     review window used to have to end before the discard band, tying a price-sheet
     rule to a purchase-order one; now only the two cost bands are ordered. The
     Settings screen sends no `freshMonths`, and the stored band then stands.

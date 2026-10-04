@@ -9,7 +9,7 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "Write a file inside projects/{project}/ and keep a SHA-256 versioned copy "
             "so a later run can be compared against an earlier one. Refuses any path "
-            "that escapes the project directory (.claude/rules/file-safety.md)."
+            "that escapes the project directory (.claude/rules/00-core-constraints.md)."
         ),
         "inputSchema": {
             "type": "object",
@@ -33,7 +33,7 @@ TOOLS: list[dict[str, Any]] = [
             "base, each patch is validated on its own, and a patch that fails costs "
             "that one field and leaves a review flag instead of failing the whole write. "
             "Every patch that fills a value must cite the page it was read from "
-            "(.claude/rules/pdf-verify-before-present.md)."
+            "(.claude/guides/extraction.md)."
         ),
         "inputSchema": {
             "type": "object",
