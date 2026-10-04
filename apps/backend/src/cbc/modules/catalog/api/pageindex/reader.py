@@ -315,11 +315,11 @@ def search_catalog_items(
 
     rows: list[dict[str, Any]] = []
     try:
+        # No projection. A `$meta`-only projection means "every field plus the
+        # score" to MongoDB but "only the score" to DocumentDB, where every hit
+        # came back as None. Sorting on the score needs no projection on either.
         rows = list(
-            items.find(
-                partquery.text_filter(needle, vendor, include_ingest=True),
-                {"score": {"$meta": "textScore"}},
-            )
+            items.find(partquery.text_filter(needle, vendor, include_ingest=True))
             .sort([("score", {"$meta": "textScore"})])
             .limit(lim * 3)
         )
