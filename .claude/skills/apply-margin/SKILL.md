@@ -50,23 +50,25 @@ silently pick the more profitable one.
 
 Margin is an editable default, overridden on essentially every quote by sourcing:
 
-- **Special-customer margins** - e.g. Wendy's. Use
-  `mcp__reference__get_special_customer_margin`. Values are still
-  PENDING from CBC (NR-9), so an override here is a prompt to the estimator, not
-  an automatic adjustment.
+- **Special-customer margins** - e.g. Wendy's. Applied **in code**, not by you:
+  pre-pricing stamps the bid's recorded margin (customer, then brand) on every
+  line, and `mcp__calc-engine__apply_margin` applies the same lookup when you
+  pass the bid's `customer` (GC) and `brand`. A customer whose margin CBC has
+  not given yet gets the band.
 - **Distributor buys** - purchasing through Banner Solutions or SecLock at higher
   cost typically **drops** the margin.
 - **Lead time and custom first builds** - hand-entered margin.
 
-**Always record `override_reason`.** A below-band margin with no recorded reason
-is exactly what the governance flag is for.
+**Always record `margin_override_reason`.** A margin `propose_patch` writes its
+`cost_source_detail` there, so say why the margin moved.
 
-## Governance - flag, never block
+## Governance - a below-band margin without a reason blocks approval
 
 `mcp__calc-engine__validate_margin` returns pass/fail against the band floor. A
-fail is written to `review/review_flags.json` at severity `medium`. Nothing is
-routed for approval - NFR-8 is deferred, because there is no margin deviation
-today and approval routing only matters with more estimators.
+below-band line is written to `review/review_flags.json`; with no
+`margin_override_reason` the flag is **blocking** and the proposal cannot be
+approved until the estimator records one. With a reason it is advisory. Nothing
+is routed for approval (NFR-8 is deferred).
 
 ## Reference data
 
@@ -77,4 +79,5 @@ today and approval routing only matters with more estimators.
 
 Write to `projects/{project}/priced/margin_applied.json`: one record per line with
 `product_type`, `default_margin`, `applied_margin`, `overridden`,
-`override_reason`, `sale_ea`, `ext_price`, `margin_check`.
+`margin_override_reason`, `sale_ea`, `ext_price`, `margin_check`. The approval
+gate reads the reason from `priced/line_items.json`, so it must be there too.

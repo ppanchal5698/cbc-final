@@ -44,6 +44,26 @@ def default_margin(division: str | None) -> float:
     return bands.get(band_for_division(division), bands[DEFAULT_BAND])
 
 
+def special_margin(customer: str | None, brand: str | None) -> tuple[float, str] | None:
+    """The recorded special margin for this bid - the customer's before the brand's.
+
+    Returns (margin, reason) or None, in which case the product-type band applies.
+    A row whose margin is still null (CBC has not given the number) does not
+    count: a customer margin is never invented. This used to be a reference tool
+    the pricing agent was told to call and did not have, so a special margin was
+    applied only if a model remembered to look; it is applied in code now.
+    """
+    from cbc.modules.pricing.api import reference_library
+
+    for label, name in (("customer", customer), ("brand", brand)):
+        if not name:
+            continue
+        row = reference_library.get_special_customer_margin(name)
+        if row and row.get("margin") is not None:
+            return float(row["margin"]), f"special {label} margin: {row.get('name')}"
+    return None
+
+
 def price_line(
     cost: float | None,
     margin: float | None,

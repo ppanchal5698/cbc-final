@@ -82,10 +82,10 @@ mcp__catalog__find_pages(query="3510 lock", vendor="hager")
   -> file_path "pricebooks/hager_price_book_18.pdf", pdf_page 297,
      locator "PDF p297 (printed p23)", has_prices true
 
-mcp__pdf-tools__extract_tables(file_path=..., pages="297")
+mcp__pdf-tools__extract_tables(file_path=..., page_range="297")
   -> the row, and the list price on it
 
-mcp__catalog__get_multiplier(vendor="hager", tier="locks")
+mcp__catalog__get_multiplier(vendor="hager", category="locks")
   -> 0.290, effective 2026-03-02
 ```
 

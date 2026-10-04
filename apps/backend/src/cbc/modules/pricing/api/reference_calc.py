@@ -97,7 +97,17 @@ def apply_margin(
     product_type: str,
     override_margin: float | None = None,
     override_reason: str | None = None,
+    customer: str | None = None,
+    brand: str | None = None,
 ) -> dict[str, Any]:
+    if override_margin is None:
+        # Customer special > brand special > band, the same lookup preprice
+        # stamps on seeded lines, so the agent's path cannot skip it.
+        from cbc.modules.pricing.api.pricing import special_margin
+
+        special = special_margin(customer, brand)
+        if special:
+            override_margin, override_reason = special
     return rules.apply_margin(
         cost,
         product_type,

@@ -122,10 +122,11 @@ with width and height in inches, then apply the vendor multiplier via
 Apply the product-type band as an **editable default** via
 `mcp__calc-engine__apply_margin`. Bands live in
 `mcp__reference__get_margin_bands` — do not restate the numbers
-here. Margin is overridden on
-essentially every quote by sourcing - distributor buys, special-customer margins
-such as Wendys, lead time. **Always record `override_reason`.** Below-band lines
-are flagged, never blocked.
+here. Pass the bid's `customer` (GC) and `brand`: a recorded special margin
+(customer, then brand) is applied in code - pre-pricing has already stamped it on
+seeded lines. Margin is still overridden by sourcing - distributor buys, lead
+time. **Always record `margin_override_reason`.** A below-band line with no
+reason blocks proposal approval; with one it is advisory.
 
 ## Freshness
 Under ~6 months fresh; more than 6 months unreliable, re-verify; more than

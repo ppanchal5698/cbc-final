@@ -205,6 +205,12 @@ def _apply_ladder(line: dict[str, Any], item: dict[str, Any], client: p21.P21Cli
 
 def _build_lines(slug: str, client: p21.P21Client) -> list[dict[str, Any]]:
     payload = read_json(storage.project_dir(slug) / "extracted" / "hardware_sets.json")
+    # Stamped on every line before any rung prices it. Each rung - P21, special
+    # net, catalog, list x, and a patched MANUAL line - prices with the line's own
+    # margin when it has one, so this one place covers them all.
+    meta = read_json(storage.project_dir(slug) / "extracted" / "scope_metadata.json")
+    meta = meta if isinstance(meta, dict) else {}
+    special = pricing.special_margin(meta.get("gc"), meta.get("brand"))
     lines: list[dict[str, Any]] = []
     for hw_set in _sets(payload):
         set_id = str(
@@ -215,6 +221,11 @@ def _build_lines(slug: str, client: p21.P21Client) -> list[dict[str, Any]]:
             if not isinstance(item, dict):
                 continue
             line = _seed_line(set_id, index, item, source_page)
+            if special:
+                # A recorded reason, so a special margin below its band is the
+                # estimator's known call rather than a blocking review flag.
+                line["margin"], line["margin_override_reason"] = special
+                line["margin_overridden"] = True
             _apply_ladder(line, item, client)
             lines.append(line)
     return lines

@@ -51,8 +51,12 @@ description: >
    than hunting for one. Cite page + excerpt (or "searched pages … — not found")
    in `evidence_note`. See .claude/guides/extraction.md. Parser null ≠ sheet
    silent.
-5. Persist with `mcp__artifact-storage__save_artifact` only — never Write/Edit.
-6. On schema error: repair named fields (≤2 retries). Do not bypass validation.
+5. Persist corrections with `mcp__artifact-storage__propose_patch`
+   (`openings/<door_number>/<field>`, one field per patch, with
+   `{source_page, excerpt}` evidence). A whole-file `save_artifact` over the
+   seeded file is refused; use it only to create the file when no seed exists.
+   Never Write/Edit.
+6. On a refused patch: fix that field (≤2 retries). Do not bypass validation.
 
 ## Why this is not just "read the table"
 
@@ -139,8 +143,8 @@ See `references/schedule_anatomy.md`.
 
 ## Output schema
 
-Save via **`mcp__artifact-storage__save_artifact`** to
-`projects/{project}/extracted/line_items.json`:
+The shape of `projects/{project}/extracted/line_items.json` - created once by
+`save_artifact` when no seed exists, and corrected with `propose_patch` after:
 
 ```json
 {

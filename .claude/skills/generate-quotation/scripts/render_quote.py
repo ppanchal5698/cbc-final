@@ -22,11 +22,18 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[4]
 
+# Run straight from a shell, nothing puts the backend or the MCP servers on the
+# path - only the worker's render does - so `cbc` and `_runtime` both failed to
+# import and quote-builder's documented command could not run.
+for _path in (ROOT / "apps" / "backend" / "src", ROOT / "mcp-servers"):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
+
 from cbc.shared.paths import storage_root  # noqa: E402
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader, select_autoescape  # noqa: E402
 
-from _runtime import load_server
+from _runtime import load_server  # noqa: E402
 
 calc = load_server("calc-engine")
 
@@ -162,8 +169,9 @@ def main() -> int:
         parser.error("a project name is required unless --demo is given")
 
     output = render(args.project)
+    # Not "Draft ready for estimator review": that halt line is delivery-agent's
+    # alone, and printing it here handed it to quote-builder mid-pipeline.
     print(f"Draft quotation written to {output}")
-    print("Draft ready for estimator review")
     return 0
 
 

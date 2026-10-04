@@ -91,8 +91,10 @@ PROFILES: dict[str, list[str]] = {
     # Ingest reads a vendor sheet and writes what it found. `pdf-tools` is the
     # only way to read it - the same trap as _PRICING above, and here it was
     # total: the profile gave a job whose entire purpose is "read this PDF" no
-    # tool that opens a PDF.
-    "ingest_pricebook": ["catalog", "reference", "pdf-tools", "artifact-storage"],
+    # tool that opens a PDF. `catalog-docs` is the parsed text of the same books,
+    # which the scan-product-catalog skill searches first; without it the agent
+    # was told to search blocks it had no tool to reach.
+    "ingest_pricebook": ["catalog", "catalog-docs", "reference", "pdf-tools", "artifact-storage"],
 }
 
 # Built-in tools no bid job has a use for. Bare names remove them from the

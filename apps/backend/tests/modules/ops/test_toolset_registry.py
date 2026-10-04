@@ -91,6 +91,8 @@ def test_ingest_can_read_the_sheet_it_is_given():
 
     servers = json.loads(toolsets.config_for("ingest_pricebook"))["mcpServers"]
     assert "pdf-tools" in servers, "ingest must be able to open the sheet"
+    # scan-product-catalog searches the parsed book text first.
+    assert "catalog-docs" in servers, "ingest must be able to search the parsed book"
 
 
 def test_pricing_hands_p21_the_readonly_mongo_uri(monkeypatch):
