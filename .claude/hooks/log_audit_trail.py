@@ -12,7 +12,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from _artifact_path import project_path_from_tool
+from _artifact_path import bid_dir, project_path_from_tool
 
 PROJECT_RE = re.compile(r"projects/([^/\"]+)/")
 ROOT = Path(__file__).resolve().parents[2]
@@ -54,8 +54,8 @@ def check(payload: dict) -> int:
         match = PROJECT_RE.search(slashes(json.dumps(tool_input, default=str)))
         project = match.group(1) if match else "_unassigned"
 
-    log_dir = ROOT / "projects" / project
-    if not log_dir.is_dir():
+    log_dir = bid_dir(project)
+    if log_dir is None:
         return 0
 
     record = {

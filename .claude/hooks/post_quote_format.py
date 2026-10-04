@@ -8,18 +8,19 @@ import subprocess
 import sys
 from pathlib import Path
 
-from _artifact_path import project_path_from_tool
-
-ROOT = Path(__file__).resolve().parents[2]
+from _artifact_path import bid_dir, project_path_from_tool, writes_artifact
 
 
 def _target_path(payload: dict) -> Path | None:
+    if not writes_artifact(payload.get("tool_name")):
+        return None
     tool_input = payload.get("tool_input") or {}
     resolved = project_path_from_tool(payload.get("tool_name"), tool_input)
     if resolved:
         project, rel_path = resolved
-        if rel_path.endswith("quotation.html"):
-            return ROOT / "projects" / project / rel_path
+        directory = bid_dir(project)
+        if rel_path.endswith("quotation.html") and directory:
+            return directory / rel_path
         return None
 
     path = str(tool_input.get("file_path") or "")
