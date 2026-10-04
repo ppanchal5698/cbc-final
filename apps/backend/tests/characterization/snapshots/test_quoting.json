@@ -100,6 +100,7 @@
    },
    "readiness": {
     "blocking": "bool",
+    "blockingFlags": [],
     "degraded": "bool",
     "degradedNote": "null",
     "flaggedLineItems": "number",
@@ -380,6 +381,7 @@
    },
    "readiness": {
     "blocking": "bool",
+    "blockingFlags": [],
     "degraded": "bool",
     "degradedNote": "null",
     "flaggedLineItems": "number",

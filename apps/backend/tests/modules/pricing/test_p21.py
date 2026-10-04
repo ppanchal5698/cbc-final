@@ -29,6 +29,28 @@ def test_a_fresh_po_is_priced(monkeypatch) -> None:
     assert result is not None and result["cost"] == 42.0
 
 
+def test_the_seed_asks_p21_what_the_mcp_client_asks(monkeypatch) -> None:
+    """Path, key and timeout come from the envs mcp-servers/p21-connector/client.py
+    reads, so the seed and the agent cannot be calling two different endpoints."""
+    monkeypatch.setenv("P21_BASE_URL", "http://p21.local/")
+    monkeypatch.setenv("P21_API_KEY", "k")
+    monkeypatch.setenv("P21_TIMEOUT_SECONDS", "3")
+    monkeypatch.delenv("P21_LOOKUP_PATH", raising=False)
+    seen = {}
+
+    def fake_urlopen(request, timeout):
+        seen.update(url=request.full_url, auth=request.get_header("Authorization"), timeout=timeout)
+        raise OSError("stop here")
+
+    monkeypatch.setattr(p21.urllib.request, "urlopen", fake_urlopen)
+    assert p21.P21Client().last_po("BB 1279", "Hager") is None
+    assert seen == {
+        "url": "http://p21.local/api/items/BB%201279/last-po?vendor=Hager",
+        "auth": "Bearer k",
+        "timeout": 3.0,
+    }
+
+
 def test_a_stale_po_is_written_nowhere(monkeypatch) -> None:
     monkeypatch.setenv("P21_BASE_URL", "http://p21.local")
     monkeypatch.setattr(p21, "_get", lambda url, **k: {"last_po_price": 42.0, "po_date": "2010-01-01"})

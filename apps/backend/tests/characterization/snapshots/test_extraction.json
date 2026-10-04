@@ -50,6 +50,7 @@
   "body": {
    "flags": [
     {
+     "blocking": "bool",
      "derived": "bool",
      "field": "str",
      "note": "str",

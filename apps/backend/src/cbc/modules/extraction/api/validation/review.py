@@ -14,6 +14,12 @@ comparable prior quote, and writing the RFIs.
 
 `merge` keeps both. A derived flag wins on the field it owns, and anything the
 agent wrote that nothing here derives is carried through untouched.
+
+Every flag carries `blocking` beside `severity`. Severity is for display;
+`blocking` is what the approval gate reads (`quoting` proposal readiness), and
+only rules in this module set it. A finding a model wrote can inform the
+estimator but cannot hold a quote, because nothing but an edit to that file
+could ever clear it.
 """
 from __future__ import annotations
 
@@ -68,7 +74,7 @@ def _openings(payload: Any) -> list[dict]:
     return []
 
 
-def _flag(opening, field, severity, note, source_page=None) -> dict[str, Any]:
+def _flag(opening, field, severity, note, source_page=None, *, blocking=False) -> dict[str, Any]:
     return {
         "opening": opening,
         "field": field,
@@ -76,6 +82,7 @@ def _flag(opening, field, severity, note, source_page=None) -> dict[str, Any]:
         "source_page": source_page,
         "note": note,
         "derived": True,
+        "blocking": blocking,
     }
 
 
@@ -115,7 +122,7 @@ def reconcile_flags(opening: dict[str, Any]) -> list[str]:
     return [f for f in kept if not (f in seen or seen.add(f))]
 
 
-def _opening_flags(openings: list[dict]) -> list[dict]:
+def _opening_flags(openings: list[dict], fire_ratings_present: bool = False) -> list[dict]:
     flags: list[dict] = []
     for opening in openings:
         label = _label(opening)
@@ -123,7 +130,14 @@ def _opening_flags(openings: list[dict]) -> list[dict]:
 
         for field, note in REQUIRED_OPENING_FIELDS.items():
             if opening.get(field) in (None, "", []):
-                flags.append(_flag(label, field, "high", note + " - estimator review", page))
+                # In a set that rates its doors, an unrated opening may be a
+                # rated door priced as an unrated one - a code problem, not a
+                # price one. In a set with no ratings anywhere it is just a gap.
+                blocking = field == "fire_rating" and fire_ratings_present
+                flags.append(
+                    _flag(label, field, "high", note + " - estimator review", page,
+                          blocking=blocking)
+                )
 
         keying = opening.get("keying")
         hw = " ".join(
@@ -176,8 +190,10 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
                 flags.append(_flag(label, "out_of_scope", "high", note, page))
 
         if source in UNFINISHED_COST_SOURCES and line.get("cost") is None:
+            # A line with no cost has no price; a quote cannot go out with one.
             flags.append(
-                _flag(label, "cost", "medium", UNFINISHED_COST_SOURCES[source], page)
+                _flag(label, "cost", "medium", UNFINISHED_COST_SOURCES[source], page,
+                      blocking=True)
             )
 
         margin = line.get("margin")
@@ -188,7 +204,12 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
                 note = "Margin {:.0%} is below the {:.0%} floor for {} (NFR-8)".format(
                     margin, verdict["floor"], verdict["product_type"]
                 )
-                flags.append(_flag(label, "margin", "medium", note, page))
+                # A recorded reason makes it a decision (margin-governance.md);
+                # it stays visible but no longer holds the quote.
+                flags.append(
+                    _flag(label, "margin", "medium", note, page,
+                          blocking=not line.get("margin_override_reason"))
+                )
 
             # margin-governance.md: a below-band margin with a recorded reason is
             # a decision. Without one it is the thing the flag exists for.
@@ -213,7 +234,8 @@ def _scope_flags(scope: Any, metadata: Any) -> list[dict]:
             _flag("bid set", "project_identity", "critical",
                   "Unresolved brand/project identity mismatch: "
                   + str(metadata["brand_mismatch_warning"])
-                  + ". Confirm the correct bid and documents before sending to the customer.")
+                  + ". Confirm the correct bid and documents before sending to the customer.",
+                  blocking=True)
         )
     if isinstance(scope, dict):
         for item in scope.get("out_of_scope_items") or []:
@@ -291,17 +313,37 @@ def derive_flags(slug: str) -> list[dict]:
         lines = priced.get("lines", [])
     else:
         lines = []
+    scope = _load(project / "extracted" / "scope_summary.json")
+    rated = isinstance(scope, dict) and scope.get("fire_ratings_present") is True
 
     return [
         *_no_scope_flags(schedule, openings),
-        *_opening_flags(openings),
+        *_opening_flags(openings, rated),
         *_line_flags([line for line in lines if isinstance(line, dict)], _excluded_vendors() if lines else []),
-        *_scope_flags(
-            _load(project / "extracted" / "scope_summary.json"),
-            _load(project / "extracted" / "scope_metadata.json"),
-        ),
+        *_scope_flags(scope, _load(project / "extracted" / "scope_metadata.json")),
+        *_frp_constants_flags(project),
         *_document_not_parsed_flags(project),
         *_ocr_unavailable_flags(project),
+    ]
+
+
+def _frp_constants_flags(project: Path) -> list[dict]:
+    """FRP measured but not yet convertible: its quantities are not real yet.
+
+    Panel, trim and adhesive counts come from geometry through CBC's conversion
+    constants, and until those are set (Open Item 5) any FRP quantity on the
+    quote is a placeholder rather than a count.
+    """
+    frp = _load(project / "extracted" / "frp_takeoff.json")
+    if not (isinstance(frp, dict) and frp.get("areas")):
+        return []
+    if reference_library.load_frp_constants().get("status") != "PENDING":
+        return []
+    return [
+        _flag("bid set", "frp_constants_pending", "high",
+              "FRP was taken off but the FRP conversion constants are still PENDING - "
+              "panel, trim and adhesive quantities cannot be computed yet",
+              blocking=True)
     ]
 
 
@@ -337,10 +379,22 @@ def _document_not_parsed_flags(project: Path) -> list[dict]:
     for doc in status.get("documents") or []:
         if not isinstance(doc, dict):
             continue
+        name = doc.get("filename") or "document"
+        fallback = doc.get("fallbackPages") or []
+        if fallback:
+            # Advisory: the pages were read, just without LlamaParse's layout,
+            # so a table may have come through as loose rows.
+            note = (
+                f"{name} pages {', '.join(str(p) for p in fallback)} were parsed "
+                "locally after LlamaParse failed or ran past its deadline; "
+                "check values read from them against the sheet"
+            )
+            flags.append(
+                _flag(None, "parse_fallback", "medium", note, source_page=fallback[0])
+            )
         state = doc.get("state")
         if state in (None, "parsed", "off"):
             continue
-        name = doc.get("filename") or "document"
         note = (
             f"{name} was not GPU-parsed (state={state}); "
             "extraction read it with pdf-tools directly"
@@ -367,10 +421,16 @@ def merge(derived: list[dict], existing: Any) -> list[dict]:
         existing = []
 
     owned = {(f.get("opening"), f.get("field")) for f in derived}
+    # A derived flag in the saved file is this module's own output from the last
+    # write, not the agent's. Keeping one whose condition has since cleared
+    # would hold the approval gate after the estimator fixed what it named.
+    # The agent's flags are kept but never block: see the module docstring.
     kept = [
-        f
+        {**f, "blocking": False}
         for f in existing
-        if isinstance(f, dict) and (f.get("opening"), f.get("field")) not in owned
+        if isinstance(f, dict)
+        and not f.get("derived")
+        and (f.get("opening"), f.get("field")) not in owned
     ]
     return [*derived, *kept]
 

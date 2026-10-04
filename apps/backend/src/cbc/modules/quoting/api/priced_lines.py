@@ -259,6 +259,18 @@ async def export_quote_lines(project: dict[str, Any], *, allow_empty: bool = Fal
                 "price_status": doc.get("priceStatus"),
                 "added_by_hand": doc.get("addedByHand", False),
                 "flags": doc.get("flags", []),
+                # The review's margin rule reads these. Dropping them made every
+                # margin typed on the quote grid look like an unexplained one,
+                # and a below-band margin with a reason is the estimator's call.
+                # Only an edit sets them, so a pass's own reason survives above.
+                **(
+                    {
+                        "margin_overridden": True,
+                        "margin_override_reason": doc.get("overrideReason"),
+                    }
+                    if doc.get("marginOverridden")
+                    else {}
+                ),
             }
         )
 

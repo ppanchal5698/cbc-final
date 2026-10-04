@@ -5,6 +5,7 @@ JSON under REFERENCE_DIR is seed only; live reads/writes go through reference_st
 from __future__ import annotations
 
 import re
+from datetime import date
 from typing import Any
 
 from cbc.modules.pricing.api import reference_store
@@ -435,6 +436,7 @@ def get_vendor_tier(vendor: str, category: str | None = None) -> dict[str, Any]:
                     "category": key,
                     "multiplier": categories[key],
                     "effective_date": record.get("effective_date"),
+                    "price_book": record.get("price_book"),
                     "account": record.get("account"),
                     "source": record.get("source"),
                 }
@@ -451,6 +453,7 @@ def get_vendor_tier(vendor: str, category: str | None = None) -> dict[str, Any]:
             "multiplier": record.get("multiplier"),
             "categories": categories or None,
             "effective_date": record.get("effective_date"),
+            "price_book": record.get("price_book"),
             "account": record.get("account"),
             "note": record.get("note"),
             "source": record.get("source"),
@@ -460,6 +463,25 @@ def get_vendor_tier(vendor: str, category: str | None = None) -> dict[str, Any]:
         "multiplier": None,
         "note": "Vendor not in the tier sheet. Price manually (MANUAL cut-off) - never guess.",
     }
+
+
+def sheet_lapsed(effective: Any) -> bool:
+    """True when a dated price sheet is past the price-book review window.
+
+    The rule ``quoting.domain.freshness.is_lapsed`` applies to a priced line
+    (older than ``catalog_stale_days``), applied here before the cost is taken, so
+    the ladder skips a lapsed sheet instead of seeding a price the proposal gate
+    would then hold. Undated is not lapsed: nothing is known either way.
+    """
+    if not effective:
+        return False
+    from cbc.modules.ops.api.freshness import load_sync
+
+    try:
+        age = (date.today() - date.fromisoformat(str(effective)[:10])).days
+    except ValueError:
+        return False
+    return age > load_sync().catalog_stale_days
 
 
 def get_special_net(vendor: str, part_number: str) -> dict[str, Any] | None:

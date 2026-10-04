@@ -15,10 +15,11 @@ from cbc.modules.projects.api.autopilot import ORCHESTRATED_CHAIN
 def test_the_orchestrated_chain_is_live_and_budgeted() -> None:
     for job_type in ORCHESTRATED_CHAIN:
         assert job_type not in RETIRED_JOB_TYPES, f"{job_type} is retired but chained"
-        _timeout, max_turns = claude_pass.limits_for(job_type)
+        _timeout, max_turns, max_tokens = claude_pass.limits_for(job_type)
         assert max_turns >= claude_pass.MAX_TURNS, (
             f"{job_type} gets {max_turns} turns, below the base MAX_TURNS"
         )
+        assert max_tokens > 0, f"{job_type} runs with no token budget"
 
 
 def test_extraction_gets_the_pipeline_budget() -> None:
@@ -26,15 +27,16 @@ def test_extraction_gets_the_pipeline_budget() -> None:
         assert claude_pass.limits_for(job_type) == (
             claude_pass.PIPELINE_TIMEOUT,
             claude_pass.PIPELINE_MAX_TURNS,
+            claude_pass.EXTRACT_TOKEN_BUDGET,
         )
 
 
 def test_a_plain_job_keeps_the_one_phase_budget() -> None:
     for job_type in ("match_and_price", "build_proposal", "ingest_pricebook"):
-        assert claude_pass.limits_for(job_type) == (
-            claude_pass.JOB_TIMEOUT,
-            claude_pass.MAX_TURNS,
-        )
+        timeout, turns, _tokens = claude_pass.limits_for(job_type)
+        assert (timeout, turns) == (claude_pass.JOB_TIMEOUT, claude_pass.MAX_TURNS)
+    assert claude_pass.limits_for("match_and_price")[2] == claude_pass.MATCH_TOKEN_BUDGET
+    assert claude_pass.limits_for("build_proposal")[2] == claude_pass.TOKEN_BUDGET
 
 
 def test_run_full_pipeline_stays_in_the_table_for_requeued_history() -> None:
@@ -42,7 +44,16 @@ def test_run_full_pipeline_stays_in_the_table_for_requeued_history() -> None:
     assert claude_pass.limits_for("run_full_pipeline") == (
         claude_pass.PIPELINE_TIMEOUT,
         claude_pass.PIPELINE_MAX_TURNS,
+        claude_pass.PIPELINE_TOKEN_BUDGET,
     )
+
+
+def test_one_token_budget_overrides_every_type_and_zero_turns_it_off(monkeypatch) -> None:
+    monkeypatch.setattr(claude_pass, "_TOKEN_BUDGET_OVERRIDE", "50000")
+    assert claude_pass.limits_for("extract_bid_set")[2] == 50_000
+    assert claude_pass.limits_for("build_proposal")[2] == 50_000
+    monkeypatch.setattr(claude_pass, "_TOKEN_BUDGET_OVERRIDE", "0")
+    assert claude_pass.limits_for("match_and_price")[2] == 0
 
 
 def test_a_wave_leg_is_capped_below_the_whole_job_budget() -> None:

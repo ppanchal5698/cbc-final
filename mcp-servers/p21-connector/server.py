@@ -114,20 +114,23 @@ def lookup_last_po(part_number: str, vendor: str | None = None) -> dict[str, Any
         }
 
     freshness = check_freshness(str(po_date))
-    return {
+    found = {
         "part_number": part_number,
         "vendor": vendor,
         "connected": True,
         "item_id": item_id,
         "last_po_price": price,
         "po_date": po_date,
-        "cost": price,
-        "cost_source": "P21_LAST_PO",
         "freshness_status": freshness["freshness_status"],
         "freshness": freshness,
-        "action_required": None if freshness["usable"] else "manual_price_entry",
-        "prompt": None if freshness["usable"] else "price may be out of date - refresh",
     }
+    if not freshness["usable"]:
+        # Same rule as pricing/api/p21._classify: an unreliable or stale PO is
+        # context for the estimator, never a cost. Handing back `cost` with a
+        # P21_LAST_PO source beside an action_required left the agent one copy
+        # away from quoting a price the bands had already discarded.
+        return {**found, **MANUAL_ENTRY, "connected": True, "reason": freshness["guidance"]}
+    return {**found, "cost": price, "cost_source": "P21_LAST_PO", "action_required": None, "prompt": None}
 
 
 def search_item(query: str, limit: int = 10) -> dict[str, Any]:

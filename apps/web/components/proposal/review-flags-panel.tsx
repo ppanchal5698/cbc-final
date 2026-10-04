@@ -96,6 +96,11 @@ export function ReviewFlagsPanel({ code }: { code: string }) {
                 <span className="text-[12px] font-medium text-tx-muted">
                   {(flag.field ?? flag.category ?? "General review").replaceAll("_", " ")}
                 </span>
+                {flag.blocking && (
+                  <span className="rounded-full border border-status-error px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-status-error">
+                    Blocks approval
+                  </span>
+                )}
               </span>
               <span className="text-[12.5px] font-medium text-tx-secondary leading-relaxed">
                 {flag.note ?? flag.issue ?? flag.action_required}

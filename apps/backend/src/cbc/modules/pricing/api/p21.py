@@ -25,7 +25,7 @@ import urllib.error
 import urllib.request
 from datetime import date, datetime
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 __all__ = ["last_po"]
 
@@ -34,12 +34,34 @@ def _base_url() -> str:
     return os.environ.get("P21_BASE_URL", "").strip()
 
 
-def _get(url: str, *, timeout: float = 10.0) -> dict[str, Any]:
+# The endpoint, key and timeout are the ones mcp-servers/p21-connector/client.py
+# reads, with its defaults, so the seed and the agent ask P21 the same question.
+# Two clients on two contracts meant one of them was always calling a URL that
+# did not exist. Read per call, like the base URL, so a test or an env change
+# takes effect without a reload.
+def _lookup_url(base: str, part_number: str, vendor: str | None) -> str:
+    path = os.environ.get("P21_LOOKUP_PATH", "/api/items/{part_number}/last-po")
+    url = f"{base.rstrip('/')}{path.format(part_number=quote(part_number, safe=''))}"
+    if vendor:
+        url = f"{url}?{urlencode({'vendor': vendor})}"
+    return url
+
+
+def _headers() -> dict[str, str]:
+    headers = {"Accept": "application/json"}
+    api_key = os.environ.get("P21_API_KEY", "").strip()
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
+def _get(url: str, *, timeout: float) -> dict[str, Any]:
     """The one network call. ``method="GET"`` is hardcoded and there is no body
     parameter, so no caller can turn this into a write."""
-    request = urllib.request.Request(url, method="GET")
+    request = urllib.request.Request(url, headers=_headers(), method="GET")
     with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
-        return json.loads(response.read().decode("utf-8"))
+        payload = response.read()
+        return json.loads(payload.decode("utf-8")) if payload else {}
 
 
 class P21Client:
@@ -62,12 +84,9 @@ class P21Client:
         return self._cache[key]
 
     def _lookup(self, base: str, part_number: str, vendor: str | None) -> dict[str, Any] | None:
-        params = {"part_number": part_number}
-        if vendor:
-            params["vendor"] = vendor
-        url = f"{base.rstrip('/')}/last-po?{urlencode(params)}"
+        url = _lookup_url(base, part_number, vendor)
         try:
-            payload = _get(url)
+            payload = _get(url, timeout=float(os.environ.get("P21_TIMEOUT_SECONDS", "15")))
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, ValueError, OSError):
             # Trip the breaker: if P21 is unreachable it is unreachable for the
             # whole pass, and 300 failing lookups help nobody.

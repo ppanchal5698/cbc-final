@@ -15,6 +15,7 @@ from cbc.modules.quoting.infrastructure.collections import proposals
 from cbc.modules.quoting.infrastructure.proposal_view import (
     DEFAULT_EXCLUSIONS,
     VALIDITY_DAYS,
+    export_for_review,
     proposal_payload,
     write_email_draft,
 )
@@ -39,9 +40,11 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
     project = await load(code)
     recipient = (body.recipient if body else None) or project.get("initiator")
 
-    # The one gate on this screen. A lapsed sheet means the margin on those
-    # lines is not real (data-stewardship.md), so the hand-off waits for
-    # purchasing or for a recorded override - the screen offers both.
+    # The gate. A lapsed sheet means the margin on those lines is not real
+    # (data-stewardship.md), so the hand-off waits for purchasing or for a
+    # recorded override; a blocking review flag waits for the estimator to clear
+    # what it names. Exported first so the flags see the latest edits.
+    await export_for_review(project)
     readiness = (await proposal_payload(project))["readiness"]
     if readiness.get("blocking"):
         raise HTTPException(status_code=409, detail=readiness["note"])

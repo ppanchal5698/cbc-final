@@ -476,15 +476,26 @@ _CHECKPOINT_ARTIFACTS = frozenset(
     }
 )
 
-# Artifacts `propose_patch` can actually edit. It addresses openings by door
-# number, so it understands the door schedule and nothing else yet. Withdrawing
-# whole-file authority for an artifact it cannot edit would leave no way to write
-# that artifact at all, which is a worse failure than a whole-file write.
-_PATCHABLE_ARTIFACTS = frozenset({"extracted/line_items.json"})
+# The preprice seed's `source` stamp. Owner: cbc.modules.pricing.api.preprice.SOURCE
+# - duplicated because this hook must not import `cbc` (see _seeded_file_exists),
+# and tests/system/test_integrity.py asserts the two still match.
+_PREPRICE_SOURCE = "preprice.py (deterministic pre-pricing)"
+
+# Artifacts Python seeds and `propose_patch` edits in place (openings by door
+# number, priced lines by line_id), each with the `source` stamp that makes a
+# file on disk a seed, or None when any file there is one. Only preprice's own
+# priced file counts: with PREPRICE_SEED=0 the pricing pass writes that file
+# whole with save_artifact, and withdrawing that would leave it no way to write
+# the file at all - a worse failure than a whole-file write.
+_PATCHABLE_ARTIFACTS = {
+    "extracted/line_items.json": None,
+    "priced/line_items.json": _PREPRICE_SOURCE,
+}
 
 
-def _seeded_file_exists(project: str, rel: str) -> bool:
-    """True only when the seeded artifact is positively there.
+def _seeded_file_exists(project: str, rel: str, stamp: str | None = None) -> bool:
+    """True only when the seeded artifact is positively there and, given a
+    stamp, carries it.
 
     Unknown counts as absent, so the write is allowed. A bid whose schedule will
     not parse has no seed, and `propose_patch` edits rather than creates - a
@@ -507,9 +518,14 @@ def _seeded_file_exists(project: str, rel: str) -> bool:
         if not root:
             continue
         try:
-            if (Path(root) / project / rel).is_file():
+            path = Path(root) / project / rel
+            if not path.is_file():
+                continue
+            if stamp is None:
                 return True
-        except (OSError, ValueError):
+            # An unreadable file is unknown, and unknown is absent (above).
+            return json.loads(path.read_text(encoding="utf-8")).get("source") == stamp
+        except (OSError, ValueError, AttributeError):
             continue
     return False
 
@@ -594,7 +610,9 @@ def check(payload: dict) -> int:
     if tool_name == "mcp__artifact-storage__save_artifact":
         rel = str(tool_input.get("path") or "").replace("\\", "/").lstrip("/")
         project = str(tool_input.get("project") or "")
-        if rel in _PATCHABLE_ARTIFACTS and _seeded_file_exists(project, rel):
+        if rel in _PATCHABLE_ARTIFACTS and _seeded_file_exists(
+            project, rel, _PATCHABLE_ARTIFACTS[rel]
+        ):
             return block(
                 f"{rel} is already seeded - change named fields with "
                 "mcp__artifact-storage__propose_patch instead of replacing the file. "

@@ -181,12 +181,23 @@ def _apply_ladder(line: dict[str, Any], item: dict[str, Any], client: p21.P21Cli
     except Exception:
         net = None
     if net and net.get("net_price") is not None:
-        detail = (
-            f"special-net sheet ({net.get('section') or 'Hager special nets'}) "
-            f"item {net.get('item_code') or part}"
-        )
-        if _set_cost(line, net["net_price"], "SPECIAL_NET", detail):
-            return
+        effective = net.get("effective_date")
+        if reference_library.sheet_lapsed(effective):
+            # A lapsed sheet is a price the proposal gate would hold: skip the
+            # rung, say why, and let catalog / list× try a current one.
+            note = f"special net for {net.get('item_code') or part} skipped — sheet effective {effective} is past review"
+            line["cost_source_detail"] = "; ".join(filter(None, [line.get("cost_source_detail"), note]))
+        else:
+            detail = (
+                f"special-net sheet ({net.get('section') or 'Hager special nets'}) "
+                f"item {net.get('item_code') or part}"
+            )
+            if _set_cost(line, net["net_price"], "SPECIAL_NET", detail):
+                # The sheet's date is what quoting's is_lapsed reads off the line.
+                if effective:
+                    line["multiplier_effective_date"] = effective
+                    line["price_book_version"] = f"Hager special-net sheet, effective {effective}"
+                return
 
     # Rungs 3-4 (catalog baseline, list×) run after the write, as the two
     # backfills. Rung 5 (MANUAL / NEEDS_JUDGMENT) is the skeleton's default.

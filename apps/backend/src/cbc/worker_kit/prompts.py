@@ -544,10 +544,15 @@ it left you.
 
 `priced/line_items.json` is seeded, so correct it with `propose_patch`, one field
 at a time - `lines/<line_id>/<field>` - never a whole-file `save_artifact`, which
-is refused over the seed. A cost field (cost / margin / sale_ea / multiplier)
-cites `{{cost_source, cost_source_detail}}`; a drawing field (quantity) cites
-`{{source_page, excerpt}}`. A patch the contract refuses costs that one field and
-leaves a review flag.
+is refused over the seed. Patch pricing fields only - cost, margin, multiplier,
+cost_source, cost_source_detail, multiplier_tier, multiplier_effective_date,
+price_book_version, substitution_note - each citing
+`{{cost_source, cost_source_detail}}`; flags and notes need no citation. A cost or
+multiplier patch makes that evidence the line's provenance; a margin patch records
+it as margin_override_reason, so say why the margin moved. The server recomputes
+sale_ea and ext_price. Quantity is the take-off's: a patch to
+it, or to sale_ea / ext_price, is refused. A patch the contract refuses costs
+that one field and leaves a review flag.
 
 {seed_worklist}"""
 

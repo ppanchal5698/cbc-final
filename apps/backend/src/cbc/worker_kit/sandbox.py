@@ -427,11 +427,16 @@ def run_claude_docker(
     heartbeat_seconds: float = 30,
     cwd: Path | None = None,
     resume_session_id: str | None = None,
+    container_name: str | None = None,
     **_ignored,
 ):
     """Run Claude in a one-shot read-only container bound only to the scratch dir.
 
     Skipped-at-runtime: pytest and Windows-without-socket use CLAUDE_SANDBOX=process.
+
+    A cancel, a lost lease or the timeout `docker kill`s the container by name.
+    Killing the `docker run` client alone leaves the container - and its Claude
+    process - running on the daemon.
     """
     from cbc.modules.ops.api.claude_cli import HeartbeatWatchdog, RunResult
 
@@ -456,6 +461,8 @@ def run_claude_docker(
 
     import json
     import subprocess
+    import time
+    import uuid
 
     workspace = Path(cwd)
     prompt_path = workspace / "_prompt.txt"
@@ -489,10 +496,13 @@ def run_claude_docker(
     inner_env["PYTHONPATH"] = "/app:/app/packages"
     inner_env.pop("MONGODB_URI", None)
 
+    name = re.sub(r"[^a-zA-Z0-9_.-]", "-", container_name or f"cbc-{uuid.uuid4().hex}")
     argv = [
         "docker",
         "run",
         "--rm",
+        "--name",
+        name,
         "--read-only",
         "--cap-drop",
         "ALL",
@@ -517,41 +527,65 @@ def run_claude_docker(
         argv.extend(["-e", f"{key}={value}"])
     argv.extend([sandbox_image(), "python", "-m", "cbc.worker_kit.sandbox_entry"])
 
+    # ponytail: the token budget is not enforced here - the container's stream
+    # goes to _recording.log inside it, not to this process. Tail that file with
+    # streaming.Recorder's on_event if docker mode becomes the production path.
     watchdog = HeartbeatWatchdog(on_heartbeat, heartbeat_seconds)
     watchdog.start()
     try:
-        completed = subprocess.run(
-            argv,
-            capture_output=True,
-            text=True,
-            timeout=timeout + 60,
-            encoding="utf-8",
-            errors="replace",
-        )
-    except subprocess.TimeoutExpired:
-        return RunResult(
-            ok=False,
-            output="",
-            error=f"sandbox docker timed out after {timeout}s",
-            returncode=124,
-        )
-    except FileNotFoundError:
-        return RunResult(
-            ok=False,
-            output="",
-            error="docker CLI not found",
-            returncode=127,
-            permanent=True,
-            error_code="sandbox_unavailable",
-        )
+        try:
+            process = subprocess.Popen(
+                argv,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+        except FileNotFoundError:
+            return RunResult(
+                ok=False,
+                output="",
+                error="docker CLI not found",
+                returncode=127,
+                permanent=True,
+                error_code="sandbox_unavailable",
+            )
+        deadline = time.monotonic() + timeout + 60
+        stop: str | None = None
+        while stop is None:
+            try:
+                stdout, stderr = process.communicate(timeout=1)
+                break
+            except subprocess.TimeoutExpired:
+                pass
+            if cancel_check and cancel_check():
+                stop = "cancel"
+            elif time.monotonic() > deadline:
+                stop = "timeout"
+        if stop:
+            try:
+                subprocess.run(["docker", "kill", name], capture_output=True, timeout=30)
+            except (OSError, subprocess.SubprocessError):
+                pass  # already gone, or the daemon is; the client is killed either way
+            process.kill()
+            stdout, stderr = process.communicate()
+            if stop == "timeout":
+                return RunResult(
+                    ok=False,
+                    output="",
+                    error=f"sandbox docker timed out after {timeout}s",
+                    returncode=124,
+                )
+        completed = subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
     finally:
         watchdog.stop()
 
-    if cancel_check and cancel_check():
+    if cancel_check and (reason := cancel_check()):
         return RunResult(
             ok=False,
             output="",
-            error="cancelled by estimator",
+            error=reason if isinstance(reason, str) else "cancelled by estimator",
             returncode=130,
         )
 

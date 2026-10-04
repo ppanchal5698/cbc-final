@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { belowBandCount, belowBandTitle, isBelowBand } from "@/lib/margin";
+import { belowBandCount, belowBandTitle, isBelowBand, wouldBeBelowBand } from "@/lib/margin";
 import type { QuoteLine } from "@/lib/types";
 
 const line = (marginCheck: QuoteLine["marginCheck"]): QuoteLine => ({
@@ -42,6 +42,14 @@ describe("below-band margin", () => {
 
   it("still says something useful when it did not", () => {
     expect(belowBandTitle(line({ status: "fail", flag: "below_band" }))).toContain("NFR-8");
+  });
+
+  it("asks for a reason only when the typed margin lands under the floor", () => {
+    const checked = line({ status: "pass", flag: null, floor: 0.27 });
+    expect(wouldBeBelowBand(checked, 0.2)).toBe(true);
+    expect(wouldBeBelowBand(checked, 0.27)).toBe(false);
+    expect(wouldBeBelowBand(checked, null)).toBe(false);
+    expect(wouldBeBelowBand(line({ status: "unpriced" }), 0.1)).toBe(false);
   });
 
   it("counts across every line it is given", () => {

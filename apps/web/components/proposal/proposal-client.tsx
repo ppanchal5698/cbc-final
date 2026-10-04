@@ -207,6 +207,12 @@ ${draft.body}`;
         ? `${proposal.signoff[0].by} · ${new Date(proposal.signoff[0].at).toLocaleDateString()}`
         : "Not yet signed off",
     },
+    // Each one holds the hand-off on its own, so each is listed rather than counted.
+    ...(readiness.blockingFlags ?? []).map((flag) => ({
+      state: "warn",
+      title: `Blocks approval: ${flag.opening ?? "bid"} · ${(flag.field ?? "review").replaceAll("_", " ")}`,
+      detail: flag.note ?? "Clear this before handing off",
+    })),
     {
       state: readiness.flaggedLineItems > 0 ? "warn" : "done",
       title:
@@ -521,8 +527,8 @@ ${draft.body}`;
               Sign-off
             </span>
             <div className="mt-4 flex flex-col gap-4">
-              {signoff.map((entry) => (
-                <div key={entry.title} className="flex gap-3">
+              {signoff.map((entry, index) => (
+                <div key={`${entry.title}-${index}`} className="flex gap-3">
                   {entry.state === "done" ? (
                     <CheckCircle size={18} weight="fill" className="text-brand-primary mt-0.5" />
                   ) : entry.state === "warn" ? (
@@ -576,7 +582,9 @@ ${draft.body}`;
           </button>
           <p className="text-center text-[12px] font-medium text-tx-muted px-2">
             {readiness.blocking
-              ? "Held until purchasing confirms the lapsed cost, or you override it above."
+              ? readiness.blockingFlags?.length
+                ? "Held until the flags marked “Blocks approval” in Sign-off are cleared."
+                : "Held until purchasing confirms the lapsed cost, or you override it above."
               : "This records your sign-off and puts the bid in their queue. It does not send anything."}
           </p>
         </aside>

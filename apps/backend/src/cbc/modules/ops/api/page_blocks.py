@@ -30,10 +30,19 @@ from typing import Any
 
 import fitz
 
-from cbc.shared.pdfrows import rows_from_words
+from cbc.shared.pdfrows import (
+    detect_shift,
+    has_text_layer,
+    ocr_words,
+    rows_from_words,
+)
 
 # Same threshold as extraction bbox verification: half the claim on real text.
 BBOX_COVERAGE = 0.5
+
+# What a page read by `local_window` is stored under, so bid-docs and the review
+# flags can tell a local read from a LlamaParse one.
+LOCAL_PARSER = {"name": "local", "version": "pymupdf", "tier": None}
 
 # Types that legitimately carry no text to anchor, so they keep their place in
 # the page without being scored or dropped.
@@ -225,6 +234,43 @@ def _require_bbox(
             continue
         kept.append(block)
     return kept, dropped
+
+
+def local_window(pdf_path: str | Path, page: int) -> dict[str, Any]:
+    """One page read locally, in the same window shape LlamaParse hands over.
+
+    The fallback when LlamaParse failed or the parse deadline passed, so a bid
+    always moves on. Each clustered row becomes one text item; the rows are
+    already in display space, which `normalise_window` accepts as it is.
+
+    A page with no text layer is read through OCR. Where Tesseract is not
+    installed that yields no words, and the page is stored empty rather than
+    failing the parse - `verified` then comes out None and the page is routed
+    to a visual read, the same as an image-only page from LlamaParse.
+    """
+    document = fitz.open(pdf_path)
+    try:
+        sheet = document[page - 1]
+        words = None if has_text_layer(sheet) else ocr_words(sheet)
+        rows = rows_from_words(
+            sheet, shift=detect_shift(document, str(pdf_path)), words=words
+        )
+        return {
+            "page": page,
+            "width": sheet.rect.width,
+            "height": sheet.rect.height,
+            "items": [
+                {
+                    "type": "text",
+                    "text": " ".join(row["cells"]),
+                    "bbox": row["bbox"],
+                    "cells": row["cell_boxes"],
+                }
+                for row in rows
+            ],
+        }
+    finally:
+        document.close()
 
 
 def normalise_window(

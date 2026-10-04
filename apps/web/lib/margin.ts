@@ -17,6 +17,19 @@ export function isBelowBand(line: QuoteLine): boolean {
   return line.marginCheck?.flag === "below_band";
 }
 
+/**
+ * Whether a margin about to be typed onto this line would land under its floor.
+ *
+ * Reads the floor from the API's own verdict on the line, so the grid asks for
+ * a reason exactly where the review would raise a blocking `margin` flag. A
+ * line the API has not checked has no floor to compare against.
+ */
+export function wouldBeBelowBand(line: QuoteLine, margin: number | null): boolean {
+  const floor = line.marginCheck?.floor;
+  // Same tolerance as calc.validate_margin, so a margin typed at the floor is not asked about.
+  return margin !== null && floor !== undefined && margin < floor - 1e-9;
+}
+
 /** The hover text explaining what the badge is claiming. */
 export function belowBandTitle(line: QuoteLine): string {
   const check = line.marginCheck;

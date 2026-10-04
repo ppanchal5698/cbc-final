@@ -114,3 +114,56 @@ def test_the_seed_never_raises_on_a_missing_hardware_file(tmp_path, monkeypatch)
     result = preprice.seed_line_items(slug)  # no hardware_sets.json
     assert result["written"] is True
     assert _lines(tmp_path / "projects" / slug) == []
+
+
+def test_an_expired_special_net_is_skipped_with_a_note(tmp_path, monkeypatch) -> None:
+    """A special net off a sheet past the review window is not seeded: the rung is
+    skipped, the reason is on the line, and the ladder carries on to MANUAL."""
+    from cbc.modules.pricing.api import catalog_baseline_backfill, reference_library
+
+    slug, root = _seed_bid(tmp_path, monkeypatch, [{"part_number": "3553", "manufacturer": "Hager"}])
+    monkeypatch.setattr(
+        reference_library,
+        "get_special_net",
+        lambda vendor, part: {"net_price": 64.58, "item_code": "000091", "effective_date": "2015-01-01"},
+    )
+    monkeypatch.setattr(catalog_baseline_backfill, "_lookup_catalog_item", lambda part, vendor: None)
+    preprice.seed_line_items(slug)
+    line = _lines(root)[0]
+    assert line["cost"] is None
+    assert line["cost_source"] == "MANUAL"
+    assert "skipped" in line["cost_source_detail"] and "2015-01-01" in line["cost_source_detail"]
+
+
+def test_list_x_dates_the_line_from_the_tier_record(tmp_path, monkeypatch) -> None:
+    """The list× rung stamps the tier's effective date and book version, so the
+    proposal's lapsed gate can fire on a seeded line."""
+    from cbc.modules.pricing.api import catalog_baseline_backfill, hager_list_price, reference_library
+
+    slug, root = _seed_bid(
+        tmp_path,
+        monkeypatch,
+        [{"part_number": "PEMKO-275A-42", "item_type": "threshold", "quantity": 1}],
+    )
+    monkeypatch.setattr(catalog_baseline_backfill, "_lookup_catalog_item", lambda part, vendor: None)
+    monkeypatch.setattr(
+        hager_list_price,
+        "lookup_ngp_list_price",
+        lambda code, width_in=None: {"list_price": 100.0, "source_page": 531},
+    )
+    monkeypatch.setattr(
+        reference_library,
+        "get_vendor_tier",
+        lambda vendor, category=None: {
+            "vendor": "Hager",
+            "multiplier": 0.4,
+            "effective_date": "2026-03-02",
+            "price_book": "Price Book #18, effective 2026-02-02",
+        },
+    )
+    preprice.seed_line_items(slug)
+    line = _lines(root)[0]
+    assert line["cost_source"] == "LIST_X_MULTIPLIER"
+    assert line["multiplier_effective_date"] == "2026-03-02"
+    assert line["price_book_version"] == "Hager Price Book #18, effective 2026-02-02"
+    assert line["multiplier_tier"] == "thresholds_weatherstrip"

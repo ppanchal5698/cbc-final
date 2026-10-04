@@ -390,6 +390,35 @@ def test_a_lapsed_price_holds_the_hand_off(client, project):
     assert client.get(f"/api/projects/{code}").json().get("handedOffTo") is None
 
 
+def test_acknowledge_lapsed_false_is_not_an_override(client, project):
+    code = project["code"]
+    body = client.patch(f"/api/projects/{code}/proposal", json={"acknowledgeLapsed": False}).json()
+    assert body["readiness"]["lapsedAcknowledgedBy"] is None
+    assert client.post(f"/api/projects/{code}/proposal/complete", json={}).status_code == 409
+
+
+def test_a_blocking_review_flag_holds_the_hand_off_until_cleared(client, project):
+    """A line with no cost cannot go out; entering the cost on the grid clears it."""
+    code = project["code"]
+    client.patch(f"/api/projects/{code}/proposal", json={"acknowledgeLapsed": True})
+    line = client.post(
+        f"/api/projects/{code}/quote/lines",
+        json={"description": "Awaiting a price", "division": "08 71 00"},
+    ).json()["line"]
+    client.patch(f"/api/projects/{code}/quote/lines/{line['id']}", json={"costSource": "MANUAL"})
+
+    readiness = client.get(f"/api/projects/{code}/proposal").json()["readiness"]
+    assert readiness["blocking"] is True
+    assert [f["field"] for f in readiness["blockingFlags"]] == ["cost"]
+    held = client.post(f"/api/projects/{code}/proposal/complete", json={})
+    assert held.status_code == 409
+    assert "block approval" in held.json()["detail"]
+
+    client.patch(f"/api/projects/{code}/quote/lines/{line['id']}", json={"cost": 80.0})
+    assert client.get(f"/api/projects/{code}/proposal").json()["readiness"]["blocking"] is False
+    assert client.post(f"/api/projects/{code}/proposal/complete", json={}).status_code == 200
+
+
 def test_hand_off_routes_to_the_initiator_and_sends_nothing(client, project):
     code = project["code"]
     # Clear the gate the test above proves: an override is a person taking
@@ -475,3 +504,23 @@ def test_a_confirmed_hand_added_line_counts_as_cleared(client, project):
     assert counts["clear"] == confirmed
     assert confirmed_line["status"] == "clear"
     assert confirmed_line.get("addedByHand") is True
+
+
+def test_viewing_the_proposal_never_exports_an_empty_take_off(client):
+    """GET /proposal writes the estimator's edits down so the gate reads them. A bid
+    whose openings never reached Mongo must keep the take-off it has on disk."""
+    import json
+
+    from cbc.shared import storage
+
+    created = client.post("/api/projects", json={"name": "Unimported take-off", "state": "OH"})
+    assert created.status_code == 201, created.text
+    bid = created.json()
+    path = storage.project_dir(bid["slug"]) / "extracted" / "line_items.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    original = json.dumps({"openings": [{"mark": "101", "door_number": "101"}]})
+    path.write_text(original, encoding="utf-8")
+
+    response = client.get(f"/api/projects/{bid['code']}/proposal")
+    assert response.status_code == 200, response.text
+    assert path.read_text(encoding="utf-8") == original

@@ -67,7 +67,9 @@ estimators.
 - Records the applied margin, whether it was overridden, and the override reason.
 - **Flags** any line whose margin falls below its band floor (FR-15) into
   `review/review_flags.json` at severity `medium`.
-- Does **not** block, route, escalate or require sign-off.
+- A below-band margin with **no recorded reason** blocks proposal approval until
+  the estimator enters one. With a reason it is advisory.
+- Does **not** route, escalate or require sign-off.
 
 > The bands are also served live by `mcp__reference__get_margin_bands` and are
 > editable in the app at `/settings`. Where the two disagree, the server is

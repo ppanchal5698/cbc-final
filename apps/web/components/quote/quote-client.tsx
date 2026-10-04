@@ -26,7 +26,7 @@ import { VendorRfqsPanel } from "@/components/quote/vendor-rfqs-panel";
 import { JobFailedBanner } from "@/components/jobs/job-failed-banner";
 import { useUiState } from "@/components/shell/ui-state";
 import { formatMoney, formatPercent } from "@/lib/format";
-import { belowBandTitle, isBelowBand } from "@/lib/margin";
+import { belowBandTitle, isBelowBand, wouldBeBelowBand } from "@/lib/margin";
 import { Nomenclature } from "@/components/quote/nomenclature";
 import { slotOf, slotRank } from "@/lib/slot";
 import { errorMessage, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
@@ -653,12 +653,26 @@ export function QuoteClient({
                           value={line.margin === null ? null : Number((line.margin * 100).toFixed(1))}
                           suffix="%"
                           label={`Margin for ${line.description}`}
-                          onCommit={(next) =>
-                            patchLine(line, {
-                              margin: next === null ? null : Math.min(Math.max(next, 0), 99) / 100,
-                              overrideReason: "edited on the quote grid",
-                            })
-                          }
+                          onCommit={(next) => {
+                            const margin = next === null ? null : Math.min(Math.max(next, 0), 99) / 100;
+                            // Below band, the reason is what turns the review's
+                            // blocking flag into a recorded decision - so it is
+                            // asked for, never filled in. Otherwise none is sent.
+                            if (!wouldBeBelowBand(line, margin)) {
+                              patchLine(line, { margin });
+                              return;
+                            }
+                            const reason = window
+                              .prompt(`${formatPercent(margin ?? 0)} is below the band floor. Why?`)
+                              ?.trim();
+                            if (!reason) {
+                              toast.error("Margin not changed", {
+                                description: "A below-band margin needs a reason.",
+                              });
+                              return;
+                            }
+                            patchLine(line, { margin, overrideReason: reason });
+                          }}
                         />
 
                         <span className="min-w-0">

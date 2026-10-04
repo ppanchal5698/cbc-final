@@ -40,6 +40,9 @@ class JobRef(TypedDict, total=False):
     payload: dict[str, Any]
     phaseState: dict[str, Any]
     claimGeneration: int
+    # Read by parse_document: on the last attempt a transient parser error is
+    # read locally instead of retried.
+    attempts: int
     createdAt: datetime
     createdBy: str
     startedAt: datetime

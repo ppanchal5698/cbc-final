@@ -42,12 +42,12 @@ def test_a_full_run_gets_a_bigger_budget_than_one_phase() -> None:
     multi-phase extraction wave (W2d) - need more. A single-phase job keeps it."""
     from cbc.modules.ops.api.claude_pass import JOB_TIMEOUT, MAX_TURNS, limits_for
 
-    timeout, turns = limits_for("run_full_pipeline")
+    timeout, turns, _tokens = limits_for("run_full_pipeline")
     assert timeout > JOB_TIMEOUT and turns > MAX_TURNS
     # Extraction is a wave on a set that can be 744 pages, so it now carries the
     # pipeline budget too; a genuinely single-phase job keeps the one-phase one.
     assert limits_for("extract_bid_set")[1] > MAX_TURNS
-    assert limits_for("match_and_price") == (JOB_TIMEOUT, MAX_TURNS), "one-phase path unchanged"
+    assert limits_for("match_and_price")[:2] == (JOB_TIMEOUT, MAX_TURNS), "one-phase path unchanged"
 
 
 def test_a_full_run_gets_every_mcp_server() -> None:

@@ -162,6 +162,25 @@ def test_cells_are_carried_through_for_per_field_evidence(tmp_path: Path):
     ]
 
 
+def test_local_window_lands_on_its_own_text(tmp_path: Path):
+    """The fallback read must verify like a parser's, rotated sheet included.
+
+    Built here rather than read from FIXTURE_PDF, which is not committed and
+    would skip the test on every machine that matters.
+    """
+    pdf = _pdf(tmp_path, rotation=270, text="101 VESTIBULE 3070 HM 60 MIN GROUP 02 TYPE A")
+    window = page_blocks.local_window(pdf, 1)
+    assert window["items"], "the text layer produced no rows"
+
+    rows = page_blocks.normalise_window(
+        [window], pdf_path=pdf, project_id="p", document_id="d", content_sha="s",
+        parser=page_blocks.LOCAL_PARSER,
+    )
+    assert rows[0]["verified"] == 1.0
+    assert rows[0]["parser"]["name"] == "local"
+    assert "VESTIBULE" in " ".join(b["text"] for b in rows[0]["blocks"])
+
+
 def test_cells_rotate_with_their_block(tmp_path: Path):
     """A cell box left in the old frame is a highlight on the wrong part of the sheet."""
     pdf = _pdf(tmp_path, rotation=270)

@@ -34,9 +34,14 @@ disabled.
 
 Correct a seeded line with `mcp__artifact-storage__propose_patch`, one field at a
 time - `lines/<line_id>/<field>` - never a whole-file `save_artifact`, which is
-refused over the seed. A cost field (cost / margin / sale_ea / multiplier) cites
-`{cost_source, cost_source_detail}`; a drawing field (quantity) cites
-`{source_page, excerpt}`. A rejected patch costs that one field and leaves a flag.
+refused over the seed. Patch pricing fields only - cost, margin, multiplier,
+cost_source, cost_source_detail, multiplier_tier, multiplier_effective_date,
+price_book_version, substitution_note - each citing
+`{cost_source, cost_source_detail}`; flags and notes need no citation. A cost or
+multiplier patch makes that evidence the line's provenance; a margin patch
+records it as `margin_override_reason`. The server recomputes `sale_ea` /
+`ext_price`. Quantity is the take-off's: a patch to it, or to `sale_ea` /
+`ext_price`, is refused. A rejected patch costs that one field and leaves a flag.
 
 ## Cost paths, in order
 **1. P21 last purchase-order price.** For regularly bought or special-priced
@@ -159,6 +164,8 @@ SKU. There is no partial credit for a confidently wrong price.
 - @.claude/memory/manual_cutoff.md
 
 ## Output
-Write `priced/line_items.json` and `priced/margin_applied.json` via
-`mcp__artifact-storage__save_artifact` (not bare Write). Each file must pass
+Write `priced/margin_applied.json` via `mcp__artifact-storage__save_artifact`
+(not bare Write). Over the preprice seed, `priced/line_items.json` is changed with
+`propose_patch` only - a whole-file `save_artifact` over it is refused; write it
+whole with `save_artifact` only when the seed is off and you produced it. Each file must pass
 `python apps/backend/scripts/validate_project.py --check-pricing <project>` before you stop.

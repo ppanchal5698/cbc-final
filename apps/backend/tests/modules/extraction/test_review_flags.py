@@ -202,6 +202,98 @@ def test_a_line_priced_from_an_excluded_vendor_is_flagged_out_of_scope(project) 
     assert "American Dryer" in flags[0]["note"]
 
 
+def _blocking(flags):
+    return {(f["opening"], f["field"]): f["blocking"] for f in flags}
+
+
+def test_blocking_is_set_per_kind(project) -> None:
+    """Severity is display; blocking is what holds the approval."""
+    slug, directory = project
+    _write(directory, "extracted/scope_summary.json", {"fire_ratings_present": True})
+    _write(directory, "extracted/scope_metadata.json", {"brand_mismatch_warning": "Wendys vs Arbys"})
+    _write(directory, "extracted/line_items.json", {"openings": [
+        {"door_number": "101", "source_page": 4, "bbox": [1, 2, 3, 4],
+         "fire_rating": None, "handing": None, "size": "3070"},
+    ]})
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "L1", "group": "Door 101", "cost_source": "MANUAL", "cost": None},
+    ]})
+    blocking = _blocking(review.derive_flags(slug))
+    assert blocking[("Door 101", "fire_rating")] is True
+    assert blocking[("Door 101", "handing")] is False
+    assert blocking[("Door 101", "cost")] is True
+    assert blocking[("bid set", "project_identity")] is True
+    assert blocking[("quote", "sales_tax")] is False
+
+
+def test_a_missing_rating_does_not_block_in_a_set_with_no_ratings(project) -> None:
+    slug, directory = project
+    _write(directory, "extracted/line_items.json", {"openings": [
+        {"door_number": "101", "bbox": [1, 2, 3, 4], "handing": "LH", "size": "3070"},
+    ]})
+    assert _blocking(review.derive_flags(slug))[("Door 101", "fire_rating")] is False
+
+
+def test_a_below_band_margin_with_a_reason_is_advisory(project) -> None:
+    from cbc.modules.pricing.api import calc, pricing
+
+    floor = calc.bands()[pricing.band_for_division("08 11")]
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "L1", "group": "Door 1", "division": "08 11", "margin": floor - 0.05,
+         "cost_source": "LIST_X_MULTIPLIER", "cost": 10},
+        {"line_id": "L2", "group": "Door 2", "division": "08 11", "margin": floor - 0.05,
+         "cost_source": "LIST_X_MULTIPLIER", "cost": 10,
+         "margin_overridden": True, "margin_override_reason": "matching the GC's number"},
+    ]})
+    blocking = _blocking(review.derive_flags(slug))
+    assert blocking[("Door 1", "margin")] is True
+    assert blocking[("Door 2", "margin")] is False
+
+
+def test_frp_with_pending_constants_blocks(project) -> None:
+    """The seed constants are PENDING (Open Item 5), so FRP rows cannot be quoted yet."""
+    slug, directory = project
+    assert ("bid set", "frp_constants_pending") not in _fields(review.derive_flags(slug))
+
+    _write(directory, "extracted/frp_takeoff.json", {"areas": [{"location": "Kitchen"}]})
+    flag = next(f for f in review.derive_flags(slug) if f["field"] == "frp_constants_pending")
+    assert flag["blocking"] is True
+    assert flag["severity"] == "high"
+
+
+def test_locally_parsed_pages_are_flagged_as_advisory(project) -> None:
+    slug, directory = project
+    _write(directory, "extracted/_parse_status.json", {"documents": [
+        {"documentId": "d1", "filename": "A.pdf", "state": "parsed", "error": None,
+         "fallbackPages": [9, 10]},
+    ]})
+    flag = next(f for f in review.derive_flags(slug) if f["field"] == "parse_fallback")
+    assert flag["blocking"] is False
+    assert flag["severity"] == "medium"
+    assert "9, 10" in flag["note"]
+    assert not [f for f in review.derive_flags(slug) if f["field"] == "document_not_parsed"]
+
+
+def test_a_cleared_derived_flag_does_not_survive_in_the_saved_file(project) -> None:
+    """Otherwise the approval gate stays shut after the estimator enters the cost."""
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "L1", "group": "Door 101", "cost_source": "MANUAL", "cost": None},
+    ]})
+    review.write_flags(slug)
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "L1", "group": "Door 101", "cost_source": "MANUAL", "cost": 120.0},
+    ]})
+    assert ("Door 101", "cost") not in _fields(review.read_flags(slug))
+
+
+def test_an_agent_flag_never_blocks(project) -> None:
+    merged = review.merge([], [{"opening": "bid set", "field": "rfi", "severity": "high",
+                                "note": "RFI", "blocking": True}])
+    assert merged[0]["blocking"] is False
+
+
 def test_the_seed_tier_sheet_excludes_the_vendors_the_scope_rule_names(project) -> None:
     slug, directory = project
     _write(directory, "priced/line_items.json", {"lines": [

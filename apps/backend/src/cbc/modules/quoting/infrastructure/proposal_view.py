@@ -5,11 +5,16 @@ the copilot drafts, sources and calculates - a human sends.
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, timezone
 from typing import Any
 
 from cbc.modules.quoting.api import quote_layout
+from cbc.modules.extraction.api import line_items
 from cbc.modules.extraction.api import openings as extraction_openings
+from cbc.modules.extraction.api.validation import review
+from cbc.modules.ops.api import jobs
+from cbc.modules.quoting.api import priced_lines
 from cbc.modules.quoting.api import quote as quote_service
 from cbc.modules.quoting.infrastructure.collections import estimate_lines, proposals
 from cbc.shared.config import settings
@@ -131,6 +136,26 @@ async def _build(project: dict[str, Any], markup: float = 0.0) -> dict[str, Any]
     }
 
 
+async def export_for_review(project: dict[str, Any]) -> None:
+    """Write the estimator's edits in Mongo down to the files the review reads.
+
+    The blocking flags are derived from `extracted/` and `priced/`, while a cost
+    typed on the quote grid lands in Mongo. Without this the gate would hold a
+    line the estimator had already priced, with Approve disabled and nothing on
+    screen to clear it.
+
+    Skipped while a pipeline job is queued or running: the run owns those files,
+    and an export would overwrite a pass's output before it was imported.
+    """
+    if await jobs.active_pipeline_job(project["_id"]):
+        return
+    # Openings that never reached Mongo would export as an empty take-off over
+    # the one on disk - the priced export already refuses that; this one does not.
+    if await extraction_openings.list_for_project(project["_id"], limit=1):
+        await line_items.export_line_items(project)
+    await priced_lines.export_quote_lines(project)
+
+
 async def proposal_payload(project: dict[str, Any]) -> dict[str, Any]:
     """The proposal as rendered. Takes the project so callers do not re-load it."""
     stored = await proposals().find_one({"projectId": project["_id"]}) or {}
@@ -143,14 +168,35 @@ async def proposal_payload(project: dict[str, Any]) -> dict[str, Any]:
 
     # data-stewardship.md: a lapsed sheet means the margin on those lines is not
     # real, and purchasing has to confirm the cost before the proposal leaves
-    # the building. Unlike a flagged line, this one blocks - and it is the one
-    # gate on this screen that does, which is why the override is recorded.
+    # the building. It blocks until purchasing confirms or an override is
+    # recorded, which is why the override names who made it.
     bands = await freshness_settings.load()
     priced = await estimate_lines().find(
         {"projectId": project["_id"]}, {"multiplierEffectiveDate": 1}
     ).to_list(length=None)
     lapsed = sum(1 for line in priced if is_lapsed(line, bands.catalog_stale_days))
     acknowledged = bool(stored.get("lapsedAcknowledgedBy"))
+    lapsed_blocking = bool(lapsed) and not acknowledged
+
+    # The review's own rule set decides which findings hold the hand-off (a line
+    # with no cost, a below-band margin with no reason, ...). Derived from the
+    # files on every read, so a caller that wants the estimator's latest edits
+    # counted exports them first - see MarkComplete. Reads the tier sheet
+    # synchronously, hence the thread.
+    flags = await asyncio.to_thread(review.read_flags, project["slug"])
+    blocking_flags = [f for f in flags if f.get("blocking")]
+    notes = []
+    if lapsed_blocking:
+        notes.append(
+            f"{lapsed} line(s) are priced from a sheet past its review window. "
+            "Purchasing has to confirm the cost, or an override has to be recorded, "
+            "before this is handed off."
+        )
+    if blocking_flags:
+        notes.append(
+            f"{len(blocking_flags)} review flag(s) block approval: "
+            + "; ".join(f"{f.get('opening') or 'bid'} - {f.get('note')}" for f in blocking_flags)
+        )
 
     return {
         "proposal": {
@@ -174,13 +220,11 @@ async def proposal_payload(project: dict[str, Any]) -> dict[str, Any]:
             "unpricedQuoteLines": unpriced,
             "lapsedLines": lapsed,
             "lapsedAcknowledgedBy": stored.get("lapsedAcknowledgedBy"),
-            "blocking": bool(lapsed) and not acknowledged,
+            "blockingFlags": blocking_flags,
+            "blocking": lapsed_blocking or bool(blocking_flags),
             "note": (
-                f"{lapsed} line(s) are priced from a sheet past its review window. "
-                "Purchasing has to confirm the cost, or an override has to be recorded, "
-                "before this is handed off."
-                if lapsed and not acknowledged
-                else "Flagged and unpriced lines are shown, not blocked - the estimator decides."
+                " ".join(notes)
+                or "Advisory flags are shown, not blocked - the estimator decides."
             ),
             # A draft produced on a provider Claude Code warns about can be wrong
             # as a whole document, not just in one field - and it will not look it.

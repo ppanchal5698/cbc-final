@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from cbc.modules.pricing.api import hager_list_price
+from cbc.modules.pricing.api import hager_list_price, reference_library
 from cbc.modules.pricing.domain import calc as quote_calc
 from cbc.shared import storage
 from cbc.shared.pass_files import read_json, write_json
@@ -176,6 +176,19 @@ def _apply_list_x(
     quote = hager_list_price.lookup_ngp_list_price(ngp_code, width_in=width_in)
     if not quote:
         return False
+    # The version and date come from the vendor-tier record the multiplier is
+    # read against, not a literal: a hardcoded book name never lapses, so the
+    # proposal gate could not fire on a list× line.
+    tier_key = line.get("multiplier_tier") or "thresholds_weatherstrip"
+    try:
+        tier = reference_library.get_vendor_tier("hager", tier_key)
+    except Exception:
+        tier = {}
+    effective = tier.get("effective_date")
+    if reference_library.sheet_lapsed(effective):
+        note = f"list× {ngp_code} skipped — Hager {tier_key} multiplier effective {effective} is past review"
+        line["cost_source_detail"] = "; ".join(filter(None, [line.get("cost_source_detail"), note]))
+        return False
 
     list_price = float(quote["list_price"])
     cost = round(list_price * multiplier, 2)
@@ -201,9 +214,15 @@ def _apply_list_x(
     if drawing_page in (None, ""):
         line["source_page"] = page
     line["multiplier"] = multiplier
-    if not line.get("multiplier_tier"):
-        line["multiplier_tier"] = "thresholds_weatherstrip"
-    line["price_book_version"] = line.get("price_book_version") or "Hager Price Book #18"
+    line["multiplier_tier"] = tier_key
+    if effective:
+        line["multiplier_effective_date"] = effective
+    if not line.get("price_book_version"):
+        line["price_book_version"] = (
+            f"{tier.get('vendor') or 'Hager'} {tier['price_book']}"
+            if tier.get("price_book")
+            else hager_list_price.HAGER_BOOK
+        )
     line["basis"] = f"Hager #18 × {multiplier:g}"
     line["price_status"] = "LIST_X_MULTIPLIER"
     flags = [str(f) for f in (line.get("flags") or []) if f]

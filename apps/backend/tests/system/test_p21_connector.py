@@ -88,6 +88,8 @@ def test_lookup_with_base_url_uses_fresh_po(monkeypatch) -> None:
 
 
 def test_lookup_with_base_url_stale_po_requires_manual(monkeypatch) -> None:
+    """A stale PO withholds the cost, as pricing/api/p21._classify does: the
+    price stays visible as context, but nothing hands the agent a quotable cost."""
     from datetime import date, timedelta
 
     monkeypatch.setattr(_server, "BASE_URL", "https://p21.example.test")
@@ -101,9 +103,12 @@ def test_lookup_with_base_url_stale_po_requires_manual(monkeypatch) -> None:
 
     monkeypatch.setattr(_server, "_http_lookup", fake_lookup)
     result = lookup_last_po("BB1279", vendor="Hager")
-    assert result["cost_source"] == "P21_LAST_PO"
+    assert result["cost"] is None
+    assert result["cost_source"] == "MANUAL"
+    assert result["last_po_price"] == 9.99
     assert result["freshness_status"] == "stale"
     assert result["action_required"] == "manual_price_entry"
+    assert result["connected"] is True
 
 
 def test_freshness_respects_a_narrower_admin_window(monkeypatch) -> None:

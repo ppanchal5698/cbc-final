@@ -553,7 +553,9 @@ export interface ProposalResponse {
     lapsedLines: number;
     /** Who took responsibility for those lines, if anyone has. */
     lapsedAcknowledgedBy?: string | null;
-    /** True only for lapsed lines: the one gate that stops a hand-off. */
+    /** The review flags that hold the hand-off: no cost, below band with no reason, ... */
+    blockingFlags?: ReviewFlag[];
+    /** Unacknowledged lapsed lines, or any blocking review flag: the hand-off waits. */
     blocking: boolean;
     note: string;
   };
@@ -1124,6 +1126,8 @@ export interface ReviewFlag {
   issue?: string | null;
   action_required?: string | null;
   derived?: boolean;
+  /** Holds the proposal hand-off until cleared. Only derived flags set it; display severity is separate. */
+  blocking?: boolean;
 }
 
 /** `GET /api/projects/{code}/vendor-rfqs` - FR-16, the third cost path. */
