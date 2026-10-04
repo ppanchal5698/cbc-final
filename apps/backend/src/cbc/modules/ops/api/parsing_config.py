@@ -44,7 +44,7 @@ SECRET_FIELDS = frozenset({"apiKey"})
 # typed - so saving a tier once and restarting left the field permanently
 # greyed out, with later saves returning 200 and changing nothing.
 #
-# A genuine process variable - Compose, or `infisical run` injecting before
+# A genuine process variable - Compose, or the Key Vault entrypoint injecting before
 # Python starts - still wins and still locks, which is the intended meaning:
 # the operator pinned it outside the app.
 MANAGED = frozenset(FIELDS.values())

@@ -33,9 +33,8 @@ async def ensure_indexes() -> None:
         "project_content_sha",
         [("projectId", ASCENDING), ("contentSha", ASCENDING)],
         unique=True,
-        partialFilterExpression={
-            "contentSha": {"$exists": True, "$type": "string"},
-        },
+        # $type alone implies the field exists; DocumentDB refuses both together.
+        partialFilterExpression={"contentSha": {"$type": "string"}},
     )
     await replace_index(
         versions(),

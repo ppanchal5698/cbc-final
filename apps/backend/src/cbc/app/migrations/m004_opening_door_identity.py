@@ -40,9 +40,8 @@ async def apply(db) -> None:
             [("orgId", 1), ("projectId", 1), ("doorNumber", 1)],
             name="opening_door_identity",
             unique=True,
-            partialFilterExpression={
-                "doorNumber": {"$exists": True, "$type": "string"},
-            },
+            # The spec extraction's ensure_indexes keeps; see there.
+            partialFilterExpression={"doorNumber": {"$type": "string"}},
         )
     except Exception as exc:
         log.warning("opening_door_identity index deferred: %s", exc)

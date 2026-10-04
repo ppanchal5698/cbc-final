@@ -116,7 +116,7 @@ def require_mongo(client) -> None:
             pytest.fail(f"REQUIRE_MONGO is set but {message}")
         pytest.skip(
             f"{message} - start it with "
-            "`docker compose -f infra/docker-compose.yml up -d mongo`"
+            "`docker compose -f infra/docker-compose.yml up -d documentdb`"
         )
 
 

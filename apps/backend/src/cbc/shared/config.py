@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import parse_qsl, urlsplit
 from cbc.shared.paths import pricebook_dir, reference_dir, repo_root, storage_root
 
 REPO_ROOT = repo_root()
@@ -16,6 +17,21 @@ REPO_ROOT = repo_root()
 # the defaults above cannot drift apart.
 DEV_SECRET = "cbc-local-dev-key-change-me"
 DEV_MONGO_PASSWORD = "cbc_local_dev"
+DEV_READONLY_PASSWORD = "cbc_catalog_ro_local_dev"
+# DocumentDB Local (infra/docker-compose.yml) presents a self-signed certificate,
+# hence the flag - which the production guard refuses.
+DEV_MONGODB_URI = (
+    f"mongodb://cbc:{DEV_MONGO_PASSWORD}@localhost:10260/cbc_opshub"
+    "?authSource=admin&authMechanism=SCRAM-SHA-256"
+    "&tls=true&tlsAllowInvalidCertificates=true&retryWrites=false"
+)
+# URI options that switch TLS verification off.
+_INSECURE_TLS = ("tlsallowinvalidcertificates", "tlsallowinvalidhostnames", "tlsinsecure")
+
+
+def _disables_tls_checks(uri: str) -> bool:
+    options = {key.lower(): value.lower() for key, value in parse_qsl(urlsplit(uri).query)}
+    return any(options.get(flag) == "true" for flag in _INSECURE_TLS)
 
 
 def _path(env_var: str, default: str) -> Path:
@@ -28,10 +44,7 @@ class Settings:
     """Process settings. Read once at import, overridable in tests."""
 
     def __init__(self) -> None:
-        self.mongodb_uri = os.environ.get(
-            "MONGODB_URI",
-            f"mongodb://cbc:{DEV_MONGO_PASSWORD}@localhost:27017/cbc_opshub?authSource=admin",
-        )
+        self.mongodb_uri = os.environ.get("MONGODB_URI", DEV_MONGODB_URI)
         self.mongodb_db = os.environ.get("MONGODB_DB", "cbc_opshub")
         self.repo_root = REPO_ROOT
         self.storage_root = storage_root()
@@ -96,9 +109,20 @@ class Settings:
             insecure.append("APP_SECRET_KEY")
         if DEV_MONGO_PASSWORD in self.mongodb_uri:
             insecure.append("MONGODB_URI (still carries the local-dev password)")
-        readonly_password = os.environ.get("MONGODB_READONLY_PASSWORD", "cbc_catalog_ro_local_dev")
-        if readonly_password == "cbc_catalog_ro_local_dev":
+        readonly_uri = os.environ.get("MONGODB_READONLY_URI", "")
+        if readonly_uri:
+            # What production sets. The password variable only feeds the URI
+            # derived when this is absent, so it is not required alongside it.
+            if DEV_READONLY_PASSWORD in readonly_uri:
+                insecure.append("MONGODB_READONLY_URI (still carries the repo default password)")
+        elif os.environ.get("MONGODB_READONLY_PASSWORD", DEV_READONLY_PASSWORD) == DEV_READONLY_PASSWORD:
             insecure.append("MONGODB_READONLY_PASSWORD (still the repo default)")
+        for name, uri in (("MONGODB_URI", self.mongodb_uri), ("MONGODB_READONLY_URI", readonly_uri)):
+            if _disables_tls_checks(uri):
+                insecure.append(f"{name} (turns off TLS certificate checks, as the emulator needs)")
+        storage = os.environ.get("AZURE_STORAGE_CONNECTION_STRING", "")
+        if "devstoreaccount1" in storage or "usedevelopmentstorage" in storage.lower():
+            insecure.append("AZURE_STORAGE_CONNECTION_STRING (the local storage emulator's account)")
 
         if insecure:
             raise RuntimeError(

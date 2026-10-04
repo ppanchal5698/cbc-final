@@ -145,7 +145,7 @@ jobs:
       # Named services, not the whole file: nginx is the production TLS edge and
       # wants a Let's Encrypt certificate for a real domain, so it crash-loops
       # here and takes the stack down with it. web and worker pull in platform,
-      # which pulls in mongo, mongo-init and clamav - everything the specs need.
+      # which pulls in documentdb, floci and clamav - everything the specs need.
       - name: Start the stack
         run: docker compose up -d --build web worker
         env:
@@ -178,7 +178,7 @@ jobs:
         run: |
           sleep 15
           docker compose ps
-          for service in platform worker web mongo; do
+          for service in platform worker web documentdb floci; do
             state=$(docker compose ps --format '{{.Service}} {{.State}}' \
                     | awk -v s="$service" '$1 == s {print $2}')
             echo "$service: ${state:-missing}"

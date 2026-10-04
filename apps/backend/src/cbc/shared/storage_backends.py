@@ -1,15 +1,15 @@
 """Object-storage backends behind the Path-based storage façade.
 
 STORAGE_BACKEND=local (default): disk under STORAGE_ROOT only.
-STORAGE_BACKEND=s3: put/get via boto3; workers still hydrate into STORAGE_ROOT
-so pdfplumber / Claude / sandbox keep real paths.
+STORAGE_BACKEND=azure: Azure Blob Storage (Floci-AZ locally); workers still
+hydrate into STORAGE_ROOT so pdfplumber / Claude / sandbox keep real paths.
 """
 from __future__ import annotations
 
 import logging
 import os
 from pathlib import Path
-from typing import Protocol
+from typing import Iterable, Protocol
 
 from cbc.shared.config import settings
 
@@ -21,9 +21,13 @@ class StorageBackend(Protocol):
 
     def get_file(self, key: str, local: Path) -> None: ...
 
+    def exists(self, key: str) -> bool: ...
+
+    def delete(self, key: str) -> None: ...
+
     def delete_prefix(self, prefix: str) -> None: ...
 
-    def exists(self, key: str) -> bool: ...
+    def list_keys(self, prefix: str) -> Iterable[str]: ...
 
 
 class LocalBackend:
@@ -35,50 +39,89 @@ class LocalBackend:
     def get_file(self, key: str, local: Path) -> None:
         return None
 
-    def delete_prefix(self, prefix: str) -> None:
-        return None
-
     def exists(self, key: str) -> bool:
         return False
 
-
-class S3Backend:
-    def __init__(self) -> None:
-        import boto3
-
-        self.bucket = os.environ.get("S3_BUCKET", "").strip()
-        if not self.bucket:
-            raise RuntimeError("STORAGE_BACKEND=s3 requires S3_BUCKET")
-        kwargs: dict = {"region_name": os.environ.get("S3_REGION", "us-east-1")}
-        endpoint = os.environ.get("S3_ENDPOINT_URL", "").strip()
-        if endpoint:
-            kwargs["endpoint_url"] = endpoint
-        self._client = boto3.client("s3", **kwargs)
-
-    def put_file(self, local: Path, key: str) -> None:
-        self._client.upload_file(str(local), self.bucket, key)
-
-    def get_file(self, key: str, local: Path) -> None:
-        local.parent.mkdir(parents=True, exist_ok=True)
-        self._client.download_file(self.bucket, key, str(local))
+    def delete(self, key: str) -> None:
+        return None
 
     def delete_prefix(self, prefix: str) -> None:
-        paginator = self._client.get_paginator("list_objects_v2")
-        for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
-            objects = [{"Key": item["Key"]} for item in page.get("Contents") or []]
-            if objects:
-                self._client.delete_objects(
-                    Bucket=self.bucket, Delete={"Objects": objects}
-                )
+        return None
+
+    def list_keys(self, prefix: str) -> Iterable[str]:
+        return ()
+
+
+class AzureBlobBackend:
+    """One container; keys are `projects/...` and `pricebooks/...`.
+
+    AZURE_STORAGE_CONNECTION_STRING is the only thing that differs between
+    Floci-AZ and a real storage account.
+    """
+
+    def __init__(self) -> None:
+        from azure.core.exceptions import HttpResponseError, ResourceExistsError
+        from azure.storage.blob import BlobServiceClient
+
+        connection = os.environ.get("AZURE_STORAGE_CONNECTION_STRING", "").strip()
+        if not connection:
+            raise RuntimeError("STORAGE_BACKEND=azure requires AZURE_STORAGE_CONNECTION_STRING")
+        name = os.environ.get("AZURE_STORAGE_CONTAINER", "").strip() or "cbc"
+        # Bounded, so a store that is down fails a push in seconds, not minutes.
+        kwargs: dict = {"retry_total": 3}
+        # Floci serves TLS with a self-signed certificate. Trusting that one PEM
+        # keeps verification on; a real account leaves this unset and uses the
+        # system trust store.
+        ca = os.environ.get("AZURE_EMULATOR_CA", "").strip()
+        if ca:
+            kwargs["connection_verify"] = ca
+        service = BlobServiceClient.from_connection_string(connection, **kwargs)
+        self._container = service.get_container_client(name)
+        try:
+            self._container.create_container()
+        except ResourceExistsError:
+            pass
+        except HttpResponseError as exc:
+            # A container-scoped SAS cannot create containers; production
+            # provisions this one. Anything else is a real misconfiguration.
+            if exc.status_code != 403:
+                raise
+
+    def put_file(self, local: Path, key: str) -> None:
+        with Path(local).open("rb") as handle:
+            self._container.upload_blob(key, handle, overwrite=True)
+
+    def get_file(self, key: str, local: Path) -> None:
+        # A reader sees the old file or the whole new one, never half a download.
+        local.parent.mkdir(parents=True, exist_ok=True)
+        partial = local.with_name(f".{local.name}.part")
+        try:
+            with partial.open("wb") as handle:
+                self._container.download_blob(key).readinto(handle)
+            os.replace(partial, local)
+        finally:
+            partial.unlink(missing_ok=True)
 
     def exists(self, key: str) -> bool:
+        return self._container.get_blob_client(key).exists()
+
+    def delete(self, key: str) -> None:
+        from azure.core.exceptions import ResourceNotFoundError
+
         try:
-            self._client.head_object(Bucket=self.bucket, Key=key)
-            return True
-        except Exception:
-            return False
+            self._container.delete_blob(key)
+        except ResourceNotFoundError:
+            pass
+
+    def delete_prefix(self, prefix: str) -> None:
+        for key in list(self.list_keys(prefix)):
+            self.delete(key)
+
+    def list_keys(self, prefix: str) -> Iterable[str]:
+        return self._container.list_blob_names(name_starts_with=prefix)
 
 
+_BACKENDS = {"local": LocalBackend, "azure": AzureBlobBackend}
 _backend: StorageBackend | None = None
 
 
@@ -88,13 +131,13 @@ def backend_name() -> str:
 
 def get_backend() -> StorageBackend:
     global _backend
-    if _backend is not None:
-        return _backend
-    name = backend_name()
-    if name == "s3":
-        _backend = S3Backend()
-    else:
-        _backend = LocalBackend()
+    if _backend is None:
+        name = backend_name()
+        if name not in _BACKENDS:
+            # A typo used to fall back to local quietly, with every remote code
+            # path still switched on and nothing ever reaching the store.
+            raise RuntimeError(f"STORAGE_BACKEND={name!r} is not one of {sorted(_BACKENDS)}")
+        _backend = _BACKENDS[name]()
     return _backend
 
 
@@ -146,29 +189,17 @@ def ensure_local(local: Path, *, key: str | None = None) -> Path:
 
 
 def hydrate_project(slug: str) -> Path:
-    """Ensure the project tree exists locally (download from S3 when needed)."""
+    """Ensure the project tree exists locally (download from the store when needed)."""
     root = settings.storage_root / slug
     if backend_name() == "local":
         return root
-    backend = get_backend()
-    prefix = f"projects/{slug}/"
-    # List via exists of common dirs is insufficient; download known layout by
-    # walking S3 keys under the prefix when the client supports list.
     try:
-        client = getattr(backend, "_client", None)
-        bucket = getattr(backend, "bucket", None)
-        if client is None or bucket is None:
-            return root
-        paginator = client.get_paginator("list_objects_v2")
-        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-            for item in page.get("Contents") or []:
-                key = item["Key"]
-                rel = key[len("projects/") :]
-                target = settings.storage_root / rel
-                if target.is_file():
-                    continue
-                target.parent.mkdir(parents=True, exist_ok=True)
-                backend.get_file(key, target)
+        backend = get_backend()
+        for key in backend.list_keys(f"projects/{slug}/"):
+            target = settings.storage_root / key[len("projects/") :]
+            if target.is_file():
+                continue
+            backend.get_file(key, target)
     except Exception:
         log.exception("hydrate_project failed for %s", slug)
     return root

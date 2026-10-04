@@ -89,7 +89,10 @@ async def ensure_indexes() -> None:
         unique=True,
         partialFilterExpression={
             "status": {"$in": ["queued", "running"]},
-            "idempotencyKey": {"$exists": True, "$type": "string"},
+            # $type alone: it never matches a missing field, so `$exists: True`
+            # added nothing - and DocumentDB refuses two operators on one field
+            # here as a nested $and.
+            "idempotencyKey": {"$type": "string"},
         },
     )
     await jobs().create_index([("status", ASCENDING), ("heartbeatAt", ASCENDING)])

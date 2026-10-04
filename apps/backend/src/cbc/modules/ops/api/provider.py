@@ -110,7 +110,15 @@ _INDIA_REGIONS = frozenset({"ap-south-1", "ap-south-2"})
 # credentials. The one thing in a run that legitimately needs a database is the
 # catalog server, and it is given its own read-only string through the MCP
 # config instead (see cbc_core/toolsets.py).
-WITHHELD = {"MONGODB_URI", "MONGODB_READONLY_URI", "MONGODB_READONLY_PASSWORD"}
+#
+# The object-store credential likewise: a run writes only its local clone, and
+# the worker pushes what promote accepts.
+WITHHELD = {
+    "MONGODB_URI",
+    "MONGODB_READONLY_URI",
+    "MONGODB_READONLY_PASSWORD",
+    "AZURE_STORAGE_CONNECTION_STRING",
+}
 
 # What a mode cannot work without, named by the variable rather than the field
 # so the check sees a value wherever it came from - the form, `.env`, or the
@@ -392,6 +400,11 @@ def build_env(
         for key, value in os.environ.items()
         if key not in MANAGED and key not in WITHHELD
     }
+    # Inside a run CBC_PROJECTS_ROOT is the clone, so a store call from there
+    # would map clone files onto the live keys and skip promote's allowlist -
+    # and with the credential withheld, every one would fail. Only the worker
+    # talks to the store.
+    env["STORAGE_BACKEND"] = "local"
     sources: dict[str, str] = {}
     file_env = envfile.read()
 

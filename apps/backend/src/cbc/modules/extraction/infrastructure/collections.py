@@ -49,9 +49,8 @@ async def ensure_indexes() -> None:
             "opening_door_identity",
             [("orgId", ASCENDING), ("projectId", ASCENDING), ("doorNumber", ASCENDING)],
             unique=True,
-            partialFilterExpression={
-                "doorNumber": {"$exists": True, "$type": "string"},
-            },
+            # $type alone implies the field exists; DocumentDB refuses both together.
+            partialFilterExpression={"doorNumber": {"$type": "string"}},
         )
     except DuplicateKeyError as exc:
         log.error(

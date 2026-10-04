@@ -111,7 +111,7 @@ def test_saving_a_field_does_not_lock_it_against_the_next_save(tmp_path, monkeyp
 
 
 def test_a_real_process_pin_still_wins(tmp_path, monkeypatch):
-    """Compose or `infisical run` setting it before Python starts is a real pin."""
+    """Compose or the Key Vault entrypoint setting it before Python starts is a real pin."""
     _env(tmp_path, monkeypatch, "PARSER_TIER=agentic\n")
     monkeypatch.setenv("PARSER_TIER", "agentic_plus")
 
