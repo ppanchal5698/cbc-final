@@ -1,7 +1,15 @@
 # Core constraints
 
-**The two rules that apply to every task, in every phase.** Both are enforced by
-PreToolUse hooks, so breaking either fails the tool call rather than the review.
+**The rules that apply to every task, in every phase.** What enforces each:
+
+| Concern | Enforced by |
+|---|---|
+| Reading or editing secrets (`.env`, `.env.*`) | `deny` rules in `.claude/settings.json` |
+| Sending anything (NFR-1) | `pre_send_quote.py` (PreToolUse, exit 2) |
+| Writes, deletes and `git push` | `pre_delete_guard.py` (PreToolUse, exit 2) |
+
+Settings `allow` / `ask` rules decide what prompts; they are not a safety
+control. The hooks are a backstop, not a guarantee: they match command text.
 
 Everything else in `.claude/rules/` is phase-specific — see
 [README.md](README.md).
@@ -36,9 +44,8 @@ judgment.
 
 ### Enforcement
 
-`.claude/hooks/pre_send_quote.py` (PreToolUse, exit 2 blocks) · the permission
-deny list in `.claude/settings.json` · the agent instruction in
-`.claude/agents/delivery-agent.md`.
+`.claude/hooks/pre_send_quote.py` (PreToolUse, exit 2 blocks) · the agent
+instruction in `.claude/agents/delivery-agent.md`.
 
 **Owner:** CBC Estimating (Kevin, Rick, Shanna).
 
@@ -84,5 +91,13 @@ estimator-facing file that needs version history.
 
 ### Enforcement
 
-`.claude/hooks/pre_delete_guard.py` (PreToolUse, exit 2 blocks) · the permission
-deny list in `.claude/settings.json`.
+`.claude/hooks/pre_delete_guard.py` (PreToolUse, exit 2 blocks).
+
+---
+
+## 3. Secrets
+
+Never read, print or edit `.env` or any `.env.*` file. The values belong to the
+operator; a run gets what it needs as environment. `deny` rules in
+`.claude/settings.json` refuse Read, Edit and Write on them - they do not cover a
+shell command that prints one, so do not try.
