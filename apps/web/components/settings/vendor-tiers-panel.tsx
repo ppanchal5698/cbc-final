@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { Books, Plus, Trash } from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
@@ -37,14 +37,12 @@ function title(key: string): string {
 export function VendorTiersPanel() {
   const { data, error, isLoading, mutate } = useSWR<VendorTierDoc>(URL, proxyFetcher);
   const [busy, setBusy] = useState(false);
-  const [vendorKey, setVendorKey] = useState<string>("");
+  const [picked, setVendorKey] = useState<string>("");
   const [draft, setDraft] = useState({ name: "", value: "" });
 
   const vendors = useMemo(() => data?.vendors ?? [], [data]);
-
-  useEffect(() => {
-    if (!vendorKey && vendors.length) setVendorKey(vendors[0].key);
-  }, [vendors, vendorKey]);
+  // Derived, not set in an effect: the first vendor until one is picked.
+  const vendorKey = picked || vendors[0]?.key || "";
 
   const vendor: VendorTierRow | undefined = useMemo(
     () => vendors.find((v) => v.key === vendorKey),
