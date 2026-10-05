@@ -145,9 +145,11 @@ jobs:
       # Named services, not the whole file: nginx is the production TLS edge and
       # wants a Let's Encrypt certificate for a real domain, so it crash-loops
       # here and takes the stack down with it. web and worker pull in platform,
-      # which pulls in documentdb, floci and clamav - everything the specs need.
+      # which pulls in documentdb, floci and clamav. neo4j is named because
+      # nothing depends on it - the memory graph is optional to a bid, so the API
+      # starts without it - and the memory spec tests the page against it.
       - name: Start the stack
-        run: docker compose up -d --build web worker
+        run: docker compose up -d --build web worker neo4j
         env:
           AUTO_BOOTSTRAP: "1"
 
@@ -178,7 +180,7 @@ jobs:
         run: |
           sleep 15
           docker compose ps
-          for service in platform worker web documentdb floci; do
+          for service in platform worker web documentdb floci neo4j; do
             state=$(docker compose ps --format '{{.Service}} {{.State}}' \
                     | awk -v s="$service" '$1 == s {print $2}')
             echo "$service: ${state:-missing}"
@@ -190,6 +192,21 @@ jobs:
                 exit 1 ;;
             esac
           done
+
+      # Running is not answering: Neo4j takes a while to accept a connection
+      # after it starts, and until then the memory page says the graph is
+      # unreachable - which is right, and not what the spec is checking.
+      - name: Wait for the memory graph
+        run: |
+          for i in $(seq 1 36); do
+            if [ "$(docker inspect -f '{{.State.Health.Status}}' cbc-final-neo4j)" = healthy ]; then
+              echo "the memory graph answers after $((i * 5))s"; exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::the memory graph never became healthy" >&2
+          docker compose logs neo4j --tail 60
+          exit 1
 
       - name: Install Playwright
         working-directory: apps/web
