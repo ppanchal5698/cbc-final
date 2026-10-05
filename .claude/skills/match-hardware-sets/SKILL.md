@@ -20,7 +20,7 @@ and stop at the first tier that produces a match.
 | 1 | Exact part in the product catalog (`mcp__catalog__lookup_catalog_item` / `mcp__catalog__search_catalog_items`), all attributes agree | 0.95 - 1.00 |
 | 2 | Exact part in the product catalog, one soft attribute differs (finish, size) | floor - 0.94 |
 | 3 | Series / prefix match in the product catalog (e.g. `3500` for `3547`), function inferable | 0.55 to below the floor |
-| 4 | Fuzzy description match off the PDF - `mcp__catalog-docs__search_blocks`, or `mcp__catalog__find_pages` when the parse is not ready | 0.40 - 0.54 |
+| 4 | Fuzzy description match off the PDF - `mcp__catalog__find_pages` | 0.40 - 0.54 |
 | 5 | No usable match, or a MANUAL cut-off trigger | 0.00 |
 
 The floor is the confidence floor, stated under *Values in force* in your brief

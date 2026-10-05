@@ -21,27 +21,19 @@ of the part codes carried no letter and effective dates were recorded as parts.
 
 1. **Learn the book** - `mcp__catalog__get_catalog_overview` when the vendor is
    unfamiliar. A few hundred tokens on how that publisher organises things, and it
-   saves opening the wrong pages. Optionally `mcp__catalog-docs__list_catalogs_parsed`
-   to see which books have parsed blocks.
-2. **Find the evidence** - Prefer `mcp__catalog-docs__search_blocks` with the part
-   number, series or description (and `vendor` / `catalog_id`). Hits include block
-   text/html, `bbox`, `file_path`, and `pdf_page`. Read the list price from the
-   block when clear; crop with `mcp__pdf-tools__get_page_image(..., region=bbox)`
-   only when unclear.
-3. **Fallback page index** - If parse is incomplete or search_blocks is empty,
-   `mcp__catalog__find_pages` with the part number, series or description, and a
+   saves opening the wrong pages.
+2. **Find the evidence** - `mcp__catalog__find_pages` with the part number, series
+   or description, and a
    `vendor` filter. Always pass the vendor; a library-wide search is noisier.
    Then `mcp__pdf-tools__extract_tables` on the `pdf_page` from the hit.
-4. **Multiplier** - `mcp__catalog__get_multiplier`. Hager prices **by product
+3. **Multiplier** - `mcp__catalog__get_multiplier`. Hager prices **by product
    category**, so pass the category (`locks`, `door_controls`, `exit_devices`,
    `architectural_hinges`, `electrified_products`, ...). Other vendors carry a
-   single tier. Special-net text on a PDF sheet: catalog-docs
-   `source=multiplier`.
-5. **Give up cleanly.** No page, or a page that turns out not to hold the part,
+   single tier.
+4. **Give up cleanly.** No page, or a page that turns out not to hold the part,
    means MANUAL - not "close enough".
 
-**Cite evidence exactly.** Prefer block `n` + `bbox` + `file_path` from
-catalog-docs; otherwise the find_pages `locator` (PDF page and printed page
+**Cite evidence exactly.** The find_pages `locator` (PDF page and printed page
 often differ).
 
 ## Applying the multiplier
