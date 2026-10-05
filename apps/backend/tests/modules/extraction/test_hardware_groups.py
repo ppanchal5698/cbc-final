@@ -293,3 +293,139 @@ def test_a_page_with_no_legend_says_why(tmp_path) -> None:
     found = hg.groups_on_page(blank, 1)
     assert found["sets"] == []
     assert found["no_legend_reason"]
+
+
+# ── the formats the corpus taught: headings, abbreviations, tables, bullets ──
+
+@pytest.mark.parametrize("line,set_id", [
+    ("HARDWARE SET: 01", "01"), ("HARDWARE GROUP NO. 02", "02"), ("HW SET 3", "3"),
+    ("GROUP #E1: TYPICAL EXTERIOR VESTIBULE DOORS", "E1"), ("SET 03A – REAR SERVICE", "03A"),
+])
+def test_every_way_a_legend_heads_a_set(line, set_id) -> None:
+    header = hg.TEXT_SET_HEADER.match(line) or hg.SET_HEADER.search(line) or hg.SET_BARE.search(line)
+    assert header and header.group(1).upper() == set_id
+
+
+def test_a_unit_is_a_word_not_the_start_of_one() -> None:
+    """PR is not the start of PRIVACY, nor EA of EACH or EASY."""
+    item = hg.classify_item(["1", "PRIVACY LOCK", "QCL240.M.626", "STANELY"])
+    assert (item["unit"], item["description"], item["manufacturer"]) == (None, "PRIVACY LOCK", "Stanley")
+    assert not hg._is_item_row(["EACH TO HAVE:"]) and not hg._is_item_row(["Provide each SGL door(s)"])
+
+
+def test_a_schedules_maker_abbreviations_anchor_its_part_and_finish() -> None:
+    item = hg.classify_item(["1", "EA", "ENTRANCE LOCK", "ND53PD SPA", "626", "SCH"])
+    assert (item["manufacturer"], item["part"], item["finish"]) == ("Schlage", "ND53PD", "626")
+    # ...but only as a cell of their own: in running text DET is a detail.
+    assert hg.classify_text_item("SEE DET. 3 FOR CLOSER")["manufacturer"] is None
+
+
+def test_a_part_shaped_like_a_finish_is_still_a_part() -> None:
+    item = hg.classify_text_item('BACK TO BACK PULL: HAGER 21J 10" 32D')
+    assert (item["part"], item["finish"]) == ("21J", "32D")
+
+
+def test_a_legend_without_counts_means_one_each_but_never_for_butt_hinges() -> None:
+    closer = {"qty": None, "description": "SURFACE CLOSER", "raw_row": "", "flags": ["qty_missing"]}
+    hg.assume_one_each(closer)
+    assert closer["qty"] == "1" and closer["flags"] == ["qty_assumed_one"]
+    butts = {"qty": None, "description": "HINGES", "raw_row": "HAGER BB1279", "flags": []}
+    hg.assume_one_each(butts)
+    assert butts["qty"] is None and "hinge_count_unstated" in butts["flags"]
+    continuous = {"qty": None, "description": "HINGE", "raw_row": 'IVES 700 83", 630', "flags": []}
+    hg.assume_one_each(continuous)
+    assert continuous["qty"] == "1"
+
+
+def _header(y: float, at: float) -> dict:
+    return _row(y, ("GROUP #", at), ("DOOR", at + 60), ("QTY", at + 103), ("DESCRIPTION", at + 137),
+                ("CATALOG #", at + 266), ("MFG", at + 455))
+
+
+def test_a_table_legend_reads_each_group_beside_the_next() -> None:
+    """Two tables side by side, a header over each block, a group's number on its
+    first row and its name down the column - and the text layer splitting one
+    visual row in two, a maker four points above its item."""
+    rows = [
+        _header(1213.2, 685),
+        _row(1235.3, ("7", 707), ("6", 758)), _row(1236.3, ("3", 798), ("HINGE", 821), ("MARLITE", 1149)),
+        _row(1253.5, ("OFFICE", 689)),
+        _header(1254.5, 137),
+        _row(1254.6, ("DOOR", 704), ("1", 798), ("STOREROOM LOCK", 821), ("QCL 270.M.626", 947), ("STANELY", 1149)),
+        _row(1277.6, ("5", 159), ("1, 2", 205), ("3", 250), ("HINGE", 273), ("MARLITE", 587)),
+        _row(1295.4, ("BURNS", 587)),
+        _row(1299.5, ("PUBLIC RESTROOM DOOR", 139), ("1", 250), ("PUSHPLATE", 273), ("#53 x US32D", 399)),
+        _row(1336.3, ("1", 250), ("SURFACE CLOSER", 273), ("4011", 399), ("LCN", 587)),
+        _row(1356.3, ("2", 250), ("KICK PLATE", 273), ('8" x 34" ALUM 628', 397), ("ROCKWOOD", 587),
+             ("GENERAL NOTES:", 1278)),
+        _row(1414.8, ("*NOTES - ARM PULL OPTIONAL", 144)),
+    ]
+    sets = {s["set_id"]: s for s in hg._table_sets(rows, 4, {"width": 2592, "height": 1728})}
+    assert set(sets) == {"5", "7"}
+    office, restroom = sets["7"], sets["5"]
+    assert office["specified"] == "OFFICE DOOR" and office["doors"] == ["6"]
+    assert [(i["qty"], i["manufacturer"]) for i in office["items"]] == [("3", "Marlite"), ("1", "Stanley")]
+    assert restroom["specified"] == "PUBLIC RESTROOM DOOR" and restroom["doors"] == ["1", "2"]
+    descriptions = [i["description"] for i in restroom["items"]]
+    assert descriptions[:3] == ["HINGE", "PUSHPLATE x US32D", "SURFACE CLOSER"]
+    assert descriptions[3] == 'KICK PLATE 8" x 34" ALUM 628'  # no part in the cell: its size stays with it
+    assert restroom["items"][1]["manufacturer"] == "Burns" and restroom["items"][2]["part"] == "4011"
+    # The general notes beside the table and the note under the group are not hardware.
+    assert all("NOTES" not in (i["raw_row"] or "") for s in sets.values() for i in s["items"])
+
+
+SHAKOPEE = ROOT / "bid_pdfs" / "Shakopee,_MN,_#0131_-_Reimage_Final_Drawings_-_6.12.26_pdf.pdf"
+EVERNORTH_MANUAL = ROOT / "bid_pdfs" / "26136.0000 Evernorth - Accredo Elgin Project Manual 04242026.pdf"
+DAIRY_QUEEN = ROOT / "bid_pdfs" / "A303" / "A202.pdf"
+
+
+def _needs(pdf: Path) -> None:
+    if not pdf.is_file():
+        pytest.skip(f"{pdf.name} is not in bid_pdfs/")
+
+
+def test_the_culvers_table_legend_is_read() -> None:
+    _needs(SHAKOPEE)
+    sets = {s["set_id"]: s for s in hg.groups_on_page(SHAKOPEE, 4)["sets"]}
+    assert {"5", "6", "7", "8"} <= set(sets)
+    assert any(i["part"] == "4011" and i["manufacturer"] == "LCN" for i in sets["5"]["items"])
+    assert all(i["qty"] for s in sets.values() for i in s["items"])
+
+
+def test_a_specifications_hardware_schedule_is_read() -> None:
+    """`HARDWARE SET: 01` / `HARDWARE GROUP NO. 02`, makers written SCH, IVE, LCN."""
+    _needs(EVERNORTH_MANUAL)
+    sets = {s["set_id"]: s for page in (249, 250) for s in hg.groups_on_page(EVERNORTH_MANUAL, page)["sets"]}
+    assert set(sets) == {"01", "02", "03", "04"}
+    hinge = next(i for i in sets["02"]["items"] if i["part"] == "5BB1")
+    assert (hinge["qty"], hinge["manufacturer"], hinge["finish"]) == ("3", "IVES", "652")
+    reader = next(i for i in sets["02"]["items"] if "CREDENTIAL READER" in (i["description"] or ""))
+    assert reader["supplied_by"] == "SECURITY VENDOR"
+
+
+def test_a_bullet_legends_groups_counts_and_storefront_supply_are_read() -> None:
+    """`GROUP #E1:` heads, `CLOSER: HAGER MFG., MODEL #5200` items, `(4) HINGES PER LEAF`
+    on the wrapped line, and a note that hands a group to the storefront supplier."""
+    _needs(DAIRY_QUEEN)
+    sets = {s["set_id"]: s for s in hg.groups_on_page(DAIRY_QUEEN, 1)["sets"]}
+    assert {"E1", "E2", "E3", "O1", "O2", "R1", "S1"} <= set(sets)
+    hinges = next(i for i in sets["E1"]["items"] if i["part"] == "ECBB1199")
+    assert hinges["qty"] == 4.0
+    assert {i["supplied_by"] for i in sets["E1"]["items"]} == {"STOREFRONT"}
+    assert all(i["supplied_by"] is None for i in sets["O2"]["items"])
+    closer = next(i for i in sets["O2"]["items"] if (i["description"] or "").startswith("CLOSER"))
+    assert (closer["part"], closer["qty"], closer["manufacturer"]) == ("5200", "1", "Hager")
+
+
+def test_a_spec_books_schedule_pages_are_tried_before_pages_that_only_mention_hardware() -> None:
+    """The map tags every page that mentions hardware; the eight it ranked first in
+    the Evernorth manual were steel-door sections, and the sets on 249-250 were
+    never read."""
+    _needs(EVERNORTH_MANUAL)
+    from cbc.modules.extraction.infrastructure import pretakeoff
+
+    path = "bid_pdfs/" + EVERNORTH_MANUAL.name
+    ranked = [{"path": path, "source_page": page} for page in (225, 218, 219, 233, 247, 223, 248, 220, 249, 250)]
+    tried = pretakeoff._legend_pages_first("evernorth", ranked)
+    assert [c["source_page"] for c in tried[:2]] == [249, 250]
+    assert len(tried) == 2 + pretakeoff.MAX_PAGES_TRIED

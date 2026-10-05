@@ -73,3 +73,20 @@ def test_specialty_rows_are_lines_at_their_own_count() -> None:
     assert lines[0].group == "Restroom 1" and lines[0].qty == 2.0
     assert lines[2].qty is None and "quantity_unread" in lines[2].flags
     assert "Owner furnished" in lines[3].alternate and "supplied_by_others" in lines[3].flags
+
+
+@pytest.mark.parametrize(("reference", "key"), [
+    ("GROUP #E1", "E1"), ("E1", "E1"), ("O1", "O1"), ("E01", "E1"), ("HW1", "1"), ("HW-1", "1"),
+    ("3 (SEE A5.1)", "3"),  # the first name is the set's, not a sheet cited after it
+])
+def test_a_letter_led_legend_keeps_its_letter(reference, key) -> None:
+    """E1 and O1 are two sets on a prototype's legend - never both set 1."""
+    assert takeoff.set_key(reference) == key
+
+
+def test_the_legends_own_supplier_makes_an_item_an_alternate() -> None:
+    sets = [{"name": "E1", "items": [{"qty": "1", "part": "5200", "manufacturer": "Hager",
+                                      "description": "CLOSER", "by_others": "the storefront supplier"}]}]
+    [line], _ = takeoff.hardware_lines(sets, [{"mark": "100A", "set": "E1"}])
+    assert line.alternate == "supplied by the storefront supplier per the legend"
+    assert "supplied_by_others" in line.flags

@@ -254,6 +254,36 @@ def seed_door_schedule(slug: str) -> dict[str, Any]:
     return summary
 
 
+# A spec book's hardware schedule runs to a page a few sets; this bounds a bid
+# whose every page somehow carries a heading.
+MAX_LEGEND_PAGES = 60
+
+
+def _legend_pages_first(slug: str, candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Every candidate that holds a set heading - the legend itself - then the
+    map's other hardware pages, as many as MAX_PAGES_TRIED.
+
+    The map tags a page "hardware" when it mentions hardware, and an 859-page
+    project manual has dozens of those ahead of the schedule: the eight it ranked
+    first were steel-door sections, and the sets on pages 249-250 were never read.
+    """
+    by_file: dict[str, list[dict[str, Any]]] = {}
+    for candidate in candidates:
+        by_file.setdefault(candidate["path"], []).append(candidate)
+    headed: list[dict[str, Any]] = []
+    for path, rows in by_file.items():
+        pdf = _resolve(slug, path)
+        if pdf is None:
+            continue
+        try:
+            counts = hardware_groups.heading_counts(pdf, [int(row["source_page"]) for row in rows])
+        except Exception:  # an unreadable file is the readers' to report, below
+            continue
+        headed += [row for row in rows if counts.get(int(row["source_page"]), 0)]
+    rest = [c for c in candidates if c not in headed]
+    return headed[:MAX_LEGEND_PAGES] + rest[:MAX_PAGES_TRIED]
+
+
 def seed_hardware_groups(slug: str) -> dict[str, Any]:
     """Write `extracted/hardware_sets.json` from the legend, in code.
 
@@ -282,7 +312,7 @@ def seed_hardware_groups(slug: str) -> dict[str, Any]:
 
     collected: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for candidate in candidates[:MAX_PAGES_TRIED]:
+    for candidate in _legend_pages_first(slug, candidates):
         pdf = _resolve(slug, candidate["path"])
         if pdf is None:
             continue

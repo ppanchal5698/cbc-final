@@ -40,8 +40,9 @@ _INCHES = re.compile(_FRACTION + _MARK, re.I)
 _FEET = re.compile(r"""(?<![A-Za-z0-9.])(\d+)\s*'\s*-?\s*(?:""" + _NUMBER + r""")?\s*(?:"|”|″)?""")
 _LARGEST = 240.0  # inches; anything bigger is a part number's digits, not a size
 # What a finish code looks like: US26D, a BHMA number (626, 652), Hager's 26D.
-# Not a bare 36 or 16 - a description's dimensions are not finishes.
-_FINISH_TOKEN = re.compile(r"^(?:US\d{1,3}[A-Z]?|[67]\d{2}|\d{1,2}[A-Z])$", re.I)
+# Not a bare 36 or 16 - a description's dimensions are not finishes - nor 21J
+# or 33E, which are parts: the bare codes end in B or D.
+_FINISH_TOKEN = re.compile(r"^(?:US\d{1,3}[A-Z]?|[67]\d{2}|\d{1,2}[BD])$", re.I)
 
 
 def is_allegion(*texts: Any, manufacturer: Any = None) -> bool:

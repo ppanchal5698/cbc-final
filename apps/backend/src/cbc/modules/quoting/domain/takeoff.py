@@ -59,14 +59,23 @@ def quantity(value: Any) -> tuple[float | None, str | None]:
     return (each, unit) if each > 0 else (None, None)
 
 
+_LETTER_SET = re.compile(r"(?<![A-Z0-9])([A-Z])([0-9]{1,3})([A-Z]?)(?![A-Z0-9])")
 _SET_NUMBER = re.compile(r"(?<![0-9])([0-9]{1,3})([A-Z]?)(?![0-9A-Z])")
 
 
 def set_key(text: Any) -> str | None:
     """`GROUP 1`, `SET 01`, `HW-1`, `HW1`, `GROUP 7: RESTROOM` and `1` are sets 1
-    and 7; `07A` is not `07`. The first number in the reference is the set's."""
-    match = _SET_NUMBER.search(str(text or "").strip().upper())
-    return f"{int(match.group(1))}{match.group(2)}" if match else None
+    and 7; `07A` is not `07`. A letter-led legend's `E1` and `O1` are two sets -
+    a standalone letter fused to the number is part of the name, a word's (`HW1`)
+    is not. The first such name in the reference is the set's."""
+    raw = str(text or "").strip().upper()
+    found = [m for m in (_LETTER_SET.search(raw), _SET_NUMBER.search(raw)) if m]
+    if not found:
+        return None
+    first = min(found, key=lambda m: m.start())
+    if first.re is _LETTER_SET:
+        return f"{first.group(1)}{int(first.group(2))}{first.group(3)}"
+    return f"{int(first.group(1))}{first.group(2)}"
 
 
 def supplied_by_others(*texts: Any) -> str | None:
@@ -151,7 +160,9 @@ def hardware_lines(
             continue
         for index, item in enumerate(items, start=1):
             each, unit = quantity(item.get("qty"))
-            others = supplied_by_others(item.get("notes"), item.get("description"))
+            # The legend's own "supplied by" (landlord, storefront supplier), else its wording.
+            party = item.get("by_others")
+            others = None if party else supplied_by_others(item.get("notes"), item.get("description"))
             line = Line(
                 key=f"{key}:{index:02d}", group=name, division=DOOR_HARDWARE,
                 description=item.get("description") or None,
@@ -166,8 +177,9 @@ def hardware_lines(
             )
             if each is None:
                 line.flags.append("quantity_unread")
-            if others:
-                line.alternate = f"the schedule says {others!r} - another party supplies it"
+            if party or others:
+                line.alternate = (f"supplied by {party} per the legend" if party
+                                  else f"the schedule says {others!r} - another party supplies it")
                 line.flags.append("supplied_by_others")
             lines.append(line)
 

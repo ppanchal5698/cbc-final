@@ -34,28 +34,35 @@ from typing import Any
 
 from cbc.shared import pdfrows
 
-# "SET 01 - EXTERIOR STOREFRONT", "SET 03A – REAR SERVICE", "GROUP 7: RESTROOM"
+# A set's name: `01`, `03A`, and the letter-led groups some legends use (`E1`
+# exterior, `O2` office) - which a door schedule cites as written.
+_SET_ID = r"([A-Z]?[0-9]{1,3}[A-Z]?)"
+# Between the word and the number: `SET 01`, `SET: 01`, `GROUP NO. 02`, `GROUP #E1`.
+_SET_NO = r"\s*(?:NO\.?|NUMBER|#)?\s*:?\s*#?\s*"
+# "SET 01 - EXTERIOR STOREFRONT", "SET 03A – REAR SERVICE", "GROUP 7: RESTROOM", "GROUP #E1: VESTIBULE"
 SET_HEADER = re.compile(
-    r"\b(?:SET|GROUP|HW\s*SET|HARDWARE\s+(?:SET|GROUP))\s*#?\s*([0-9]{1,3}[A-Z]?)\s*[-–—:]\s*(.*)",
+    r"\b(?:SET|GROUP|HW\s*SET|HARDWARE\s+(?:SET|GROUP))" + _SET_NO + _SET_ID + r"\s*[-–—:]\s*(.*)",
     re.I,
 )
-# A header with no dash, at the end of a cell: "... | SET 07"
-SET_BARE = re.compile(r"\b(?:SET|GROUP)\s*#?\s*([0-9]{1,3}[A-Z]?)\s*$", re.I)
+# A header with no dash, at the end of a cell: "... | SET 07", "HARDWARE SET: 01", "GROUP NO. 02"
+SET_BARE = re.compile(r"\b(?:SET|GROUP)" + _SET_NO + _SET_ID + r"\s*$", re.I)
 
 QTY = re.compile(r"^\s*(\d+(?:\s+\d+/\d+)?|\d+/\d+)\s*")
-# No trailing \b: "EA." is followed by a space, and `.` to ` ` is not a word
-# boundary, so the engine backtracked to "EA" and left the dot heading the
-# description as ". STOREROOM".
-UNIT = re.compile(r"\b(EA|PR|PAIR|SET)\.?", re.I)
+# Ends at its dot or a word boundary. A bare `\b` after the dot fails ("EA." is
+# followed by a space, and `.` to ` ` is not a boundary), which left the dot heading
+# the description as ". STOREROOM"; no boundary at all read PRIVACY as PR + IVACY.
+UNIT = re.compile(r"\b(EA|PR|PAIR|SET)(?:\.|\b)", re.I)
 
-# US10B, 26D, 626, 26D / 626, MIL, ALUMINUM, PRIME COAT
+# US10B, 26D, 626, 26D / 626, MIL, ALUMINUM, PRIME COAT. The bare two-digit codes
+# end in B or D (10B, 26D, 32D): `21J` is a Hager pull and `33E` a push plate.
 FINISH = re.compile(
-    r"^(?:(?:US\s?\d{1,2}[A-Z]?|\d{3}|\d{2}[A-Z])"
-    r"(?:\s*/\s*(?:US\s?\d{1,2}[A-Z]?|\d{3}|\d{2}[A-Z]))?"
-    r"|MILL?|ML|CL|CLR|ALUMINUM|ALUM\.?|BRASS|WHITE|DBRZ|PRIME\s+COAT(?:\s+NGP)?)$",
+    r"^(?:(?:US\s?\d{1,2}[A-Z]?|\d{3}|\d{2}[BD])"
+    r"(?:\s*/\s*(?:US\s?\d{1,2}[A-Z]?|\d{3}|\d{2}[BD]))?"
+    r"|MILL?|ML|CL|CLR|ALUMINUM|ALUM\.?|ALM\.?|BRASS|WHITE|DBRZ|BK|BLK|PRIME\s+COAT(?:\s+NGP)?)$",
     re.I,
 )
 SUPPLIER = re.compile(r"^(LL|GC|OWNER|TENANT|WIB)$", re.I)
+_BY_PARTY = re.compile(r"^BY\s+(?:THE\s+)?([A-Z][A-Z .&/\-]{2,40})$", re.I)
 
 _HAS_LETTER = re.compile(r"[A-Za-z]")
 _HAS_DIGIT = re.compile(r"\d")
@@ -83,6 +90,16 @@ KNOWN_MANUFACTURERS = {
     # still sees a Von Duprin device; an unrecognised name would let it be priced
     # off a list.
     "VON DURPIN": "Von Duprin",
+    "HAGER MFG": "Hager", "HID": "HID", "NORTON": "Norton",
+}
+# The abbreviations a specification's hardware schedule writes in its maker
+# column (`SCH`, `IVE`). Trusted only as a whole cell: in running text `DET` and
+# `SEC` are a detail and a section, not Detex and Securitron.
+ABBREVIATED_MANUFACTURERS = {
+    "SCH": "Schlage", "IVE": "IVES", "VON": "Von Duprin", "ZER": "Zero", "FAL": "Falcon",
+    "HES": "HES", "PEM": "Pemko", "HAG": "Hager", "SAR": "Sargent", "BES": "Best",
+    "MCK": "McKinney", "TRI": "Trimco", "DET": "Detex", "SEC": "Securitron", "NOR": "Norton",
+    "STANELY": "Stanley",  # as the Culver's prototype sheets spell it
 }
 
 LEGEND_MARKERS = (
@@ -99,6 +116,25 @@ DEFAULT_COLUMN_WIDTH = 450.0
 
 def _text(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def heading_counts(pdf: Path, pages: list[int]) -> dict[int, int]:
+    """How many set headings each page holds - `SET 01 -`, `HARDWARE SET: 01`,
+    `GROUP #E1:`. A page with one is a legend; a page that only mentions hardware
+    (a spec book has dozens) has none."""
+    import fitz
+
+    doc = fitz.open(pdf)
+    try:
+        counts: dict[int, int] = {}
+        for number in pages:
+            if not 1 <= number <= doc.page_count:
+                continue
+            lines = [line.strip() for line in doc[number - 1].get_text().splitlines() if line.strip()]
+            counts[number] = sum(1 for line in lines if TEXT_SET_HEADER.match(line) or SET_HEADER.search(line))
+        return counts
+    finally:
+        doc.close()
 
 
 def find_legend_pages(pdf: Path) -> list[int]:
@@ -171,6 +207,8 @@ def _looks_like_part(token: str) -> bool:
     is also why position matters more than pattern here - `350` is a threshold
     part in one column and could pass for a finish in another.
     """
+    if '"' in token or "'" in token:
+        return False  # `34"` and `18'` are sizes - stripped of the mark they look like parts
     text = token.strip(",;:()\"'")
     if len(text) < 2 or not _HAS_DIGIT.search(text):
         return False
@@ -204,8 +242,12 @@ def classify_item(cells: list[str]) -> dict[str, Any]:
         if item["supplied_by"] is None and SUPPLIER.match(upper):
             item["supplied_by"] = upper.upper()
             taken.add(index)
-        elif item["manufacturer"] is None and upper in KNOWN_MANUFACTURERS:
-            item["manufacturer"] = KNOWN_MANUFACTURERS[upper]
+        elif item["supplied_by"] is None and _BY_PARTY.match(upper):
+            # "BY SECURITY VENDOR" in the catalog column: someone else supplies it.
+            item["supplied_by"] = _supplier(_BY_PARTY.match(upper).group(1))
+            taken.add(index)
+        elif item["manufacturer"] is None and (upper in KNOWN_MANUFACTURERS or upper in ABBREVIATED_MANUFACTURERS):
+            item["manufacturer"] = KNOWN_MANUFACTURERS.get(upper) or ABBREVIATED_MANUFACTURERS[upper]
             item["_mfr_at"] = index
             taken.add(index)
 
@@ -274,8 +316,15 @@ def classify_item(cells: list[str]) -> dict[str, Any]:
 
 
 def _is_item_row(cells: list[str]) -> bool:
-    joined = " ".join(_text(c) for c in cells)
-    return bool(joined) and bool(UNIT.search(joined) or QTY.match(joined))
+    """A count or a unit; or, on a row that states neither, a maker or a supplier in a
+    cell of its own (`AUTOMATIC DOOR | 7100 - EASY ACCESS SURFACE | HORTON | GC`)."""
+    texts = [_text(c) for c in cells]
+    joined = " ".join(texts)
+    if not joined:
+        return False
+    if UNIT.search(joined) or QTY.match(joined):
+        return True
+    return any(t.upper() in KNOWN_MANUFACTURERS or SUPPLIER.match(t) for t in texts if t)
 
 
 # A legend drawn as one table - `#: | DESCRIPTION | MFR. | MODEL & FINISH` - with
@@ -460,7 +509,10 @@ def _matrix_sets(
                 break
         model = " ".join(text for text, _ in inside[2:])
         bottom = max(box[3] for _, box in inside)
-        items.append((y, bottom, classify_matrix_item(inside[0][0], inside[1][0], model)))
+        item = classify_matrix_item(inside[0][0], inside[1][0], model)
+        # This layout has no quantity column: `(3) 5BB1` is the only count it writes.
+        assume_one_each(item)
+        items.append((y, bottom, item))
 
     labels = _vertical_labels(words, left - _LABEL_COLUMN_WIDTH, left - 1.0, top)
     groups = _split_by_labels([(y, bottom) for y, bottom, _ in items], [
@@ -490,6 +542,130 @@ def _matrix_sets(
             if abs(middle - (label["top"] + label["bottom"]) / 2) > row_height:
                 entry["flags"].append("group_rows_uncertain")
         sets.append(entry)
+    return sets
+
+
+# ── a legend drawn as a table under a header row ──────────────────────────────
+# `GROUP # | DOOR | QTY | DESCRIPTION | CATALOG # | MFG`, repeated over each block
+# of groups, two tables side by side (the Culver's prototype sheets). A group's
+# number and doors start its first row; its name runs down the group column on
+# the rows after; a note under it stands alone.
+
+_HEAD_COLUMNS = (
+    ("group", re.compile(r"^(?:HW\s*|HDW\s*)?(?:GROUP|SET|GRP)\s*(?:#|NO\.?)?$", re.I)),
+    ("door", re.compile(r"^(?:DOORS?|OPENINGS?|OPNG\.?)\s*(?:#|NO\.?)?$", re.I)),
+    ("qty", re.compile(r"^(?:QTY\.?|QUANTITY)$", re.I)),
+    ("description", re.compile(r"^(?:DESCRIPTION|ITEM)$", re.I)),
+    ("catalog", re.compile(r"^(?:CATALOG|CAT\.?|MODEL|PART|PRODUCT)\s*(?:#|NO\.?|NUMBER)?$", re.I)),
+    ("finish", re.compile(r"^(?:FINISH|FIN\.?)$", re.I)),
+    ("mfg", re.compile(r"^(?:MFG|MFR|MANUFACTURER|MANUF|MAKE)\.?$", re.I)),
+)
+_ROW_TOLERANCE = 6.0  # pt: one visual row the text layer split in two
+_VALUE_REACH = 100.0  # pt: how far right of its header a column's values run
+_VALUE_SLACK = 25.0  # pt: how far left of its header a value may start
+_GROUP_ID = re.compile(r"^\s*([A-Z]?[0-9]{1,3}[A-Z]?)\s*$", re.I)
+
+
+def _table_headers(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Every table header: its row's y, each column's x, and the table's x-range.
+    A row with two QTY columns holds two tables side by side."""
+    tables: list[dict[str, Any]] = []
+    for row in rows:
+        named: list[tuple[str, float]] = []
+        for cell, box in zip(row.get("cells") or [], row.get("cell_boxes") or []):
+            text = _text(cell)
+            name = next((n for n, pattern in _HEAD_COLUMNS if pattern.match(text)), None)
+            if name:
+                named.append((name, float(box[0])))
+        if not any(n == "qty" for n, _ in named) or not any(n == "description" for n, _ in named):
+            continue
+        current: dict[str, Any] | None = None
+        for name, x in sorted(named, key=lambda pair: pair[1]):
+            if current is None or name in current["columns"]:
+                current = {"y": float(row.get("y") or 0.0), "columns": {}}
+                tables.append(current)
+            current["columns"][name] = x
+    tables = [t for t in tables if {"qty", "description"} <= set(t["columns"])]
+    for table in tables:
+        xs = sorted(table["columns"].values())
+        table["left"], table["right"] = xs[0] - _VALUE_SLACK, xs[-1] + _VALUE_REACH
+    for table in tables:
+        # A table ends where the next one to its right begins - beside it on the
+        # sheet, whatever height that one's header sits at.
+        beyond = [o["left"] for o in tables if o["left"] > table["left"] + _VALUE_REACH / 2]
+        table["right"] = min([table["right"], *beyond])
+    return tables
+
+
+def _column_of(x: float, columns: dict[str, float]) -> str | None:
+    """The column a value starting at x is under: the rightmost header it does not
+    start well left of. The slack shrinks between close headers (QTY, DESCRIPTION)."""
+    ordered = sorted(columns.items(), key=lambda pair: pair[1])
+    best = None
+    for index, (name, at) in enumerate(ordered):
+        gap = at - ordered[index - 1][1] if index else _VALUE_SLACK * 2
+        if at - min(_VALUE_SLACK, gap / 2) <= x:
+            best = name
+    return best
+
+
+def _table_sets(rows: list[dict[str, Any]], page_number: int, page_size: dict[str, float]) -> list[dict[str, Any]]:
+    """Every group in tables drawn under a QTY | DESCRIPTION header row."""
+    tables = _table_headers(rows)
+    ordered = sorted(rows, key=lambda r: float(r.get("y") or 0.0))
+    sets: list[dict[str, Any]] = []
+    for table in tables:
+        # The block runs to the next header over the same column of the sheet.
+        below = [t["y"] for t in tables if t["y"] > table["y"] + 2.0
+                 and t["left"] < table["right"] and table["left"] < t["right"]]
+        until = min(below, default=float("inf"))
+        lines: list[dict[str, Any]] = []
+        for row in ordered:
+            y = float(row.get("y") or 0.0)
+            if y <= table["y"] + 2.0 or y >= until:
+                continue
+            for cell, box in zip(row.get("cells") or [], row.get("cell_boxes") or []):
+                x, text = float(box[0]), _text(cell)
+                if not text or not table["left"] <= x < table["right"]:
+                    continue
+                column = _column_of(x, table["columns"])
+                if column is None:
+                    continue
+                if not lines or y - lines[-1]["y"] > _ROW_TOLERANCE:
+                    lines.append({"y": y, "cells": {}, "box": [round(float(v), 2) for v in box]})
+                lines[-1]["cells"].setdefault(column, []).append(text)
+        # The block has ended once its rows stop coming at their own pace.
+        kept: list[dict[str, Any]] = []
+        for line in lines:
+            if len(kept) >= 3:
+                gaps = sorted(b["y"] - a["y"] for a, b in zip(kept, kept[1:]))
+                if line["y"] - kept[-1]["y"] > 3 * gaps[len(gaps) // 2]:
+                    break
+            kept.append(line)
+
+        current: dict[str, Any] | None = None
+        for line in kept:
+            cells = line["cells"]
+            group = " ".join(cells.get("group", []))
+            values = {k: " ".join(v) for k, v in cells.items() if k not in ("group", "door")}
+            started = _GROUP_ID.match(group) if group else None
+            if started:
+                current = {
+                    "hardware_set": started.group(1).upper(), "set_id": started.group(1).upper(),
+                    "specified": None, "source_page": page_number, "page_size": page_size,
+                    "bbox": line["box"], "items": [], "flags": [],
+                    "doors": [d.strip() for d in re.split(r"[,&]|\bAND\b", " ".join(cells.get("door", []))) if d.strip()],
+                }
+                sets.append(current)
+            elif group and current is not None and values:
+                # The group's name, written down its column beside its first items.
+                current["specified"] = f"{current['specified'] or ''} {group}".strip()
+            if current is None or not values:
+                continue  # a note under a group, standing alone
+            item = classify_item([values.get("qty", ""), values.get("description", ""),
+                                  values.get("catalog", ""), values.get("finish", ""), values.get("mfg", "")])
+            if _carries_information(item):
+                current["items"].append(item)
     return sets
 
 
@@ -536,6 +712,7 @@ def groups_on_page(pdf: Path, page_number: int) -> dict[str, Any]:
         _column_sets(rows, _column_bands(rows), page_number, page_size),
         _matrix_sets(rows, words, page_number, page_size),
         text_sets,
+        _table_sets(rows, page_number, page_size),
     ]
     sets = max(readings, key=_reading_score)
     if not _reading_score(sets):
@@ -586,6 +763,9 @@ def _column_sets(
     sets: list[dict[str, Any]] = []
     for band in sorted(per_column):
         current: dict[str, Any] | None = None
+        # An item whose count is on one row and its part on the next: the cells it
+        # has so far, until a row that states no count of its own completes it.
+        opened: list[str] | None = None
         for _y, cells, boxes in sorted(per_column[band], key=lambda entry: entry[0]):
             joined = " | ".join(c for c in cells if c)
             header = SET_HEADER.search(joined)
@@ -594,10 +774,13 @@ def _column_sets(
                 header = SET_BARE.search(joined)
                 name = None
             if header:
+                # The heading's row may carry the first item's count and name -
+                # `SET 05 - CLOSET DOOR | 1 1/2 PR. HINGES` - its part on the next row.
+                name, *rest = (name or "").split(" | ")
                 current = {
                     "hardware_set": header.group(1).upper(),
                     "set_id": header.group(1).upper(),
-                    "specified": name or None,
+                    "specified": _text(name) or None,
                     "source_page": page_number,
                     "page_size": page_size,
                     "bbox": [round(float(v), 2) for v in boxes[0]] if boxes else None,
@@ -605,8 +788,20 @@ def _column_sets(
                     "flags": [],
                 }
                 sets.append(current)
+                opened = None
+                if rest and _is_item_row(rest):
+                    first = classify_item(rest)
+                    if _carries_information(first):
+                        current["items"].append(first)
+                        opened = rest if first["part"] is None and first["manufacturer"] is None else None
                 continue
             if current is None or not _is_item_row(cells):
+                opened = None
+                continue
+            states_count = bool(UNIT.search(joined) or QTY.match(joined))
+            if opened is not None and not states_count:
+                current["items"][-1] = classify_item(opened + cells)
+                opened = None
                 continue
             item = classify_item(cells)
             if not _carries_information(item):
@@ -616,6 +811,7 @@ def _column_sets(
                 # inventing an item around it.
                 continue
             current["items"].append(item)
+            opened = cells if states_count and item["part"] is None and item["manufacturer"] is None else None
     return sets
 
 
@@ -623,9 +819,11 @@ def _column_sets(
 # The prototype sheets and the 08 71 00 spec sections both write a set as a
 # heading followed by quantity lines, with no table to band by column.
 
+# "HARDWARE SET NO. 3:", "HARDWARE SET: 01", "HW GROUP 2", and the bare "GROUP #E1:" a
+# prototype's bullet legend heads each group with.
 TEXT_SET_HEADER = re.compile(
-    r"^\s*(?:DOOR\s+)?(?:HARDWARE|HDWR\.?|HW)\s*(?:SET|GROUP|GRP)\s*(?:NO\.?|NUMBER|#)?\s*"
-    r"([0-9]{1,3}[A-Z]?)\b\s*[:.\-–—]?\s*(.*)$",
+    r"^\s*(?:DOOR\s+)?(?:(?:HARDWARE|HDWR\.?|HW)\s*)?(?:SET|GROUP|GRP)" + _SET_NO + _SET_ID
+    + r"\b\s*[:.\-–—]?\s*(.*)$",
     re.I,
 )
 TEXT_ITEM = re.compile(
@@ -634,10 +832,50 @@ TEXT_ITEM = re.compile(
     re.I,
 )
 NOT_USED = re.compile(r"^\s*(?:\(.*\)\s*)?NOT\s+USED\b", re.I)
+_SUPPLIERS = (r"(G\.?C\.?|GENERAL\s+CONTRACTOR|OWNER|OTHERS|DOOR\s+MANUFACTURER"
+              r"|(?:ALUM(?:INUM|\.)?\s+)?STOREFRONT\s+(?:SUPPLIER|CONTRACTOR|MANUFACTURER|VENDOR))")
 BY_OTHERS_LINE = re.compile(
-    r"\b(?:PROVIDED|FURNISHED|SUPPLIED)\b.*\bBY\s+(?:THE\s+)?(G\.?C\.?|GENERAL\s+CONTRACTOR|OWNER|OTHERS|DOOR\s+MANUFACTURER)",
+    r"\b(?:PROVIDED|FURNISHED|SUPPLIED)\b.*\bBY\s+(?:THE\s+)?" + _SUPPLIERS,
     re.I,
 )
+# A note under a group that hands the whole group to someone else:
+# "TYPICAL HARDWARE (EQUAL OR BETTER) BY STOREFRONT SUPPLIER".
+GROUP_BY_OTHERS = re.compile(r"\b(?:TYPICAL|ALL)\s+HARDWARE\b.*\bBY\s+(?:THE\s+)?" + _SUPPLIERS, re.I)
+# A bullet legend's item: "CLOSER: HAGER MFG., MODEL #5200, ALM."
+LABEL_ITEM = re.compile(r"^\s*[•·▪*]?\s*([A-Z][A-Z0-9 /&\-]{1,40}):\s*(\S.*)$")
+_BULLET = re.compile(r"^\s*[•·▪]\s*$")
+_LIST_NUMBER = re.compile(r"^\s*\d{1,2}\.\s*$")
+# The one count such a line states: "(4) HINGES PER LEAF", "(1) PER LEAF".
+COUNT_PER = re.compile(r"\((\d+)\)\s*(?:HINGES?\s+)?PER\s+(?:LEAF|DOOR|OPENING)\b", re.I)
+
+
+def _supplier(text: str) -> str:
+    """`ALUM. STOREFRONT CONTRACTOR` -> STOREFRONT; `G.C.` -> GC."""
+    name = " ".join(text.upper().replace(".", "").split())
+    return "STOREFRONT" if "STOREFRONT" in name else name
+
+
+_HINGE = re.compile(r"\bHINGES?\b", re.I)
+_CONTINUOUS = re.compile(r"\b(?:CONT(?:INUOUS|\.)?|GEARED|PIANO)\b", re.I)
+_LONG = re.compile(r"(\d{2,3})\s*\"")
+
+
+def assume_one_each(item: dict[str, Any]) -> None:
+    """A legend that lists hardware with no counts means one of each per door, and
+    the item says it was assumed. Not a butt hinge: three, four or a pair a leaf is
+    a person's call - unless it is a continuous hinge, one door long (`700 83"`)."""
+    if item.get("qty") is not None:
+        return
+    text = f"{item.get('description') or ''} {item.get('raw_row') or ''}"
+    long_enough = any(int(n) >= 60 for n in _LONG.findall(text))
+    if _HINGE.search(text) and not (_CONTINUOUS.search(text) or long_enough):
+        if "hinge_count_unstated" not in item["flags"]:
+            item["flags"].append("hinge_count_unstated")
+        return
+    item["qty"] = "1"
+    item["flags"] = [f for f in item["flags"] if f != "qty_missing"] + ["qty_assumed_one"]
+
+
 _DIMENSION = re.compile(r"""\d[\d'\-/."]*\s*[Xx]\s*\d[\d'\-/."]*""")
 _KNOWN_BY_LENGTH = sorted(KNOWN_MANUFACTURERS, key=len, reverse=True)
 _BHMA = re.compile(r"(?:US)?6[0-9]{2}", re.I)  # 626, 630, and the "US628" some sheets write
@@ -709,11 +947,42 @@ def _text_sets(page: Any, page_number: int, page_size: dict[str, float], shift: 
                 lines.append((*line["bbox"], text))
     boxes = pdfrows.to_display_space(page, [(*line[:4], line[4]) for line in lines])
 
+    # Sets laid out in columns side by side are read a column at a time, each top
+    # to bottom: the page's own block order interleaves them, and a wrapped line
+    # from one column would finish an item in the next.
+    columns: list[float] = []
+    for x in sorted(b[0] for b in boxes if TEXT_SET_HEADER.match(b[4])):
+        if not columns or x - columns[-1] >= COLUMN_GAP:
+            columns.append(x)
+    if len(columns) > 1:
+        width = min(b - a for a, b in zip(columns, columns[1:]))
+
+        def column(b: tuple) -> int | None:
+            if b[0] < columns[0] - 4.0 or b[0] >= columns[-1] + width:
+                return None  # beside the legend: a schedule, a title block
+            return max(i for i, left in enumerate(columns) if b[0] >= left - 4.0)
+
+        boxes = sorted((b for b in boxes if column(b) is not None), key=lambda b: (column(b), b[1], b[0]))
+
+    # A bullet or a list number is its own line, a little left of the text it marks
+    # and a fraction of a point above or below it - so it is paired with that text
+    # here, not by reading order: a bulleted line is an item, a numbered one a note.
+    marked: dict[int, str] = {}
+    for index, box in enumerate(boxes):
+        kind = "item" if _BULLET.match(box[4]) else "note" if _LIST_NUMBER.match(box[4]) else None
+        if kind is None:
+            continue
+        beside = [j for j, other in enumerate(boxes)
+                  if j != index and abs(other[1] - box[1]) < 4.0 and 0 < other[0] - box[0] < 60
+                  and not (_BULLET.match(other[4]) or _LIST_NUMBER.match(other[4]))]
+        if beside:
+            marked[min(beside, key=lambda j: boxes[j][0])] = kind
+
     sets: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
     by_others: str | None = None
     last: tuple[dict[str, Any], tuple] | None = None
-    for box in boxes:
+    for index, box in enumerate(boxes):
         x0, y0, x1, y1, text = box[:5]
         header = TEXT_SET_HEADER.match(text)
         if header:
@@ -737,12 +1006,27 @@ def _text_sets(page: Any, page_number: int, page_size: dict[str, float], shift: 
         if not current["items"] and NOT_USED.match(text):
             current["flags"].append("not_used")
             continue
-        others = BY_OTHERS_LINE.search(text)
-        if others and not TEXT_ITEM.match(text):
-            by_others = " ".join(others.group(1).upper().replace(".", "").split())
+        if _BULLET.match(text) or _LIST_NUMBER.match(text):
+            continue  # a marker; the text beside it carries what it marks
+        group_others = GROUP_BY_OTHERS.search(text)
+        if group_others and not TEXT_ITEM.match(text):
+            # The note covers the group: what is already read, and what follows.
+            by_others = _supplier(group_others.group(1))
+            for item in current["items"]:
+                item["supplied_by"] = item["supplied_by"] or by_others
             last = None
             continue
+        if marked.get(index) == "note":
+            last = None  # a numbered note: the items above are complete
+            continue
         item_match = TEXT_ITEM.match(text)
+        beside_bullet = marked.get(index) == "item"
+        label = LABEL_ITEM.match(text)
+        others = BY_OTHERS_LINE.search(text)
+        if others and not (item_match or label or beside_bullet):
+            by_others = _supplier(others.group(1))
+            last = None
+            continue
         if item_match:
             qty, unit, rest = item_match.groups()
             item = classify_text_item(rest)
@@ -755,7 +1039,17 @@ def _text_sets(page: Any, page_number: int, page_size: dict[str, float], shift: 
                 item["qty"], item["unit"] = count, "EA" if unit == "EACH" else unit
             if count is None:
                 item["flags"].append("qty_missing")
-            if by_others:
+        elif label or beside_bullet:
+            # A bullet legend's line - `CLOSER: HAGER MFG., MODEL #5200, ALM.` - states
+            # a count only as `(4) HINGES PER LEAF`; otherwise it is one a door.
+            item = classify_text_item(text.lstrip(" •·▪*"))
+            item["unit"], item["_count_unstated"] = "EA", True
+            if others:
+                item["supplied_by"] = _supplier(others.group(1))
+        else:
+            item = None
+        if item is not None:
+            if by_others and not item["supplied_by"]:
                 item["supplied_by"] = "GC" if by_others in ("GC", "GENERAL CONTRACTOR") else by_others
             item["bbox"] = [round(float(v), 2) for v in (x0, y0, x1, y1)]
             current["items"].append(item)
@@ -768,7 +1062,9 @@ def _text_sets(page: Any, page_number: int, page_size: dict[str, float], shift: 
             height = max(prev[3] - prev[1], 6.0)
             # Right under it, or beside it on the same row (a set laid out in
             # columns: "1 EA. CLOSER" | "LCN 1460 ALUMINUM CLOSER").
-            below = 0 <= y0 - prev[3] <= 1.6 * height and abs(x0 - prev[0]) < 150
+            # Boxes of tightly set lines overlap: the next line may start a little
+            # above the bottom of this one.
+            below = -0.4 * height <= y0 - prev[3] <= 1.6 * height and abs(x0 - prev[0]) < 150
             beside = abs(y0 - prev[1]) < 0.6 * height and prev[0] < x0 < prev[2] + 400
             if below or beside:
                 merged = classify_text_item(f"{item['raw_row']} {text}")
@@ -780,9 +1076,20 @@ def _text_sets(page: Any, page_number: int, page_size: dict[str, float], shift: 
                                  if not (f == "part_missing" and item["part"]) and not (f == "manufacturer_missing" and item["manufacturer"])]
                 item["bbox"] = [round(min(item["bbox"][0], x0), 2), item["bbox"][1],
                                 round(max(item["bbox"][2], x1), 2), round(float(y1), 2)]
+                spilled = BY_OTHERS_LINE.search(text)
+                if spilled and not item["supplied_by"]:
+                    item["supplied_by"] = _supplier(spilled.group(1))
                 last = (item, box)
             else:
                 last = None
+    for entry in sets:
+        for item in entry["items"]:
+            if item.pop("_count_unstated", False):
+                count = COUNT_PER.search(item.get("raw_row") or "")
+                if count:
+                    item["qty"] = float(count.group(1))
+                else:
+                    assume_one_each(item)
     return [entry for entry in sets if entry["items"] or "not_used" in entry["flags"]]
 
 

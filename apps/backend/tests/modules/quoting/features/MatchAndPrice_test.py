@@ -108,3 +108,10 @@ def test_the_model_is_asked_within_a_budget_and_never_past_a_silence(monkeypatch
     monkeypatch.setattr(MatchAndPrice.ops_ai, "ask", unsure)
     assert asyncio.run(MatchAndPrice._choose(rows, sources=None, budget=3)) == 0
     assert len(asked) == 3 and all(row["flags"] == ["ambiguous_match"] for row in rows)
+
+
+def test_every_party_but_the_gc_supplies_an_item_itself() -> None:
+    for party, others in (("LL", "landlord"), ("STOREFRONT", "the storefront supplier"),
+                          ("SECURITY VENDOR", "security vendor"), ("OWNER", "owner"),
+                          ("GC", None), ("", None), (None, None)):
+        assert MatchAndPrice._item({"qty": "1", "supplied_by": party})["by_others"] == others

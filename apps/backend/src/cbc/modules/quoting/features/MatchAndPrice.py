@@ -41,8 +41,10 @@ log = logging.getLogger("cbc.worker")
 
 SOURCE = "match_and_price v2 (priced in code)"
 CHOICE_BUDGET = 25  # model choices per bid; the rest are the estimator's
-# A legend's "supplied by" column: these parties furnish the item themselves.
-_SUPPLIED_BY_OTHERS = {"LL": "landlord", "OWNER": "owner", "TENANT": "tenant"}
+# A legend's "supplied by": every party but the GC (whom CBC sells to) furnishes the
+# item itself - the landlord, the owner, the storefront supplier, a security vendor.
+_IN_SCOPE = {"", "GC", "WIB", "CBC"}
+_PARTY_NAMES = {"LL": "landlord", "STOREFRONT": "the storefront supplier"}
 
 
 async def run(job: dict[str, Any]) -> None:
@@ -66,14 +68,16 @@ def _item(item: dict[str, Any]) -> dict[str, Any]:
         # The column reader keeps the count and its unit apart: `1 1/2` and `PR.`.
         qty = " ".join(str(v) for v in (qty, item.get("unit")) if v not in (None, ""))
     specified = item.get("specified") if isinstance(item.get("specified"), dict) else {}
-    others = _SUPPLIED_BY_OTHERS.get(str(item.get("supplied_by") or "").strip().upper())
+    party = str(item.get("supplied_by") or "").strip().upper()
+    others = None if party in _IN_SCOPE else _PARTY_NAMES.get(party, party.lower())
     return {
         "qty": qty,
         "part": item.get("part") or item.get("part_number") or specified.get("part_number"),
         "manufacturer": item.get("manufacturer") or specified.get("manufacturer"),
         "finish": item.get("finish") or specified.get("finish"),
         "description": item.get("description"),
-        "notes": f"supplied by {others}" if others else item.get("notes"),
+        "notes": item.get("notes"),
+        "by_others": others,
         "size": item.get("size") or specified.get("size"),
         "source_page": item.get("source_page"),
     }
