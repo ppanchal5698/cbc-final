@@ -17,6 +17,10 @@ test.describe("Memory graph", () => {
     await expect(sync).toBeEnabled();
     await sync.click();
     await expect(page.getByText(/Sync queued/)).toBeVisible({ timeout: 15_000 });
+
+    // The agents' work, beside the counts: what the steward found, what the historian wrote.
+    await expect(page.getByRole("heading", { name: "Findings" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What customers' bids show" })).toBeVisible();
   });
 
   test("an estimator does not see it and is refused it", async ({ page }) => {

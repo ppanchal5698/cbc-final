@@ -41,6 +41,7 @@ def _request(client, op: str, **kwargs):
 
 
 def test_the_route_table(snapshots) -> None:
+    # 137: the memory agents added POST /api/memory/findings/dismiss (admin).
     # 136: the memory graph added GET /api/memory, POST /api/memory/sync (admin)
     # and GET /api/memory/projects/{code}/similar.
     # 133: W1b added GET /api/ops/cohorts - LLM spend grouped by config cohort,
@@ -49,7 +50,7 @@ def test_the_route_table(snapshots) -> None:
     # assigned to, names only and readable without the admin role.
     # 131: FR-13 added POST /api/learning/apply, which drains the estimator
     # corrections into what the matcher knows.
-    assert len(ROUTES) == 136
+    assert len(ROUTES) == 137
     snapshots.pin_value("routes", ROUTES)
 
 

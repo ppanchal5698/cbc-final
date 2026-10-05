@@ -34,6 +34,8 @@ LABELS = (
     "Bid",
     "HardwareSet",
     "WorkflowStep",
+    "Finding",
+    "Insight",
 )
 
 _driver: Any = None
@@ -57,6 +59,9 @@ def driver() -> Any:
             os.environ["NEO4J_URI"],
             auth=(os.environ.get("NEO4J_USER", "neo4j"), os.environ.get("NEO4J_PASSWORD", "")),
             connection_timeout=5,
+            # "That property is not in the database yet" on every read of a field
+            # no node has had - a dismissal, an explanation - is noise, not news.
+            notifications_disabled_categories=["UNRECOGNIZED"],
         )
     return _driver
 
@@ -79,17 +84,10 @@ async def reachable() -> bool:
         return False
 
 
-async def write(query: str, **params: Any) -> dict[str, int]:
-    """Run a write and return its counters (nodes and relationships created, ...)."""
+async def write(query: str, **params: Any) -> list[dict[str, Any]]:
+    """Run a write; the rows it RETURNs, if any."""
     result = await driver().execute_query(query, params, database_=_database())
-    counters = result.summary.counters
-    return {
-        "nodes_created": counters.nodes_created,
-        "relationships_created": counters.relationships_created,
-        "properties_set": counters.properties_set,
-        "nodes_deleted": counters.nodes_deleted,
-        "relationships_deleted": counters.relationships_deleted,
-    }
+    return [record.data() for record in result.records]
 
 
 async def read(query: str, **params: Any) -> list[dict[str, Any]]:

@@ -5,6 +5,7 @@ import logging
 from typing import Any
 
 from cbc.modules.memory.api import curator
+from cbc.modules.memory.features import ReviewMemory
 from cbc.modules.memory.infrastructure import graph
 from cbc.modules.ops.api import jobs
 from cbc.shared.mongo import oid
@@ -25,4 +26,6 @@ async def on_proposal_approved(project_id: Any, approved_by: Any = None, **_: An
 async def run(job: dict[str, Any]) -> str:
     project_id = oid((job.get("payload") or {}).get("projectId"))
     learned = await curator.learn_bid(project_id)
+    if learned:
+        await ReviewMemory.enqueue_review()
     return "bid learned" if learned else "nothing to learn: no approved proposal on this bid"

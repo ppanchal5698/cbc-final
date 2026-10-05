@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from cbc.modules.memory.api import curator
+from cbc.modules.memory.features import ReviewMemory
 from cbc.modules.memory.infrastructure import graph
 from cbc.modules.ops.api import jobs
 from cbc.shared.auth import AdminActor, require_admin
@@ -42,6 +43,7 @@ async def sync_on_timer() -> None:
 
 async def run(job: dict[str, Any]) -> str:
     counts = await curator.sync_all()
+    await ReviewMemory.enqueue_review()
     return "synced " + ", ".join(f"{k} {v}" for k, v in counts.items())
 
 

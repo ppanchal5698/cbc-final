@@ -149,9 +149,10 @@ def coalesce_note(job: dict[str, Any] | None) -> str | None:
 COALESCE_BY_PAYLOAD = {
     "index_catalog": "fileSha",
     # One graph sync queued at a time, however many triggers fire; one learning
-    # pass per approved bid.
+    # pass per approved bid; one review of the graph.
     "memory_sync": "scope",
     "memory_learn": "projectId",
+    "memory_review": "scope",
 }
 COALESCE_FALLBACK = {
     "index_catalog": "filename",

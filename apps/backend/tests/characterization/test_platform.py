@@ -123,6 +123,10 @@ def test_memory_graph(client, state, snapshots, monkeypatch) -> None:
     snapshots.pin("GET /api/memory", client.get("/api/memory"))
     snapshots.pin("POST /api/memory/sync", client.post("/api/memory/sync"))
     snapshots.pin(
+        "POST /api/memory/findings/dismiss",
+        client.post("/api/memory/findings/dismiss", json={"key": "reference_pending:frp_constants"}),
+    )
+    snapshots.pin(
         "GET /api/memory/projects/{code}/similar",
         client.get(f"/api/memory/projects/{state['code']}/similar"),
     )

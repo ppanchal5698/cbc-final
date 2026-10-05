@@ -755,6 +755,18 @@
   },
   "status": 401
  },
+ "POST /api/memory/findings/dismiss #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "POST /api/memory/findings/dismiss #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "POST /api/memory/sync #estimator": {
   "body": {
    "detail": "str"
@@ -1544,6 +1556,11 @@
   {
    "admin": false,
    "op": "POST /api/learning/apply",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "POST /api/memory/findings/dismiss",
    "status": 200
   },
   {

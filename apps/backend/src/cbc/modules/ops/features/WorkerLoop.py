@@ -81,7 +81,7 @@ DOMAIN_JOB_TYPES: dict[str, frozenset[str]] = {
     # be here. Do not delete it for the reason the old comment gave.
     "parsing": frozenset({"parse_document"}),
     # The memory curator: mirror the record into the graph, learn from approved bids.
-    "memory": frozenset({"memory_sync", "memory_learn"}),
+    "memory": frozenset({"memory_sync", "memory_learn", "memory_review"}),
 }
 
 # Retired types still claimable under WORKER_CLAIM_ALL so a requeued historical

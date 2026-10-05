@@ -1184,6 +1184,42 @@ export interface MemoryBid {
   sets: number;
 }
 
+/** A problem the steward found in the graph. `summary` is the check's own words;
+ * headline, whyItMatters and suggestedFix are the model's, once it has explained it. */
+export interface MemoryFinding {
+  key: string;
+  check: string;
+  severity: "high" | "medium" | "low";
+  status: "open" | "dismissed";
+  summary: string;
+  count: number;
+  firstSeen: string | null;
+  headline: string | null;
+  whyItMatters: string | null;
+  suggestedFix: string | null;
+  whoFixes: "purchasing" | "estimating" | "admin" | "it" | null;
+  dismissedBy: string | null;
+  dismissNote: string | null;
+}
+
+/** What the historian wrote about one customer's approved bids. */
+export interface MemoryInsight {
+  customer: string;
+  summary: string;
+  patterns: string[] | null;
+  cautions: string[] | null;
+  bids: number;
+  generatedAt: string | null;
+}
+
+export interface MemoryAgentRun {
+  lastRunAt: string | null;
+  open?: number | null;
+  explained?: number | null;
+  customers?: number | null;
+  insights?: number | null;
+}
+
 export interface MemorySummary {
   available: boolean;
   configured: boolean;
@@ -1191,5 +1227,8 @@ export interface MemorySummary {
   relationships?: Record<string, number>;
   lastSyncAt?: string | null;
   recentBids?: MemoryBid[];
+  agents?: { steward?: MemoryAgentRun; historian?: MemoryAgentRun };
+  findings?: MemoryFinding[];
+  insights?: MemoryInsight[];
 }
 

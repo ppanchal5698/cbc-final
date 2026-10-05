@@ -1,4 +1,5 @@
-"""The memory curator against a real Neo4j: mirror, prune, learn, recall.
+"""The memory agents against a real Neo4j: the curator mirrors, prunes, learns;
+the steward finds and resolves; the historian counts and words; recall reads.
 
 Needs a throwaway Neo4j - by default bolt://localhost:27687, password
 `pytest_graph_pw`:
@@ -21,9 +22,11 @@ import pytest
 from bson import ObjectId
 
 from cbc.modules.catalog.api.learning import spec_key
-from cbc.modules.memory.api import curator, recall
-from cbc.modules.memory.features import LearnFromBid, SyncMemory
+from cbc.modules.memory.api import curator, historian, recall, steward
+from cbc.modules.memory.domain.questions import EXPLAIN_FINDING, CustomerInsight, FindingExplanation
+from cbc.modules.memory.features import LearnFromBid, ReviewMemory, SyncMemory
 from cbc.modules.memory.infrastructure import graph
+from cbc.shared import ai
 
 URI = os.environ.get("NEO4J_TEST_URI", "bolt://localhost:27687")
 PASSWORD = os.environ.get("NEO4J_TEST_PASSWORD", "pytest_graph_pw")
@@ -71,23 +74,24 @@ FAMILIES: dict[str, Any] = {
                            "items": [{"item_code": "000091", "part_number": "3553", "net_price": 64.58}]},
 }
 BOOK_ID = ObjectId()
+ITEMS: list[dict[str, Any]] = [
+    {"part": "BB1279", "manufacturer": "Hager", "cost": 24.5, "priceBookId": BOOK_ID,
+     "division": "08 71 00", "priceBasis": "net"},
+    {"part": "000091", "manufacturer": "Hager", "model": "3553", "cost": 70.0,
+     "division": "08 71 00", "priceBasis": "net"},
+    {"part": "1547A", "manufacturer": "Pemko", "cost": 12.9, "division": "08 71 00",
+     "category": "continuous_hinges", "priceBasis": "list_x_multiplier", "multiplier": 0.48},
+    {"part": "CHS83", "manufacturer": "Pemko", "division": "08 71 00",
+     "category": "continuous_hinges", "priceBasis": "list_x_multiplier"},
+    {"part": "VERDEdri", "manufacturer": "World Dryer", "division": "10 28 13",
+     "priceBasis": "list_x_multiplier"},
+]
 
 
 def _sources(monkeypatch, *, families=None, items=None, approved=None, projects=None,
              approvals_by_id=None, lines=None, learned=None):
     families = FAMILIES if families is None else families
-    items = items if items is not None else [
-        {"part": "BB1279", "manufacturer": "Hager", "cost": 24.5, "priceBookId": BOOK_ID,
-         "division": "08 71 00", "priceBasis": "net"},
-        {"part": "000091", "manufacturer": "Hager", "model": "3553", "cost": 70.0,
-         "division": "08 71 00", "priceBasis": "net"},
-        {"part": "1547A", "manufacturer": "Pemko", "cost": 12.9, "division": "08 71 00",
-         "category": "continuous_hinges", "priceBasis": "list_x_multiplier", "multiplier": 0.48},
-        {"part": "CHS83", "manufacturer": "Pemko", "division": "08 71 00",
-         "category": "continuous_hinges", "priceBasis": "list_x_multiplier"},
-        {"part": "VERDEdri", "manufacturer": "World Dryer", "division": "10 28 13",
-         "priceBasis": "list_x_multiplier"},
-    ]
+    items = ITEMS if items is None else items
 
     async def get_family(name):
         return families[name]
@@ -153,7 +157,8 @@ def test_a_second_sync_changes_nothing_and_a_removed_row_leaves_the_mirror(neo, 
     assert _count("MATCH (c:CatalogItem {key:'pemko:1547A', retired:true}) RETURN count(c) AS n") == 1
 
 
-def test_an_approved_bid_is_learned_once_and_recalled_for_the_next_bid_of_that_brand(neo, monkeypatch):
+def _wendys_bid(monkeypatch, **sources) -> ObjectId:
+    """One approved Wendys bid, built by Acme, as the curator's sources hold it."""
     pid = ObjectId()
     approved_at = datetime(2026, 10, 1, tzinfo=timezone.utc)
     lines = [
@@ -171,7 +176,13 @@ def test_an_approved_bid_is_learned_once_and_recalled_for_the_next_bid_of_that_b
         approvals_by_id={pid: {"approvedBy": "kevin@cbc.com", "approvedAt": approved_at,
                                "totalsSnapshot": {"grandTotal": 1200.0, "margin": 0.27}}},
         lines=lines,
+        **sources,
     )
+    return pid
+
+
+def test_an_approved_bid_is_learned_once_and_recalled_for_the_next_bid_of_that_brand(neo, monkeypatch):
+    pid = _wendys_bid(monkeypatch)
     counts = run(curator.sync_all())
     assert counts["bidsLearned"] == 1
 
@@ -255,3 +266,114 @@ def test_catalog_parts_sit_in_their_division_and_link_to_what_prices_them(neo, m
     run(curator.sync_all())
     assert _count("MATCH (:CatalogItem {key:'world_dryer:VERDEdri'})-[:IN_SECTION]->(s:Section) RETURN collect(s.key)[0] AS n") == "10 28 00"
 
+
+# -- the steward and the historian --------------------------------------------
+
+
+def _fake_model(monkeypatch, *, answering: bool = True) -> list[str]:
+    """The model, as the agents see it: one typed answer per question, or none."""
+    asked: list[str] = []
+
+    async def ask(question, prompt, images=()):
+        asked.append(question.name)
+        if not answering:
+            return ai.Asked(None, error="provider down")
+        if question.name == EXPLAIN_FINDING.name:
+            return ai.Asked(FindingExplanation(headline="Labels and tiers disagree", why_it_matters="Cost",
+                                               suggested_fix="Relabel", who_fixes="purchasing"))
+        return ai.Asked(CustomerInsight(summary="One bid so far - thin evidence.", patterns=["CBC-1: Hager hinges"]))
+
+    async def bands():
+        return steward.freshness.DEFAULTS
+
+    monkeypatch.setattr(steward.ops_ai, "ask", ask)
+    monkeypatch.setattr(steward.freshness, "load", bands)
+    return asked
+
+
+def _finding(key: str) -> dict[str, Any]:
+    rows = run(graph.read("MATCH (f:Finding {key: $key}) RETURN properties(f) AS f", key=key))
+    return rows[0]["f"] if rows else {}
+
+
+def test_the_steward_records_what_is_wrong_explains_it_once_and_resolves_it_when_fixed(neo, monkeypatch):
+    families = dict(FAMILIES)
+    families["vendor_tiers"] = {"vendors": [
+        *FAMILIES["vendor_tiers"]["vendors"][:3],
+        {"key": "world_dryer", "name": "World Dryer", "multiplier": 0.339, "effective_date": "2020-01-01"},
+    ]}
+    frp_panel = {"part": "FRP-4x8", "manufacturer": "Nudo", "division": "09 77 00", "priceBasis": "net"}
+    _sources(monkeypatch, families=families, items=[*ITEMS, frp_panel])
+    run(curator.sync_all())
+    asked = _fake_model(monkeypatch)
+
+    result = run(steward.review())
+    conflict = _finding("category_multiplier_conflict:pemko:continuous_hinges")
+    assert conflict["status"] == "open" and conflict["severity"] == "high" and conflict["count"] == 1
+    assert "priced at another tier: standard 0.48" in conflict["summary"]
+    assert conflict["headline"] == "Labels and tiers disagree" and conflict["whoFixes"] == "purchasing"
+    assert _count("""MATCH (:Finding {key:'category_multiplier_conflict:pemko:continuous_hinges'})-[:ABOUT]->(n)
+                     RETURN count(n) AS n""") == 3  # the vendor and both tiers
+    assert "panel_size, waste_pct" in _finding("reference_pending:frp_constants")["summary"]
+    assert _finding("multiplier_past_review:world_dryer")["status"] == "open"
+    assert "commodity band (27%)" in _finding("section_without_band:09 77 00")["summary"]
+    assert result["open"] == len(asked) == 4 and result["explained"] == 4
+
+    # Nothing changed: nothing new to explain. Dismissed stays dismissed.
+    assert run(steward.dismiss("section_without_band:09 77 00", by="kevin@cbc.com", note="FRP is quoted by hand"))
+    assert run(steward.review())["explained"] == 0 and len(asked) == 4
+    assert _finding("section_without_band:09 77 00")["status"] == "dismissed"
+
+    # Fixed at the source - the row priced at its labelled tier - and the finding closes itself.
+    fixed = [dict(i, multiplier=0.33) if i["part"] == "1547A" else i for i in ITEMS]
+    _sources(monkeypatch, families=families, items=[*fixed, frp_panel])
+    run(curator.sync_all())
+    assert run(steward.review())["resolved"] == 1
+    assert _finding("category_multiplier_conflict:pemko:continuous_hinges")["status"] == "resolved"
+
+    summary = run(recall.summary())
+    assert summary["agents"]["steward"]["open"] == 2
+    assert [f["check"] for f in summary["findings"]][-1] == "section_without_band"  # dismissed, last
+
+
+def test_with_the_model_down_the_steward_still_records_and_stops_asking(neo, monkeypatch):
+    _sources(monkeypatch)
+    run(curator.sync_all())
+    asked = _fake_model(monkeypatch, answering=False)
+    result = run(steward.review())
+    assert result["open"] == 2 and result["explained"] == 0 and len(asked) == 1
+    assert _finding("reference_pending:frp_constants").get("headline") is None
+
+
+def test_the_historian_counts_what_a_customer_was_sold_and_words_it_once(neo, monkeypatch):
+    _wendys_bid(monkeypatch)
+    run(curator.sync_all())
+    asked = _fake_model(monkeypatch)
+
+    assert run(historian.reflect()) == {"customers": 2, "insights": 2}  # the brand and the GC
+    assert _count("MATCH (:Customer {key:'wendys'})-[e:BUYS {bids: 1}]->(:CatalogItem {key:'hager:BB1279'}) RETURN count(e) AS n") == 1
+    assert _count("""MATCH (:Customer {key:'acme'})-[e:MARGIN_IN {lines: 2, bids: 1}]->(:Section {key:'08 71 00'})
+                     WHERE e.avgMargin = 0.27 RETURN count(e) AS n""") == 1
+    assert _count("MATCH (:Insight {key:'customer:wendys'})-[:ABOUT]->(:Customer {key:'wendys'}) RETURN count(*) AS n") == 1
+    assert run(historian.reflect())["insights"] == 0 and len(asked) == 2  # nothing new: not asked again
+
+    [insight] = run(recall.customer_insights({"brand": "Wendys"}))
+    assert insight["bids"] == 1 and insight["patterns"] == ["CBC-1: Hager hinges"]
+    assert "One bid so far" in run(recall.prompt_block({"_id": ObjectId(), "brand": "Wendys"}))
+
+
+def test_a_sync_or_a_learned_bid_queues_the_review(neo, monkeypatch):
+    queued: list = []
+
+    async def enqueue(job_type, **kwargs):
+        queued.append((job_type, kwargs["payload"]))
+        return {"_id": ObjectId(), "status": "queued"}
+
+    pid = _wendys_bid(monkeypatch)
+    monkeypatch.setattr(ReviewMemory.jobs, "enqueue", enqueue)
+    run(SyncMemory.run({}))
+    run(LearnFromBid.run({"payload": {"projectId": str(pid)}}))
+    assert queued == [("memory_review", {"scope": "all"})] * 2
+
+    _fake_model(monkeypatch)
+    assert "open finding(s)" in run(ReviewMemory.run({}))

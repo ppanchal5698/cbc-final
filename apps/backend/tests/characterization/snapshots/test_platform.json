@@ -791,6 +791,12 @@
   },
   "status": 409
  },
+ "POST /api/memory/findings/dismiss": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 409
+ },
  "POST /api/memory/sync": {
   "body": {
    "detail": "str"
