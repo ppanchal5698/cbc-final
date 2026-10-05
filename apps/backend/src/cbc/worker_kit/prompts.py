@@ -1038,6 +1038,26 @@ def values_in_force_block() -> str:
     )
 
 
+def digest_block(project: dict[str, Any]) -> str:
+    """Point the pass at the bid digest, when one has been built."""
+    from cbc.shared import storage
+
+    index = storage.project_dir(project["slug"]) / "extracted" / "digest" / "index.md"
+    if not index.is_file():
+        return ""
+    project_dir = f"projects/{project['slug']}"
+    return (
+        f"**Read `{project_dir}/extracted/digest/index.md` before opening any PDF.** "
+        "It is the whole bid set, page by page, read in code and checked against each "
+        "sheet's own text: find the page there, then read its document file in "
+        f"`{project_dir}/extracted/digest/`. Every value you record still cites the "
+        "`source_page` and `bbox` from the block's `<!-- p<page> b<block> [box] -->` "
+        "anchor. A block marked `UNVERIFIED` or `FROM IMAGE` is not a fact: confirm it "
+        "on the sheet image before you use it, and if you cannot, flag it - never "
+        "fill a value the digest and the sheet do not both show."
+    )
+
+
 def _modifiers(job: dict[str, Any], project: dict[str, Any] | None) -> tuple[str, str]:
     """The prefix and suffix a job's prompt carries around its rendered body.
 
@@ -1056,6 +1076,10 @@ def _modifiers(job: dict[str, Any], project: dict[str, Any] | None) -> tuple[str
     prefix = FORCE_BANNER if force else ""
 
     parts: list[str] = [values_in_force_block()]
+    if project is not None:
+        digest = digest_block(project)
+        if digest:
+            parts.append(digest)
     straggler = straggler_merge_block(payload)
     if straggler:
         parts.append(straggler)

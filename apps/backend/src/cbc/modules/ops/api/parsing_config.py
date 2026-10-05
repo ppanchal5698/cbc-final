@@ -23,9 +23,17 @@ DOC_ID = "parsing"
 TIERS = ("cost_effective", "agentic", "agentic_plus")
 DEFAULT_TIER = "cost_effective"
 
+# Who reads the bid set. `nim` is NVIDIA's nemotron-parse on its free tier
+# (40 requests a minute): every page, tiled so drawing text is legible.
+PROVIDERS = ("llamaparse", "nim")
+
 # Field name → env variable. Ints are stored as strings in .env.
 FIELDS: dict[str, str] = {
+    "provider": "PARSER_PROVIDER",
     "apiKey": "PARSER_API_KEY",
+    "nimApiKey": "NVIDIA_NIM_API_KEY",
+    "nimModel": "NIM_PARSE_MODEL",
+    "nimRpm": "NIM_RPM",
     "tier": "PARSER_TIER",
     "lang": "PARSER_LANG",
     "windowPages": "PARSER_WINDOW_PAGES",
@@ -35,7 +43,7 @@ FIELDS: dict[str, str] = {
 }
 
 # Never echoed back to the browser.
-SECRET_FIELDS = frozenset({"apiKey"})
+SECRET_FIELDS = frozenset({"apiKey", "nimApiKey"})
 
 # Kept out of `envfile.apply_to_environ`, for the same reason the Claude provider
 # variables are: a value this screen *saved* into `.env` must not come back as
@@ -50,7 +58,11 @@ SECRET_FIELDS = frozenset({"apiKey"})
 MANAGED = frozenset(FIELDS.values())
 
 DEFAULTS: dict[str, Any] = {
+    "provider": "llamaparse",
     "apiKey": "",
+    "nimApiKey": "",
+    "nimModel": "nvidia/nemotron-parse",
+    "nimRpm": 40,
     "tier": DEFAULT_TIER,
     "lang": "en",
     "windowPages": 8,
@@ -64,7 +76,7 @@ DEFAULTS: dict[str, Any] = {
 }
 
 _INT_FIELDS = frozenset(
-    {"windowPages", "windowConcurrency", "windowTimeoutSeconds", "waitMaxSeconds"}
+    {"windowPages", "windowConcurrency", "windowTimeoutSeconds", "waitMaxSeconds", "nimRpm"}
 )
 
 
@@ -88,7 +100,7 @@ def _coerce_field(field: str, raw: Any) -> Any:
             return int(str(raw).strip())
         except (TypeError, ValueError):
             return None
-    if field == "tier":
+    if field in ("tier", "provider"):
         return str(raw).strip().lower()
     return str(raw).strip()
 
@@ -96,6 +108,12 @@ def _coerce_field(field: str, raw: Any) -> Any:
 def validate(config: dict[str, Any]) -> list[str]:
     """Return human-readable problems; empty means ok."""
     problems: list[str] = []
+    provider = config.get("provider")
+    if provider is not None and provider not in PROVIDERS:
+        problems.append(f"provider must be one of {PROVIDERS}")
+    rpm = config.get("nimRpm")
+    if rpm is not None and not (1 <= int(rpm) <= 1000):
+        problems.append("nimRpm must be between 1 and 1000")
     tier = config.get("tier")
     if tier is not None and tier not in TIERS:
         if tier == "fast":
@@ -157,11 +175,17 @@ def resolve(
     return resolved, sources
 
 
+def api_key(resolved: dict[str, Any]) -> str:
+    """The chosen provider's key."""
+    field = "nimApiKey" if resolved.get("provider") == "nim" else "apiKey"
+    return str(resolved.get(field) or "").strip()
+
+
 def enabled(resolved: dict[str, Any] | None = None) -> bool:
-    """True when PARSER_API_KEY is set — parsing is on."""
+    """True when the chosen provider has a key — parsing is on."""
     if resolved is None:
         resolved, _ = resolve(None)
-    return bool(str(resolved.get("apiKey") or "").strip())
+    return bool(api_key(resolved))
 
 
 async def load_stored() -> dict[str, Any]:
@@ -194,6 +218,7 @@ def public_config(config: dict[str, Any] | None) -> dict[str, Any]:
         "enabled": enabled(resolved),
         "fields": fields,
         "tiers": list(TIERS),
+        "providers": list(PROVIDERS),
     }
 
 

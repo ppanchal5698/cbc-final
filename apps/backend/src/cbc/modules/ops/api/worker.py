@@ -495,6 +495,9 @@ async def defer_if_bid_busy(job: dict[str, Any]) -> dict[str, Any] | None:
 _WAIT_FOR_PARSE = frozenset({"extract_bid_set", "rerun_extraction", "ingest_addendum"})
 
 
+NIM_PARSE_GIVE_UP = 6 * 3600
+
+
 async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
     """Hold Claude extract until every in-flight parse on this bid has finished.
 
@@ -545,7 +548,10 @@ async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
         created = created.replace(tzinfo=timezone.utc)
     waited = int((_now() - created).total_seconds())
     wait_max = int(resolved.get("waitMaxSeconds") or 1800)
-    if waited >= 2 * wait_max:
+    # NIM reads every page at its free tier's pace, so a long read is progress,
+    # not a stuck parser: give it hours rather than twice the LlamaParse wait.
+    give_up = max(2 * wait_max, NIM_PARSE_GIVE_UP) if resolved.get("provider") == "nim" else 2 * wait_max
+    if waited >= give_up:
         log.warning(
             "job %s gave up on the parser after %ss (PARSER_WAIT_MAX_SECONDS=%s); "
             "extracting from the PDF instead",
@@ -571,10 +577,11 @@ async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
     if waited >= wait_max:
         log.warning(
             "job %s still waiting for the parser after %ss (PARSER_WAIT_MAX_SECONDS=%s); "
-            "Claude starts without it at twice that",
+            "Claude starts without it at %ss",
             job["_id"],
             waited,
             wait_max,
+            give_up,
         )
 
     if other:

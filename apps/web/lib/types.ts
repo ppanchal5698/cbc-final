@@ -595,6 +595,8 @@ export interface ParsingSettings {
   fields: Record<string, ParsingField>;
   /** cost_effective | agentic | agentic_plus. `fast` is excluded: no bboxes. */
   tiers: string[];
+  /** llamaparse | nim (NVIDIA nemotron-parse, every page, 40 requests a minute). */
+  providers?: string[];
   updatedAt?: string | null;
   updatedBy?: string | null;
 }

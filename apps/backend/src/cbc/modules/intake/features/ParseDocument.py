@@ -21,7 +21,7 @@ from typing import Any
 import httpx
 
 from cbc.modules.intake.infrastructure.collections import document_pages, documents
-from cbc.modules.ops.api import llamaparse, page_blocks, parsing_config, worker
+from cbc.modules.ops.api import llamaparse, nim_parse, page_blocks, parsing_config, worker
 from cbc.shared import storage
 from cbc.shared.mongo import oid
 
@@ -52,6 +52,30 @@ async def after_finish(job: dict[str, Any], status: str, error: str | None, job_
     if not document_id:
         return
     oid_id = oid(document_id)
+    try:
+        await _finish_parse(oid_id, status, error)
+    finally:
+        await _rebuild_digest(oid_id, job_log)
+
+
+async def _rebuild_digest(document_id: Any, job_log) -> None:
+    """Every phase reads the digest first, so it is rebuilt whenever a parse ends -
+    a failed one still leaves the pages it did read."""
+    from cbc.modules.intake.api import digest
+    from cbc.modules.projects.api import lookup
+
+    doc = await documents().find_one({"_id": document_id}, {"projectId": 1})
+    project = await lookup.get(doc["projectId"]) if doc else None
+    if project is None:
+        return
+    try:
+        built = await digest.build(project)
+        job_log.info("bid digest: %s document(s) -> %s", built["documents"], built["path"])
+    except Exception:  # the digest is a reading aid; a parse must not fail over it
+        job_log.exception("bid digest could not be built")
+
+
+async def _finish_parse(oid_id: Any, status: str, error: str | None) -> None:
     if status == "done":
         await _set_parse(oid_id, state="parsed", error=None, finishedAt=_now())
         await _update_parse_status_file(oid_id, "parsed", error=None)
@@ -115,9 +139,12 @@ async def parse_document(job: dict[str, Any]) -> str:
         raise ParsePermanent(f"document {document_id} no longer exists")
 
     resolved = await _load_settings()
-    api_key = str(resolved.get("apiKey") or "").strip()
+    api_key = parsing_config.api_key(resolved)
+    use_nim = resolved.get("provider") == "nim"
     if not api_key:
-        raise ParsePermanent("PARSER_API_KEY is empty — parsing is off")
+        raise ParsePermanent(
+            ("NVIDIA_NIM_API_KEY" if use_nim else "PARSER_API_KEY") + " is empty — parsing is off"
+        )
 
     path = storage.absolute(doc["path"])
     if not path.exists():
@@ -129,6 +156,8 @@ async def parse_document(job: dict[str, Any]) -> str:
 
     tier = str(resolved.get("tier") or parsing_config.DEFAULT_TIER)
     parser_meta = {"name": "llamaparse", "version": "v2", "tier": tier}
+    nim_model = str(resolved.get("nimModel") or parsing_config.DEFAULTS["nimModel"])
+    nim_rpm = int(resolved.get("nimRpm") or parsing_config.DEFAULTS["nimRpm"])
     # The deadline runs from the first attempt. A retry still finds the parse
     # `running` (after_finish only fires once the job ends for good), and
     # restarting the clock on every attempt would let three slow attempts hold
@@ -189,7 +218,7 @@ async def parse_document(job: dict[str, Any]) -> str:
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, read=timeout)) as client:
         file_id = str((doc.get("parse") or {}).get("fileId") or "")
-        if not file_id and _now() < deadline_at:
+        if not file_id and not use_nim and _now() < deadline_at:
             file_id = await or_local(
                 llamaparse.upload(client, api_key=api_key, path=path), "upload"
             ) or ""
@@ -229,7 +258,22 @@ async def parse_document(job: dict[str, Any]) -> str:
                         "page": {"$gte": start, "$lte": end},
                     }
                 )
-                if existing < span:
+                if existing < span and use_nim:
+                    rows = await _nim_window(
+                        client, doc=doc, path=path, start=start, end=end,
+                        api_key=api_key, model=nim_model, rpm=nim_rpm,
+                    )
+                    (out_dir / f"p{start}-{end}.json").write_text(
+                        json.dumps([{k: v for k, v in r.items() if k != "parsedAt"} for r in rows], default=str),
+                        encoding="utf-8",
+                    )
+                    for row in rows:
+                        await document_pages().update_one(
+                            {"documentId": doc["_id"], "page": row["page"]},
+                            {"$set": row},
+                            upsert=True,
+                        )
+                elif existing < span:
                     window_pages = None
                     # A window that would start after the deadline is never
                     # sent: it would wait up to its own timeout on top.
@@ -313,10 +357,49 @@ async def parse_document(job: dict[str, Any]) -> str:
             },
         )
     )
-    backend = "local" if len(fallback) >= pages else "mixed" if fallback else "llamaparse"
+    name = "nim" if use_nim else "llamaparse"
+    backend = "local" if len(fallback) >= pages else "mixed" if fallback else name
     await _set_parse(doc["_id"], fallbackPages=fallback, **{"settings.backend": backend})
 
-    return f"parsed {pages_done}/{pages} pages ({tier}, {limit} at a time, {backend})"
+    how = f"{nim_model}, {nim_rpm}/min" if use_nim else f"{tier}, {limit} at a time"
+    return f"parsed {pages_done}/{pages} pages ({how}, {backend})"
+
+
+async def _nim_window(
+    client: httpx.AsyncClient, *, doc: dict[str, Any], path: Any, start: int, end: int,
+    api_key: str, model: str, rpm: int,
+) -> list[dict[str, Any]]:
+    """Every page of the window read by nemotron-parse; a page it cannot deliver is read locally.
+
+    No parse deadline here: the estimator chose to have NIM read every page, and
+    the pacer, not a deadline, is what bounds the run (about 1.5 s a request).
+    """
+
+    async def one(number: int) -> list[dict[str, Any]]:
+        try:
+            window = await nim_parse.parse_page(
+                client, api_key=api_key, pdf_path=path, page_number=number, model=model, rpm=rpm
+            )
+            parser = {**nim_parse.PARSER, "version": model}
+        except nim_parse.NimError as exc:
+            log.warning("NIM could not read page %s of %s, reading locally: %s", number, path.name, exc)
+            window = await asyncio.to_thread(page_blocks.local_window, path, number)
+            parser = page_blocks.LOCAL_PARSER
+        return await asyncio.to_thread(
+            page_blocks.normalise_window,
+            [window],
+            pdf_path=path,
+            project_id=doc["projectId"],
+            document_id=doc["_id"],
+            content_sha=doc.get("contentSha") or "",
+            parser=parser,
+        )
+
+    pages = await asyncio.gather(*(one(n) for n in range(start, end + 1)))
+    rows = [row for page in pages for row in page]
+    if len(rows) != end - start + 1:
+        raise ParseRetryable(f"window {start}-{end} normalised to {len(rows)} pages — refusing to mark progress")
+    return rows
 
 
 async def _project_slug(project_id: Any) -> str:

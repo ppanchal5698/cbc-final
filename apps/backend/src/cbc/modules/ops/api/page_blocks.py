@@ -30,11 +30,14 @@ from typing import Any
 
 import fitz
 
+import re
+
 from cbc.shared.pdfrows import (
     detect_shift,
     has_text_layer,
     ocr_words,
     rows_from_words,
+    to_display_space,
 )
 
 # Same threshold as extraction bbox verification: half the claim on real text.
@@ -171,6 +174,40 @@ def verify_page(
         if covered >= BBOX_COVERAGE:
             hits += 1
     return round(hits / len(text_blocks), 4)
+
+
+_TOKEN = re.compile(r"[A-Z0-9]+(?:[./-][A-Z0-9]+)*")
+
+
+def _tokens(text: str) -> set[str]:
+    """What a reader could get wrong: words and numbers, markdown and LaTeX stripped."""
+    plain = re.sub(r"\\[A-Z]+|[{}|*#_`$&]", " ", text.upper())
+    return {t for t in _TOKEN.findall(plain) if len(t) >= 2 or t.isdigit()}
+
+
+def agreement(words: list[tuple], block: dict[str, Any]) -> float | None:
+    """Share of a block's words and numbers that the PDF's own text layer has
+    inside its box. None when there is nothing to check it against.
+
+    A box on real text (`verify_page`) says where; this says what. A model that
+    read "BB1279" off the image where the sheet says "BB1191" lands on text and
+    still disagrees with it.
+    """
+    claim = _tokens(block.get("text") or "")
+    if not claim or not block.get("bbox") or not words:
+        return None
+    x0, y0, x1, y1 = block["bbox"]
+    pad = 3.0
+    inside: set[str] = set()
+    for word in words:
+        cx, cy = (word[0] + word[2]) / 2, (word[1] + word[3]) / 2
+        if x0 - pad <= cx <= x1 + pad and y0 - pad <= cy <= y1 + pad:
+            inside |= _tokens(str(word[4]))
+    if not inside:
+        return 0.0
+    joined = " ".join(sorted(inside))
+    found = sum(1 for t in claim if t in inside or t in joined)
+    return round(found / len(claim), 3)
 
 
 def _oriented(
@@ -316,6 +353,9 @@ def normalise_window(
             )
             blocks, dropped_no_bbox = _require_bbox(blocks)
             numbered = [{"n": n, **block} for n, block in enumerate(blocks, start=1)]
+            words = to_display_space(page, page.get_text("words")) if has_text_layer(page) else []
+            for block in numbered:
+                block["agrees"] = agreement(words, block)
 
             results.append(
                 {

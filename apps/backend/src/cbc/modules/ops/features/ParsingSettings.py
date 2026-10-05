@@ -1,7 +1,7 @@
-"""GET and PUT /api/settings/parsing - LlamaParse runtime parser settings.
+"""GET and PUT /api/settings/parsing - who reads the bid set, and how.
 
-There is no container to configure any more: parsing is a cloud call, so the
-whole surface is the API key, the tier and the windowing knobs.
+LlamaParse or NVIDIA NIM's nemotron-parse: a provider, its key, and the
+windowing and rate knobs.
 """
 from __future__ import annotations
 
@@ -28,6 +28,10 @@ def _now() -> datetime:
 class ParsingSettingsBody(BaseModel):
     """Runtime PARSER_* values the Settings screen may save."""
 
+    provider: str | None = None
+    nimApiKey: str | None = None
+    nimModel: str | None = None
+    nimRpm: int | None = Field(default=None, ge=1, le=1000)
     apiKey: str | None = None
     tier: str | None = None
     lang: str | None = None
