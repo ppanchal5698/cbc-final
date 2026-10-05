@@ -28,7 +28,7 @@ from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.memory.domain import projection
 from cbc.modules.memory.infrastructure import graph
 from cbc.modules.ops.api import jobs as ops_jobs
-from cbc.modules.pricing.api import reference_store
+from cbc.modules.pricing.api import pricing, reference_store
 from cbc.modules.projects.api import lookup
 from cbc.modules.quoting.api import approvals, lines as quoting_lines
 
@@ -52,6 +52,40 @@ async def _batched(query: str, rows: list[dict[str, Any]], **params: Any) -> int
     return len(rows)
 
 
+# ── divisions and sections ───────────────────────────────────────────────────
+
+_SECTIONS = """
+    UNWIND $divisions AS d
+    MERGE (n:Division {key: d.key}) SET n += d, n.syncedAt = $run
+    WITH count(*) AS _
+    UNWIND $sections AS s
+    MERGE (n:Section {key: s.key}) SET n += s, n.syncedAt = $run
+    WITH n, s
+    OPTIONAL MATCH (parent:Section {key: s.parent})
+    OPTIONAL MATCH (division:Division {key: s.division})
+    FOREACH (_ IN CASE WHEN parent IS NULL THEN [] ELSE [1] END | MERGE (n)-[:PART_OF]->(parent))
+    FOREACH (_ IN CASE WHEN parent IS NULL AND division IS NOT NULL THEN [1] ELSE [] END |
+        MERGE (n)-[:PART_OF]->(division))
+    WITH n, s
+    OPTIONAL MATCH (n)-[old:DEFAULT_MARGIN_BAND]->() DELETE old
+    WITH n, s
+    MATCH (band:MarginBand {key: s.marginBand})
+    MERGE (n)-[e:DEFAULT_MARGIN_BAND]->(band) SET e.fallback = s.bandIsFallback"""
+
+
+def _banded(code: str) -> bool:
+    """Whether pricing has a band for this section, rather than its default."""
+    return code[:5] in pricing.DIVISION_BANDS
+
+
+async def _sections(codes: list[str | None], *, run: str) -> int:
+    """Divisions and sections for these codes, linked into the hierarchy and to the
+    margin band pricing applies (marked `fallback` where it is only the default)."""
+    rows = projection.section_rows(codes, pricing.band_for_division, _banded)
+    await graph.write(_SECTIONS, divisions=rows["divisions"], sections=rows["sections"], run=run)
+    return len(rows["sections"])
+
+
 # ── mirrored ─────────────────────────────────────────────────────────────────
 
 _MERGE = {
@@ -70,6 +104,10 @@ _MERGE = {
         MERGE (n:CatalogItem {key: r.key}) SET n += r, n.syncedAt = $run, n.retired = false
         FOREACH (_ IN CASE WHEN r.vendor <> '' THEN [1] ELSE [] END |
             MERGE (v:Vendor {key: r.vendor}) MERGE (n)-[:MADE_BY]->(v))
+        WITH n, r
+        OPTIONAL MATCH (s:Section {key: r.section})
+        FOREACH (_ IN CASE WHEN s IS NULL THEN [] ELSE [1] END |
+            MERGE (n)-[e:IN_SECTION]->(s) SET e.syncedAt = $run)
         WITH n, r WHERE r.priceBook IS NOT NULL
         MATCH (b:PriceBook {key: r.priceBook}) MERGE (n)-[:LISTED_IN]->(b)""",
     "customers": """
@@ -86,7 +124,6 @@ _REFERENCE = (
     ("FrpConstant", "frp_constants", False),
     ("Finish", "finishes", False),
     ("TaxRate", "tax", False),
-    ("MarginBand", "margins", False),
     ("SpecialNet", "hager_special_nets", True),
 )
 
@@ -94,6 +131,9 @@ _REFERENCE = (
 # than deleted - an approved bid priced against it must still point at it.
 _PRUNE = ("Multiplier", "PriceBook", "ReferenceFamily", "FrameDepth", "FrpConstant",
           "Finish", "TaxRate", "MarginBand", "SpecialNet")
+# Links the sync re-derives every time, so a part that changed section or
+# multiplier does not keep the old one.
+_PRUNE_LINKS = ("IN_SECTION", "PRICED_BY")
 
 
 async def sync_all() -> dict[str, Any]:
@@ -126,7 +166,36 @@ async def sync_all() -> dict[str, Any]:
     )
     counts["Multiplier"] = await _batched(_MERGE["multipliers"], projection.multiplier_rows(tiers), run=run)
     counts["PriceBook"] = await _batched(_MERGE["books"], projection.price_book_rows(books), run=run)
-    counts["CatalogItem"] = await _batched(_MERGE["catalog"], projection.catalog_rows(items), run=run)
+    catalog = projection.catalog_rows(items)
+    counts["MarginBand"] = await _batched(
+        """UNWIND $rows AS r
+           MERGE (n:MarginBand {key: r.key}) SET n += r, n.syncedAt = $run
+           WITH n MATCH (f:ReferenceFamily {key: 'margins'}) MERGE (f)-[:DEFINES]->(n)""",
+        projection.margin_band_rows(family("margins")), run=run,
+    )
+    counts["Section"] = await _sections([r["section"] for r in catalog], run=run)
+    counts["CatalogItem"] = await _batched(_MERGE["catalog"], catalog, run=run)
+    # The multiplier that prices a list-priced part. First the tier its own row
+    # was priced at (the row's multiplier, when exactly one of its vendor's tiers
+    # has that value) - the record's fact; else its category's tier; else the
+    # vendor's one account multiplier. `categoryAgrees` says whether the row's
+    # category label points at the same tier: on the Pemko rows it mostly does not.
+    # A net price takes no multiplier - it is already a cost.
+    await graph.write("""
+        MATCH (c:CatalogItem) WHERE c.syncedAt = $run AND c.priceBasis IN ['list_x_multiplier', 'list']
+        OPTIONAL MATCH (sameValue:Multiplier {vendor: c.vendor})
+            WHERE c.multiplier IS NOT NULL AND abs(sameValue.value - c.multiplier) < 0.000001
+        WITH c, collect(sameValue) AS sameValues
+        OPTIONAL MATCH (byCategory:Multiplier {vendor: c.vendor, category: c.category})
+        OPTIONAL MATCH (account:Multiplier {vendor: c.vendor, category: 'all'})
+        WITH c, byCategory, account, CASE WHEN size(sameValues) = 1 THEN sameValues[0] END AS priced
+        WITH c, byCategory, coalesce(priced, byCategory, account) AS m,
+             CASE WHEN priced IS NOT NULL THEN 'row_multiplier'
+                  WHEN byCategory IS NOT NULL THEN 'category' ELSE 'account' END AS how
+        WHERE m IS NOT NULL
+        MERGE (c)-[e:PRICED_BY]->(m)
+        SET e.how = how, e.syncedAt = $run,
+            e.categoryAgrees = CASE WHEN byCategory IS NULL THEN null ELSE byCategory = m END""", run=run)
     counts["Customer"] = await _batched(
         _MERGE["customers"], projection.customer_rows(family("special_customer_margins")), run=run
     )
@@ -135,7 +204,6 @@ async def sync_all() -> dict[str, Any]:
         "FrpConstant": projection.frp_rows(family("frp_constants")),
         "Finish": projection.finish_rows(family("finishes")),
         "TaxRate": projection.tax_rows(family("tax")),
-        "MarginBand": projection.margin_band_rows(family("margins")),
         "SpecialNet": projection.special_net_rows(family("hager_special_nets")),
     }
     for label, family_name, by_vendor in _REFERENCE:
@@ -167,6 +235,8 @@ async def sync_all() -> dict[str, Any]:
     for label in _PRUNE:
         await graph.write(f"MATCH (n:{label}) WHERE n.syncedAt <> $run DETACH DELETE n", run=run)
     await graph.write("MATCH (n:CatalogItem) WHERE n.syncedAt <> $run SET n.retired = true", run=run)
+    for link in _PRUNE_LINKS:
+        await graph.write(f"MATCH (:CatalogItem)-[e:{link}]->() WHERE e.syncedAt <> $run DELETE e", run=run)
     await graph.write("MATCH ()-[e:CONFIRMED_AS]->() WHERE e.syncedAt <> $run DELETE e", run=run)
     await graph.write(
         "MATCH (n:Customer) WHERE n.syncedAt <> $run SET n.specialMargin = null, n.specialMarginNote = null",
@@ -247,10 +317,19 @@ async def learn_bid(project_id: Any) -> bool:
                 MERGE (b)-[:{relationship}]->(c)""",
             key=key, rows=people,
         )
+    await _sections([s["section"] for s in rows["sets"]] + [c["section"] for c in rows["covers"]], run=_now())
     await graph.write(
         """MATCH (b:Bid {key: $key}) UNWIND $rows AS r
-           MERGE (h:HardwareSet {key: r.key}) SET h += r MERGE (b)-[:HAS_SET]->(h)""",
+           MERGE (h:HardwareSet {key: r.key}) SET h += r MERGE (b)-[:HAS_SET]->(h)
+           WITH h, r MATCH (s:Section {key: r.section}) MERGE (h)-[:IN_SECTION]->(s)""",
         key=key, rows=rows["sets"],
+    )
+    await graph.write(
+        """MATCH (b:Bid {key: $key})
+           OPTIONAL MATCH (b)-[old:COVERS]->() DELETE old
+           WITH b UNWIND $rows AS r MATCH (s:Section {key: r.section})
+           MERGE (b)-[e:COVERS]->(s) SET e.lines = r.lines, e.extended = r.extended""",
+        key=key, rows=rows["covers"],
     )
     await _batched(_LEARN_ITEMS, rows["items"], bid=key, at=bid["approvedAt"])
     await graph.write(

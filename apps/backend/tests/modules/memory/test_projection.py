@@ -82,7 +82,8 @@ def test_an_approved_bid_becomes_sets_spec_lines_and_its_workflow():
     assert bid["retries"] == 1 and bid["openingCount"] == 1
     assert rows["brands"] == [{"key": "wendy_s", "name": "Wendy's"}]
     assert rows["gcs"] == [{"key": "acme_builders", "name": "Acme Builders"}]
-    assert rows["sets"] == [{"key": f"{pid}:SET 01", "name": "SET 01", "division": "08 71 00"}]
+    assert rows["sets"] == [{"key": f"{pid}:SET 01", "name": "SET 01", "division": "08 71 00", "section": "08 71 00"}]
+    assert rows["covers"] == [{"section": "08 71 00", "lines": 1, "extended": 0.0}]
 
     hinge, stop = rows["items"]
     assert hinge["itemKey"] == "hager:BB1279" and hinge["qty"] == 3.0
@@ -91,3 +92,31 @@ def test_an_approved_bid_becomes_sets_spec_lines_and_its_workflow():
 
     assert [s["type"] for s in rows["steps"]] == ["extract_bid_set", "match_and_price"]
     assert rows["steps"][0]["durationS"] == 240.0 and rows["steps"][1]["durationS"] is None
+
+
+def test_a_section_sits_in_its_parent_section_and_its_division():
+    from cbc.modules.pricing.api import pricing
+
+    rows = projection.section_rows(
+        ["10 28 13", "08 71 00", "09 77 00", None],
+        pricing.band_for_division,
+        lambda code: code[:5] in pricing.DIVISION_BANDS,
+    )
+    sections = {s["key"]: s for s in rows["sections"]}
+    assert set(sections) == {"08 71 00", "09 77 00", "10 28 00", "10 28 13"}
+    assert sections["10 28 13"]["parent"] == "10 28 00" and sections["10 28 13"]["level"] == 3
+    assert sections["10 28 00"]["parent"] is None and sections["10 28 00"]["division"] == "10"
+    assert sections["08 71 00"]["title"] == "Door Hardware"
+    # The band pricing applies, and whether that is only its default.
+    assert (sections["10 28 13"]["marginBand"], sections["10 28 13"]["bandIsFallback"]) == ("accessories", False)
+    assert (sections["09 77 00"]["marginBand"], sections["09 77 00"]["bandIsFallback"]) == ("commodity", True)
+    assert [d["key"] for d in rows["divisions"]] == ["08", "09", "10"]
+    assert projection.section_code("10 28") == "10 28 00" and projection.section_code("hinge") is None
+
+
+def test_the_derived_accessories_band_is_a_band_like_the_others():
+    rows = {r["key"]: r for r in projection.margin_band_rows(
+        {"bands": [{"key": "commodity", "margin": 0.27}], "accessories_derived": 0.56})}
+    assert rows["commodity"]["derived"] is False
+    assert rows["accessories"]["margin"] == 0.56 and rows["accessories"]["derived"] is True
+

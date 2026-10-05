@@ -55,7 +55,7 @@ async def by_parts(parts: Iterable[str], *, limit_each: int = 20) -> dict[str, l
 async def iter_items() -> AsyncIterator[dict[str, Any]]:
     """Every catalog part, for the memory graph's mirror of the catalog."""
     fields = {"part": 1, "manufacturer": 1, "description": 1, "division": 1, "category": 1,
-              "cost": 1, "listPrice": 1, "priceBasis": 1, "availability": 1, "model": 1,
+              "cost": 1, "listPrice": 1, "multiplier": 1, "priceBasis": 1, "availability": 1, "model": 1,
               "priceBookId": 1, "priceBook": 1}
     async for row in products().find({}, fields):
         yield row

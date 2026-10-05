@@ -57,13 +57,16 @@ FAMILIES: dict[str, Any] = {
         {"key": "hager", "name": "Hager", "tier": "Hager Advantage Program", "effective_date": "2026-03-02",
          "categories": {"locks": 0.29, "architectural_hinges": 0.21}},
         {"key": "national_guard", "name": "National Guard", "multiplier": 0.45},
+        {"key": "pemko", "name": "Pemko", "categories": {"standard": 0.48, "continuous_hinges": 0.33}},
+        {"key": "world_dryer", "name": "World Dryer", "multiplier": 0.339},
     ]},
     "special_customer_margins": {"customers": [{"name": "Wendys", "margin": None, "note": "via Banner"}]},
     "frame_depths": {"wall_types": [{"type": "masonry", "depth": "5-3/4", "depth_inches": 5.75}]},
     "frp_constants": {"status": "PENDING", "panel_size": None, "waste_pct": None},
     "finishes": {"finishes": [{"us_code": "US26D", "numeric_code": "626", "description": "Satin chrome"}]},
     "tax": {"rates": {"OH": 0.08}},
-    "margins": {"bands": [{"key": "door_hardware", "name": "Door hardware", "margin": 0.27}]},
+    "margins": {"bands": [{"key": "commodity", "name": "Commodity Door Hardware", "margin": 0.27}],
+                "accessories_derived": 0.56},
     "hager_special_nets": {"vendor": "hager", "effective_date": "2026-03-02",
                            "items": [{"item_code": "000091", "part_number": "3553", "net_price": 64.58}]},
 }
@@ -74,9 +77,16 @@ def _sources(monkeypatch, *, families=None, items=None, approved=None, projects=
              approvals_by_id=None, lines=None, learned=None):
     families = FAMILIES if families is None else families
     items = items if items is not None else [
-        {"part": "BB1279", "manufacturer": "Hager", "cost": 24.5, "priceBookId": BOOK_ID},
-        {"part": "000091", "manufacturer": "Hager", "model": "3553", "cost": 70.0},
-        {"part": "1547A", "manufacturer": "Pemko", "cost": 12.9},
+        {"part": "BB1279", "manufacturer": "Hager", "cost": 24.5, "priceBookId": BOOK_ID,
+         "division": "08 71 00", "priceBasis": "net"},
+        {"part": "000091", "manufacturer": "Hager", "model": "3553", "cost": 70.0,
+         "division": "08 71 00", "priceBasis": "net"},
+        {"part": "1547A", "manufacturer": "Pemko", "cost": 12.9, "division": "08 71 00",
+         "category": "continuous_hinges", "priceBasis": "list_x_multiplier", "multiplier": 0.48},
+        {"part": "CHS83", "manufacturer": "Pemko", "division": "08 71 00",
+         "category": "continuous_hinges", "priceBasis": "list_x_multiplier"},
+        {"part": "VERDEdri", "manufacturer": "World Dryer", "division": "10 28 13",
+         "priceBasis": "list_x_multiplier"},
     ]
 
     async def get_family(name):
@@ -115,7 +125,7 @@ def test_a_sync_mirrors_vendors_multipliers_customers_catalog_and_reference_data
     _sources(monkeypatch, learned=[{"specKey": spec_key("Hager BB1279"), "specSample": "Hager BB1279",
                                     "part": "BB1279", "manufacturer": "Hager", "confirmCount": 2}])
     counts = run(curator.sync_all())
-    assert counts["CatalogItem"] == 3 and counts["Multiplier"] == 3
+    assert counts["CatalogItem"] == 5 and counts["Multiplier"] == 6
 
     assert _count("MATCH (:Vendor {key:'hager'})-[:HAS_MULTIPLIER]->(m:Multiplier {category:'locks', value:0.29}) RETURN count(m) AS n") == 1
     assert _count("MATCH (:Vendor {key:'national_guard'})-[:HAS_MULTIPLIER]->(m {category:'all'}) RETURN count(m) AS n") == 1
@@ -148,9 +158,9 @@ def test_an_approved_bid_is_learned_once_and_recalled_for_the_next_bid_of_that_b
     approved_at = datetime(2026, 10, 1, tzinfo=timezone.utc)
     lines = [
         {"group": "SET 01", "part": "BB1279", "manufacturer": "Hager", "description": "HINGE 4.5x4.5",
-         "qty": 3, "cost": 24.5, "costSource": "LIST_X_MULTIPLIER", "margin": 0.27},
+         "qty": 3, "cost": 24.5, "costSource": "LIST_X_MULTIPLIER", "margin": 0.27, "division": "08 71 00"},
         {"group": "SET 01", "part": "1547A", "manufacturer": None, "description": "THRESHOLD",
-         "qty": 1, "cost": 12.9, "costSource": "CATALOG_BASELINE", "margin": 0.27},
+         "qty": 1, "cost": 12.9, "costSource": "CATALOG_BASELINE", "margin": 0.27, "division": "08 71 00"},
         {"group": "SET 02", "part": None, "manufacturer": None, "description": "WALL STOP",
          "qty": 1, "cost": None, "costSource": "MANUAL", "addedByHand": True},
     ]
@@ -171,6 +181,8 @@ def test_an_approved_bid_is_learned_once_and_recalled_for_the_next_bid_of_that_b
     # Priced as the catalog part: by vendor and part, or by part alone when only one vendor has it.
     assert _count("MATCH (:SpecItem)-[p:PRICED_AS {bid:$bid}]->(c:CatalogItem) RETURN count(p) AS n", bid=str(pid)) == 2
     assert _count("MATCH (:Bid {code:'CBC-1'})-[:RAN]->(a:WorkflowStep)-[:NEXT]->(z:WorkflowStep) RETURN count(*) AS n") == 1
+    assert _count("MATCH (:Bid {code:'CBC-1'})-[e:COVERS {lines: 2}]->(:Section {key:'08 71 00'}) RETURN count(e) AS n") == 1
+    assert _count("MATCH (:Bid {code:'CBC-1'})-[:HAS_SET]->(:HardwareSet {name:'SET 01'})-[:IN_SECTION]->(:Section {key:'08 71 00'}) RETURN count(*) AS n") == 1
 
     # The same approval learned again replaces, it does not duplicate.
     assert run(curator.learn_bid(pid)) is True
@@ -215,3 +227,31 @@ def test_the_timer_queues_a_sync_only_when_one_is_due(neo, monkeypatch):
     assert run(SyncMemory.sync_due()) is False
     monkeypatch.setattr(curator, "SYNC_INTERVAL_SECONDS", 0)
     assert run(SyncMemory.sync_due()) is True
+
+
+def test_catalog_parts_sit_in_their_division_and_link_to_what_prices_them(neo, monkeypatch):
+    _sources(monkeypatch)
+    run(curator.sync_all())
+    # Part -> section -> parent section -> division.
+    assert _count("""MATCH (:CatalogItem {key:'world_dryer:VERDEdri'})-[:IN_SECTION]->(:Section {key:'10 28 13'})
+                     -[:PART_OF]->(:Section {key:'10 28 00'})-[:PART_OF]->(d:Division {key:'10', title:'Specialties'})
+                     RETURN count(d) AS n""") == 1
+    assert _count("MATCH (:CatalogItem)-[:IN_SECTION]->(s:Section {key:'08 71 00', title:'Door Hardware'}) RETURN count(*) AS n") == 4
+    # The section's margin band, as pricing applies it.
+    assert _count("MATCH (:Section {key:'10 28 13'})-[e:DEFAULT_MARGIN_BAND {fallback:false}]->(:MarginBand {key:'accessories', margin:0.56}) RETURN count(e) AS n") == 1
+    assert _count("MATCH (:Section {key:'08 71 00'})-[:DEFAULT_MARGIN_BAND]->(:MarginBand {key:'commodity'}) RETURN count(*) AS n") == 1
+    # The multiplier that prices a list-priced part: the one its row was priced
+    # at, even where its category label points elsewhere (and the link says so).
+    assert _count("MATCH (:CatalogItem {key:'pemko:1547A'})-[:PRICED_BY {how:'row_multiplier', categoryAgrees:false}]->(:Multiplier {key:'pemko:standard'}) RETURN count(*) AS n") == 1
+    # With no multiplier on the row, the category's tier; a net part takes none.
+    assert _count("MATCH (:CatalogItem {key:'pemko:CHS83'})-[:PRICED_BY {how:'category', categoryAgrees:true}]->(:Multiplier {key:'pemko:continuous_hinges'}) RETURN count(*) AS n") == 1
+    assert _count("MATCH (:CatalogItem {key:'world_dryer:VERDEdri'})-[:PRICED_BY {how:'account'}]->(:Multiplier {key:'world_dryer:all'}) RETURN count(*) AS n") == 1
+    assert _count("MATCH (:CatalogItem {key:'hager:BB1279'})-[e:PRICED_BY]->() RETURN count(e) AS n") == 0
+
+    # A part moved to another section loses the old link on the next sync.
+    moved = [{"part": "VERDEdri", "manufacturer": "World Dryer", "division": "10 28 00",
+              "priceBasis": "list_x_multiplier"}]
+    _sources(monkeypatch, items=moved)
+    run(curator.sync_all())
+    assert _count("MATCH (:CatalogItem {key:'world_dryer:VERDEdri'})-[:IN_SECTION]->(s:Section) RETURN collect(s.key)[0] AS n") == "10 28 00"
+

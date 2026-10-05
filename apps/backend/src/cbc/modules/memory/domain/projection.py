@@ -17,10 +17,67 @@ from typing import Any
 
 MAX_DATA_JSON = 200_000  # a whole reference family, kept readable on its node
 
+# MasterFormat titles for the divisions and sections CBC quotes. Only the names:
+# which code a part or line belongs to always comes from the record, and a code
+# not listed here keeps its number and no title rather than a guessed one.
+DIVISION_TITLES = {
+    "06": "Wood, Plastics, and Composites",
+    "08": "Openings",
+    "09": "Finishes",
+    "10": "Specialties",
+}
+SECTION_TITLES = {
+    "06 64 00": "Plastic Paneling",
+    "08 11 00": "Metal Doors and Frames",
+    "08 14 00": "Wood Doors",
+    "08 71 00": "Door Hardware",
+    "09 77 00": "Special Wall Surfacing",
+    "10 21 00": "Compartments and Cubicles",
+    "10 21 13": "Toilet Compartments",
+    "10 28 00": "Toilet, Bath, and Laundry Accessories",
+    "10 28 13": "Toilet Accessories",
+}
+_SECTION = re.compile(r"^\s*(\d{2})\s*(\d{2})(?:\s*(\d{2}))?")
+
 
 def key(name: Any) -> str:
     """One key per real-world name: `National Guard` and `national_guard` are one vendor."""
     return re.sub(r"[^a-z0-9]+", "_", str(name or "").strip().lower()).strip("_")
+
+
+def section_code(division: Any) -> str | None:
+    """`08 71 00`, `10 28` and `102813` are sections; anything else is not one."""
+    match = _SECTION.match(str(division or ""))
+    if not match:
+        return None
+    return f"{match.group(1)} {match.group(2)} {match.group(3) or '00'}"
+
+
+def section_rows(
+    codes: Iterable[str | None],
+    band_for: Callable[[str], str],
+    banded: Callable[[str], bool],
+) -> dict[str, list[dict[str, Any]]]:
+    """The divisions and sections these codes sit in, each with its parent: a level-3
+    section (10 28 13) sits in its level-2 section (10 28 00), which sits in its
+    division (10). `band_for` is the margin band pricing applies to the section."""
+    sections: dict[str, dict[str, Any]] = {}
+    for code in {c for c in codes if c}:
+        level2 = f"{code[:5]} 00"
+        for key in (code, level2):
+            sections.setdefault(key, {
+                "key": key,
+                "code": key,
+                "title": SECTION_TITLES.get(key),
+                "level": 2 if key.endswith(" 00") else 3,
+                "parent": level2 if key != level2 else None,
+                "division": key[:2],
+                "marginBand": band_for(key),
+                "bandIsFallback": not banded(key),
+            })
+    divisions = [{"key": d, "code": d, "title": DIVISION_TITLES.get(d)}
+                 for d in sorted({s["division"] for s in sections.values()})]
+    return {"divisions": divisions, "sections": sorted(sections.values(), key=lambda s: s["key"])}
 
 
 def _iso(value: Any) -> str | None:
@@ -138,9 +195,11 @@ def catalog_rows(items: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
             "model": item.get("model"),
             "cost": _num(item.get("cost")),
             "listPrice": _num(item.get("listPrice")),
+            "multiplier": _num(item.get("multiplier")),
             "priceBasis": item.get("priceBasis"),
             "availability": item.get("availability"),
             "priceBook": str(item["priceBookId"]) if item.get("priceBookId") else None,
+            "section": section_code(item.get("division")),
         })
     return rows
 
@@ -233,17 +292,25 @@ def special_net_rows(nets: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def margin_band_rows(margins: dict[str, Any]) -> list[dict[str, Any]]:
-    return [
+    """The bands pricing applies: the family's own, plus the `accessories` band it
+    derives (reference_calc.bands), which is what a 10 28 line is priced with."""
+    rows = [
         {
             "key": band.get("key"),
             "name": band.get("name"),
             "margin": _num(band.get("margin")),
             "divisor": _num(band.get("divisor")),
             "examples": [str(e) for e in band.get("examples") or []],
+            "derived": False,
         }
         for band in margins.get("bands") or []
         if band.get("key")
     ]
+    if margins.get("accessories_derived") is not None:
+        rows.append({"key": "accessories", "name": "Accessories (derived)",
+                     "margin": _num(margins.get("accessories_derived")), "divisor": None,
+                     "examples": [], "derived": True, "note": margins.get("accessories_note")})
+    return rows
 
 
 def family_rows(families: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
@@ -327,7 +394,8 @@ def bid_rows(
     for line in lines:
         group = str(line.get("group") or "Ungrouped")
         set_key = f"{bid_key}:{group}"
-        sets.setdefault(set_key, {"key": set_key, "name": group, "division": line.get("division")})
+        sets.setdefault(set_key, {"key": set_key, "name": group, "division": line.get("division"),
+                                  "section": section_code(line.get("division"))})
         vendor = key(line.get("manufacturer"))
         part = str(line.get("part") or "").strip()
         spec = " ".join(str(v) for v in (line.get("manufacturer"), part, line.get("description")) if v)
@@ -356,7 +424,15 @@ def bid_rows(
             "sourcePage": line.get("sourcePage"),
         })
 
+    covered: dict[str, dict[str, Any]] = {}
+    for line in lines:
+        code = section_code(line.get("division"))
+        if code:
+            entry = covered.setdefault(code, {"section": code, "lines": 0, "extended": 0.0})
+            entry["lines"] += 1
+            entry["extended"] += _num(line.get("extended")) or 0.0
     return {
+        "covers": [{**c, "extended": round(c["extended"], 2)} for c in covered.values()],
         "bid": {
             "key": bid_key,
             "code": project.get("code"),

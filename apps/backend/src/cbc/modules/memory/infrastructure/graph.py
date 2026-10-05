@@ -28,6 +28,8 @@ LABELS = (
     "TaxRate",
     "SpecialNet",
     "MarginBand",
+    "Division",
+    "Section",
     "SpecItem",
     "Bid",
     "HardwareSet",
