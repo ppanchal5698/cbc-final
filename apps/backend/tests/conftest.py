@@ -2,9 +2,20 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 
 import pytest
+
+# The suite never reads a developer's .env. Every entry point loads it at import
+# (`envfile.apply_to_environ`), and a working .env names real services - a NIM key
+# with PARSER_PROVIDER=nim, STORAGE_BACKEND=azure with the connection string left
+# for compose to fill - so a test run on a laptop inherited them, failed on
+# storage, and could have called NVIDIA. CI has no .env; now a laptop matches it.
+# The isolate_dotenv fixture below still gives each test its own writable file.
+_NO_ENV_FILE = Path(tempfile.mkdtemp(prefix="cbc-pytest-env-")) / ".env"
+_NO_ENV_FILE.write_text("", encoding="utf-8")
+os.environ["CBC_ENV_FILE"] = str(_NO_ENV_FILE)
 
 # Force token mode for unit tests (do not use setdefault — shell may have jwt).
 os.environ["INTERNAL_AUTH"] = "token"
