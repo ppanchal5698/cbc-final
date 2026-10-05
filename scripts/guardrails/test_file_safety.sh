@@ -66,14 +66,20 @@ check "a comment naming projects/" 2 '{"tool_name":"Bash","tool_input":{"command
 # A command chained before inline python used to skip the body checks entirely:
 # _is_inline_python_prefix read `cd repo && python` as one command, saw `cd`, and
 # gave up. A bare `python - <<PY` was blocked the whole time, so the hole only
-# opened when someone wrote the `cd` that nearly everyone writes.
-check "chained && before heredoc" 2 '{"tool_name": "Bash", "tool_input": {"command": "cd /repo && python - <<PY\nfrom pathlib import Path\nPath(\".claude/settings.json\").write_text(\"x\")\nPY"}}'
-check "chained ; before heredoc" 2 '{"tool_name": "Bash", "tool_input": {"command": "cd /repo ; python - <<PY\nfrom pathlib import Path\nPath(\".claude/settings.json\").write_text(\"x\")\nPY"}}'
-check "chained && before -c" 2 '{"tool_name": "Bash", "tool_input": {"command": "cd /repo && python -c \"from pathlib import Path; Path(\\\".claude/x.md\\\").write_text(\\\"y\\\")\""}}'
+# opened when someone wrote the `cd` that nearly everyone writes. The guard now
+# follows the `cd`, so these stay in this project with `cd .`; the matching
+# allow below is the same write after a `cd` to somewhere else.
+check "chained && before heredoc" 2 '{"tool_name": "Bash", "tool_input": {"command": "cd . && python - <<PY\nfrom pathlib import Path\nPath(\".claude/settings.json\").write_text(\"x\")\nPY"}}'
+check "chained ; before heredoc" 2 '{"tool_name": "Bash", "tool_input": {"command": "cd . ; python - <<PY\nfrom pathlib import Path\nPath(\".claude/settings.json\").write_text(\"x\")\nPY"}}'
+check "chained && before -c" 2 '{"tool_name": "Bash", "tool_input": {"command": "cd . && python -c \"from pathlib import Path; Path(\\\".claude/x.md\\\").write_text(\\\"y\\\")\""}}'
+check "cd into .claude, then rm" 2 '{"tool_name": "Bash", "tool_input": {"command": "cd .claude && rm hooks/pre_send_quote.py"}}'
 
 echo
 echo "pre_delete_guard.py - must ALLOW (exit 0):"
 check "rm -rf inside projects" 0 '{"tool_name":"Bash","tool_input":{"command":"rm -rf projects/demo/uploads/processed"}}'
+check "the same write after cd elsewhere" 0 '{"tool_name": "Bash", "tool_input": {"command": "cd /tmp && python -c \"from pathlib import Path; Path(\\\".claude/x.md\\\").write_text(\\\"y\\\")\""}}'
+check "a commit message that says git push" 0 '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"note: never git push from here\""}}'
+check "rm -rf quoted in a commit message" 0 '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"fix; rm -rf build\""}}'
 # Projects moved under data/ and the guard did not follow, so tidying a real
 # project directory came back as "outside project scope".
 check "rm -rf inside data/projects" 0 '{"tool_name":"Bash","tool_input":{"command":"rm -rf data/projects/demo/uploads/processed"}}'

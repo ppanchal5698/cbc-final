@@ -12,17 +12,12 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from _artifact_path import bid_dir, project_path_from_tool
+from _artifact_path import bid_dir, project_path_from_tool, slashes
 
 PROJECT_RE = re.compile(r"projects/([^/\"]+)/")
 ROOT = Path(__file__).resolve().parents[2]
 MAX_SUMMARY = 300
 SESSION_LOG = ROOT / "claude.log"
-
-
-def slashes(text: str) -> str:
-    """Normalise both real and JSON-escaped Windows separators to '/'."""
-    return text.replace("\\\\", "/").replace("\\", "/")
 
 
 def summarise(tool_name: str | None, tool_input: dict) -> str:
@@ -58,12 +53,18 @@ def check(payload: dict) -> int:
     if log_dir is None:
         return 0
 
+    # Claude Code names the subagent in `agent_type` (and `agent_id`); the main
+    # session sends neither. This read `agent_name` / `subagent_type`, which no
+    # payload carries - `subagent_type` is only an Agent call's input - so every
+    # line said "orchestrator". Keys checked against a captured payload, CLI 2.1.289.
     record = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "tool_name": tool_name,
         "tool_input_summary": summarise(tool_name, tool_input),
-        "agent_name": payload.get("agent_name") or payload.get("subagent_type") or "orchestrator",
+        "agent_name": payload.get("agent_type") or "orchestrator",
+        "agent_id": payload.get("agent_id"),
         "session_id": payload.get("session_id"),
+        "tool_use_id": payload.get("tool_use_id"),
     }
     line = json.dumps(record)
     with (log_dir / "audit_trail.jsonl").open("a", encoding="utf-8") as fh:

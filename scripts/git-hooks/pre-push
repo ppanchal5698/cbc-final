@@ -1,0 +1,17 @@
+#!/bin/sh
+# Refuse a push made from an agent session.
+#
+# Claude Code sets CLAUDECODE=1 in the environment of every command it runs, so
+# this holds however the push is spelled - an alias, `git -C`, a script - where
+# the PreToolUse hook reads command text and can be talked around. It is still not
+# the guarantee: `git push --no-verify` skips every pre-push hook. Branch
+# protection on GitHub is the control that holds on the server.
+#
+# Install once per clone:   git config core.hooksPath scripts/git-hooks
+if [ -n "${CLAUDECODE:-}" ]; then
+  echo "pre-push: refusing a push from an agent session (CLAUDECODE is set)." >&2
+  echo "Push from your own terminal. If this is your own terminal, it inherited" >&2
+  echo "CLAUDECODE from the app that opened it: unset it, then push." >&2
+  exit 1
+fi
+exit 0

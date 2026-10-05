@@ -38,6 +38,7 @@ def _exec(name: str) -> ModuleType:
 
 
 # Load shared helpers before the guards that import them.
+_exec("_shell")
 _exec("_artifact_path")
 pre_delete_guard = _exec("pre_delete_guard")
 pre_send_quote = _exec("pre_send_quote")

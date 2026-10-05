@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Single PostToolUse process: validate, then format, then audit.
+"""Single PostToolUse process: audit, then validate, then format.
 
-Audit always runs. Scope-checkpoint validation may return exit 2 to block the
-pipeline when scope_metadata / scope_summary is invalid mid-chain.
+Audit always runs, first. Scope-checkpoint validation may return exit 2 to block
+the pipeline when scope_metadata / scope_summary is invalid mid-chain.
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ HOOKS = Path(__file__).resolve().parent
 
 # Hooks run as standalone scripts under the system interpreter, so the backend
 # package is not importable unless it happens to be pip-installed. Without this
-# the tool_session guard below is silently skipped.
+# post_extraction_validate's schema checks silently fall back to the lighter ones.
 _BACKEND_SRC = HOOKS.parent.parent / "apps" / "backend" / "src"
 if _BACKEND_SRC.is_dir() and str(_BACKEND_SRC) not in sys.path:
     sys.path.insert(0, str(_BACKEND_SRC))
