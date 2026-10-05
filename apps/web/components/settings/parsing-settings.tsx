@@ -116,8 +116,8 @@ export function ParsingSettingsClient() {
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<ParsingTestResult | null>(null);
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
-  if (error) return <p className="text-sm text-destructive">{errorMessage(error)}</p>;
+  if (isLoading) return <ParsingCard><p className="text-sm text-muted-foreground">Loading…</p></ParsingCard>;
+  if (error) return <ParsingCard><p className="text-sm text-destructive">{errorMessage(error)}</p></ParsingCard>;
   if (!data) return null;
 
   const stamp = `${data.updatedAt ?? ""}`;
@@ -169,7 +169,7 @@ export function ParsingSettingsClient() {
   }
 
   return (
-    <div className="space-y-6">
+    <ParsingCard>
       <div
         className={cn(
           "flex items-center gap-2 rounded-md border px-3 py-2 text-sm",
@@ -278,6 +278,21 @@ export function ParsingSettingsClient() {
           {data.updatedBy ? ` by ${data.updatedBy}` : ""}.
         </p>
       )}
-    </div>
+    </ParsingCard>
+  );
+}
+
+/** The standard settings card, so the reader sits beside the provider like every other panel. */
+function ParsingCard({ children }: { children: React.ReactNode }) {
+  return (
+    <section className="rounded-xl bg-panel border border-subtle shadow-sm">
+      <div className="border-b border-subtle px-5 py-4">
+        <h2 className="text-[16px] font-bold text-tx-primary tracking-tight">Bid-set reader</h2>
+        <p className="mt-1 text-[13px] font-medium text-tx-secondary">
+          Reads every uploaded PDF into page text and a page-by-page digest before extraction starts.
+        </p>
+      </div>
+      <div className="space-y-6 px-5 py-5">{children}</div>
+    </section>
   );
 }

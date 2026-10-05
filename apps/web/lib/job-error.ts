@@ -219,7 +219,7 @@ export function translateJobError(
 
   if (code === "auth_failed" || code === "cli_missing") {
     if (admin) {
-      actions.push({ label: "Open settings", href: "/settings" });
+      actions.push({ label: "Open AI settings", href: "/settings/ai" });
     } else {
       actions.push({ label: "Notify your admin" });
     }

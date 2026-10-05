@@ -44,7 +44,7 @@ describe("translateJobError", () => {
       "admin",
       { stage: "extraction", errorCode: "auth_failed" },
     );
-    expect(result?.actions.some((a) => a.href === "/settings")).toBe(true);
+    expect(result?.actions.some((a) => a.href === "/settings/ai")).toBe(true);
     expect(result?.message).toContain("Configure the provider");
   });
 
