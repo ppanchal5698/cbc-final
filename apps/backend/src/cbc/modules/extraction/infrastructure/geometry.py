@@ -10,6 +10,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from cbc.shared.storage import pdfs_in
 from cbc.modules.extraction.domain.schedule import _normalize_schedule_payload, door_number
 from cbc.shared import storage
 from cbc.shared.pass_files import read_json, write_json
@@ -43,7 +44,7 @@ def measure_bboxes(project: dict[str, Any]) -> tuple[int, int]:
         return 0, 0
 
     raw = directory / "uploads" / "raw"
-    pdfs = sorted(raw.glob("*.pdf")) if raw.is_dir() else []
+    pdfs = pdfs_in(raw)
     if not pdfs:
         return 0, 0
 
@@ -275,7 +276,7 @@ def measure_specialty_bboxes(project: dict[str, Any]) -> tuple[int, int]:
     slug = project["slug"]
     directory = storage.project_dir(slug)
     raw = directory / "uploads" / "raw"
-    pdfs = sorted(raw.glob("*.pdf")) if raw.is_dir() else []
+    pdfs = pdfs_in(raw)
     if not pdfs:
         return 0, 0
 

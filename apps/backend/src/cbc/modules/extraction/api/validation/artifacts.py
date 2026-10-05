@@ -25,6 +25,7 @@ from typing import Any
 
 import fitz
 
+from cbc.shared.storage import pdfs_in
 from cbc.shared.paths import repo_root, storage_root
 from cbc.modules.ops.api.artifact_gate import ArtifactValidationError
 from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
@@ -119,7 +120,7 @@ def check_bboxes_are_real(project: str, openings: list[dict]) -> tuple[list[str]
     warnings: list[str] = []
 
     raw = storage_root() / project / "uploads" / "raw"
-    pdfs = sorted(raw.glob("*.pdf")) if raw.is_dir() else []
+    pdfs = pdfs_in(raw)
 
     cache: dict[tuple[str, int], Any] = {}
     for index, opening in enumerate(openings, start=1):

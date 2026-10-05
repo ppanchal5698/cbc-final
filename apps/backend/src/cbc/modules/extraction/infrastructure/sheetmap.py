@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import logging
 import re
 import sys
 from datetime import datetime, timezone
@@ -22,7 +23,9 @@ from typing import Any
 
 from cbc.shared import pdfpages
 from cbc.shared.paths import repo_root, storage_root
-from cbc.shared.storage import atomic_write_json
+from cbc.shared.storage import atomic_write_json, pdfs_in
+
+log = logging.getLogger(__name__)
 
 ROOT = repo_root()
 SHEETMAP_REL = "extracted/_sheetmap.json"
@@ -592,6 +595,26 @@ def _project_relative(slug: str, pdf: Path) -> str:
 
 
 def _file_entry(slug: str, pdf: Path) -> dict[str, Any]:
+    """One file's map. A file that will not open is recorded as unreadable with
+    no pages, so one corrupt upload is a flag on that file, not a dead bid."""
+    try:
+        return _readable_entry(slug, pdf)
+    except Exception as exc:  # pymupdf raises its own FileDataError, RuntimeError, ValueError
+        log.warning("%s: unreadable PDF %s: %s", slug, pdf.name, exc)
+        return {
+            "path": _project_relative(slug, pdf),
+            "file_sha": pdfpages.content_sha256(pdf),
+            "page_count": 0,
+            "unreadable": f"{type(exc).__name__}: {exc}"[:300],
+            "schedule_pages": [],
+            "has_schedule_markers": False,
+            "door_schedule_candidate_pages": [],
+            "needs_visual_read_pages": [],
+            "pages": [],
+        }
+
+
+def _readable_entry(slug: str, pdf: Path) -> dict[str, Any]:
     path = str(pdf)
     ranked = _find_sheets(path)
     parse = _load_parse_schedule()
@@ -643,7 +666,7 @@ def total_page_count(slug: str) -> int:
     if not raw.is_dir():
         return 0
     total = 0
-    for pdf in sorted(raw.glob("*.pdf")):
+    for pdf in pdfs_in(raw):
         try:
             total += int(pdfpages.page_count(pdf))
         except Exception:
@@ -672,7 +695,7 @@ def build_sheetmap(slug: str, *, force: bool = False) -> dict[str, Any]:
     project = storage_root() / slug
     raw = project / "uploads" / "raw"
     target = sheetmap_path(slug)
-    files = sorted(raw.glob("*.pdf")) if raw.is_dir() else []
+    files = pdfs_in(raw)
 
     if target.is_file() and not force:
         try:

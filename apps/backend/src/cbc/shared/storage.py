@@ -112,6 +112,14 @@ def unique_filename(directory: Path, filename: str) -> Path:
     return directory / f"{stem}_{stamp}{suffix}"
 
 
+def pdfs_in(directory: Path) -> list[Path]:
+    """The PDFs directly in `directory`, sorted. Case-blind: an upload named
+    PLANS.PDF is a PDF, and on Linux `glob("*.pdf")` would never see it."""
+    if not directory.is_dir():
+        return []
+    return sorted(p for p in directory.iterdir() if p.is_file() and p.suffix.lower() == ".pdf")
+
+
 CHUNK = 1 << 20  # 1 MiB
 
 

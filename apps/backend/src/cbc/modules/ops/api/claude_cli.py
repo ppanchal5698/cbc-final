@@ -112,6 +112,7 @@ class RunResult:
 # while it is working perfectly well, and matching that would fail healthy runs.
 _USAGE_LIMIT_MARKERS = (
     "usage limit reached",
+    "hit your session limit",
     "reached your weekly usage limit",
     "rate limit exceeded",
     "rate_limit_error",
