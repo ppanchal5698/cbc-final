@@ -70,11 +70,15 @@ KNOWN_MANUFACTURERS = {
     "EDWARDS": "Edwards", "BEA": "BEA", "BEA GROUP": "BEA", "HORTON": "Horton",
     "GLYNN JOHNSON": "Glynn Johnson", "GLY": "Glynn Johnson", "CRL": "CRL",
     "DON JO": "Don-Jo", "MICOM": "Micom", "CAL ROYAL": "Cal-Royal",
-    "ALARM LOCK": "Alarm Lock", "TRIMCO": "Trimco", "BOBRICK": "Bobrick",
+    "ALARM LOCK": "Alarm Lock", "ALARM CLOCK": "Alarm Lock", "TRIMCO": "Trimco", "BOBRICK": "Bobrick",
     "ASI": "ASI", "BRADLEY": "Bradley", "GAMCO": "Gamco", "NUDO": "Nudo",
     "WORLD DRYER": "World Dryer", "MARLITE": "Marlite", "SARGENT": "Sargent",
     "CORBIN": "Corbin", "YALE": "Yale", "BEST": "Best", "STANLEY": "Stanley",
     "MCKINNEY": "McKinney", "TUBELITE": "Tubelite",
+    "DORMA": "Dorma", "DORMAKABA": "Dormakaba", "ARROW": "Arrow", "BALDWIN": "Baldwin",
+    "BURNS": "Burns", "DETEX": "Detex", "SECURITRON": "Securitron", "DOR-O-MATIC": "Dor-O-Matic",
+    "ABH": "ABH", "DCI": "DCI", "JACKNOB": "Jacknob", "LOCKNET": "Locknet", "PRECISION": "Precision",
+    "KAWNEER": "Kawneer", "MONARCH": "Monarch", "ACCURATE": "Accurate", "DORMA KABA": "Dormakaba",
     # How the Dutch Bros prototype sheets spell it. Mapped so the Allegion gate
     # still sees a Von Duprin device; an unrecognised name would let it be priced
     # off a list.
@@ -316,6 +320,22 @@ def _vertical_labels(words: list[tuple], left: float, right: float, top: float) 
     turned the other way reads top to bottom, and is tried second.
     """
     column = [w for w in words if w[1] >= top and left <= (w[0] + w[2]) / 2 <= right]
+    # A two-line label ("GROUP 3 -" beside "RESTROOM DOOR") is two runs of
+    # rotated text side by side; read together they interleave. Each run of
+    # text at one x is read on its own, and the labels from all of them kept.
+    runs: list[list[tuple]] = []
+    for word in sorted(column, key=lambda w: w[0]):
+        if runs and abs(word[0] - runs[-1][0][0]) <= 4.0:
+            runs[-1].append(word)
+        else:
+            runs.append([word])
+    if len(runs) > 1:
+        merged: dict[str, dict[str, Any]] = {}
+        for run in runs:
+            for label in _vertical_labels(run, left, right, top):
+                merged.setdefault(label["set_id"], label)
+        if merged:
+            return sorted(merged.values(), key=lambda label: label["top"])
     for ordered in (
         sorted(column, key=lambda w: -w[3]),
         sorted(column, key=lambda w: w[1]),
@@ -482,6 +502,14 @@ def _carries_information(item: dict[str, Any]) -> bool:
     return any(item.get(field) for field in ("part", "manufacturer", "unit"))
 
 
+def _reading_score(sets: list[dict[str, Any]]) -> int:
+    """Items that name a manufacturer or a part: what a reading is worth to pricing."""
+    return sum(
+        1 for entry in sets for item in entry.get("items") or []
+        if item.get("manufacturer") or item.get("part")
+    )
+
+
 def groups_on_page(pdf: Path, page_number: int) -> dict[str, Any]:
     """Every hardware set on one page, with its items."""
     import fitz
@@ -495,14 +523,23 @@ def groups_on_page(pdf: Path, page_number: int) -> dict[str, Any]:
         if shift:
             words = [(*w[:4], pdfrows.shift_text(w[4], shift), *w[5:]) for w in words]
         page_size = {"width": round(page.rect.width, 2), "height": round(page.rect.height, 2)}
+        text_sets = _text_sets(page, page_number, page_size, shift)
     finally:
         doc.close()
 
-    sets = _column_sets(rows, _column_bands(rows), page_number, page_size)
-    if not any(entry["items"] for entry in sets):
-        # Nothing itemised: the legend may be one table with its group names
-        # written vertically, which the column reader cannot see.
-        sets = _matrix_sets(rows, words, page_number, page_size) or sets
+    # Three layouts: sets side by side in columns, one table with its group
+    # names written vertically, or a heading and quantity lines with no table.
+    # Each reader can return something on another's page - the column reader
+    # found "4: TAPE J-CHANNEL" in a wall-section note beside a matrix legend -
+    # so the reading kept is the one whose items say the most.
+    readings = [
+        _column_sets(rows, _column_bands(rows), page_number, page_size),
+        _matrix_sets(rows, words, page_number, page_size),
+        text_sets,
+    ]
+    sets = max(readings, key=_reading_score)
+    if not _reading_score(sets):
+        sets = next((reading for reading in readings if reading), [])
     if not sets:
         return {
             "source_file": pdf.name,
@@ -580,6 +617,173 @@ def _column_sets(
                 continue
             current["items"].append(item)
     return sets
+
+
+# ── sets written as text: "HARDWARE SET NO. 3:" then "1 EA. MFR PART X FINISH" ──
+# The prototype sheets and the 08 71 00 spec sections both write a set as a
+# heading followed by quantity lines, with no table to band by column.
+
+TEXT_SET_HEADER = re.compile(
+    r"^\s*(?:DOOR\s+)?(?:HARDWARE|HDWR\.?|HW)\s*(?:SET|GROUP|GRP)\s*(?:NO\.?|NUMBER|#)?\s*"
+    r"([0-9]{1,3}[A-Z]?)\b\s*[:.\-–—]?\s*(.*)$",
+    re.I,
+)
+TEXT_ITEM = re.compile(
+    r"^\s*(\d+\s*-\s*\d/\d|\d+\s+\d/\d|\d+/\d|\d+(?:\.\d+)?)\s*"
+    r"(EA|EACH|PR|PRS|PAIR|PAIRS|SET|SETS|LF|LOT)\b\.?\s*(.*)$",
+    re.I,
+)
+NOT_USED = re.compile(r"^\s*(?:\(.*\)\s*)?NOT\s+USED\b", re.I)
+BY_OTHERS_LINE = re.compile(
+    r"\b(?:PROVIDED|FURNISHED|SUPPLIED)\b.*\bBY\s+(?:THE\s+)?(G\.?C\.?|GENERAL\s+CONTRACTOR|OWNER|OTHERS|DOOR\s+MANUFACTURER)",
+    re.I,
+)
+_DIMENSION = re.compile(r"""\d[\d'\-/."]*\s*[Xx]\s*\d[\d'\-/."]*""")
+_KNOWN_BY_LENGTH = sorted(KNOWN_MANUFACTURERS, key=len, reverse=True)
+_BHMA = re.compile(r"(?:US)?6[0-9]{2}", re.I)  # 626, 630, and the "US628" some sheets write
+
+
+def _quantity(text: str) -> float | None:
+    """'1-1/2' and '1 1/2' are one and a half, not one - the old reader's mistake."""
+    text = text.strip().replace(" ", "-")
+    try:
+        if "-" in text and "/" in text:
+            whole, frac = text.split("-", 1)
+            num, den = frac.split("/")
+            return float(whole) + float(num) / float(den)
+        if "/" in text:
+            num, den = text.split("/")
+            return float(num) / float(den)
+        return float(text)
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
+def classify_text_item(text: str) -> dict[str, Any]:
+    """One quantity line: 'PEMKO 171A X 42" X DOUBLE NOTCH CUT ENDS X THRESHOLD'."""
+    flat = " ".join(text.replace(",", ", ").split())
+    upper = flat.upper()
+    manufacturer = None
+    after = flat
+    for name in _KNOWN_BY_LENGTH:
+        match = re.search(rf"(?<![A-Z]){re.escape(name)}(?![A-Z])", upper)
+        if match:
+            manufacturer = KNOWN_MANUFACTURERS[name]
+            after = flat[match.end():]
+            break
+    words = [w.strip(",;()").lstrip("#") for w in after.split() if w.strip(",;()#")]
+
+    def part_like(word: str) -> bool:
+        if '"' in word or "'" in word or word.startswith(".") or FINISH.match(word) or _DIMENSION.fullmatch(word):
+            return False
+        if re.fullmatch(r"\d+\s*GA\.?", word, re.I) or _BHMA.fullmatch(word):
+            return False  # a gauge, or a finish written "US628"
+        return bool(_HAS_DIGIT.search(word) and (_HAS_LETTER.search(word) or len(word) >= 3))
+
+    # The part follows the manufacturer; with no manufacturer there is nothing
+    # to anchor it to, and a guessed part is worse than a flagged blank.
+    part = next((w for w in words if part_like(w)), None) if manufacturer else None
+    finishes = [w for w in words if w != part and (FINISH.match(w) and not w.isdigit() or _BHMA.fullmatch(w))]
+    size = _DIMENSION.search(flat)
+    item: dict[str, Any] = {
+        "qty": None, "unit": None, "description": flat or None, "part": part,
+        "finish": re.sub(r"^US(?=6\d\d$)", "", finishes[-1].upper()) if finishes else None,
+        "manufacturer": manufacturer,
+        "size": size.group(0) if size else None, "supplied_by": None, "raw_row": flat, "flags": [],
+    }
+    for field, flag in (("part", "part_missing"), ("manufacturer", "manufacturer_missing")):
+        if item[field] is None:
+            item["flags"].append(flag)
+    return item
+
+
+def _text_sets(page: Any, page_number: int, page_size: dict[str, float], shift: int) -> list[dict[str, Any]]:
+    """Sets written as a heading and quantity lines, read in reading order."""
+    lines: list[tuple[float, float, float, float, str]] = []
+    for block in page.get_text("dict")["blocks"]:
+        for line in block.get("lines", []):
+            text = "".join(span["text"] for span in line["spans"])
+            if shift:
+                text = pdfrows.shift_text(text, shift)
+            if text.strip():
+                lines.append((*line["bbox"], text))
+    boxes = pdfrows.to_display_space(page, [(*line[:4], line[4]) for line in lines])
+
+    sets: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    by_others: str | None = None
+    last: tuple[dict[str, Any], tuple] | None = None
+    for box in boxes:
+        x0, y0, x1, y1, text = box[:5]
+        header = TEXT_SET_HEADER.match(text)
+        if header:
+            current = {
+                "hardware_set": header.group(1).upper(),
+                "set_id": header.group(1).upper(),
+                "specified": _text(header.group(2)).strip(":() ") or None,
+                "source_page": page_number,
+                "page_size": page_size,
+                "bbox": [round(float(v), 2) for v in (x0, y0, x1, y1)],
+                "items": [],
+                "flags": [],
+            }
+            sets.append(current)
+            by_others, last = None, None
+            if NOT_USED.search(header.group(2) or ""):
+                current["flags"].append("not_used")
+            continue
+        if current is None or "not_used" in current["flags"]:
+            continue
+        if not current["items"] and NOT_USED.match(text):
+            current["flags"].append("not_used")
+            continue
+        others = BY_OTHERS_LINE.search(text)
+        if others and not TEXT_ITEM.match(text):
+            by_others = " ".join(others.group(1).upper().replace(".", "").split())
+            last = None
+            continue
+        item_match = TEXT_ITEM.match(text)
+        if item_match:
+            qty, unit, rest = item_match.groups()
+            item = classify_text_item(rest)
+            count = _quantity(qty)
+            unit = unit.upper().rstrip("S")
+            if unit in ("PR", "PAIR") and count is not None:
+                # Hinges are bought each: 1-1/2 pair is three hinges.
+                item["qty"], item["unit"], item["qty_as_written"] = count * 2, "EA", f"{qty} {unit}"
+            else:
+                item["qty"], item["unit"] = count, "EA" if unit == "EACH" else unit
+            if count is None:
+                item["flags"].append("qty_missing")
+            if by_others:
+                item["supplied_by"] = "GC" if by_others in ("GC", "GENERAL CONTRACTOR") else by_others
+            item["bbox"] = [round(float(v), 2) for v in (x0, y0, x1, y1)]
+            current["items"].append(item)
+            last = (item, box)
+            continue
+        # A wrapped line belongs to the item above it when it sits right under
+        # it in the same column; anything else (a note, the title block) does not.
+        if last is not None:
+            item, prev = last
+            height = max(prev[3] - prev[1], 6.0)
+            # Right under it, or beside it on the same row (a set laid out in
+            # columns: "1 EA. CLOSER" | "LCN 1460 ALUMINUM CLOSER").
+            below = 0 <= y0 - prev[3] <= 1.6 * height and abs(x0 - prev[0]) < 150
+            beside = abs(y0 - prev[1]) < 0.6 * height and prev[0] < x0 < prev[2] + 400
+            if below or beside:
+                merged = classify_text_item(f"{item['raw_row']} {text}")
+                for key in ("description", "raw_row", "size"):
+                    item[key] = merged[key]
+                for key in ("part", "finish", "manufacturer"):
+                    item[key] = item[key] or merged[key]
+                item["flags"] = [f for f in item["flags"]
+                                 if not (f == "part_missing" and item["part"]) and not (f == "manufacturer_missing" and item["manufacturer"])]
+                item["bbox"] = [round(min(item["bbox"][0], x0), 2), item["bbox"][1],
+                                round(max(item["bbox"][2], x1), 2), round(float(y1), 2)]
+                last = (item, box)
+            else:
+                last = None
+    return [entry for entry in sets if entry["items"] or "not_used" in entry["flags"]]
 
 
 def groups_envelope(pdf: Path, pages: list[int] | None = None) -> dict[str, Any]:
