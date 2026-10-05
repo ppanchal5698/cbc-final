@@ -15,7 +15,7 @@
   "hager_rules": [
     "Split finish is priced at the higher finish.",
     "Levers prepped for SFIC cores are available only in US10B, US26D and BLK.",
-    "Anti-microbial is available on 26D only (list adder 57.13)."
+    "Anti-microbial is available on 26D only (a Hager list adder - get_manual_adders)."
   ],
   "premium_finish_rule": "Premium and lead-time finishes are priced as an ADDER on top of the base price - see reference-library/adders/manual_adders.json"
 }

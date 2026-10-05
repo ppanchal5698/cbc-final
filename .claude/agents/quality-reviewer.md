@@ -21,9 +21,12 @@ on the PDF before you present them.**
 
 `cbc.modules.extraction.api.validation.review` derives the mechanical findings from the artifacts and
 writes them to `review/review_flags.json` - missing rating, handing or size,
-confidence under 0.75, a missing bbox, unpriced MANUAL / RFQ / distributor lines,
-below-band and unexplained margin overrides, out-of-scope items, and unresolved
-sales tax. They are derived the same way every time.
+confidence under the confidence floor (stated under *Values in force* in your
+brief; owner `CONFIDENCE_FLOOR` in
+`apps/backend/src/cbc/modules/pricing/api/confidence.py`), a missing bbox,
+unpriced MANUAL / RFQ / distributor lines, below-band and unexplained margin
+overrides, out-of-scope items, and unresolved sales tax. They are derived the
+same way every time.
 
 **Do not re-enumerate them by hand.** Read the file, and add only what is not in
 it. Anything you add on an opening and field the deriver does not cover is kept;

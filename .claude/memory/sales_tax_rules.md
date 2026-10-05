@@ -5,14 +5,13 @@ CBC quotes **material only** — never installation labor, never turnkey.
 Standard commercial terms: **HP PO required**, **30-day validity**.
 
 ## Sales tax — two states only
-Tax is charged **only** where CBC has nexus:
+Tax is charged **only** where CBC has nexus: **Ohio**, and **Kentucky** (border nexus).
+The other 48 states and Canada carry **none**.
 
-| Jurisdiction | Tax |
-|---|---|
-| **Ohio** | about **8%** |
-| **Kentucky** | **6.5%** (border nexus) |
-| Other 48 states | **none** |
-| Canada | **none** |
+The rates are served by `get_tax_rates` and edited in the app at `/settings` (seed:
+`data/reference-library/tax/sales_tax_rates.json`, which is not in a run's workspace);
+`compute_totals` applies the one for the ship-to state. Do not copy the numbers here -
+a copied rate is wrong the day the setting changes.
 
 The sale is to a **GC / corporation**, not to the end customer — which is why the other
 48 states carry no tax.

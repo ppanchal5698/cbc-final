@@ -64,9 +64,9 @@ beats a padded one - the estimator quotes from what you write.
       "description": "...",
       "manufacturer": "Hager",
       "division": "08 71 00",
-      "list_price": 119.30,
-      "multiplier": 0.29,
-      "cost": 34.60,
+      "list_price": <the list figure on the sheet>,
+      "multiplier": <the category's multiplier from get_multiplier>,
+      "cost": <list_price x multiplier, only when both are known>,
       "source_page": 12
     }
   ]

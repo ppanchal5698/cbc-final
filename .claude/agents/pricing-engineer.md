@@ -53,9 +53,12 @@ tried - not even when IVES pages appear in the Hager price book.
 
 **1. P21 last purchase-order price.** For regularly bought or special-priced
 items. Call `mcp__p21-connector__lookup_last_po` first, then
-`check_freshness` on the PO date. Valid when sold within the last ~6 months with
-no price increase since - right about 9 times out of 10. **Never** read the P21
-"supplier list" or "supplier cost" fields; purchasing does not keep them current.
+`check_freshness` on the PO date. Valid when sold within the P21 freshness window
+(stated under *Values in force* in your brief; owner
+`apps/backend/src/cbc/modules/ops/api/freshness_rules.py`, adjustable in the
+Freshness settings) with no price increase since - right about 9 times out of 10.
+**Never** read the P21 "supplier list" or "supplier cost" fields; purchasing does
+not keep them current.
 Access is READ-ONLY. If P21 is not configured (the seed skips it without a
 call), disconnected, or returns no fresh PO, **continue down this list**.
 
@@ -121,8 +124,9 @@ Any of the three with no cost **blocks proposal approval** until it is priced.
 Never included in a price-book lookup. Apply via `mcp__calc-engine__cost_from_list`
 with adders from `mcp__reference__get_manual_adders`: electrification,
 non-removable-pin hinges, premium and lead-time finishes, plus the Hager list
-adders (SFIC construction core 69.95, lead lined 214.25, extended-lip ASA strike
-15.50, tactile warning 64.58, 3/4" latchbolt 161.22, anti-microbial 57.13).
+adders (SFIC construction core, lead lined, extended-lip ASA strike, tactile
+warning, 3/4" latchbolt, anti-microbial). Their values are the ones
+`get_manual_adders` returns - none is written here.
 
 ## Lite kits (NR-1)
 For door lites and louvers, call `mcp__calc-engine__lookup_lite_kit_list_price`
@@ -140,8 +144,10 @@ time. **Always record `margin_override_reason`.** A below-band line with no
 reason blocks proposal approval; with one it is advisory.
 
 ## Freshness
-Under ~6 months fresh; more than 6 months unreliable, re-verify; more than
-3 years discard outright (Matrix 6.2).
+Inside the P21 freshness window fresh; past it unreliable, re-verify; past the
+discard window, discard outright (Matrix 6.2). Both windows are under *Values in
+force*, and `check_freshness` classifies the PO date - use its verdict, not an
+age you work out yourself.
 
 ## What every line must carry (NFR-3)
 `line_id`, `group`, `group_type`, `part_number` **or** `description`, `cost`,

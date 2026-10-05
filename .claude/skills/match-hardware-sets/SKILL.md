@@ -18,10 +18,13 @@ and stop at the first tier that produces a match.
 |---|---|---|
 | 0 | An estimator already confirmed this spec: `mcp__catalog__recall_match(specified)` returns `exact: true` | 0.97 |
 | 1 | Exact part in the product catalog (`mcp__catalog__lookup_catalog_item` / `mcp__catalog__search_catalog_items`), all attributes agree | 0.95 - 1.00 |
-| 2 | Exact part in the product catalog, one soft attribute differs (finish, size) | 0.75 - 0.94 |
-| 3 | Series / prefix match in the product catalog (e.g. `3500` for `3547`), function inferable | 0.55 - 0.74 |
+| 2 | Exact part in the product catalog, one soft attribute differs (finish, size) | floor - 0.94 |
+| 3 | Series / prefix match in the product catalog (e.g. `3500` for `3547`), function inferable | 0.55 to below the floor |
 | 4 | Fuzzy description match off the PDF - `mcp__catalog-docs__search_blocks`, or `mcp__catalog__find_pages` when the parse is not ready | 0.40 - 0.54 |
 | 5 | No usable match, or a MANUAL cut-off trigger | 0.00 |
+
+The floor is the confidence floor, stated under *Values in force* in your brief
+(owner `CONFIDENCE_FLOOR` in `apps/backend/src/cbc/modules/pricing/api/confidence.py`).
 
 A Tier 0 match cites who confirmed it and when in `substitution_note`. A near
 recall (`exact: false`) is a candidate, not an answer: score it on its own tier.
@@ -34,8 +37,9 @@ reason to search harder - the catalog holds no Allegion and no Zero.
 `find_pages` and `search_blocks` route to vendor PDF pages — they do not return
 prices.
 
-Read `extracted/_matchcache.json` when present. Reuse matches at confidence
-≥ 0.75; rematch only uncached items. Do not reuse a cached entry below 0.75.
+Read `extracted/_matchcache.json` when present. Reuse matches at or above the
+confidence floor; rematch only uncached items. Do not reuse a cached entry below
+the floor.
 
 ## Hard constraints - these are not soft attributes
 

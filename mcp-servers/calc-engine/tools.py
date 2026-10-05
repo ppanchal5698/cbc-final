@@ -27,7 +27,7 @@ TOOLS: list[dict[str, Any]] = [
             "type": "object",
             "properties": {
                 "list_price": {"type": "number", "description": "The list figure read off the page"},
-                "multiplier": {"type": "number", "description": "The vendor tier, e.g. 0.29"},
+                "multiplier": {"type": "number", "description": "The vendor tier, from get_multiplier"},
                 "adders": {
                     "type": "array",
                     "description": "Optional. Each {name, list_adder} from reference-library.",
@@ -74,7 +74,7 @@ TOOLS: list[dict[str, Any]] = [
                 "cost": {"type": "number", "description": "Our Cost, per each"},
                 "margin": {
                     "type": "number",
-                    "description": "Margin as a fraction, e.g. 0.27 for the commodity band",
+                    "description": "Margin as a fraction - the line's band from get_margin_bands",
                 },
                 "quantity": {"type": "number", "default": 1},
             },

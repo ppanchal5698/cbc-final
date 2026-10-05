@@ -50,9 +50,9 @@ often differ).
 cost = list_price x multiplier
 ```
 
-Hager example, verified end to end: a 3500-series storeroom lock lists **256.31**;
-the locks tier is **0.290** (50/42% discount); cost is **74.33**. At the commodity
-margin that is a **101.82** sale each.
+Hager example: a 3500-series storeroom lock lists **256.31**; its cost is that
+list x the `locks` category multiplier from `mcp__catalog__get_multiplier`.
+Pricing then applies the commodity margin band to that cost for the sale each.
 
 **Adders are never included** in a price-book lookup. Electrification, NRP hinges
 and premium finishes are added deliberately from
@@ -86,7 +86,7 @@ mcp__pdf-tools__extract_tables(file_path=..., page_range="297")
   -> the row, and the list price on it
 
 mcp__catalog__get_multiplier(vendor="hager", category="locks")
-  -> 0.290, effective 2026-03-02
+  -> {multiplier: <the locks category's>, effective_date: …, price_book: …}
 ```
 
 Pass `file_path` and `pdf_page` exactly as `find_pages` returned them. The books

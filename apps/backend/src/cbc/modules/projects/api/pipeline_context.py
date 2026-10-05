@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from cbc.shared.hardware_sets import SET_KEYS
 from cbc.shared.paths import storage_root
 from cbc.shared.pass_files import read_json, write_json
 
@@ -58,9 +59,11 @@ def write_context(slug: str) -> dict[str, Any]:
     hardware = read_json(root / "extracted" / "hardware_sets.json") or {}
     hw_count = 0
     if isinstance(hardware, dict):
-        for group in hardware.get("hardware_sets") or []:
-            if isinstance(group, dict):
-                hw_count += len(group.get("items") or [])
+        # Every key a writer uses: the matcher's `groups` file counted as empty.
+        for key in SET_KEYS:
+            for group in hardware.get(key) or []:
+                if isinstance(group, dict):
+                    hw_count += len(group.get("items") or [])
 
     priced = read_json(root / "priced" / "line_items.json") or {}
     lines = []

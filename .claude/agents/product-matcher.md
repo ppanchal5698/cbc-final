@@ -29,8 +29,10 @@ call pdf-tools on `uploads/raw/` — that work belongs to takeoff-engineer and
 pricing-engineer (vendor price pages).
 
 Read `{project_dir}/extracted/_matchcache.json` when it exists. Reuse entries whose
-confidence is ≥ 0.75; rematch only items that are not cached. Never treat a cached
-match below 0.75 as settled.
+confidence is at or above the confidence floor (stated under *Values in force* in
+your brief; owner `CONFIDENCE_FLOOR` in
+`apps/backend/src/cbc/modules/pricing/api/confidence.py`); rematch only items that
+are not cached. Never treat a cached match below the floor as settled.
 
 **Search (what CBC already decided, then the catalog, then PDF):**
 0. Call `mcp__catalog__recall_match(specified)` **first**. If an estimator has
@@ -68,8 +70,8 @@ Stop at the first tier that produces a match.
 |---|---|---|
 | **0** | **An estimator already confirmed this spec (`recall_match`, `exact: true`)** | **0.97** |
 | 1 | Exact part in product catalog (`lookup_catalog_item` / `search_catalog_items`), all attributes agree | 0.95-1.00 |
-| 2 | Exact part in product catalog, one soft attribute differs (finish, size) | 0.75-0.94 |
-| 3 | Series / prefix match in product catalog (3500 for 3547), function inferable | 0.55-0.74 |
+| 2 | Exact part in product catalog, one soft attribute differs (finish, size) | floor-0.94 |
+| 3 | Series / prefix match in product catalog (3500 for 3547), function inferable | 0.55 to below the floor |
 | 4 | Fuzzy description match via PDF `search_blocks` / `find_pages` | 0.40-0.54 |
 | 5 | No usable match, or a MANUAL cut-off trigger | 0.00 |
 
@@ -82,7 +84,8 @@ On a product-catalog hit: set `matched` from the row (part, manufacturer,
 description). Pricing owns cost — do not invent sale math here — but when the
 row has a `cost` you may hint `cost_source: "CATALOG_BASELINE"`.
 
-Anything below **0.75** is flagged for review. Nothing below 0.75 is auto-accepted.
+Anything below **the confidence floor** is flagged for review. Nothing below it is
+auto-accepted.
 
 ## Hard constraints - not negotiable by score
 

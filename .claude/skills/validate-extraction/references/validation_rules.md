@@ -23,12 +23,15 @@
 | hardware_set callout present | high | Without it there is nothing to match |
 | wall_type resolvable | medium | Needed to derive frame depth |
 | confidence present, 0.0-1.0 | error | NFR-2 - every match carries a score |
-| confidence below 0.75 | high | Flag for review, never auto-accept |
+| confidence below the confidence floor | high | Flag for review, never auto-accept |
 | cost_source recorded | error | One of P21_LAST_PO, SPECIAL_NET, CATALOG_BASELINE, LIST_X_MULTIPLIER, VENDOR_RFQ, DISTRIBUTOR_MANUAL, MANUAL |
 | margin within band | medium | Below-band with no `margin_override_reason` blocks approval; with one it is advisory. Approval routing is deferred |
 | out-of-scope item quoted | error | Record it, never price it |
 | opening extra property | error | Closed-world Opening allowlist; relocate Thickness etc. into `notes` |
 | page_size shape | error | Must be `{width, height}` numbers — not `[w, h]` |
+
+The confidence floor is stated under *Values in force* in your brief; its owner
+is `CONFIDENCE_FLOOR` in `apps/backend/src/cbc/modules/pricing/api/confidence.py`.
 
 ## Anti-inference rule
 

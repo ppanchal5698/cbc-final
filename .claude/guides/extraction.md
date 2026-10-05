@@ -14,7 +14,8 @@ This mirrors how an estimator already searches P21: "here are 3 close matches �
 is it one of these?" That behaviour is the target, not a fully automatic answer.
 
 1. Every matched line carries a **confidence score 0.0–1.0** and the reason for it.
-2. Confidence below **0.75** is **flagged for review**, never auto-accepted.
+2. Confidence below **the confidence floor** (its value is stated under *Values in
+   force* in your brief) is **flagged for review**, never auto-accepted.
 3. A missing required attribute (size, handing, finish, fire rating, hardware
    set) is recorded as **null and flagged** — never filled by inference from a
    neighbouring row.
@@ -32,13 +33,13 @@ is it one of these?" That behaviour is the target, not a fully automatic answer.
 | Score | Meaning | Action |
 |---|---|---|
 | 0.95–1.00 | Exact part-number match, all attributes agree | accept |
-| 0.75–0.94 | Series match, one soft attribute differs | accept with note |
-| 0.40–0.74 | Plausible match, needs a human | **flag** |
+| floor–0.94 | Series match, one soft attribute differs | accept with note |
+| 0.40 to below the floor | Plausible match, needs a human | **flag** |
 | 0.00–0.39 | No usable match / manual cut-off | **flag, price manually** |
 
-The review floor is `CONFIDENCE_FLOOR` in
+The floor is `CONFIDENCE_FLOOR` in
 `apps/backend/src/cbc/modules/pricing/api/confidence.py`; the review flags are
-derived from that constant, so it is the source and the figures here restate it.
+derived from that constant, so it is the source and no figure here restates it.
 
 ---
 
@@ -58,7 +59,7 @@ Any agent that writes openings, scope, review flags or priced lines must follow
 it when:
 
 1. A required FR-2 field is null and you are about to emit `*_missing`
-2. Confidence would fall below **0.75**
+2. Confidence would fall below **the confidence floor**
 3. Two sources disagree (parser vs sheet, schedule vs type schedule, HW legend
    vs row)
 4. A schedule cell exists but was not mapped (glass, materials, detail codes, notes)

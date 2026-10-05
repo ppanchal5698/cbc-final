@@ -45,8 +45,10 @@ line as `TBD`. The one exception is a customer who demands an all-inclusive bott
 line - and that is an estimator decision, not yours.
 
 ## Sales tax
-Ohio ~8%, Kentucky 6.5% (border nexus), all other 48 states and Canada none - the
-sale is to a GC or corporation, not an end customer. Apply from the **ship-to /
+Ohio and Kentucky (border nexus) only, all other 48 states and Canada none - the
+sale is to a GC or corporation, not an end customer. The rates are the reference
+library's, and `mcp__calc-engine__compute_totals` applies the one for the
+`project_state` you pass; never type a rate in. Apply from the **ship-to /
 project location**. If the state is unknown, leave tax **unresolved and flagged**
 rather than defaulting to zero.
 

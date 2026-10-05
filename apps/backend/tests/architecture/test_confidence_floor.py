@@ -19,10 +19,6 @@ REPO = BACKEND.parents[1]
 OWNER = SRC / "modules" / "pricing" / "api" / "confidence.py"
 
 
-def test_the_floor_is_the_rule() -> None:
-    assert CONFIDENCE_FLOOR == 0.75, ".claude/guides/extraction.md: below 0.75 is flagged"
-
-
 def _is_floor(node: ast.AST) -> bool:
     return (
         isinstance(node, ast.Constant)

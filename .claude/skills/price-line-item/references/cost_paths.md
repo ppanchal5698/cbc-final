@@ -14,8 +14,9 @@ below are numbered by their history, not their order.
 - Cost = the **LAST PO price**, from purchase history or the cost screen.
 - **Never** the "supplier list" or "supplier cost" fields - purchasing does not
   keep them current. This is the single most important trap on this path.
-- Right about **9 times out of 10** when the item sold within the last ~6 months with
-  no price increase since.
+- Right about **9 times out of 10** when the item sold within the P21 freshness
+  window (stated under *Values in force* in your brief; see **Freshness** below)
+  with no price increase since.
 - Access is **READ-ONLY** (NFR-5).
 
 **Freshness:** fresh (usable), unreliable (re-verify against the vendor sheet) or
@@ -66,24 +67,28 @@ cost = manufacturer list price x CBC multiplier tier
 The multiplier is a **per-vendor account attribute**, not a per-item value. MAP is
 not cost. Price changes arrive as dated memos with a protection window.
 
-**Hager prices by product category** - use the right one:
+**Hager prices by product category** - use the right one. The multiplier for
+each comes from `mcp__catalog__get_multiplier(vendor="hager", category=...)`
+with its effective date; none is written here, because a copy drifts from the
+sheet purchasing maintains.
 
-| Category | Multiplier | Discount |
-|---|---|---|
-| Locks | 0.290 | 50/42% |
-| Door controls | 0.300 | 50/40% |
-| Exit devices | 0.300 | 50/40% |
-| Electrified products | 0.410 | 50/18% |
-| Auto operators | 0.400 | 50/20% |
-| Architectural hinges | 0.210 | 50/58% |
-| Residential hinges | 0.375 | 50/25% |
+| Category | `category` |
+|---|---|
+| Locks | `locks` |
+| Door controls | `door_controls` |
+| Exit devices | `exit_devices` |
+| Electrified products | `electrified_products` |
+| Auto operators | `auto_operators` |
+| Architectural hinges | `architectural_hinges` |
+| Residential hinges | `residential_hinges` |
 
-Single-tier vendors: ASI 0.375, National Guard 0.45, Rockwood accessories 0.55,
-Bradley 0.53, World Dryer L3 0.339.
+Single-tier vendors (`get_multiplier` with the vendor alone): ASI, National
+Guard, Rockwood accessories, Bradley, World Dryer L3.
 Net-sheet vendors (not list x multiplier): Bobrick, Gamco.
 
-**Worked example:** Hager 3500-series storeroom lock, list 256.31, locks tier
-0.290, cost **74.33**.
+**Worked example:** Hager 3500-series storeroom lock, list 256.31; cost is that
+list x the `locks` multiplier from `get_multiplier`, computed by
+`cost_from_list`.
 
 **Hager thresholds & weatherstrip:** architect schedules often specify **Pemko**
 or **Zero** catalog numbers (e.g. 275A, 39A). Hager Price Book #18 threshold
@@ -91,7 +96,7 @@ pages list **NGP codes** (401S, 402S, …) with a **Pemko comparison-number**
 column — read the **NGP list price**, not a text search for 275A. When
 `lookup_catalog_item` misses, use `find_pages` → `get_page_blocks` or
 `get_page_image(region=bbox)` on the table block, then `get_multiplier` with
-category `thresholds_weatherstrip` (0.40). Never write `multiplier` under
+category `thresholds_weatherstrip`. Never write `multiplier` under
 `cost_source: MANUAL` — either finish with a non-null `cost` or stay MANUAL
 without book metadata.
 

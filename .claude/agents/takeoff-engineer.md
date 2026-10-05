@@ -117,8 +117,9 @@ Obey the extraction and take-off guides (see .claude/guides/extraction.md and .c
    | notes | thickness, detail refs, note letters/numbers — never drop |
 
 5. **PDF verify gate (mandatory before any null flag or unsure fill).**
-   For each field that is null, looks wrong, or would be presented with
-   confidence below 0.75:
+   For each field that is null, looks wrong, or would be presented below the
+   confidence floor (stated under *Values in force* in your brief; owner
+   `CONFIDENCE_FLOOR` in `apps/backend/src/cbc/modules/pricing/api/confidence.py`):
    1. Identify the page(s) to check (schedule `source_page`, HARDWARE GROUPS,
       Div 08 specs, floor plan from sheetmap / `search_pdf`).
    2. Call `search_blocks` / `get_page_blocks` on **that** page — on a table the

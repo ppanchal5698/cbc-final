@@ -7,10 +7,10 @@ in a run's workspace. Do not copy the numbers into this file.
 
 Source: Requirements Matrix 6.1, confirmed in the 14 Jul estimator session.
 
-## Accessories: use the JSON, not the original 35% note
+## Accessories: use the JSON, not the original note
 
-The original documentation recorded restroom accessories at 35%. The estimator
-session corrected the derivation. The value `mcp__reference__get_margin_bands`
+The original documentation recorded a lower margin for restroom accessories. The
+estimator session corrected the derivation. The value `mcp__reference__get_margin_bands`
 returns is authoritative.
 
 ## Overridable, by design
@@ -34,8 +34,8 @@ which reads the live bands — do not hand-compute the divisor.
 | Step | Value | Source |
 |---|---|---|
 | List price | 256.31 | Price Book #18, page 297 |
-| Multiplier (locks tier) | 0.290 | Hager discount sheet, effective 2026-03-02 |
-| Cost | 74.33 | list x multiplier |
+| Multiplier (locks tier) | `mcp__catalog__get_multiplier(vendor="hager", category="locks")` | Hager discount sheet, with its effective date |
+| Cost | list x multiplier | `mcp__calc-engine__cost_from_list` |
 | Band | commodity | `mcp__reference__get_margin_bands` |
 | Sale $ EA / Ext | from calc-engine | cost, qty, band |
 

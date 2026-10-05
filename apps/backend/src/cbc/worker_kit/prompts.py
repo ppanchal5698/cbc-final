@@ -43,7 +43,9 @@ DELEGATION_RULE = """- **Delegate with the Agent tool, not by reading agent file
   (2) role-sliced sheetmap page numbers, (3) the seeded artifact to read first,
   (4) which fields to confirm - name them, do not say "check everything",
   (5) send corrections as patches; each one cites `{{source_page, excerpt}}`,
-  (6) leave what you cannot read null and flagged - never fill from a neighbour.
+  (6) leave what you cannot read null and flagged - never fill from a neighbour,
+  (7) the **Values in force** block from this prompt, copied verbatim - a
+  subagent sees only its own definition and your brief, never this prompt.
 
   Nothing about JSON shape belongs in the brief. `page_size`, `thickness`,
   stray keys and flag shapes are normalised in code and validated at the write;
@@ -748,7 +750,9 @@ look up. Then write the parts you found to {output_path} as JSON:
   "multiplier": <number or null>,
   "products": [
     {{"part": "...", "description": "...", "manufacturer": "...", "division": "08 71 00",
-      "list_price": 119.30, "multiplier": 0.29, "cost": 34.60, "source_page": 12}}
+      "list_price": <the list figure on the sheet>,
+      "multiplier": <the category's multiplier from get_multiplier>,
+      "cost": <list_price x multiplier, only when both are known>, "source_page": 12}}
   ]
 }}
 
@@ -1009,15 +1013,41 @@ def _visual_checklist_for(slug: str) -> str:
         return ""
 
 
+def values_in_force_block() -> str:
+    """The numbers an agent needs that no tool serves, rendered from their owners.
+
+    The confidence floor and the freshness windows were typed into agent and
+    skill text, and copies drift. A run reads them here, and the orchestrator
+    passes this block on in every brief (DELEGATION_RULE item 7). Margin bands,
+    multipliers, adders and tax rates have tools, so they are named, not quoted.
+    """
+    from cbc.modules.ops.api import freshness
+    from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
+
+    bands = freshness.load_sync()
+    return (
+        "**Values in force** - read from their owners for this run; use these, "
+        "never a number remembered from elsewhere:\n"
+        f"- Confidence floor: {CONFIDENCE_FLOOR}. A match or a filled field below it "
+        "is flagged for review, never accepted.\n"
+        f"- P21 last-PO price: {bands.rule}. `check_freshness` classifies a PO date.\n"
+        f"- Price-sheet review window: {bands.catalog_stale_months} months; a sheet "
+        "older than that has lapsed.\n"
+        "- Margin bands, multipliers, adders and tax rates come from their tools "
+        "(get_margin_bands, get_multiplier, get_manual_adders, get_tax_rates)."
+    )
+
+
 def _modifiers(job: dict[str, Any], project: dict[str, Any] | None) -> tuple[str, str]:
     """The prefix and suffix a job's prompt carries around its rendered body.
 
     `build()` and `build_wave()` both wrap in these, so a template - a wave brief
     above all - cannot silently opt out of a modifier by forgetting a placeholder,
     which is the trap a `{skip}`/`{match_reuse}`/`{straggler_block}` slot was. The
-    prefix is FORCE_BANNER; the suffix is the straggler-merge block, skipped-phase
-    list, learned/reusable matches, pipeline-context recap and validated-handoff
-    note, in that order. Each piece keeps the same guard it had inside `build()`.
+    prefix is FORCE_BANNER; the suffix is the values in force, the straggler-merge
+    block, skipped-phase list, learned/reusable matches, pipeline-context recap and
+    validated-handoff note, in that order. Each piece keeps the same guard it had
+    inside `build()`.
     """
     payload = job.get("payload") or {}
     job_type = job["type"]
@@ -1025,7 +1055,7 @@ def _modifiers(job: dict[str, Any], project: dict[str, Any] | None) -> tuple[str
 
     prefix = FORCE_BANNER if force else ""
 
-    parts: list[str] = []
+    parts: list[str] = [values_in_force_block()]
     straggler = straggler_merge_block(payload)
     if straggler:
         parts.append(straggler)

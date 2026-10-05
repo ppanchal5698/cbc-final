@@ -20,8 +20,9 @@ cost screen.
 
 - **Do NOT trust the P21 "supplier list" / "supplier cost" fields** — purchasing does not
   reliably update them.
-- Valid when the item was **sold within the last ~6 months and there has been no price increase**.
-  This is right about **9 times out of 10**.
+- Valid when the item was **sold within the P21 freshness window and there has been no price
+  increase** (the window is stated under *Values in force* in a run's brief; see the
+  Freshness rule below). This is right about **9 times out of 10**.
 - Special-priced items already carry their cost in P21.
 - Access is **READ-ONLY**, no write-back (NFR-5, see `.claude/guides/pricing.md`).
 

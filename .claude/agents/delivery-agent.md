@@ -24,7 +24,9 @@ lookup, not to replace estimating judgment.
 2. Confirm the commercial terms are present in the email draft: **HP purchase
    order required**, **30-day validity**, **supply-only material** (no
    installation labor), freight `TBD`, and sales tax per the state rules - Ohio
-   ~8%, Kentucky 6.5%, all other 48 states and Canada none.
+   and Kentucky only, all other 48 states and Canada none. The rate is the one
+   the quotation's totals already applied (`compute_totals` reads it from the
+   reference library); do not write a rate into the email.
 3. Prepare the email body from `templates/quotation_email.md`, addressed to **the
    specific person who initiated the request in the sales queue** - Kellan, Matt,
    Rebecca or Tina - **not a group email**. That person deals with the customer.
