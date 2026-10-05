@@ -8,6 +8,15 @@ const nextConfig: NextConfig = {
   experimental: {
     proxyClientMaxBodySize: "200mb",
   },
+  // These were Settings tabs before they became pages of their own; old links and
+  // bookmarks still land.
+  async redirects() {
+    return [
+      { source: "/settings/pricing", destination: "/pricing", permanent: true },
+      { source: "/settings/reference", destination: "/reference-data", permanent: true },
+      { source: "/settings/users", destination: "/users", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -13,6 +13,10 @@ import {
   SlidersHorizontal,
   WarningCircle,
   CurrencyDollar,
+  Percent,
+  BookOpen,
+  UsersThree,
+  ClockCounterClockwise,
   SidebarSimple,
   CaretLeft,
   CaretRight,
@@ -26,8 +30,19 @@ const NAV = [
   { href: "/ops/spend", label: "Spend", Icon: CurrencyDollar },
   { href: "/catalog", label: "Product catalog", Icon: Package },
   { href: "/price-books", label: "Price books", Icon: Books },
-  { href: "/settings", label: "Settings", Icon: SlidersHorizontal },
 ];
+
+// Admin-only pages, shown to admins only. Each page also refuses anyone else.
+const ADMIN_NAV = [
+  { href: "/pricing", label: "Pricing", Icon: Percent },
+  { href: "/reference-data", label: "Reference data", Icon: BookOpen },
+  { href: "/users", label: "Users", Icon: UsersThree },
+  { href: "/audit", label: "Audit log", Icon: ClockCounterClockwise },
+];
+
+const SETTINGS = { href: "/settings", label: "Settings", Icon: SlidersHorizontal };
+
+type NavItem = (typeof NAV)[number];
 
 export function Rail({
   staleBooks,
@@ -36,10 +51,79 @@ export function Rail({
 }: {
   staleBooks?: number;
   deadJobs?: number;
-  user: { name: string; initials: string };
+  user: { name: string; initials: string; role?: string };
 }) {
   const pathname = usePathname();
   const { sidebarCollapsed, toggleSidebar } = useUiState();
+
+  function item({ href, label, Icon }: NavItem) {
+    const active = pathname.startsWith(href);
+    const badgeCount =
+      href === "/price-books"
+        ? staleBooks
+        : href === "/ops/dead-letter"
+          ? deadJobs
+          : 0;
+
+    if (sidebarCollapsed) {
+      return (
+        <Link
+          key={href}
+          href={href}
+          title={badgeCount ? `${label} (${badgeCount})` : label}
+          aria-label={label}
+          className={cn(
+            "group relative flex h-10 w-10 items-center justify-center rounded-lg text-[13px] font-medium no-underline transition-all duration-200 mx-auto",
+            active
+              ? "bg-brand-soft text-brand-primary border border-brand-border shadow-sm"
+              : "text-tx-secondary border border-transparent hover:text-tx-primary hover:bg-panel-muted"
+          )}
+        >
+          <Icon
+            size={19}
+            weight={active ? "fill" : "duotone"}
+            className={cn(
+              "transition-colors",
+              active ? "text-brand-primary" : "text-tx-muted group-hover:text-tx-secondary"
+            )}
+          />
+          {!!badgeCount && (
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-status-error px-1 text-[9px] font-bold text-white shadow-sm ring-2 ring-background">
+              {badgeCount > 9 ? "9+" : badgeCount}
+            </span>
+          )}
+        </Link>
+      );
+    }
+
+    return (
+      <Link
+        key={href}
+        href={href}
+        className={cn(
+          "group flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium no-underline transition-all duration-200",
+          active
+            ? "bg-brand-soft text-brand-primary border border-brand-border shadow-sm font-semibold"
+            : "text-tx-secondary border border-transparent hover:text-tx-primary hover:bg-panel-muted"
+        )}
+      >
+        <Icon
+          size={16}
+          weight={active ? "fill" : "duotone"}
+          className={cn(
+            "shrink-0 transition-colors",
+            active ? "text-brand-primary" : "text-tx-muted group-hover:text-tx-secondary"
+          )}
+        />
+        <span className="flex-1 truncate">{label}</span>
+        {!!badgeCount && (
+          <span className="tnum rounded-full bg-status-error-soft px-1.5 py-0.5 text-[10.5px] font-semibold text-status-error shadow-sm">
+            {badgeCount}
+          </span>
+        )}
+      </Link>
+    );
+  }
 
   return (
     <nav
@@ -93,74 +177,20 @@ export function Rail({
 
       {/* Navigation items */}
       <div className={cn("flex flex-col gap-1 py-3 overflow-y-auto overflow-x-hidden", sidebarCollapsed ? "px-2" : "px-3")}>
-        {NAV.map(({ href, label, Icon }) => {
-          const active = pathname.startsWith(href);
-          const badgeCount =
-            href === "/price-books"
-              ? staleBooks
-              : href === "/ops/dead-letter"
-                ? deadJobs
-                : 0;
-
-          if (sidebarCollapsed) {
-            return (
-              <Link
-                key={href}
-                href={href}
-                title={badgeCount ? `${label} (${badgeCount})` : label}
-                aria-label={label}
-                className={cn(
-                  "group relative flex h-10 w-10 items-center justify-center rounded-lg text-[13px] font-medium no-underline transition-all duration-200 mx-auto",
-                  active
-                    ? "bg-brand-soft text-brand-primary border border-brand-border shadow-sm"
-                    : "text-tx-secondary border border-transparent hover:text-tx-primary hover:bg-panel-muted"
-                )}
-              >
-                <Icon
-                  size={19}
-                  weight={active ? "fill" : "duotone"}
-                  className={cn(
-                    "transition-colors",
-                    active ? "text-brand-primary" : "text-tx-muted group-hover:text-tx-secondary"
-                  )}
-                />
-                {!!badgeCount && (
-                  <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-status-error px-1 text-[9px] font-bold text-white shadow-sm ring-2 ring-background">
-                    {badgeCount > 9 ? "9+" : badgeCount}
-                  </span>
-                )}
-              </Link>
-            );
-          }
-
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "group flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium no-underline transition-all duration-200",
-                active
-                  ? "bg-brand-soft text-brand-primary border border-brand-border shadow-sm font-semibold"
-                  : "text-tx-secondary border border-transparent hover:text-tx-primary hover:bg-panel-muted"
-              )}
-            >
-              <Icon
-                size={16}
-                weight={active ? "fill" : "duotone"}
-                className={cn(
-                  "shrink-0 transition-colors",
-                  active ? "text-brand-primary" : "text-tx-muted group-hover:text-tx-secondary"
-                )}
-              />
-              <span className="flex-1 truncate">{label}</span>
-              {!!badgeCount && (
-                <span className="tnum rounded-full bg-status-error-soft px-1.5 py-0.5 text-[10.5px] font-semibold text-status-error shadow-sm">
-                  {badgeCount}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+        {NAV.map(item)}
+        {user.role === "admin" && (
+          <>
+            {sidebarCollapsed ? (
+              <div className="mx-auto my-2 h-px w-6 bg-subtle" aria-hidden />
+            ) : (
+              <p className="mt-3 mb-1 px-3 text-[10.5px] font-bold uppercase tracking-widest text-tx-muted">
+                Administration
+              </p>
+            )}
+            {ADMIN_NAV.map(item)}
+          </>
+        )}
+        {item(SETTINGS)}
       </div>
 
       <div className="flex-1" />

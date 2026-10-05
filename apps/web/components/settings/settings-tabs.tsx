@@ -1,13 +1,7 @@
 import Link from "next/link";
-import {
-  Brain,
-  Gauge,
-  CurrencyDollar,
-  BookOpen,
-  UsersThree,
-} from "@phosphor-icons/react/dist/ssr";
+import { Brain, Gauge } from "@phosphor-icons/react/dist/ssr";
 
-export type SettingsSection = "ai" | "pipeline" | "pricing" | "reference" | "users";
+export type SettingsSection = "ai" | "pipeline";
 
 export const SETTINGS_SECTIONS: {
   key: SettingsSection;
@@ -17,9 +11,6 @@ export const SETTINGS_SECTIONS: {
 }[] = [
   { key: "ai", label: "AI & reading", hint: "Provider and bid-set reader", Icon: Brain },
   { key: "pipeline", label: "Pipeline", hint: "Defaults, freshness, queue", Icon: Gauge },
-  { key: "pricing", label: "Pricing", hint: "Margins, tax, tiers, nets", Icon: CurrencyDollar },
-  { key: "reference", label: "Reference data", hint: "Finishes, frames, FRP, stock", Icon: BookOpen },
-  { key: "users", label: "Users & audit", hint: "Accounts and the audit log", Icon: UsersThree },
 ];
 
 /**
@@ -41,7 +32,7 @@ export function SettingsTabs({ current }: { current: SettingsSection }) {
             key={key}
             href={`/settings/${key}`}
             aria-current={active ? "page" : undefined}
-            className={`flex min-w-[170px] flex-1 items-center gap-3 rounded-xl px-4 py-2.5 no-underline transition-all shadow-sm ${
+            className={`flex min-w-[220px] max-w-[320px] flex-1 items-center gap-3 rounded-xl px-4 py-2.5 no-underline transition-all shadow-sm ${
               active
                 ? "bg-brand-primary/10 border border-brand-primary/20"
                 : "bg-panel border border-subtle hover:bg-panel-muted hover:border-brand-border"

@@ -6,15 +6,15 @@ import { SpecialNetsPanel } from "@/components/settings/reference-extra-panels";
 import { SpecialMarginsPanel } from "@/components/settings/special-margins-panel";
 import { TaxRatesPanel } from "@/components/settings/tax-rates-panel";
 import { VendorTiersPanel } from "@/components/settings/vendor-tiers-panel";
-import { SettingsPage, requireAdmin } from "@/components/settings/settings-page";
+import { AdminPage, requireAdmin } from "@/components/shell/admin-page";
 
 export const dynamic = "force-dynamic";
 
-export default async function PricingSettingsPage() {
+export default async function PricingPage() {
   await requireAdmin();
   return (
-    <SettingsPage
-      current="pricing"
+    <AdminPage
+      crumbs={[{ label: "Pricing" }]}
       description="The numbers a quote is priced with: margins, tax, vendor multipliers, special nets and adders."
     >
       <div className="grid gap-4 xl:grid-cols-2">
@@ -31,6 +31,6 @@ export default async function PricingSettingsPage() {
       </div>
       <LiteKitPanel />
       <CustomOtherMatrixPanel />
-    </SettingsPage>
+    </AdminPage>
   );
 }
