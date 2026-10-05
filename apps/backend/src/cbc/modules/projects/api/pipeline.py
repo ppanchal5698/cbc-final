@@ -23,6 +23,9 @@ log = logging.getLogger("cbc.worker")  # handlers are configured by the worker p
 # Seeds the project tree before the pass reads it; False when it has already finished the job.
 Prepare = Callable[[dict[str, Any], dict[str, Any], dict[str, Any]], Awaitable[bool]]
 
+# A pass done in this process instead of by Claude: (job, project) -> the job's note.
+Work = Callable[[dict[str, Any], dict[str, Any]], Awaitable[str]]
+
 
 WaveFor = Callable[[dict[str, Any], dict[str, Any]], list[tuple[str, str]]]
 
@@ -35,8 +38,14 @@ async def run_pass(
     watch: claude_pass.Watch | None = None,
     needs_catalog: bool = False,
     wave_for: WaveFor | None = None,
+    work: Work | None = None,
 ) -> None:
-    """Run a Claude pass over the job's bid: `prepare(job, project, payload)`, then claude_pass.run."""
+    """Run a Claude pass over the job's bid: `prepare(job, project, payload)`, then claude_pass.run.
+
+    With `work`, the pass is that coroutine instead, run here: the same bid
+    checks before it, and the same finish after it - so a dead job still
+    dead-letters and a done one still moves autopilot on.
+    """
     # Prefer top-level job.traceId (set at enqueue); payload is a fallback only.
     payload = job.get("payload") or {}
     trace_id = job.get("traceId") or payload.get("traceId")
@@ -100,6 +109,10 @@ async def run_pass(
         "extract_bid_set", "rerun_extraction", "match_and_price", "build_proposal", "run_full_pipeline"
     ) and not payload.get("force"):
         await _inherit_phase_state(job, project)
+
+    if work is not None and project is not None:
+        await ops_worker.run_locally(job, work=lambda j: work(j, project), permanent=())
+        return
 
     # Built here rather than at enqueue: it reads the sheet map that `prepare`
     # has only just written.

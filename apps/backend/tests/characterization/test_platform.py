@@ -213,6 +213,12 @@ def test_terminal_of_a_finished_job(client, state, snapshots) -> None:
 def test_pipeline_settings(client, snapshots) -> None:
     snapshots.pin("GET /api/settings/pipeline", client.get("/api/settings/pipeline"))
     snapshots.pin("PUT /api/settings/pipeline", client.put("/api/settings/pipeline", json={"autopilotDefault": False}))
+    # The engine is saved when sent and kept when not: the autopilot toggle sends
+    # only its own field, and must not put a bid back on the other engine.
+    assert client.put("/api/settings/pipeline", json={"autopilotDefault": False, "pricingEngine": "v2"}).json()["pricingEngine"] == "v2"
+    assert client.put("/api/settings/pipeline", json={"autopilotDefault": True}).json()["pricingEngine"] == "v2"
+    assert client.put("/api/settings/pipeline", json={"pricingEngine": "gpt"}).status_code == 422
+    client.put("/api/settings/pipeline", json={"autopilotDefault": False, "pricingEngine": "legacy"})
 
 
 def test_freshness_settings(client, snapshots) -> None:

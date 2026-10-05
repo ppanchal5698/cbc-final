@@ -49,6 +49,10 @@ test.describe("Admin settings", () => {
     });
     await expect(page.getByRole("heading", { name: "Price book freshness" })).toBeVisible();
     await expect(page.getByText(/autopilot default/i)).toBeVisible();
+    // Which engine prices a bid: one choice of two, and exactly one is on.
+    const engine = page.getByRole("radiogroup", { name: "Pricing engine" });
+    await expect(engine.getByRole("radio")).toHaveCount(2);
+    await expect(engine.getByRole("radio", { checked: true })).toHaveCount(1);
   });
 });
 

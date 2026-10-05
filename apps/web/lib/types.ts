@@ -1007,8 +1007,12 @@ export interface UserRow {
   role: string;
 }
 
+/** `v2` prices a bid in code; `legacy` runs the Claude pricing pass. */
+export type PricingEngine = "legacy" | "v2";
+
 export interface PipelineSettings {
   autopilotDefault: boolean;
+  pricingEngine: PricingEngine;
   note?: string;
   updatedAt?: string | null;
   updatedBy?: string | null;

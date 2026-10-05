@@ -11,7 +11,14 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { endpoints } from "@/lib/endpoints";
 import { isAdminRole } from "@/lib/job-error";
 import { errorMessage, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
-import type { AuditEntry, FreshnessSettings, IntegrationsResponse, PipelineSettings, UserRow } from "@/lib/types";
+import type {
+  AuditEntry,
+  FreshnessSettings,
+  IntegrationsResponse,
+  PipelineSettings,
+  PricingEngine,
+  UserRow,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export function AuditLogPanel() {
@@ -250,6 +257,23 @@ export function PipelineSettingsPanel() {
   );
   const [busy, setBusy] = useState(false);
 
+  async function setEngine(pricingEngine: PricingEngine) {
+    if (!data || data.pricingEngine === pricingEngine) return;
+    setBusy(true);
+    try {
+      await proxyMutate<PipelineSettings>(endpoints.pipelineSettings(), {
+        method: "PUT",
+        body: { autopilotDefault: data.autopilotDefault, pricingEngine },
+      });
+      toast.success(pricingEngine === "v2" ? "Bids are now priced in code" : "Bids are now priced by the Claude pass");
+      mutate();
+    } catch (problem) {
+      toast.error("Could not save pipeline settings", { description: errorMessage(problem) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function toggleAutopilot() {
     if (!data) return;
     setBusy(true);
@@ -324,6 +348,43 @@ export function PipelineSettingsPanel() {
           >
             {busy ? "Saving…" : data.autopilotDefault ? "Autopilot on" : "Autopilot off"}
           </button>
+        </div>
+      )}
+      {data && (
+        <div className="flex flex-wrap items-start justify-between gap-4 border-t border-subtle px-5 py-5">
+          <div className="max-w-[520px]">
+            <p className="text-[14px] font-semibold text-tx-primary">Pricing engine</p>
+            <p className="mt-1.5 text-[13px] font-medium text-tx-secondary">
+              In code, every line is priced by the ladder - special net, catalog, price book times its multiplier -
+              or left for an estimator with the reason; no model is asked. The Claude pass is the agent pricing it
+              replaces, kept until code pricing is checked against the estimators&apos; own quotes.
+            </p>
+          </div>
+          <div role="radiogroup" aria-label="Pricing engine" className="flex rounded-md border border-subtle shadow-sm">
+            {(
+              [
+                ["v2", "In code"],
+                ["legacy", "Claude pass"],
+              ] as const
+            ).map(([engine, label]) => (
+              <button
+                key={engine}
+                type="button"
+                role="radio"
+                aria-checked={data.pricingEngine === engine}
+                onClick={() => setEngine(engine)}
+                disabled={busy}
+                className={cn(
+                  "px-4 py-2.5 text-[13px] font-semibold first:rounded-l-md last:rounded-r-md disabled:opacity-50 transition-colors",
+                  data.pricingEngine === engine
+                    ? "bg-brand-primary text-white"
+                    : "bg-panel text-tx-secondary hover:bg-panel-muted",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </section>

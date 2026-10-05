@@ -221,7 +221,11 @@ def reprice(lines: list[dict[str, Any]], state: str | None, freight: float | Non
         if stale or differs or line.get("priceError") != priced.get("error"):
             changed.append(line)
 
-    return {"totals": pricing.totals(lines, state, freight), "changed": changed}
+    # An alternate is priced but is not the bid: it is offered beside it, with
+    # its own total (ListAlternates). Counted in, an owner-furnished accessory or
+    # an Allegion part priced as specified would inflate the number on the quote.
+    base = [line for line in lines if not line.get("alternateGroup")]
+    return {"totals": pricing.totals(base, state, freight), "changed": changed}
 
 
 async def totals_for(

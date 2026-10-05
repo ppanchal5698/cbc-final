@@ -1,0 +1,166 @@
+"""match_and_price v2 end to end: a take-off in Mongo and on disk, priced in code,
+landed in estimateLines and rolled up - against a throwaway Mongo, no model."""
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import shutil
+
+import pytest
+from bson import ObjectId
+
+from cbc.shared.config import settings
+from cbc.shared.persistence import names
+from tests.shared import FIXTURES, mongo_client
+
+TEST_DB = "cbc_test_match_and_price_v2"
+SLUG = "v2_fixture"
+
+
+def run(coro):
+    from cbc.shared import mongo as db_module
+
+    db_module._client = None
+    try:
+        return asyncio.run(coro)
+    finally:
+        db_module._client = None
+
+
+SETS = {"sets": [
+    {"set_id": "01", "source_page": 16, "items": [
+        {"qty": "1 1/2", "unit": "PR.", "part": "BB1279", "manufacturer": "Hager", "finish": "US26D",
+         "description": 'HINGES 4 1/2" x 4 1/2"'},
+        {"qty": "1", "unit": "EA.", "part": "431S", "manufacturer": "Hager", "description": 'THRESHOLD 48"'},
+        {"qty": "1", "unit": "EA.", "part": "99EO", "manufacturer": "Von Duprin", "description": "EXIT DEVICE"},
+        {"qty": "1", "unit": "EA.", "part": "346C", "manufacturer": "Pemko", "description": "GASKET",
+         "supplied_by": "OWNER"},
+        {"qty": "1", "unit": "EA.", "part": "ZZ123", "manufacturer": "Arrow", "description": "CLOSER"},
+    ]},
+]}
+
+
+@pytest.fixture()
+def bid(monkeypatch):
+    from cbc.modules.quoting.features import MatchAndPrice
+    from cbc.shared import mongo as db_module
+
+    raw = mongo_client(serverSelectionTimeoutMS=5000)
+    try:
+        raw.server_info()
+    except Exception as exc:
+        if os.environ.get("REQUIRE_MONGO"):
+            pytest.fail(f"REQUIRE_MONGO is set but MongoDB is not reachable: {exc}")
+        pytest.skip("MongoDB is not running")
+    previous_db, settings.mongodb_db = settings.mongodb_db, TEST_DB
+    previous_root = settings.storage_root
+    scratch = FIXTURES / "scratch" / TEST_DB
+    shutil.rmtree(scratch, ignore_errors=True)
+    settings.storage_root = scratch
+    raw.drop_database(TEST_DB)
+    db_module._client = None
+    db = raw[TEST_DB]
+
+    project = {"_id": ObjectId(), "slug": SLUG, "code": "V2-001", "name": "V2 fixture", "state": "OH"}
+    db[names.BID_REQUESTS].insert_one(dict(project))
+    db[names.OPENINGS].insert_many([
+        {"projectId": project["_id"], "mark": "101", "hwSet": "GROUP 01", "inScope": True, "status": "clear",
+         "fireRating": "90", "evidence": {"sourcePage": 12, "sourceFile": "A601.pdf"}},
+        {"projectId": project["_id"], "mark": "102", "hwSet": "SET 1", "inScope": True, "status": "clear",
+         "evidence": {"sourcePage": 12, "sourceFile": "A601.pdf"}},
+        {"projectId": project["_id"], "mark": "103", "hwSet": "GROUP 01", "inScope": False, "status": "clear"},
+    ])
+    seed = "catalog.md + catalogs/ 2026 baseline"
+    db[names.CATALOG_ITEMS].insert_many([
+        {"part": "346C", "manufacturer": "Pemko", "vendorKey": "pemko", "cost": 3.82, "listPrice": 7.96,
+         "multiplier": 0.48, "seedSource": seed, "description": "346C"},
+        {"part": "BB1279", "manufacturer": "Hager", "vendorKey": "hager", "cost": 1.0, "seedSource": "price book ingest"},
+    ])
+    book_id = ObjectId()
+    db[names.PRICE_BOOKS].insert_one({"_id": book_id, "vendor": "hager", "program": "Hager Price Book #18",
+                                      "effective": "2026-03-02", "entries": {"fileSha": "abc", "count": 1}})
+    db[names.PRICE_BOOK_ENTRIES].insert_one({
+        "priceBookId": book_id, "fileSha": "abc", "vendor": "hager", "model": "BB1279", "size": '4-1/2" x 4-1/2"',
+        "finish": "US26D", "listPrice": 23.76, "section": "Commercial Hinges", "file": "hager_price_book_18.pdf",
+        "page": 68, "printedPage": "62", "effective": "2026-03-02"})
+    legend = scratch / SLUG / "extracted" / "hardware_sets.json"
+    legend.parent.mkdir(parents=True)
+    legend.write_text(json.dumps(SETS), encoding="utf-8")
+
+    lib = MatchAndPrice.reference_library
+    monkeypatch.setattr(lib, "load_special_nets", lambda: {"effective_date": "2026-03-02", "items": [
+        {"item_code": "051456", "part_number": "431S", "net_price": 43.33,
+         "description": '431S Commercial Saddle Threshold 48" Mill Finish'}]})
+    monkeypatch.setattr(lib, "load_vendor_tiers", lambda: {"vendors": [
+        {"key": "hager", "categories": {"architectural_hinges": 0.21}, "effective_date": "2026-03-02"}]})
+    monkeypatch.setattr(lib, "resolve_finish", lambda text: {"us_code": "US26D"} if text in ("626", "US26D") else None)
+    monkeypatch.setattr(lib, "sheet_lapsed", lambda effective: False)
+    monkeypatch.setattr(MatchAndPrice.pricing, "special_margin", lambda gc, brand: None)
+    monkeypatch.setattr(MatchAndPrice.ops_jobs, "holds_lease", lambda job: _true())
+    try:
+        yield project, db
+    finally:
+        raw.drop_database(TEST_DB)
+        raw.close()
+        settings.mongodb_db, settings.storage_root = previous_db, previous_root
+        shutil.rmtree(scratch, ignore_errors=True)
+        db_module._client = None
+
+
+async def _true() -> bool:
+    return True
+
+
+def _lines(db, project) -> dict[str, dict]:
+    return {line["lineKey"]: line for line in db[names.ESTIMATE_LINES].find({"projectId": project["_id"]})}
+
+
+def test_a_take_off_is_priced_in_code_and_rolled_up_without_its_alternates(bid) -> None:
+    from cbc.modules.quoting.features import MatchAndPrice
+
+    project, db = bid
+    note = run(MatchAndPrice.price_in_code({"_id": ObjectId(), "type": "match_and_price"}, project))
+    assert "priced in code: 3/6 lines have a cost" in note, note
+    lines = _lines(db, project)
+
+    hinges = lines["1:01"]  # 1 1/2 pair = 3 a door, on the two in-scope doors that cite the set
+    assert (hinges["qty"], hinges["qtyPerOpening"], hinges["openings"]) == (6.0, 3.0, ["101", "102"])
+    assert (hinges["cost"], hinges["costSource"], hinges["multiplierTier"]) == (4.99, "LIST_X_MULTIPLIER", "architectural_hinges")
+    assert hinges["division"] == "08 71 00" and hinges["sell"] is not None  # rolled up by persist
+    assert (lines["1:02"]["cost"], lines["1:02"]["costSource"]) == (43.33, "SPECIAL_NET")
+    assert lines["1:03"]["manufacturer"] == "Hager" and lines["1:03"]["cost"] is None
+    assert lines["1:03:allegion"]["alternateGroup"] == "Allegion as specified"
+    assert (lines["1:04"]["alternateGroup"], lines["1:04"]["cost"]) == ("Supplied by others", 3.82)
+    assert "needs a distributor or vendor quote" in lines["1:05"]["costSourceDetail"]
+
+    quote = db[names.QUOTES].find_one({"projectId": project["_id"]})
+    base = [line for line in lines.values() if not line.get("alternateGroup")]
+    assert quote["subtotal"] == round(sum(line.get("extended") or 0 for line in base), 2)
+    assert quote["subtotal"] < round(sum(line.get("extended") or 0 for line in lines.values()), 2)
+
+    # The gate sees each door's parts now that a line names its doors: the
+    # unrated door gets its candidates; the 90-minute one is held, because no
+    # catalog row says it carries a rating (Matrix 7.3).
+    unrated = db[names.OPENINGS].find_one({"projectId": project["_id"], "mark": "102"})
+    assert {c["part"] for c in unrated["matchCandidates"]} == {"BB1279", "346C"}
+    rated = db[names.OPENINGS].find_one({"projectId": project["_id"], "mark": "101"})
+    assert rated["ratingConflict"] is True and rated["matchCandidates"] == []
+
+
+def test_a_re_price_keeps_what_an_estimator_typed_and_refreshes_the_rest(bid) -> None:
+    from cbc.modules.quoting.features import MatchAndPrice
+
+    project, db = bid
+    job = {"_id": ObjectId(), "type": "match_and_price"}
+    run(MatchAndPrice.price_in_code(job, project))
+    db[names.ESTIMATE_LINES].update_one(
+        {"projectId": project["_id"], "lineKey": "1:05"},
+        {"$set": {"cost": 88.0, "costSource": "VENDOR_RFQ", "costSourceDetail": "Vendor RFQ R-1"},
+         "$push": {"overrides": {"after": {"cost": 88.0, "costSource": "VENDOR_RFQ", "costSourceDetail": "Vendor RFQ R-1"}}}},
+    )
+    note = run(MatchAndPrice.price_in_code(job, project))
+    assert "1 kept as the estimator left them" in note, note
+    edited = _lines(db, project)["1:05"]
+    assert (edited["cost"], edited["costSource"]) == (88.0, "VENDOR_RFQ")
+    assert edited["qty"] == 2.0 and edited["openings"] == ["101", "102"]

@@ -601,6 +601,7 @@
   "body": {
    "autopilotDefault": "bool",
    "note": "str",
+   "pricingEngine": "str",
    "updatedAt": "null",
    "updatedBy": "null"
   },
@@ -1278,6 +1279,7 @@
   "body": {
    "autopilotDefault": "bool",
    "note": "str",
+   "pricingEngine": "str",
    "updatedAt": "datetime",
    "updatedBy": "str"
   },

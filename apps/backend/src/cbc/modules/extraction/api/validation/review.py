@@ -191,9 +191,11 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
 
         if source in UNFINISHED_COST_SOURCES and line.get("cost") is None:
             # A line with no cost has no price; a quote cannot go out with one.
+            # An alternate's missing price is visible but holds nothing: it is
+            # not in the bid's total, and the bid can go out without it.
             flags.append(
                 _flag(label, "cost", "medium", UNFINISHED_COST_SOURCES[source], page,
-                      blocking=True)
+                      blocking=not line.get("alternate_group"))
             )
 
         margin = line.get("margin")

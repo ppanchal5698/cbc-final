@@ -11,7 +11,7 @@ from tests.shared import mongo_client
 
 def test_the_post_pass_makes_one_catalog_query_and_one_bulk_write(monkeypatch) -> None:
     openings = [{"_id": n, "mark": f"{n:02d}", "fireRating": "20"} for n in range(1, 51)]
-    lines = [{"mark": f"{n:02d}", "part": "3400"} for n in range(1, 51)]
+    lines = [{"openings": [f"{n:02d}"], "part": "3400"} for n in range(1, 51)]
     calls = {"by_parts": 0, "by_part": 0, "bulk": 0, "single": 0}
 
     async def list_openings(project_id, limit=None):

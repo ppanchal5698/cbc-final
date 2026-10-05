@@ -34,6 +34,12 @@ def test_the_brand_margin_applies_when_the_customer_has_none() -> None:
     assert pricing.special_margin("Nobody Inc", "wendys") == (0.20, "special brand margin: Wendys")
 
 
+def test_the_account_is_found_however_the_bid_spells_it() -> None:
+    assert pricing.special_margin(None, "Wendy's") == (0.20, "special brand margin: Wendys")
+    assert pricing.special_margin("ACME BUILDERS", None) == (0.18, "special customer margin: Acme Builders")
+    assert pricing.special_margin("", "") is None
+
+
 def test_a_margin_cbc_has_not_given_is_never_invented() -> None:
     assert pricing.special_margin(None, "Cava") is None
     assert pricing.special_margin(None, None) is None

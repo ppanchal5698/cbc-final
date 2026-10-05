@@ -508,10 +508,17 @@ def get_special_net(vendor: str, part_number: str) -> dict[str, Any] | None:
     return None
 
 
+def _name_key(name: Any) -> str:
+    """`Wendy's`, `WENDYS` and `Wendys` are one account."""
+    return re.sub(r"[^a-z0-9]", "", str(name or "").lower())
+
+
 def get_special_customer_margin(customer: str) -> dict[str, Any] | None:
-    needle = str(customer or "").strip().lower()
+    needle = _name_key(customer)
+    if not needle:
+        return None
     for row in load_special_margins().get("customers", []):
-        if str(row.get("name", "")).strip().lower() == needle:
+        if _name_key(row.get("name")) == needle:
             return dict(row)
     return None
 

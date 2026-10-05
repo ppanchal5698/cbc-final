@@ -1,13 +1,13 @@
-"""GET and PUT /api/settings/pipeline - whether a new bid starts on autopilot."""
+"""GET and PUT /api/settings/pipeline - whether a new bid starts on autopilot, and how it is priced."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from cbc.modules.ops.api import audit
+from cbc.modules.ops.api import audit, pipeline
 from cbc.modules.ops.infrastructure.collections import settings_collection
 from cbc.shared.auth import Actor, require_admin
 
@@ -24,6 +24,11 @@ class PipelineSettings(BaseModel):
     """How a new bid behaves when a drawing lands on it."""
 
     autopilotDefault: bool = False
+    # Which pricing runs a bid's match-and-price job: the code ladder, or the
+    # Claude pass it replaces. Kept switchable until v2 is checked against the
+    # estimators' own quotes. Omitted, it is left as it is: a screen that saves
+    # only the autopilot default must not reset the engine.
+    pricingEngine: Literal["legacy", "v2"] | None = None
 
 
 @router.get("/pipeline")
@@ -31,6 +36,7 @@ async def get_pipeline_settings() -> dict[str, Any]:
     stored = await settings_collection().find_one({"_id": "pipeline"}) or {}
     return {
         "autopilotDefault": bool(stored.get("autopilotDefault", False)),
+        "pricingEngine": pipeline.engine_from(stored),
         "note": (
             "Autopilot runs Phase 0-6 in one pass when a drawing is uploaded. The "
             "openings are priced before anyone checks them and everything uncertain "
@@ -47,11 +53,12 @@ async def save_pipeline_settings(body: PipelineSettings, actor: Actor) -> dict[s
     await settings_collection().update_one(
         {"_id": "pipeline"},
         {"$set": {"autopilotDefault": body.autopilotDefault,
+                  **({"pricingEngine": body.pricingEngine} if body.pricingEngine else {}),
                   "updatedAt": _now(), "updatedBy": actor}},
         upsert=True,
     )
     await audit.record(
         "settings.pipeline.update", actor, {},
-        after={"autopilotDefault": body.autopilotDefault},
+        after=body.model_dump(exclude_none=True),
     )
     return await get_pipeline_settings()

@@ -78,6 +78,23 @@ def _content_key(line: dict[str, Any]) -> str:
     return "auto:" + hashlib.sha1(material.encode("utf-8")).hexdigest()[:16]
 
 
+# A cost and where it came from are one fact: an estimator who typed the cost
+# owns its source and date too, and a re-price must not put a book's under it.
+_COST_FIELDS = ("cost", "costSource", "costSourceDetail", "multiplier", "multiplierTier",
+                "multiplierEffectiveDate", "priceBookVersion", "listPrice", "pricedAt", "priceStatus")
+
+
+def _estimator_fields(line: dict[str, Any]) -> set[str]:
+    """The fields an estimator set on a line - a typed edit, an applied vendor
+    quote, a margin - which a re-price leaves exactly as they are."""
+    edited = {key for override in line.get("overrides") or [] for key in (override.get("after") or {})}
+    if line.get("marginOverridden"):
+        edited.add("margin")
+    if edited & {"cost", "costSource", "costSourceDetail"}:
+        edited.update(_COST_FIELDS)
+    return edited
+
+
 def _group_type(division: str | None) -> str:
     if not division:
         return "door"
@@ -145,6 +162,15 @@ async def import_quote_lines(
             "priceBookVersion": line.get("price_book_version"),
             "sourcePage": line.get("source_page"),
             "priceStatus": line.get("price_status"),
+            "listPrice": line.get("list_price"),
+            "finish": line.get("finish"),
+            "unit": line.get("unit"),
+            # The doors a set's line is for, and how many each takes: the qty is
+            # the one times the other, and the gate (FR-4) judges each door.
+            "openings": line.get("openings") or [],
+            "qtyPerOpening": line.get("qty_per_opening"),
+            "substitutionNote": line.get("substitution_note"),
+            "pricedAt": line.get("priced_at"),
             "flags": flags,
             "updatedAt": _now(),
         }
@@ -158,36 +184,24 @@ async def import_quote_lines(
                         "addedByHand": False,
                         "marginOverridden": False,
                         "createdAt": _now(),
+                        # Set once, when the line is new: an estimator who moves it
+                        # in or out of an alternate has the last word after that.
+                        "alternateGroup": line.get("alternate_group"),
                         **fields,
                     }
                 )
             )
             inserted += 1
-        elif current.get("marginOverridden") or current.get("addedByHand"):
-            bulk.append(
-                UpdateOne(
-                    {"_id": current["_id"]},
-                    {
-                        "$set": {
-                            key_: fields[key_]
-                            for key_ in (
-                                "costSource",
-                                "costSourceDetail",
-                                "multiplier",
-                                "multiplierTier",
-                                "multiplierEffectiveDate",
-                                "priceBookVersion",
-                                "sourcePage",
-                                "updatedAt",
-                            )
-                        }
-                    },
-                )
-            )
-            skipped += 1
+        elif current.get("addedByHand"):
+            skipped += 1  # the estimator's own line; there is no priced row to refresh it from
         else:
-            bulk.append(UpdateOne({"_id": current["_id"]}, {"$set": fields}))
-            updated += 1
+            kept = _estimator_fields(current)
+            bulk.append(UpdateOne({"_id": current["_id"]},
+                                  {"$set": {k: v for k, v in fields.items() if k not in kept}}))
+            if kept:
+                skipped += 1
+            else:
+                updated += 1
 
     # Lines the new pricing pass no longer produces. Without this the collection
     # only ever grew: re-pricing a bid that dropped a line left the old row in
@@ -196,10 +210,14 @@ async def import_quote_lines(
     #
     # A hand-added line is the estimator's own and is never removed - there is no
     # priced row to regenerate it from, so deleting it would destroy their work.
+    # Nor is one an estimator has edited: it is flagged for them to decide.
     # Everything else is derived, and derived rows follow their source.
     removed = 0
     for key, current in existing.items():
         if key in seen_keys or current.get("addedByHand"):
+            continue
+        if _estimator_fields(current):
+            bulk.append(UpdateOne({"_id": current["_id"]}, {"$addToSet": {"flags": "no_longer_in_takeoff"}}))
             continue
         bulk.append(DeleteOne({"_id": current["_id"]}))
         removed += 1
@@ -258,6 +276,7 @@ async def export_quote_lines(project: dict[str, Any], *, allow_empty: bool = Fal
                 "price_book_version": doc.get("priceBookVersion"),
                 "source_page": doc.get("sourcePage"),
                 "price_status": doc.get("priceStatus"),
+                "alternate_group": doc.get("alternateGroup"),
                 "added_by_hand": doc.get("addedByHand", False),
                 "flags": doc.get("flags", []),
                 # The review's margin rule reads these. Dropping them made every

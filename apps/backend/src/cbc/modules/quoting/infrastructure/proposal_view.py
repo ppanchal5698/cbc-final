@@ -90,7 +90,9 @@ async def _build(project: dict[str, Any], markup: float = 0.0) -> dict[str, Any]
     totals, lines = await quote_service.totals_for(project)
 
     sections: dict[str, dict[str, Any]] = {}
-    for line in lines:
+    # The bid's own lines only: an alternate is not in its total, so it is not in
+    # its sections either - or the printed subtotals would not add up to it.
+    for line in (line for line in lines if not line.get("alternateGroup")):
         key = _section_of(line.get("division"))
         section = sections.setdefault(
             key, {"key": key, "title": SECTION_TITLES[key], "lines": [], "subtotal": 0.0}

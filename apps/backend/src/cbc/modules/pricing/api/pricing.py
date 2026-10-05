@@ -32,6 +32,39 @@ DIVISION_BANDS = {
 DEFAULT_BAND = "commodity"
 
 
+# Which multiplier category prices a row of a vendor's price book, by the section
+# title printed on its page. Hager prices by category (vendor_tiers) and its book
+# #18 names its sections; these are those names, longest match first. A section
+# not listed takes no multiplier, so its rows are priced by hand rather than at a
+# guessed tier. For CBC purchasing to confirm - the two auto-operator rows most.
+SECTION_CATEGORIES: dict[str, tuple[tuple[str, str], ...]] = {
+    "hager": (
+        ("Commercial Hinges", "architectural_hinges"),
+        ("Residential Hinges", "residential_hinges"),
+        ("Stainless Steel Continuous Hinges", "stainless_steel_hinges"),
+        ("Door Controls", "door_controls"),
+        ("Low Energy Automatic Door Opener", "auto_operators"),
+        ("Electrified Products - Low Energy Power Operator Controls", "auto_operators"),
+        ("Electrified Products", "electrified_products"),
+        ("Series Electrified Products", "electrified_products"),
+        ("Exit Devices", "exit_devices"),
+        ("Locks", "locks"),
+        ("Sliding Door Hardware", "sliding_door_hardware"),
+        ("Trim & Auxiliary", "trim_and_auxiliary"),
+    ),
+}
+
+
+def multiplier_category(vendor: str | None, section: str | None) -> str | None:
+    """The multiplier category that prices a price-book row, from its section title."""
+    title = str(section or "").strip().lower()
+    for prefix, category in sorted(SECTION_CATEGORIES.get(str(vendor or "").strip().lower(), ()),
+                                   key=lambda pair: -len(pair[0])):
+        if title.startswith(prefix.lower()):
+            return category
+    return None
+
+
 def band_for_division(division: str | None) -> str:
     if not division:
         return DEFAULT_BAND

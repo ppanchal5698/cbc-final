@@ -226,6 +226,19 @@ def test_blocking_is_set_per_kind(project) -> None:
     assert blocking[("quote", "sales_tax")] is False
 
 
+def test_an_unpriced_alternate_is_shown_but_holds_nothing(project) -> None:
+    """An alternate is not in the bid's total, so a price it still lacks does not hold the bid."""
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "L1", "group": "Door 101", "cost_source": "MANUAL", "cost": None},
+        {"line_id": "L2", "group": "Door 102", "cost_source": "DISTRIBUTOR_MANUAL", "cost": None,
+         "alternate_group": "Allegion as specified"},
+    ]})
+    blocking = _blocking(review.derive_flags(slug))
+    assert blocking[("Door 101", "cost")] is True
+    assert blocking[("Door 102", "cost")] is False
+
+
 def test_a_missing_rating_does_not_block_in_a_set_with_no_ratings(project) -> None:
     slug, directory = project
     _write(directory, "extracted/line_items.json", {"openings": [
