@@ -75,9 +75,9 @@ def selftest() -> int:
         return 1
 
     # A skipped demo exits 0, so it used to be counted as a pass and the summary
-    # claimed every server was checked. bid-docs, catalog and catalog-docs skip
-    # without a read-only credential, which is most of the time - so the line
-    # said "All 8 OK" while three of them had touched no data at all.
+    # claimed every server was checked. bid-docs and catalog skip without a
+    # read-only credential, which is most of the time - so the line said every
+    # server was OK while two of them had touched no data at all.
     if skipped:
         print(
             f"\n{len(servers)} MCP servers start; {len(skipped)} demo(s) not run: "

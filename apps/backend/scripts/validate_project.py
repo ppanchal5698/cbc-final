@@ -74,7 +74,6 @@ PRICEBOOKS = pricebook_dir()
 SERVERS = [
     "pdf-tools",
     "catalog",
-    "catalog-docs",
     "calc-engine",
     "artifact-storage",
     "p21-connector",

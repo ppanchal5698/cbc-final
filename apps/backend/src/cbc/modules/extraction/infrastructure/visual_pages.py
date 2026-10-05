@@ -359,10 +359,9 @@ def schedule_visual_keys(slug: str) -> list[tuple[str, int]]:
 
 
 # `verified` is `verify_page`'s score for how much of what the parser claimed
-# actually sits on real text. MinerU rarely cleared this on a CAD schedule, which
-# is why the old checklist told the model to ignore the parse and read pixels.
-# LlamaParse clears it comfortably - 0.849 and 0.913 on the two sheets of the
-# first real bid - so the picture is now the fallback, not the first read.
+# actually sits on real text. LlamaParse clears it comfortably - 0.849 and 0.913
+# on the two sheets of the first real bid - so the picture is the fallback, not
+# the first read.
 PARSE_TRUSTED_FLOOR = 0.60
 
 
@@ -620,10 +619,9 @@ def prompt_checklist(slug: str) -> str:
     """Injected into the extract prompt: read the parse, look only where it failed.
 
     This block used to say "Read the `image_path` PNG first" and "do **not**
-    prefer bid-docs / extract_text as the first read on these pages". That was
-    right for MinerU, which could not be trusted on a CAD schedule. LlamaParse
-    verifies at 0.85-0.91 on those same sheets and carries per-cell boxes, but
-    the instruction survived the swap: on one 24-page bid the take-off rendered
+    prefer bid-docs / extract_text as the first read on these pages". LlamaParse
+    verifies at 0.85-0.91 on those sheets and carries per-cell boxes, and the
+    instruction cost real runs: on one 24-page bid the take-off rendered
     two sheets twenty-four times, hit its 80-turn cap and produced a single
     patch, while the door schedule sat parsed in Mongo one `get_page_blocks`
     call away.

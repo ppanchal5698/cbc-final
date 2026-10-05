@@ -249,7 +249,7 @@ def lookup_catalog_item(part: str, vendor: str | None = None) -> dict[str, Any]:
             "vendor": vendor,
             "note": (
                 "No product-catalog row for this part. Try get_special_net, "
-                "then search_blocks / find_pages on the PDF, or leave MANUAL."
+                "then find_pages on the PDF, or leave MANUAL."
             ),
         }
     cost = row.get("cost")
@@ -300,10 +300,10 @@ def search_catalog_items(
         "count": len(items),
         "items": items,
         "note": (
-            "Prefer these product-catalog hits for matching before search_blocks / "
+            "Prefer these product-catalog hits for matching before "
             "find_pages. Pricing still owns cost via lookup_catalog_item."
             if items
-            else "No product-catalog candidates — fall back to search_blocks / find_pages."
+            else "No product-catalog candidates — fall back to find_pages."
         ),
     }
 

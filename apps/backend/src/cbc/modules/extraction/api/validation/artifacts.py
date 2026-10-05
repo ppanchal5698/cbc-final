@@ -320,7 +320,7 @@ def _visual_manifest_schedule_pages(project: str) -> list[tuple[str, int]]:
 
     A page the parser read and verified is **not** required as an image. This
     check used to hold every schedule page to a rendered PNG, which is what kept
-    the render-and-crop loop alive after LlamaParse replaced MinerU: the prompt
+    the render-and-crop loop alive once the parse could be trusted: the prompt
     could stop asking for pictures, but the validator still failed the run
     without them. The requirement is that the page was *checked*, not that it was
     photographed - `visual_pages_checked` accepts a block citation for a verified

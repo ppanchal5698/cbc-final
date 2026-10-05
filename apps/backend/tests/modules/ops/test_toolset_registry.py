@@ -61,7 +61,6 @@ def test_pricing_can_read_the_page_it_is_sent_to():
 
     servers = json.loads(toolsets.config_for("match_and_price"))["mcpServers"]
     assert "catalog" in servers, "pricing needs the page index"
-    assert "catalog-docs" in servers, "pricing needs catalog page lookups"
     assert "pdf-tools" in servers, "and the means to read the page it names"
 
 
@@ -91,8 +90,6 @@ def test_ingest_can_read_the_sheet_it_is_given():
 
     servers = json.loads(toolsets.config_for("ingest_pricebook"))["mcpServers"]
     assert "pdf-tools" in servers, "ingest must be able to open the sheet"
-    # scan-product-catalog searches the parsed book text first.
-    assert "catalog-docs" in servers, "ingest must be able to search the parsed book"
 
 
 def test_pricing_hands_p21_the_readonly_mongo_uri(monkeypatch):

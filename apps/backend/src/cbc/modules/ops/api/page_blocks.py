@@ -15,8 +15,8 @@ what lets the parser change without every stored bbox moving. 72 of the 87 pages
 in the first real bid set are rotated 270, so this is the common path, not an
 edge case.
 
-**Orientation.** MinerU reported against the unrotated mediabox and needed
-`page.rotation_matrix`. LlamaParse reports display space already - measured on a
+**Orientation.** A parser may report against the unrotated mediabox, which
+needs `page.rotation_matrix`. LlamaParse reports display space already - measured on a
 270-rotated sheet it returned 2448x1584 with every box inside that frame - so
 mapping its boxes would push them off the page. `_oriented` settles it by size
 where size is decisive and by coverage where it is not, and `reports_unrotated`

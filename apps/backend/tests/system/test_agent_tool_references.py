@@ -1,7 +1,7 @@
 """Every MCP tool an agent, command or skill names is one that agent actually has.
 
 The .claude audit found agents told - by their own skill - to call tools missing
-from their `tools:` list (parse_door_openings, the catalog-docs search, a special
+from their `tools:` list (parse_door_openings, a price-book block search, a special
 margin lookup), and an example passing `tier=` to a tool whose argument is
 `category`. Each is a turn spent on a refusal, or a quiet fallback. This checks:
 

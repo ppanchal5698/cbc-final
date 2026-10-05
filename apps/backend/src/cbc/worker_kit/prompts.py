@@ -457,33 +457,25 @@ opens vendor books only after catalog miss:
   2. `mcp__catalog__get_special_net` — fixed net is already cost (`SPECIAL_NET`).
   3. `mcp__catalog__lookup_catalog_item(part, vendor?)` — product catalog
      (`CATALOG_BASELINE` / `SPECIAL_NET`; cite product catalog / seedSource).
-  4. Prefer `mcp__catalog-docs__search_blocks` with the part number or series
-     (and `vendor` / `catalog_id` when known). Hits carry `file_path`, `pdf_page`,
-     block text/html, and `bbox`. Read the list price from the block when clear;
-     if unclear, crop with `mcp__pdf-tools__get_page_image(file_path, page,
-     region=bbox)` — never a full-page image of a parsed page.
-  5. If catalog-docs returns nothing (parse pending/failed), fall back to
-     `mcp__catalog__find_pages` with the part number or series, and `vendor`.
+  4. `mcp__catalog__find_pages` with the part number or series, and `vendor`.
      Each hit carries `file_path`, `pdf_page` and a `locator`. Then
      `mcp__pdf-tools__extract_tables` with that `file_path` and `pdf_page`,
      exactly as given. Do not build the path yourself - the books are not under
      this project's uploads.
-  6. Multipliers: prefer `mcp__catalog__get_multiplier` with `category` (not
-     `tier`) from referenceData. For special-net text that only lives on a
-     multiplier PDF, use `mcp__catalog-docs__search_blocks` with
-     `source=multiplier`. Hager categories: `locks`, `door_controls`,
+  5. Multipliers: prefer `mcp__catalog__get_multiplier` with `category` (not
+     `tier`) from referenceData. Hager categories: `locks`, `door_controls`,
      `exit_devices`, `architectural_hinges`, `thresholds_weatherstrip`, ...
      **Thresholds:** architect schedules cite Pemko/Zero numbers (275A, 39A); Hager
      book pages list NGP codes with a Pemko comparison-number column — read the NGP
      list price, not a failed text search for 275A.
-  7. `mcp__calc-engine__calculate_line` and `mcp__calc-engine__apply_margin` for
+  6. `mcp__calc-engine__calculate_line` and `mcp__calc-engine__apply_margin` for
      the arithmetic - never hand-compute sale_ea or ext_price.
 
 **Allegion distributor lines are always MANUAL.** Von Duprin, LCN, Schlage and
 **IVES** are bought through Banner Solutions or SecLock, not direct from Hager.
 Do not tag them `LIST_X_MULTIPLIER` because IVES pages appear in the Hager book.
 
-If special-net, lookup_catalog_item, search_blocks and find_pages all miss, or
+If special-net, lookup_catalog_item and find_pages all miss, or
 the page turns out not to carry the part, that is a MANUAL line. Try the next
 hit before giving up; do not settle for a nearby row on the wrong page.
 

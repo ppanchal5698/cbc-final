@@ -62,8 +62,6 @@ FAILED_EXTRACTIONS = "failedExtractions"
 REFERENCE_DATA = "referenceData"
 PAGE_INDEX = "pageIndex"
 DOCUMENT_PAGES = "documentPages"
-CATALOG_PAGES = "catalogPages"
-MULTIPLIER_PAGES = "multiplierPages"
 SCHEMA_MIGRATIONS = "schemaMigrations"
 
 # What migration 1 renames, old -> new. Kept beside the constants so the two

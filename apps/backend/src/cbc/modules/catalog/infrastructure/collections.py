@@ -31,14 +31,6 @@ def price_book_entries():
     return database()[names.PRICE_BOOK_ENTRIES]
 
 
-def catalog_pages():
-    return database()[names.CATALOG_PAGES]
-
-
-def multiplier_pages():
-    return database()[names.MULTIPLIER_PAGES]
-
-
 def match_learning():
     """What an estimator confirmed a specification means (FR-13)."""
     return database()[names.MATCH_LEARNING]
@@ -108,31 +100,6 @@ async def ensure_indexes() -> None:
         [("priceBookId", ASCENDING), ("fileSha", ASCENDING), ("model", ASCENDING)], name="entry_lookup"
     )
     await price_book_entries().create_index([("vendor", ASCENDING), ("model", ASCENDING)], name="entry_model")
-    await replace_index(
-        catalog_pages(),
-        "pricebook_page",
-        [("priceBookId", ASCENDING), ("page", ASCENDING)],
-        unique=True,
-    )
-    await catalog_pages().create_index([("catalogId", ASCENDING), ("page", ASCENDING)])
-    await catalog_pages().create_index([("vendor", ASCENDING), ("page", ASCENDING)])
-    await replace_index(
-        catalog_pages(),
-        "blocks_text",
-        [("blocks.text", TEXT)],
-    )
-    await replace_index(
-        multiplier_pages(),
-        "sheet_page",
-        [("sheetId", ASCENDING), ("page", ASCENDING)],
-        unique=True,
-    )
-    await multiplier_pages().create_index([("family", ASCENDING), ("page", ASCENDING)])
-    await replace_index(
-        multiplier_pages(),
-        "blocks_text",
-        [("blocks.text", TEXT)],
-    )
     # One learned answer per specification, so draining the same feedback event
     # twice cannot count it twice.
     await replace_index(

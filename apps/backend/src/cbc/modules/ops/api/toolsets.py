@@ -31,7 +31,6 @@ SERVERS = {
     "catalog": "mcp-servers/catalog/server.py",
     "reference": "mcp-servers/reference/server.py",
     "bid-docs": "mcp-servers/bid-docs/server.py",
-    "catalog-docs": "mcp-servers/catalog-docs/server.py",
 }
 
 # Reading drawings and writing what was found. Reference for finishes / frame
@@ -55,7 +54,6 @@ _READING = ["pdf-tools", "artifact-storage", "reference", "bid-docs"]
 # lines MANUAL.
 _PRICING = [
     "catalog",
-    "catalog-docs",
     "reference",
     "pdf-tools",
     "calc-engine",
@@ -91,10 +89,8 @@ PROFILES: dict[str, list[str]] = {
     # Ingest reads a vendor sheet and writes what it found. `pdf-tools` is the
     # only way to read it - the same trap as _PRICING above, and here it was
     # total: the profile gave a job whose entire purpose is "read this PDF" no
-    # tool that opens a PDF. `catalog-docs` is the parsed text of the same books,
-    # which the scan-product-catalog skill searches first; without it the agent
-    # was told to search blocks it had no tool to reach.
-    "ingest_pricebook": ["catalog", "catalog-docs", "reference", "pdf-tools", "artifact-storage"],
+    # tool that opens a PDF.
+    "ingest_pricebook": ["catalog", "reference", "pdf-tools", "artifact-storage"],
 }
 
 # Built-in tools no bid job has a use for. Bare names remove them from the
@@ -155,8 +151,8 @@ def config_for(job_type: str) -> str:
             "args": [str((REPO_ROOT / SERVERS[name]).resolve())],
         }
         env: dict[str, str] = {}
-        if name in ("catalog", "p21-connector", "reference", "bid-docs", "catalog-docs"):
-            # Page index, freshness, referenceData, and parsed bid/catalog blocks use a
+        if name in ("catalog", "p21-connector", "reference", "bid-docs"):
+            # Page index, freshness, referenceData, and parsed bid blocks use a
             # read-only credential with no fallback to the writable string.
             readonly = _readonly_uri()
             if readonly:

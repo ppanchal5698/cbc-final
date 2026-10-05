@@ -62,15 +62,6 @@
       "env": {
         "PYTHONPATH": "apps/backend/src"
       }
-    },
-    "catalog-docs": {
-      "command": "python",
-      "args": [
-        "./mcp-servers/catalog-docs/server.py"
-      ],
-      "env": {
-        "PYTHONPATH": "apps/backend/src"
-      }
     }
   }
 }

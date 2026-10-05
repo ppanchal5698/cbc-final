@@ -2,9 +2,8 @@
 
 The take-off used to be told, in the prompt and again by the validator, to read
 the rendered PNG first and *not* to prefer the parsed blocks on schedule pages.
-That was correct for MinerU, which could not be trusted on a CAD schedule. It
-survived the swap to LlamaParse, which verifies those same sheets at 0.85-0.91
-and carries per-cell boxes.
+LlamaParse verifies those same sheets at 0.85-0.91 and carries per-cell boxes,
+so the instruction was wrong.
 
 The measured cost on one 24-page bid: the take-off rendered two sheets
 twenty-four times, spent 48 of its 80 tool calls on `get_page_image` -> `Read`

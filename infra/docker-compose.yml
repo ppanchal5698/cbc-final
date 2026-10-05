@@ -22,8 +22,8 @@ x-app-env: &app-env
   # cbc.shared.config refuses it anywhere real.
   MONGODB_URI: ${MONGODB_URI:-mongodb://cbc:${MONGO_ROOT_PASSWORD:-cbc_local_dev}@documentdb:10260/cbc_opshub?authSource=admin&authMechanism=SCRAM-SHA-256&tls=true&tlsAllowInvalidCertificates=true&retryWrites=false}
   MONGODB_DB: cbc_opshub
-  # The credential the read-only MCP servers connect with - catalog, bid-docs,
-  # catalog-docs. DocumentDB users are cluster-level, so this is not derived from
+  # The credential the read-only MCP servers connect with - catalog, bid-docs.
+  # DocumentDB users are cluster-level, so this is not derived from
   # MONGODB_URI; docker/documentdb-init.sh creates the user locally, and
   # production is handed its cluster's read-only user the same way.
   MONGODB_READONLY_URI: ${MONGODB_READONLY_URI:-mongodb://cbc_catalog_ro:${MONGODB_READONLY_PASSWORD:-cbc_catalog_ro_local_dev}@documentdb:10260/cbc_opshub?authSource=admin&authMechanism=SCRAM-SHA-256&tls=true&tlsAllowInvalidCertificates=true&retryWrites=false}
