@@ -25,6 +25,12 @@ def price_books():
     return database()[names.PRICE_BOOKS]
 
 
+def price_book_entries():
+    """Every list price read off a price book's pages, one document per row,
+    versioned by the file it was read from (effective-dated: never overwritten)."""
+    return database()[names.PRICE_BOOK_ENTRIES]
+
+
 def catalog_pages():
     return database()[names.CATALOG_PAGES]
 
@@ -98,6 +104,10 @@ async def ensure_indexes() -> None:
         name="product_search",
     )
     await price_books().create_index([("vendor", ASCENDING), ("program", ASCENDING)])
+    await price_book_entries().create_index(
+        [("priceBookId", ASCENDING), ("fileSha", ASCENDING), ("model", ASCENDING)], name="entry_lookup"
+    )
+    await price_book_entries().create_index([("vendor", ASCENDING), ("model", ASCENDING)], name="entry_model")
     await replace_index(
         catalog_pages(),
         "pricebook_page",

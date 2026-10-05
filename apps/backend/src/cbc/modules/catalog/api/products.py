@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any, TypedDict
 
-from cbc.modules.catalog.infrastructure.collections import products
+from cbc.modules.catalog.infrastructure.collections import price_book_entries, price_books, products
 from cbc.shared.mongo import oid
 
 
@@ -49,4 +49,28 @@ async def by_parts(parts: Iterable[str], *, limit_each: int = 20) -> dict[str, l
         rows = found[row["part"]]
         if len(rows) < limit_each:
             rows.append(row)
+    return found
+
+
+async def list_prices(models: Iterable[str], *, vendor: str | None = None) -> dict[str, list[dict[str, Any]]]:
+    """Every list price read off a current price book for each model number.
+
+    Only the version each book now points at (`priceBooks.entries.fileSha`):
+    rows read off a superseded sheet stay as history and are never priced from.
+    """
+    wanted = sorted({m for m in models if m})
+    found: dict[str, list[dict[str, Any]]] = {m: [] for m in wanted}
+    if not wanted:
+        return found
+    current = [
+        {"priceBookId": book["_id"], "fileSha": book["entries"]["fileSha"]}
+        async for book in price_books().find({"entries.fileSha": {"$exists": True}, "isDeleted": {"$ne": True}})
+    ]
+    if not current:
+        return found
+    query: dict[str, Any] = {"model": {"$in": wanted}, "$or": current}
+    if vendor:
+        query["vendor"] = vendor.lower()
+    async for row in price_book_entries().find(query):
+        found[row["model"]].append(row)
     return found

@@ -15,12 +15,15 @@ because an unchanged file is not re-read at all.
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from cbc.modules.catalog.infrastructure.collections import price_books
+from cbc.modules.catalog.infrastructure import pricebook_reader
+from cbc.modules.catalog.infrastructure.collections import price_book_entries, price_books
 from cbc.modules.catalog.api.pageindex import build as pageindex_build
+from cbc.modules.catalog.api.pageindex import store as catalog_store
 from cbc.shared.config import settings
 from cbc.shared.mongo import oid
 
@@ -56,6 +59,54 @@ def _resolve(filename: str) -> Path:
     return path
 
 
+async def read_entries(book: dict[str, Any], path: Path, vendor: str) -> str:
+    """Read the book's price tables into priceBookEntries, once per file version.
+
+    Rows are keyed to the file's SHA and never overwritten: a new sheet adds a
+    version and the book points at it, so a quote priced off the old one can
+    still say which file and page its number came from (NFR-3).
+    """
+    file_sha = catalog_store.file_hash(path)
+    entries = price_book_entries()
+    if await entries.find_one({"priceBookId": book["_id"], "fileSha": file_sha}, {"_id": 1}) is None:
+        read = await asyncio.to_thread(pricebook_reader.read_book, path)
+        now = _now()
+        documents = [
+            {
+                "priceBookId": book["_id"],
+                "fileSha": file_sha,
+                "file": path.name,
+                "vendor": vendor,
+                "page": page.page,
+                "printedPage": page.printed_page,
+                "effective": page.effective or book.get("effective"),
+                "section": page.title,
+                "table": row.table,
+                "model": row.model,
+                "size": row.size,
+                "finish": row.finish,
+                "description": row.description,
+                "listPrice": row.list_price,
+                "bbox": row.bbox,
+                "createdAt": now,
+            }
+            for page in read["pages"]
+            for row in page.rows
+        ]
+        for start in range(0, len(documents), 1000):
+            await entries.insert_many(documents[start : start + 1000], ordered=False)
+        unread = read["unread_pages"]
+    else:
+        unread = (book.get("entries") or {}).get("unreadPages", [])
+    count = await entries.count_documents({"priceBookId": book["_id"], "fileSha": file_sha})
+    await price_books().update_one(
+        {"_id": book["_id"]},
+        {"$set": {"entries": {"fileSha": file_sha, "count": count, "unreadPages": unread, "readAt": _now()},
+                  "updatedAt": _now()}},
+    )
+    return f"{count} list price(s) read" + (f"; {len(unread)} table page(s) not read" if unread else "")
+
+
 async def index_catalog(job: dict[str, Any]) -> str:
     """Describe one catalog's pages into the index."""
     payload = job.get("payload") or {}
@@ -83,12 +134,19 @@ async def index_catalog(job: dict[str, Any]) -> str:
         force=bool(payload.get("force")),
     )
 
+    read = ""
+    if book:
+        try:
+            read = await read_entries(book, path, vendor)
+        except Exception as exc:  # the page index above is the job; the tables are a bonus
+            read = f"price tables not read: {type(exc).__name__}: {exc}"[:300]
+
     if document is None:
         if book:
             await price_books().update_one(
                 {"_id": book["_id"]}, {"$set": {"indexStatus": "ready", "updatedAt": _now()}}
             )
-        return "unchanged since the last index - its pages are already described"
+        return "unchanged since the last index - its pages are already described" + (f"; {read}" if read else "")
 
     if book:
         await price_books().update_one(
@@ -108,4 +166,5 @@ async def index_catalog(job: dict[str, Any]) -> str:
     return (
         f"{document.page_count} page(s) described from {document.file_name}"
         + (f"; {weak} could not be read confidently" if weak else "")
+        + (f"; {read}" if read else "")
     )

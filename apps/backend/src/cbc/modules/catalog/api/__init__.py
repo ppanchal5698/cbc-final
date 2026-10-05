@@ -1,6 +1,7 @@
 """catalog's public surface - the only part of catalog another module may import.
 
-- `products.get`, `products.by_part` - a part, for the modules that price and quote it.
+- `products.get`, `products.by_part` - a part, for the modules that price and quote it;
+  `products.list_prices` - the list prices read off the current price books.
 - `matchcache` - a bid's high-confidence product matches, reused while the catalog
   and the door schedule behind them are unchanged.
 - `pageindex` - each price book's page index: `reader` and `query` for the catalog MCP
