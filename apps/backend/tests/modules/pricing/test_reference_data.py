@@ -191,10 +191,22 @@ def test_update_frp_constants_rejects_negative() -> None:
 
 
 def test_seed_fills_all_families_when_empty() -> None:
+    """Every JSON seed is in the repo, so every one of those families seeds. A
+    family built from CBC's own price-book files - div10_equals, from the
+    cross-reference matrix - seeds wherever those files are: a deployment, not a
+    checkout, since data/pricebooks/ is the operator's and never in git."""
     import asyncio
 
+    def buildable(family: str) -> bool:
+        try:
+            reference_store.SEED_BUILDERS[family]()
+        except KeyError:
+            return False
+        return True
+
+    expected = set(reference_store.SEED_FILES) | {f for f in reference_store.SEED_BUILDERS if buildable(f)}
     seeded = asyncio.run(reference_store.ensure_reference_seed())
-    assert set(seeded) == set(reference_store.FAMILIES)
+    assert set(seeded) == expected
     again = asyncio.run(reference_store.ensure_reference_seed())
     assert again == []
 
