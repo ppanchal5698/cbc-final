@@ -10,6 +10,8 @@ import shutil
 import pytest
 from bson import ObjectId
 
+from cbc.modules.quoting.domain.questions import CatalogChoice
+from cbc.shared import ai
 from cbc.shared.config import settings
 from cbc.shared.persistence import names
 from tests.shared import FIXTURES, mongo_client
@@ -37,6 +39,8 @@ SETS = {"sets": [
         {"qty": "1", "unit": "EA.", "part": "346C", "manufacturer": "Pemko", "description": "GASKET",
          "supplied_by": "OWNER"},
         {"qty": "1", "unit": "EA.", "part": "ZZ123", "manufacturer": "Arrow", "description": "CLOSER"},
+        {"qty": "1", "unit": "EA.", "part": "5100", "manufacturer": "Hager", "finish": "ALM",
+         "description": "CLOSER PARALLEL ARM"},
     ]},
 ]}
 
@@ -80,10 +84,16 @@ def bid(monkeypatch):
     book_id = ObjectId()
     db[names.PRICE_BOOKS].insert_one({"_id": book_id, "vendor": "hager", "program": "Hager Price Book #18",
                                       "effective": "2026-03-02", "entries": {"fileSha": "abc", "count": 1}})
-    db[names.PRICE_BOOK_ENTRIES].insert_one({
-        "priceBookId": book_id, "fileSha": "abc", "vendor": "hager", "model": "BB1279", "size": '4-1/2" x 4-1/2"',
-        "finish": "US26D", "listPrice": 23.76, "section": "Commercial Hinges", "file": "hager_price_book_18.pdf",
-        "page": 68, "printedPage": "62", "effective": "2026-03-02"})
+    entry = {"priceBookId": book_id, "fileSha": "abc", "vendor": "hager", "file": "hager_price_book_18.pdf",
+             "effective": "2026-03-02"}
+    db[names.PRICE_BOOK_ENTRIES].insert_many([
+        {**entry, "model": "BB1279", "size": '4-1/2" x 4-1/2"', "finish": "US26D", "listPrice": 23.76,
+         "section": "Commercial Hinges", "page": 68, "printedPage": "62"},
+        {**entry, "model": "5100", "finish": "ALM", "listPrice": 440.71, "description": "Regular arm",
+         "section": "Door Controls - 5100 Series", "page": 136, "printedPage": "5"},
+        {**entry, "model": "5100", "finish": "ALM", "listPrice": 512.00, "description": "Hold open arm",
+         "section": "Door Controls - 5100 Series", "page": 136, "printedPage": "5"},
+    ])
     legend = scratch / SLUG / "extracted" / "hardware_sets.json"
     legend.parent.mkdir(parents=True)
     legend.write_text(json.dumps(SETS), encoding="utf-8")
@@ -93,13 +103,22 @@ def bid(monkeypatch):
         {"item_code": "051456", "part_number": "431S", "net_price": 43.33,
          "description": '431S Commercial Saddle Threshold 48" Mill Finish'}]})
     monkeypatch.setattr(lib, "load_vendor_tiers", lambda: {"vendors": [
-        {"key": "hager", "categories": {"architectural_hinges": 0.21}, "effective_date": "2026-03-02"}]})
+        {"key": "hager", "categories": {"architectural_hinges": 0.21, "door_controls": 0.30},
+         "effective_date": "2026-03-02"}]})
     monkeypatch.setattr(lib, "resolve_finish", lambda text: {"us_code": "US26D"} if text in ("626", "US26D") else None)
     monkeypatch.setattr(lib, "sheet_lapsed", lambda effective: False)
     monkeypatch.setattr(MatchAndPrice.pricing, "special_margin", lambda gc, brand: None)
     monkeypatch.setattr(MatchAndPrice.ops_jobs, "holds_lease", lambda job: _true())
+    asked: list[str] = []
+
+    async def model(question, prompt, images=()):
+        # Never a real model in a test. This one picks the hold-open arm, row 2.
+        asked.append(prompt)
+        return ai.Asked(CatalogChoice(choice=2, reason="the legend says hold open"))
+
+    monkeypatch.setattr(MatchAndPrice.ops_ai, "ask", model)
     try:
-        yield project, db
+        yield project, db, asked
     finally:
         raw.drop_database(TEST_DB)
         raw.close()
@@ -119,9 +138,9 @@ def _lines(db, project) -> dict[str, dict]:
 def test_a_take_off_is_priced_in_code_and_rolled_up_without_its_alternates(bid) -> None:
     from cbc.modules.quoting.features import MatchAndPrice
 
-    project, db = bid
+    project, db, asked = bid
     note = run(MatchAndPrice.price_in_code({"_id": ObjectId(), "type": "match_and_price"}, project))
-    assert "priced in code: 3/6 lines have a cost" in note, note
+    assert "priced in code: 4/7 lines have a cost" in note, note
     lines = _lines(db, project)
 
     hinges = lines["1:01"]  # 1 1/2 pair = 3 a door, on the two in-scope doors that cite the set
@@ -133,6 +152,11 @@ def test_a_take_off_is_priced_in_code_and_rolled_up_without_its_alternates(bid) 
     assert lines["1:03:allegion"]["alternateGroup"] == "Allegion as specified"
     assert (lines["1:04"]["alternateGroup"], lines["1:04"]["cost"]) == ("Supplied by others", 3.82)
     assert "needs a distributor or vendor quote" in lines["1:05"]["costSourceDetail"]
+    # One model at two prices: the model was asked once, chose row 2, and the line says so.
+    closer = lines["1:06"]
+    assert len(asked) == 1 and "1. 5100 ALM $440.71" in asked[0] and "2. 5100 ALM $512.0" in asked[0]
+    assert (closer["cost"], closer["costSource"]) == (153.6, "LIST_X_MULTIPLIER")
+    assert "model_chose_match" in closer["flags"] and "the legend says hold open" in closer["costSourceDetail"]
 
     quote = db[names.QUOTES].find_one({"projectId": project["_id"]})
     base = [line for line in lines.values() if not line.get("alternateGroup")]
@@ -151,7 +175,7 @@ def test_a_take_off_is_priced_in_code_and_rolled_up_without_its_alternates(bid) 
 def test_a_re_price_keeps_what_an_estimator_typed_and_refreshes_the_rest(bid) -> None:
     from cbc.modules.quoting.features import MatchAndPrice
 
-    project, db = bid
+    project, db, _asked = bid
     job = {"_id": ObjectId(), "type": "match_and_price"}
     run(MatchAndPrice.price_in_code(job, project))
     db[names.ESTIMATE_LINES].update_one(

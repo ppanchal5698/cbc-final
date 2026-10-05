@@ -79,6 +79,14 @@ async def by_series(prefixes: Iterable[str], *, limit: int = 5000) -> list[Produ
     return await products().find({"$and": [series, partquery.trust_clause()]}).to_list(limit)
 
 
+async def by_vendors(vendor_keys: Iterable[str], *, limit: int = 20000) -> list[ProductRef]:
+    """Every quotable row of these vendors - the brands a direct equal may come from."""
+    keys = sorted({k for k in vendor_keys if k})
+    if not keys:
+        return []
+    return await products().find({"$and": [{"vendorKey": {"$in": keys}}, partquery.trust_clause()]}).to_list(limit)
+
+
 async def iter_items() -> AsyncIterator[dict[str, Any]]:
     """Every catalog part, for the memory graph's mirror of the catalog."""
     fields = {"part": 1, "manufacturer": 1, "description": 1, "division": 1, "category": 1,

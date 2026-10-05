@@ -7,7 +7,9 @@
   2. Special net (CBC's negotiated sheet)
   3. Catalog row
   4. Price book list x the vendor's multiplier for that section
-  5. Otherwise MANUAL, saying what each rung found.
+  5. Division 10 only: the part's direct equal in a brand CBC prices, from the
+     cross-reference, with a substitution note for the GC (Matrix 6.4)
+  6. Otherwise MANUAL, saying what each rung found.
 
 Each rung takes a row only when the matcher says the row is this item; a rung
 that finds several rows at different prices says so and the next rung is not
@@ -22,7 +24,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from cbc.modules.quoting.domain import matcher
@@ -56,6 +58,8 @@ class Sources:
     last_po: Callable[[str, str | None], dict[str, Any] | None] | None = None
     special_margin: tuple[float, str] | None = None
     priced_at: str = ""
+    equals: dict[str, Any] = field(default_factory=dict)  # the Division 10 direct-equal matrix
+    equal_rows: list[dict[str, Any]] = field(default_factory=list)  # catalog rows of the brands it names
 
 
 def _desc_finish(text: Any) -> str | None:
@@ -155,13 +159,165 @@ def _show_book(r: dict[str, Any]) -> str:
     return f"{r.get('model')} {r.get('size') or ''} {r.get('finish') or ''} ${r.get('listPrice')} p.{r.get('page')}".replace("  ", " ")
 
 
+MAX_CANDIDATES = 8  # rows offered to whoever chooses; more than this, the legend says too little
+# Where an undecided row keeps its candidates until they are chosen among. Not a
+# field of the priced file: the job takes it off before it writes.
+UNDECIDED = "_undecided"
+
+
 def _undecided(row: dict[str, Any], label: str, choice: matcher.Choice, show) -> list[dict[str, Any]]:
-    """This item, at several prices: the estimator picks, and no cheaper or dearer
-    rung is tried in the meantime."""
+    """This item, at several prices: someone picks, and no cheaper or dearer rung is
+    tried in the meantime. `UNDECIDED` keeps the rows for whoever does."""
     row["cost_source_detail"] = (f"{label}: {choice.reason}: {_candidates_note(choice.candidates, show)}"
                                  " - an estimator picks which")
     row["flags"].append("ambiguous_match")
+    row[UNDECIDED] = {"rung": label, "candidates": choice.candidates[:MAX_CANDIDATES],
+                      "shown": [show(r) for r in choice.candidates[:MAX_CANDIDATES]]}
     return [row]
+
+
+
+def _from_net(row: dict[str, Any], net: dict[str, Any], src: Sources, tried: list[str]) -> dict[str, Any] | None:
+    """The line priced at a special net - or None, said in `tried`, when the sheet is past review."""
+    if src.lapsed(src.special_net_effective):
+        tried.append(f"special net {net.get('item_code')} skipped - the sheet dated "
+                     f"{src.special_net_effective} is past review")
+        return None
+    return _priced(
+        row, net["net_price"], "SPECIAL_NET",
+        f"special-net sheet ({net.get('section') or 'Hager special nets'}) item {net.get('item_code')} "
+        f"- {net.get('description')}",
+        part_number=net.get("part_number") or row.get("part_number"), manufacturer="Hager",
+        multiplier_effective_date=src.special_net_effective,
+        price_book_version=f"Hager special-net sheet, effective {src.special_net_effective}",
+    )
+
+
+def _from_book(row: dict[str, Any], entry: dict[str, Any], src: Sources, vendor: str,
+               tried: list[str]) -> dict[str, Any] | None:
+    """The line priced at a price-book row times its section's multiplier - or None,
+    said in `tried`, when no multiplier covers the section or a sheet is past review."""
+    entry_vendor = entry.get("vendor") or vendor
+    category = src.multiplier_category(entry_vendor, entry.get("section"))
+    tier = src.tiers.get(entry_vendor) or {}
+    multiplier = (tier.get("categories") or {}).get(category) if category else tier.get("multiplier")
+    effective = entry.get("effective")
+    where = (f"{entry.get('file')} p.{entry.get('page')} (printed {entry.get('printedPage')}) "
+             f"{entry.get('model')} {entry.get('size') or ''} {entry.get('finish') or ''}").replace("  ", " ")
+    if multiplier is None:
+        tried.append(f"price book {where} list ${entry.get('listPrice')}, but no {entry_vendor} multiplier "
+                     f"covers its section {entry.get('section')!r}")
+        return None
+    if src.lapsed(tier.get("effective_date")) or src.lapsed(effective):
+        tried.append(f"price book {where} skipped - the sheet or its multiplier is past review")
+        return None
+    cost = src.cost_from_list(float(entry["listPrice"]), float(multiplier))
+    book = src.books.get(str(entry.get("priceBookId"))) or {}
+    return _priced(
+        row, cost, "LIST_X_MULTIPLIER",
+        f"{where} list ${entry['listPrice']:.2f} x {category or 'account'} {multiplier:g} -> ${cost:.2f}",
+        part_number=entry.get("model"), manufacturer=row.get("manufacturer") or entry_vendor.title(),
+        list_price=entry.get("listPrice"), multiplier=float(multiplier), multiplier_tier=category or "all",
+        multiplier_effective_date=tier.get("effective_date") or effective,
+        price_book_version=f"{book.get('name') or entry.get('file')}, effective {effective}",
+        catalog_page=entry.get("page"),
+    )
+
+
+def price_choice(row: dict[str, Any], index: int, reason: str, src: Sources) -> dict[str, Any] | None:
+    """An undecided row priced at the candidate someone chose - through the same
+    rung, with the same checks - and saying who chose it and why. None when the
+    choice is not one of the rows, or its sheet cannot be priced from."""
+    pending = row.get(UNDECIDED) or {}
+    candidates = pending.get("candidates") or []
+    if not 0 <= index < len(candidates):
+        return None
+    chosen, tried = candidates[index], []
+    rung = pending.get("rung")
+    if rung == "special net":
+        priced = _from_net(row, chosen, src, tried)
+    elif rung == "catalog":
+        priced = _from_catalog(row, chosen, src, row.get("manufacturer"), tried)
+    else:
+        priced = _from_book(row, chosen, src, vendor_key(row.get("manufacturer")), tried)
+    if priced is None:
+        return None
+    priced["flags"] = [f for f in priced["flags"] if f != "ambiguous_match"] + ["model_chose_match"]
+    priced["cost_source_detail"] += (f"; chosen among {len(candidates)} by the model ({reason.strip()})"
+                                     " - an estimator confirms it")
+    return priced
+
+
+def _from_catalog(row: dict[str, Any], catalog_row: dict[str, Any], src: Sources, manufacturer: str | None,
+                  tried: list[str]) -> dict[str, Any] | None:
+    """The line priced at a catalog row - or None, said in `tried`, when its book is past review."""
+    book = src.books.get(str(catalog_row.get("priceBookId"))) or {}
+    effective = book.get("effective")
+    if src.lapsed(effective):
+        tried.append(f"catalog row {catalog_row.get('part')} skipped - {book.get('name') or 'its price book'} "
+                     f"dated {effective} is past review")
+        return None
+    basis = (f"; list ${catalog_row['listPrice']} x {catalog_row['multiplier']}"
+             if catalog_row.get("listPrice") and catalog_row.get("multiplier") else "")
+    return _priced(
+        row, catalog_row["cost"], "CATALOG_BASELINE",
+        f"product catalog ({catalog_row.get('seedSource') or 'catalog'}) {catalog_row.get('manufacturer')} "
+        f"part {catalog_row.get('part')}{basis}",
+        part_number=catalog_row.get("part"), manufacturer=catalog_row.get("manufacturer") or manufacturer,
+        list_price=catalog_row.get("listPrice"), multiplier=catalog_row.get("multiplier") or None,
+        multiplier_effective_date=effective,
+        price_book_version=f"{book.get('name')}, effective {effective}" if book.get("name") else None,
+    )
+
+
+_EQUAL_BRANDS = {"Bobrick": "bobrick", "ASI": "asi", "Bradley": "bradley", "Gamco": "gamco"}
+
+
+def _norm(text: Any) -> str:
+    return re.sub(r"[^A-Z0-9]", "", str(text or "").upper())
+
+
+def _matrix_row(part: str, equals: dict[str, Any]) -> dict[str, Any] | None:
+    """The cross-reference row naming this part, in whichever column and however
+    its brand's catalog writes it (`B-212`, `10-0714`, `G-2116`)."""
+    prefixes = [p for p in (equals.get("catalog_prefixes") or {}).values() if p]
+    wanted = _norm(part)
+    for entry in equals.get("rows") or []:
+        for value in entry.values():
+            if value and wanted in {_norm(value), *(_norm(prefix + value) for prefix in prefixes)}:
+                return entry
+    return None
+
+
+def _direct_equal(row: dict[str, Any], line: Line, spec: matcher.Spec, src: Sources,
+                  tried: list[str]) -> dict[str, Any] | None:
+    """A Division 10 part CBC cannot price, offered as the first preferred brand's
+    equal that it can - the GC approves a direct equal before it is ordered."""
+    entry = _matrix_row(spec.part or "", src.equals)
+    if entry is None:
+        return None
+    prefixes = src.equals.get("catalog_prefixes") or {}
+    specified = vendor_key(line.manufacturer)
+    for brand in src.equals.get("preferred_brands") or []:
+        value, key = entry.get(brand), _EQUAL_BRANDS.get(brand, vendor_key(brand))
+        if not value or key == specified:
+            continue
+        form = (prefixes.get(brand) or "") + value
+        choice = _rung_catalog(matcher.Spec(part=form, manufacturer=brand, finish=spec.finish, text=spec.text),
+                               [form, value], key, replace(src, catalog=src.equal_rows))
+        if choice.row is None:
+            continue
+        priced = _from_catalog(row, choice.row, src, brand, tried)
+        if priced is not None:
+            specified_as = " ".join(v for v in (line.manufacturer, line.part) if v)
+            priced["substitution_note"] = (
+                f"{specified_as} is specified and CBC has no price for it; {choice.row.get('manufacturer')} "
+                f"{choice.row.get('part')} is its direct equal (CBC cross-reference). The GC approves a "
+                "direct equal before it is ordered.")
+            priced["flags"].append("direct_equal")
+            return priced
+    tried.append(f"the cross-reference lists equals for {spec.part}, but none the catalog prices")
+    return None
 
 
 def _allegion_rows(line: Line, src: Sources) -> list[dict[str, Any]]:
@@ -227,22 +383,12 @@ def price(line: Line, src: Sources) -> list[dict[str, Any]]:
         choice = _rung_special_net(spec, models, src)
         if choice.ambiguous:
             return _undecided(row, "special net", choice, _show_net)
-        net = choice.row
-        if choice.candidates and net is None:
+        if choice.candidates and choice.row is None:
             tried.append(f"special net: {choice.reason}")
-        if net is not None:
-            if src.lapsed(src.special_net_effective):
-                tried.append(f"special net {net.get('item_code')} skipped - the sheet dated "
-                             f"{src.special_net_effective} is past review")
-            else:
-                return [_priced(
-                    row, net["net_price"], "SPECIAL_NET",
-                    f"special-net sheet ({net.get('section') or 'Hager special nets'}) item {net.get('item_code')} "
-                    f"- {net.get('description')}",
-                    part_number=net.get("part_number") or part, manufacturer="Hager",
-                    multiplier_effective_date=src.special_net_effective,
-                    price_book_version=f"Hager special-net sheet, effective {src.special_net_effective}",
-                )]
+        if choice.row is not None:
+            priced = _from_net(row, choice.row, src, tried)
+            if priced is not None:
+                return [priced]
 
     # 3. Catalog row.
     choice = _rung_catalog(spec, models, vendor, src)
@@ -252,58 +398,28 @@ def price(line: Line, src: Sources) -> list[dict[str, Any]]:
     if choice.candidates and catalog_row is None:
         tried.append(f"catalog: {choice.reason}")
     if catalog_row is not None:
-        book = src.books.get(str(catalog_row.get("priceBookId"))) or {}
-        effective = book.get("effective")
-        if src.lapsed(effective):
-            tried.append(f"catalog row {catalog_row.get('part')} skipped - {book.get('name') or 'its price book'} "
-                         f"dated {effective} is past review")
-        else:
-            basis = (f"; list ${catalog_row['listPrice']} x {catalog_row['multiplier']}"
-                     if catalog_row.get("listPrice") and catalog_row.get("multiplier") else "")
-            return [_priced(
-                row, catalog_row["cost"], "CATALOG_BASELINE",
-                f"product catalog ({catalog_row.get('seedSource') or 'catalog'}) {catalog_row.get('manufacturer')} "
-                f"part {catalog_row.get('part')}{basis}",
-                part_number=catalog_row.get("part"), manufacturer=catalog_row.get("manufacturer") or line.manufacturer,
-                list_price=catalog_row.get("listPrice"), multiplier=catalog_row.get("multiplier") or None,
-                multiplier_effective_date=effective,
-                price_book_version=f"{book.get('name')}, effective {effective}" if book.get("name") else None,
-            )]
+        priced = _from_catalog(row, catalog_row, src, line.manufacturer, tried)
+        if priced is not None:
+            return [priced]
 
     # 4. Price book list x the multiplier for its section.
     choice = _rung_book(spec, models, vendor, src)
     if choice.ambiguous:
         return _undecided(row, "price book", choice, _show_book)
-    entry = choice.row
-    if choice.candidates and entry is None:
+    if choice.candidates and choice.row is None:
         tried.append(f"price book: {choice.reason}")
-    if entry is not None:
-        entry_vendor = entry.get("vendor") or vendor
-        category = src.multiplier_category(entry_vendor, entry.get("section"))
-        tier = src.tiers.get(entry_vendor) or {}
-        multiplier = (tier.get("categories") or {}).get(category) if category else tier.get("multiplier")
-        effective = entry.get("effective")
-        where = (f"{entry.get('file')} p.{entry.get('page')} (printed {entry.get('printedPage')}) "
-                 f"{entry.get('model')} {entry.get('size') or ''} {entry.get('finish') or ''}").replace("  ", " ")
-        if multiplier is None:
-            tried.append(f"price book {where} list ${entry.get('listPrice')}, but no {entry_vendor} multiplier "
-                         f"covers its section {entry.get('section')!r}")
-        elif src.lapsed(tier.get("effective_date")) or src.lapsed(effective):
-            tried.append(f"price book {where} skipped - the sheet or its multiplier is past review")
-        else:
-            cost = src.cost_from_list(float(entry["listPrice"]), float(multiplier))
-            book = src.books.get(str(entry.get("priceBookId"))) or {}
-            return [_priced(
-                row, cost, "LIST_X_MULTIPLIER",
-                f"{where} list ${entry['listPrice']:.2f} x {category or 'account'} {multiplier:g} -> ${cost:.2f}",
-                part_number=entry.get("model"), manufacturer=row.get("manufacturer") or entry_vendor.title(),
-                list_price=entry.get("listPrice"), multiplier=float(multiplier), multiplier_tier=category or "all",
-                multiplier_effective_date=tier.get("effective_date") or effective,
-                price_book_version=f"{book.get('name') or entry.get('file')}, effective {effective}",
-                catalog_page=entry.get("page"),
-            )]
+    if choice.row is not None:
+        priced = _from_book(row, choice.row, src, vendor, tried)
+        if priced is not None:
+            return [priced]
 
-    # 5. Nothing the ladder can stand behind.
+    # 5. Division 10: the direct equal CBC can price.
+    if line.division.startswith("10") and src.equals:
+        offered = _direct_equal(row, line, spec, src, tried)
+        if offered is not None:
+            return [offered]
+
+    # 6. Nothing the ladder can stand behind.
     tried.append(f"no special net, catalog row or price-book row for {part}"
                  + (f" ({line.manufacturer})" if line.manufacturer else ""))
     row["cost_source_detail"] = "; ".join(tried) + " - needs a distributor or vendor quote"

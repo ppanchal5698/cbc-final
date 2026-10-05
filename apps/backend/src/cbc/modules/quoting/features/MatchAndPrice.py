@@ -4,10 +4,13 @@ Two engines, chosen in Settings > Pipeline:
 
 - **v2** prices in code. The take-off - openings in Mongo, the legend's sets on
   disk - becomes lines (`domain/takeoff`), and each line is matched and priced by
-  the ladder (`domain/ladder`). The result is written to `priced/line_items.json`,
-  which review, delivery and the proposal still read, then imported into
-  `estimateLines` and rolled up. No model is asked anything, and a line the ladder
-  cannot price is MANUAL with the reason - never a failed job.
+  the ladder (`domain/ladder`). Where the ladder found one model at several
+  prices and the legend's words do not say which, the model is asked to choose
+  (`CHOOSE_CATALOG_MATCH`, within a budget); its choice carries its reason and a
+  flag to confirm. The result is written to `priced/line_items.json`, which
+  review, delivery and the proposal still read, then imported into
+  `estimateLines` and rolled up. A line nobody could price is MANUAL with the
+  reason - never a failed job.
 - **legacy** is the Claude pass: seeded by `preprice`, matched and priced by the
   agents through the catalog MCP server, checked, then synced the same way.
 
@@ -24,11 +27,12 @@ from typing import Any
 
 from cbc.modules.catalog.api import products as catalog_products
 from cbc.modules.extraction.api import openings as extraction_openings, passes
-from cbc.modules.ops.api import jobs as ops_jobs, pipeline as ops_pipeline
+from cbc.modules.ops.api import ai as ops_ai, jobs as ops_jobs, pipeline as ops_pipeline
 from cbc.modules.pricing.api import calc, p21, pricing, reference_library
 from cbc.modules.projects.api import bids, pipeline
 from cbc.modules.quoting.api import lines as quoting_lines, priced_lines, quote
 from cbc.modules.quoting.domain import ladder, matcher, matching, takeoff
+from cbc.modules.quoting.domain.questions import CHOOSE_CATALOG_MATCH
 from cbc.shared import storage
 from cbc.shared.hardware_sets import SET_KEYS
 from cbc.shared.pass_files import read_json, write_json
@@ -36,6 +40,7 @@ from cbc.shared.pass_files import read_json, write_json
 log = logging.getLogger("cbc.worker")
 
 SOURCE = "match_and_price v2 (priced in code)"
+CHOICE_BUDGET = 25  # model choices per bid; the rest are the estimator's
 # A legend's "supplied by" column: these parties furnish the item themselves.
 _SUPPLIED_BY_OTHERS = {"LL": "landlord", "OWNER": "owner", "TENANT": "tenant"}
 
@@ -147,6 +152,11 @@ async def _sources(project: dict[str, Any], lines: list[takeoff.Line]) -> ladder
     nets, tiers = await asyncio.to_thread(
         lambda: (reference_library.load_special_nets(), reference_library.load_vendor_tiers()))
     special = await asyncio.to_thread(pricing.special_margin, project.get("gc"), project.get("brand"))
+    # A Division 10 part CBC cannot price may have a direct equal it can.
+    equals = (await asyncio.to_thread(reference_library.load_div10_equals)
+              if any(line.division.startswith("10") for line in lines) else {})
+    equal_rows = (await catalog_products.by_vendors(ladder.vendor_key(b) for b in equals.get("preferred_brands") or [])
+                  if equals else [])
     client = p21.P21Client()
     return ladder.Sources(
         models=models,
@@ -163,6 +173,8 @@ async def _sources(project: dict[str, Any], lines: list[takeoff.Line]) -> ladder
         last_po=client.last_po,
         special_margin=special,
         priced_at=_now(),
+        equals=equals,
+        equal_rows=equal_rows,
     )
 
 
@@ -173,13 +185,51 @@ def plan(project: dict[str, Any], openings: list[dict[str, Any]]) -> tuple[list[
     return lines + takeoff.specialty_lines(specialties), notes
 
 
-async def price_bid(project: dict[str, Any]) -> dict[str, Any]:
+def _choice_prompt(row: dict[str, Any], pending: dict[str, Any]) -> str:
+    said = " ".join(str(row.get(k)) for k in ("manufacturer", "part_number", "description", "finish") if row.get(k))
+    listed = "\n".join(f"{n}. {shown}" for n, shown in enumerate(pending["shown"], start=1))
+    return f"Specified: {said}\nRows ({pending['rung']}):\n{listed}"
+
+
+async def _choose(rows: list[dict[str, Any]], sources: ladder.Sources, *, budget: int) -> int:
+    """Ask the model to settle the lines the ladder could not, within the budget.
+
+    The first question that goes unanswered ends the asking: the provider is down
+    or will not answer, and the rest stay the estimator's to pick.
+    """
+    chosen = asked = 0
+    for index, row in enumerate(rows):
+        pending = row.get(ladder.UNDECIDED)
+        if not pending or asked >= budget:
+            continue
+        asked += 1
+        try:
+            reply = await ops_ai.ask(CHOOSE_CATALOG_MATCH, _choice_prompt(row, pending))
+        except Exception as exc:  # no provider is not a failed bid: the lines stay MANUAL
+            log.warning("choose_catalog_match not asked: %s", exc)
+            break
+        if reply.answer is None:
+            break
+        if reply.answer.choice is None:
+            continue
+        priced = await asyncio.to_thread(ladder.price_choice, row, reply.answer.choice - 1, reply.answer.reason, sources)
+        if priced is not None:
+            rows[index] = priced
+            chosen += 1
+    return chosen
+
+
+async def price_bid(project: dict[str, Any], *, choose: bool = True) -> dict[str, Any]:
     """The priced file for a bid, as v2 would write it. Writes nothing - the
     job writes it; an evaluation compares it with the estimators' own quote."""
     openings = await extraction_openings.list_for_project(project["_id"], limit=5000)
     lines, notes = plan(project, openings)
     sources = await _sources(project, lines)
     rows = await asyncio.to_thread(lambda: [row for line in lines for row in ladder.price(line, sources)])
+    if choose:
+        await _choose(rows, sources, budget=CHOICE_BUDGET)
+    for row in rows:
+        row.pop(ladder.UNDECIDED, None)
     priced = sum(1 for row in rows if row.get("cost") is not None)
     return {
         "source": SOURCE,

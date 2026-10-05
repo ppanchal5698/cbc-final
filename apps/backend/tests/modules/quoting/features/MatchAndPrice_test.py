@@ -78,3 +78,33 @@ def test_by_parts_keeps_each_parts_cap() -> None:
         settings.mongodb_db, db_module._client = previous, None
         raw.drop_database(database)
         raw.close()
+
+
+def test_the_model_is_asked_within_a_budget_and_never_past_a_silence(monkeypatch) -> None:
+    from cbc.modules.quoting.domain import ladder
+    from cbc.shared import ai
+
+    def undecided(n):
+        return {"line_id": f"L{n}", "flags": ["ambiguous_match"],
+                ladder.UNDECIDED: {"rung": "price book", "candidates": [{}, {}], "shown": ["a", "b"]}}
+
+    asked: list[str] = []
+
+    async def silent(question, prompt, images=()):
+        asked.append(prompt)
+        return ai.Asked(None, error="401 Invalid bearer token")
+
+    monkeypatch.setattr(MatchAndPrice.ops_ai, "ask", silent)
+    rows = [undecided(n) for n in range(5)]
+    assert asyncio.run(MatchAndPrice._choose(rows, sources=None, budget=25)) == 0
+    assert len(asked) == 1  # the provider did not answer: the rest stay the estimator's
+
+    async def unsure(question, prompt, images=()):
+        asked.append(prompt)
+        from cbc.modules.quoting.domain.questions import CatalogChoice
+        return ai.Asked(CatalogChoice(choice=None, reason="the legend does not say"))
+
+    asked.clear()
+    monkeypatch.setattr(MatchAndPrice.ops_ai, "ask", unsure)
+    assert asyncio.run(MatchAndPrice._choose(rows, sources=None, budget=3)) == 0
+    assert len(asked) == 3 and all(row["flags"] == ["ambiguous_match"] for row in rows)

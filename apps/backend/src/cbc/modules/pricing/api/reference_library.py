@@ -419,6 +419,14 @@ def update_stock_items(
     return update_stock_list(vendor_key, payload)
 
 
+def load_div10_equals() -> dict[str, Any]:
+    """The Division 10 direct-equal matrix, or nothing when it has not been placed."""
+    try:
+        return reference_store.get_family_sync("div10_equals")
+    except KeyError:
+        return {}
+
+
 def get_vendor_tier(vendor: str, category: str | None = None) -> dict[str, Any]:
     """Same shape as catalog get_multiplier — shared with MCP."""
     data = load_vendor_tiers()

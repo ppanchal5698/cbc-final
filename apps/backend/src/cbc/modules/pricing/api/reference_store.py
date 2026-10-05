@@ -1,6 +1,8 @@
 """Mongo-backed reference data (live source of truth).
 
-JSON under REFERENCE_DIR / reference-library/ is seed + fixtures only.
+JSON under REFERENCE_DIR / reference-library/ is seed + fixtures only. A family
+CBC keeps in a file of its own form - the Division 10 cross-reference matrix - is
+seeded by reading that file, so there is one copy of it to keep up to date.
 Sync helpers serve calc, MCP, and workers; async helpers serve FastAPI.
 """
 from __future__ import annotations
@@ -19,6 +21,7 @@ from pymongo.errors import PyMongoError
 
 from cbc.shared.config import settings
 from cbc.shared.mongo_uri import reachable_uri
+from cbc.shared.paths import pricebook_dir
 
 log = logging.getLogger("cbc.reference_store")
 
@@ -41,7 +44,43 @@ SEED_FILES: dict[str, str] = {
     "custom_other_matrix": "hardware_sets/custom_other_matrix.json",
 }
 
-FAMILIES: frozenset[str] = frozenset(SEED_FILES)
+
+def _div10_equals() -> dict[str, Any]:
+    """Shanda's cross-reference matrix as direct equals (Matrix 6.4): a specified
+    model and its equal in each brand the matrix has a column for."""
+    path = pricebook_dir() / "catalogs" / "catalog_cross_reference.md"
+    if not path.is_file():
+        raise KeyError(f"reference family div10_equals has no data yet - {path.name} is not in the price books")
+    brands: list[str] = []
+    rows: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        cells = [c.strip().strip("`").strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 2 or not line.lstrip().startswith("|") or cells[0].startswith(":"):
+            continue
+        if not brands:  # the header names the brands: `Bobrick Equivalent` -> Bobrick
+            brands = [c.replace("Equivalent", "").strip() for c in cells[1:]]
+            continue
+        values = [None if c in ("—", "-", "") else c for c in cells]
+        if len(values) == len(brands) + 1 and any(values):
+            rows.append({"specified": values[0], **dict(zip(brands, values[1:]))})
+    return {
+        "description": ("Division 10 direct equals. When the part a drawing specifies cannot be priced, "
+                        "the pricer offers the first brand in preferred_brands whose equal the catalog "
+                        "prices, with a substitution note for the GC to approve (Matrix 6.4)."),
+        "source": f"Shanda's Cross Reference Matrix - data/pricebooks/catalogs/{path.name}",
+        # The matrix's own column order until CBC says which it prefers: Matrix 6.4
+        # leaves it to estimator judgment.
+        "preferred_brands": brands,
+        # How each brand's catalog rows write a part the matrix writes bare.
+        "catalog_prefixes": {"Bobrick": "B-", "ASI": "10-", "Gamco": "G-", "Bradley": ""},
+        "rows": rows,
+    }
+
+
+# Families seeded by reading a file CBC keeps in its own form, not a JSON seed.
+SEED_BUILDERS = {"div10_equals": _div10_equals}
+
+FAMILIES: frozenset[str] = frozenset(SEED_FILES) | frozenset(SEED_BUILDERS)
 
 # Tests can inject a dict backend: family -> {data, updatedAt, ...}
 _memory: dict[str, dict[str, Any]] | None = None
@@ -83,7 +122,13 @@ def _seed_path(family: str) -> Path:
 
 
 def load_seed_json(family: str) -> dict[str, Any]:
+    if family in SEED_BUILDERS:
+        return SEED_BUILDERS[family]()
     path = _seed_path(family)
+    if not path.is_file():
+        # A family whose seed is not in the reference library yet holds nothing:
+        # the same answer as a family nobody has stored.
+        raise KeyError(f"reference family {family} has no data yet - {path.name} is not in the library")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -322,20 +367,20 @@ async def ensure_reference_seed(*, force: bool = False) -> list[str]:
     from cbc.modules.pricing.infrastructure.collections import reference_data
 
     seeded: list[str] = []
-    for family, rel in SEED_FILES.items():
-        path = seed_root() / rel
-        if not path.is_file():
-            log.warning("reference seed missing: %s", path)
+    for family in sorted(FAMILIES):
+        try:
+            data = load_seed_json(family)
+        except KeyError as exc:
+            log.warning("reference seed missing: %s", exc)
             continue
         if _memory is not None:
             if force or family not in _memory:
-                put_family_sync(family, load_seed_json(family), actor="seed")
+                put_family_sync(family, data, actor="seed")
                 seeded.append(family)
             continue
         existing = await reference_data().find_one({"_id": family}, {"_id": 1})
         if existing and not force:
             continue
-        data = json.loads(path.read_text(encoding="utf-8"))
         await put_family(family, data, actor="seed")
         seeded.append(family)
     if seeded:

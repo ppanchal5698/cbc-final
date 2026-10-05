@@ -125,3 +125,49 @@ def test_no_part_and_nothing_found_say_what_is_owed() -> None:
     assert "no part number" in no_part["cost_source_detail"] and "no_part_number" in no_part["flags"]
     [nothing] = ladder.price(line("ZZ123", manufacturer="Arrow"), sources())
     assert nothing["cost"] is None and "needs a distributor or vendor quote" in nothing["cost_source_detail"]
+
+
+EQUALS = {
+    "preferred_brands": ["Bobrick", "ASI", "Bradley"],
+    "catalog_prefixes": {"Bobrick": "B-", "ASI": "10-", "Gamco": "G-", "Bradley": ""},
+    "rows": [{"specified": "G-212", "Bobrick": "212", "ASI": "0714", "Bradley": "915"}],
+}
+EQUAL_ROWS = [
+    {"part": "10-0714", "manufacturer": "ASI", "vendorKey": "asi", "cost": 21.5, "priceBookId": "asi-book",
+     "seedSource": "catalog.md + catalogs/ 2026 baseline"},
+    {"part": "915", "manufacturer": "Bradley", "vendorKey": "bradley", "cost": 19.0, "priceBookId": "bradley-book"},
+]
+
+
+def accessory(part, manufacturer) -> Line:
+    return Line(key=f"10:{part}", group="Restroom", division="10 28", description="TOILET TISSUE DISPENSER",
+                part=part, manufacturer=manufacturer, finish=None, qty=2.0, source_page=27)
+
+
+def test_a_division_10_part_cbc_cannot_price_is_its_preferred_brands_direct_equal() -> None:
+    [row] = ladder.price(accessory("B-212", "Bobrick"), sources(equals=EQUALS, equal_rows=EQUAL_ROWS))
+    # Bobrick is what was specified and unpriceable; ASI is the next preferred brand.
+    assert (row["cost"], row["part_number"], row["manufacturer"]) == (21.5, "10-0714", "ASI")
+    assert "Bobrick B-212 is specified" in row["substitution_note"] and "GC approves" in row["substitution_note"]
+    assert "direct_equal" in row["flags"] and row["cost_source"] == "CATALOG_BASELINE"
+
+
+def test_a_division_10_part_cbc_can_price_is_quoted_as_specified() -> None:
+    catalog = [{"part": "G-212", "manufacturer": "Gamco", "vendorKey": "gamco", "cost": 9.0, "priceBookId": "gamco-book"}]
+    [row] = ladder.price(accessory("G-212", "Gamco"), sources(catalog=catalog, equals=EQUALS, equal_rows=EQUAL_ROWS))
+    assert (row["cost"], row["part_number"]) == (9.0, "G-212") and "substitution_note" not in row
+
+
+def test_an_equal_is_only_ever_offered_for_division_10() -> None:
+    [row] = ladder.price(line("212", manufacturer="Bobrick"), sources(equals=EQUALS, equal_rows=EQUAL_ROWS))
+    assert row["cost"] is None and "substitution_note" not in row
+
+
+def test_a_row_chosen_among_the_undecided_is_priced_through_its_rung_and_says_who_chose_it() -> None:
+    [undecided] = ladder.price(line("5100", finish_="ALM"), sources())
+    assert undecided[ladder.UNDECIDED]["rung"] == "price book" and len(undecided[ladder.UNDECIDED]["shown"]) == 2
+    priced = ladder.price_choice(undecided, 1, "parallel arm", sources())
+    assert (priced["cost"], priced["cost_source"]) == (153.6, "LIST_X_MULTIPLIER")  # 512.00 x door_controls 0.30
+    assert "model_chose_match" in priced["flags"] and "ambiguous_match" not in priced["flags"]
+    assert "chosen among 2 by the model (parallel arm) - an estimator confirms it" in priced["cost_source_detail"]
+    assert ladder.price_choice(undecided, 5, "no such row", sources()) is None
