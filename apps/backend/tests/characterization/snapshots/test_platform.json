@@ -217,6 +217,19 @@
   },
   "status": 200
  },
+ "GET /api/memory": {
+  "body": {
+   "available": "bool",
+   "configured": "bool"
+  },
+  "status": 200
+ },
+ "GET /api/memory/projects/{code}/similar": {
+  "body": {
+   "bids": []
+  },
+  "status": 200
+ },
  "GET /api/ops/cohorts": {
   "body": {
    "cohorts": [],
@@ -773,6 +786,12 @@
   "status": 200
  },
  "POST /api/jobs/{job_id}/retry #cancelled job": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 409
+ },
+ "POST /api/memory/sync": {
   "body": {
    "detail": "str"
   },

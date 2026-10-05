@@ -41,13 +41,15 @@ def _request(client, op: str, **kwargs):
 
 
 def test_the_route_table(snapshots) -> None:
+    # 136: the memory graph added GET /api/memory, POST /api/memory/sync (admin)
+    # and GET /api/memory/projects/{code}/similar.
     # 133: W1b added GET /api/ops/cohorts - LLM spend grouped by config cohort,
     # admin-only, the before/after view that turns "70%" into a number.
     # 132: the board gained GET /api/users/directory - who a bid may be
     # assigned to, names only and readable without the admin role.
     # 131: FR-13 added POST /api/learning/apply, which drains the estimator
     # corrections into what the matcher knows.
-    assert len(ROUTES) == 133
+    assert len(ROUTES) == 136
     snapshots.pin_value("routes", ROUTES)
 
 

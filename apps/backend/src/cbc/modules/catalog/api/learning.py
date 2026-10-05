@@ -12,6 +12,7 @@ bid, and needing no training run to become either.
 """
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Any
 
 from cbc.modules.catalog.domain import partquery
@@ -111,6 +112,17 @@ async def recall(spec: Any, *, limit: int = 5) -> list[dict[str, Any]]:
     if not key:
         return []
     return await match_learning().find({"specKey": key}).limit(limit).to_list(limit)
+
+
+# The normaliser every learned answer is keyed on, for anything that has to agree
+# with it on what one specification is (the memory graph's SpecItem nodes).
+spec_key = partquery.spec_key
+
+
+async def confirmed() -> AsyncIterator[dict[str, Any]]:
+    """Every specification an estimator has confirmed at least once."""
+    async for row in match_learning().find({"confirmCount": {"$gt": 0}}):
+        yield row
 
 
 async def total() -> int:

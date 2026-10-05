@@ -127,6 +127,7 @@ async def import_quote_lines(
         fields = {
             "lineKey": key,
             "part": line.get("part_number") or line.get("part"),
+            "manufacturer": line.get("manufacturer"),
             "description": line.get("description", ""),
             "division": line.get("division") or line.get("group_type"),
             "group": line.get("group"),

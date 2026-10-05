@@ -117,6 +117,17 @@ def test_prior_quotes_and_reuse(client, state, snapshots) -> None:
     snapshots.pin(op, client.post(f"/api/projects/{state['code']}/reuse/CBC-999999"), variant="missing prior")
 
 
+def test_memory_graph(client, state, snapshots, monkeypatch) -> None:
+    """With no graph configured: the summary says so, a sync is refused, recall is empty."""
+    monkeypatch.delenv("NEO4J_URI", raising=False)
+    snapshots.pin("GET /api/memory", client.get("/api/memory"))
+    snapshots.pin("POST /api/memory/sync", client.post("/api/memory/sync"))
+    snapshots.pin(
+        "GET /api/memory/projects/{code}/similar",
+        client.get(f"/api/memory/projects/{state['code']}/similar"),
+    )
+
+
 # ── calls and notes ──────────────────────────────────────────────────────────
 
 

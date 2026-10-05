@@ -63,6 +63,12 @@ x-app-env: &app-env
   MALWARE_SCAN_REQUIRED: ${MALWARE_SCAN_REQUIRED:-0}
   CLAMD_HOST: ${CLAMD_HOST:-clamav}
   CLAMD_PORT: ${CLAMD_PORT:-3310}
+  # The memory graph. Optional: with Neo4j down a bid still runs, and the curator
+  # catches up on its next sync.
+  NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+  NEO4J_USER: ${NEO4J_USER:-neo4j}
+  NEO4J_PASSWORD: ${NEO4J_PASSWORD:-cbc_graph_local_dev}
+  NEO4J_DATABASE: ${NEO4J_DATABASE:-neo4j}
 
 x-domain-volumes: &domain-volumes
   - ../data/projects:/app/data/projects
@@ -168,6 +174,36 @@ services:
       - "127.0.0.1:4577:4577"
     volumes:
       - floci_data:/app/data
+
+  # The memory graph: vendors, multipliers, customers, catalog items, reference data
+  # and every approved bid's workflow, connected. DocumentDB stays the system of
+  # record; the memory curator (modules/memory) keeps this a connected copy of it
+  # plus what approved bids taught. 5.26 is the LTS line. Browser on
+  # http://localhost:7474, bolt on 7687 - both bound to this machine only.
+  neo4j:
+    image: neo4j:5.26-community
+    container_name: cbc-final-neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-cbc_graph_local_dev}
+      # The image reads every NEO4J_* variable as a server setting and refuses
+      # to start on one it does not know, so the health check's copy of the
+      # password goes under another name.
+      GRAPH_HEALTH_PASSWORD: ${NEO4J_PASSWORD:-cbc_graph_local_dev}
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    ports:
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${GRAPH_HEALTH_PASSWORD}\" 'RETURN 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
 
   clamav:
     image: clamav/clamav:stable
@@ -367,6 +403,7 @@ services:
 # mounts the certificate volumes for its 443 block; renew them by hand, or bring
 # the certbot service back, before pointing a real domain here.
 volumes:
+  neo4j_data:
   opshub_documentdb:
   floci_data:
   claude_home:

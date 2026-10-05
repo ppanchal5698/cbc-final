@@ -37,6 +37,7 @@ class ProjectRef(TypedDict, total=False):
     state: str
     location: str
     gc: str
+    brand: str
     architect: str
     initiator: str
     degraded: bool

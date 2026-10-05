@@ -17,6 +17,7 @@ import {
   BookOpen,
   UsersThree,
   ClockCounterClockwise,
+  Graph,
   SidebarSimple,
   CaretLeft,
   CaretRight,
@@ -38,6 +39,7 @@ const ADMIN_NAV = [
   { href: "/reference-data", label: "Reference data", Icon: BookOpen },
   { href: "/users", label: "Users", Icon: UsersThree },
   { href: "/audit", label: "Audit log", Icon: ClockCounterClockwise },
+  { href: "/memory", label: "Memory graph", Icon: Graph },
 ];
 
 const SETTINGS = { href: "/settings", label: "Settings", Icon: SlidersHorizontal };

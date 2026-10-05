@@ -4,4 +4,5 @@
 - `lines` - a bid's quote lines, for a version snapshot and the matching gate.
 - `priced_lines` - a pricing pass's lines loaded in; the approved quote written out.
 - `proposal_artifacts` - what a proposal pass left on disk, rendered and recorded on the proposal.
+- `approvals` - a bid's approved proposal, and PROPOSAL_APPROVED when one is signed off.
 """

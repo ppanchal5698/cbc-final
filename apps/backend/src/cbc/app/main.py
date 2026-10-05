@@ -32,7 +32,7 @@ from cbc.modules.ops.api import parsing_config
 envfile.apply_to_environ(skip=MANAGED | parsing_config.MANAGED)
 
 from cbc.shared.config import settings  # noqa: E402  - must follow apply_to_environ
-from cbc.modules import catalog, extraction, intake, ops, pricing, projects, quoting  # noqa: E402
+from cbc.modules import catalog, extraction, intake, memory, ops, pricing, projects, quoting  # noqa: E402
 from cbc.modules.ops.api import identity, jobs as ops_jobs, project_lookup  # noqa: E402
 from cbc.modules.projects.api import lookup as projects_lookup  # noqa: E402
 from cbc.modules.catalog.api.pageindex import store as pageindex_store  # noqa: E402
@@ -122,7 +122,7 @@ def create_app(*, background: bool = True):
     from fastapi.responses import JSONResponse
 
     log = logs.configure(f"cbc.{NAME}.api")
-    jobs = ops.background_jobs() if background else []
+    jobs = ops.background_jobs() + memory.background_jobs() if background else []
 
     # Dependencies that point the other way: shared and ops each need an answer
     # they may not import. The owners are plugged in here, and only here.
@@ -189,6 +189,7 @@ def create_app(*, background: bool = True):
     quoting.register(app)
     catalog.register(app)
     ops.register(app)
+    memory.register(app)
 
     @app.get("/api/health")
     async def health() -> dict[str, Any]:

@@ -1171,6 +1171,10 @@ UNCHECKED_JOB_TYPES = frozenset(
         "index_catalog",
         "delete_catalog",
         "parse_document",
+        # The memory curator writes the Neo4j graph, not an artifact a pass could
+        # get wrong; what it mirrors is checked where it is written.
+        "memory_sync",
+        "memory_learn",
     }
 )
 

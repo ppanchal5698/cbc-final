@@ -23,6 +23,10 @@ JobType = Literal[
     # Parse of one uploaded PDF via LlamaParse. Not exclusive: one job per
     # document, so a second upload never gets a 409.
     "parse_document",
+    # The memory curator (modules/memory): mirror the record into the Neo4j graph,
+    # and learn a bid once its proposal is approved. Neither carries a project.
+    "memory_sync",
+    "memory_learn",
     # Deprecated in cbc-copilot-final: kept so historical Mongo rows still
     # deserialise. New autopilot runs use orchestrate=true on extract_bid_set
     # and chain match_and_price → build_proposal across domain workers.

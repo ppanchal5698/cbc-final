@@ -18,6 +18,7 @@ REPO_ROOT = repo_root()
 DEV_SECRET = "cbc-local-dev-key-change-me"
 DEV_MONGO_PASSWORD = "cbc_local_dev"
 DEV_READONLY_PASSWORD = "cbc_catalog_ro_local_dev"
+DEV_NEO4J_PASSWORD = "cbc_graph_local_dev"
 # DocumentDB Local (infra/docker-compose.yml) presents a self-signed certificate,
 # hence the flag - which the production guard refuses.
 DEV_MONGODB_URI = (
@@ -120,6 +121,8 @@ class Settings:
         for name, uri in (("MONGODB_URI", self.mongodb_uri), ("MONGODB_READONLY_URI", readonly_uri)):
             if _disables_tls_checks(uri):
                 insecure.append(f"{name} (turns off TLS certificate checks, as the emulator needs)")
+        if os.environ.get("NEO4J_URI") and os.environ.get("NEO4J_PASSWORD", DEV_NEO4J_PASSWORD) == DEV_NEO4J_PASSWORD:
+            insecure.append("NEO4J_PASSWORD (still the local-dev password)")
         storage = os.environ.get("AZURE_STORAGE_CONNECTION_STRING", "")
         if "devstoreaccount1" in storage or "usedevelopmentstorage" in storage.lower():
             insecure.append("AZURE_STORAGE_CONNECTION_STRING (the local storage emulator's account)")

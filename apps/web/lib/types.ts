@@ -1170,3 +1170,26 @@ export interface Rfi {
   answer?: string | null;
   answeredAt?: string | null;
 }
+
+/** GET /api/memory - what the memory graph holds. */
+export interface MemoryBid {
+  code: string;
+  name: string | null;
+  brand: string | null;
+  gc: string | null;
+  total: number | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  lines: number | null;
+  sets: number;
+}
+
+export interface MemorySummary {
+  available: boolean;
+  configured: boolean;
+  nodes?: Record<string, number>;
+  relationships?: Record<string, number>;
+  lastSyncAt?: string | null;
+  recentBids?: MemoryBid[];
+}
+

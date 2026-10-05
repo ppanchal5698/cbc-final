@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api import bids
 from cbc.modules.projects.api.lookup import load
-from cbc.modules.quoting.api import quote as quote_service
+from cbc.modules.quoting.api import approvals, quote as quote_service
 from cbc.modules.quoting.domain.quotes import HandOff
 from cbc.modules.quoting.infrastructure.collections import proposals
 from cbc.modules.quoting.infrastructure.proposal_view import (
@@ -20,6 +20,7 @@ from cbc.modules.quoting.infrastructure.proposal_view import (
     write_email_draft,
 )
 from cbc.modules.quoting.domain import proposals as proposal_rules
+from cbc.shared import events
 from cbc.shared.auth import Actor
 
 router = APIRouter(prefix="/api/projects/{code}/proposal", tags=["proposal"])
@@ -104,6 +105,9 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
         after={"recipient": recipient},
         note="in-app hand-off; nothing transmitted",
     )
+    # Whoever learns from approved bids hears it here. A listener's failure must
+    # not undo a sign-off that is already stored, so listeners catch their own.
+    await events.publish(approvals.PROPOSAL_APPROVED, project_id=project["_id"], approved_by=actor)
     return {
         "status": "complete",
         "sent": False,

@@ -4,7 +4,7 @@
 - `identity.role_of` - what role a signed-in person has.
 - `freshness` - the live review and discard windows for prices (`load`, `load_sync`).
 - `pipeline.autopilot_default` - whether a new bid starts on autopilot.
-- `jobs` - the queue: enqueue, the one-session-per-bid rule, and what a bid has running.
+- `jobs` - the queue: enqueue, the one-session-per-bid rule, what a bid has running, and its job history.
 - `provider` - which model provider serves Claude Code, and the environment it needs.
 - `runmetrics.record` - the cost and provenance of one Claude run, read from its recording.
 - `cost_budget` - the USD spend caps checked before a worker claims a job.
