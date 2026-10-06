@@ -302,3 +302,9 @@ async def test_a_special_margin_lands_with_its_reason(quote_store):
     await priced_lines.import_quote_lines(project)
 
     assert docs[0]["margin"] == 0.20 and docs[0]["overrideReason"] == "special customer margin: Wendys"
+
+
+def test_a_part_the_estimator_named_keeps_no_match_confidence_through_a_re_price() -> None:
+    kept = priced_lines._estimator_fields({"overrides": [{"after": {"part": "BB1279", "cost": 4.42}}]})
+    assert "matchConfidence" in kept and "cost" in kept
+    assert "matchConfidence" not in priced_lines._estimator_fields({"overrides": [{"after": {"margin": 0.3}}]})

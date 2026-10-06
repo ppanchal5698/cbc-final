@@ -21,6 +21,7 @@ from cbc.modules.ops.api import identity, jobs
 from cbc.modules.quoting.api import priced_lines
 from cbc.modules.quoting.api import quote as quote_service
 from cbc.modules.quoting.domain import alternates
+from cbc.modules.quoting.domain.ladder import BY_OTHERS_ALTERNATE
 from cbc.modules.quoting.domain import proposals as proposal_rules
 from cbc.modules.quoting.infrastructure.collections import estimate_lines, proposals, rfis
 from cbc.shared.config import settings
@@ -293,8 +294,10 @@ async def proposal_payload(project: dict[str, Any], *, internal: bool = False) -
     openings = await extraction_openings.list_for_project(project["_id"])
 
     flagged = await extraction_openings.count(project["_id"], status="needs_look")
+    # What another party supplies is not CBC's to price: Evernorth's eight security
+    # vendor and frame-seal lines read "8 lines unpriced" on a finished quote.
     unpriced = await estimate_lines().count_documents(
-        {"projectId": project["_id"], "cost": None}
+        {"projectId": project["_id"], "cost": None, "alternateGroup": {"$ne": BY_OTHERS_ALTERNATE}}
     )
 
     # A lapsed sheet means the margin on those lines is not

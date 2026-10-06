@@ -95,6 +95,10 @@ def _estimator_fields(line: dict[str, Any]) -> set[str]:
         edited.add("overrideReason")  # a margin and why are one fact, like a cost and its source
     if edited & {"cost", "costSource", "costSourceDetail"}:
         edited.update(_COST_FIELDS)
+    if "part" in edited:
+        # A part the estimator named or chose is not a match to doubt: a re-price put
+        # the pass's 0.80 back on Evernorth's named hinge, and review asked to confirm it.
+        edited.add("matchConfidence")
     return edited
 
 
