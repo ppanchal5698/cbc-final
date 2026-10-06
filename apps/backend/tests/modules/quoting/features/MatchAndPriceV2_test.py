@@ -249,3 +249,35 @@ def test_what_the_bid_request_gives_to_others_stays_out_of_the_bid(bid) -> None:
     assert doors and all(line["alternateGroup"] == "Supplied by others" for line in doors)
     assert all("Hardware only" in line["notes"] and "excluded_by_request" in line["flags"] for line in doors)
     assert lines["1:01"].get("alternateGroup") is None, "the hardware is still the bid"
+
+
+def test_the_model_reads_who_supplies_what_the_words_leave_open(monkeypatch) -> None:
+    """classify_supply: once per wording. Someone else's goes to "Supplied by others"
+    flagged to confirm; CBC's stays in the bid; unclear stays the estimator's."""
+    from cbc.modules.quoting.domain import takeoff
+    from cbc.modules.quoting.domain.questions import SupplyReading
+    from cbc.modules.quoting.features import MatchAndPrice
+
+    def item(key, text):
+        return takeoff.Line(key=key, group="E1", division="08 71 00", description=text, part=None,
+                            manufacturer=None, finish=None, qty=1.0, qty_per_opening=1.0, text=text,
+                            flags=["supply_unclear"])
+
+    lines = [item("1", "CORES BY OWNER"), item("2", "CORES BY OWNER"), item("3", "POWER SUPPLY BY DIV 28"),
+             item("4", "KEYING BY OWNER")]
+    said = {"CORES BY OWNER": "OFCI", "POWER SUPPLY BY DIV 28": "CFCI", "KEYING BY OWNER": "UNCLEAR"}
+    asked: list[str] = []
+
+    async def model(question, prompt, images=()):
+        asked.append(prompt)
+        return ai.Asked(SupplyReading(supplier=said[prompt], reason="the words"))
+
+    monkeypatch.setattr(MatchAndPrice.ops_ai, "ask", model)
+    assert asyncio.run(MatchAndPrice._read_supply(lines, budget=5)) == 2
+    assert len(asked) == 3
+    assert [(line.alternate is not None, line.flags) for line in lines] == [
+        (True, ["supplied_by_others", "supply_read_by_model"]),
+        (True, ["supplied_by_others", "supply_read_by_model"]),
+        (False, []),
+        (False, ["supply_unclear"]),
+    ]

@@ -7,7 +7,9 @@ Two engines, chosen in Settings > Pipeline:
   the ladder (`domain/ladder`). Where the ladder found one model at several
   prices and the legend's words do not say which, the model is asked to choose
   (`CHOOSE_CATALOG_MATCH`, within a budget); its choice carries its reason and a
-  flag to confirm. The result is written to `priced/line_items.json`, which
+  flag to confirm. Before that, an item whose words name another party without
+  saying who supplies it is read the same way (`CLASSIFY_SUPPLY`). The result is
+  written to `priced/line_items.json`, which
   review, delivery and the proposal still read, then imported into
   `estimateLines` and rolled up. A line nobody could price is MANUAL with the
   reason - never a failed job.
@@ -32,7 +34,7 @@ from cbc.modules.pricing.api import calc, p21, pricing, reference_library
 from cbc.modules.projects.api import bids, pipeline
 from cbc.modules.quoting.api import lines as quoting_lines, priced_lines, quote
 from cbc.modules.quoting.domain import ladder, matcher, matching, request_scope, takeoff
-from cbc.modules.quoting.domain.questions import CHOOSE_CATALOG_MATCH
+from cbc.modules.quoting.domain.questions import CHOOSE_CATALOG_MATCH, CLASSIFY_SUPPLY
 from cbc.shared import storage
 from cbc.shared.hardware_sets import SET_KEYS
 from cbc.shared.pass_files import read_json, write_json
@@ -41,6 +43,7 @@ log = logging.getLogger("cbc.worker")
 
 SOURCE = "match_and_price v2 (priced in code)"
 CHOICE_BUDGET = 25  # model choices per bid; the rest are the estimator's
+SUPPLY_BUDGET = 20  # distinct supply wordings read per bid
 # A legend's "supplied by": every party but the GC (whom CBC sells to) furnishes the
 # item itself - the landlord, the owner, the storefront supplier, a security vendor.
 _IN_SCOPE = {"", "GC", "WIB", "CBC"}
@@ -261,6 +264,36 @@ async def _choose(rows: list[dict[str, Any]], sources: ladder.Sources, *, budget
     return chosen
 
 
+async def _read_supply(lines: list[takeoff.Line], *, budget: int) -> int:
+    """Ask who supplies the items whose words name another party without saying
+    (classify_supply), once per distinct wording. One the model reads as someone
+    else's goes to "Supplied by others", flagged to confirm; the first question
+    that goes unanswered ends the asking, and the rest stay the estimator's."""
+    unclear: dict[str, list[takeoff.Line]] = {}
+    for line in lines:
+        if "supply_unclear" in line.flags:
+            unclear.setdefault(line.text, []).append(line)
+    moved = 0
+    for text, same in list(unclear.items())[:budget]:
+        try:
+            reply = await ops_ai.ask(CLASSIFY_SUPPLY, text)
+        except Exception as exc:  # no provider: the flags stay for the estimator
+            log.warning("classify_supply not asked: %s", exc)
+            break
+        if reply.answer is None:
+            break
+        if reply.answer.supplier == "UNCLEAR":
+            continue
+        for line in same:
+            line.flags.remove("supply_unclear")
+            if reply.answer.supplier != "CFCI":
+                who = "the owner" if reply.answer.supplier == "OFCI" else "another party"
+                line.alternate = f"read as supplied by {who} ({reply.answer.reason}) - confirm"
+                line.flags += ["supplied_by_others", "supply_read_by_model"]
+                moved += 1
+    return moved
+
+
 def _stock_lists(rows: list[dict[str, Any]]) -> dict[str, set[str]]:
     """The stock list of each door-hardware vendor on the bid that has one (NR-6)."""
     vendors = {ladder.vendor_key(row.get("manufacturer")) for row in rows
@@ -287,6 +320,8 @@ async def price_bid(project: dict[str, Any], *, choose: bool = True) -> dict[str
     openings = await extraction_openings.list_for_project(project["_id"], limit=5000)
     frp_constants = await asyncio.to_thread(reference_library.load_frp_constants)
     lines, notes = plan(project, openings, frp_constants)
+    if choose:
+        await _read_supply(lines, budget=SUPPLY_BUDGET)
     sources = await _sources(project, lines)
     rows = await asyncio.to_thread(lambda: [row for line in lines for row in ladder.price(line, sources)])
     if choose:

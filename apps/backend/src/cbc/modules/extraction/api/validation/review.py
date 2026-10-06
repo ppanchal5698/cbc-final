@@ -221,6 +221,14 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
             flags.append(_flag(label, "smoke_label", "medium",
                                "Smoke-labeled door (S label): the door, frame and gasketing must be "
                                "listed for smoke and draft control", page))
+        if "supply_unclear" in (line.get("flags") or []):
+            flags.append(_flag(label, "supply", "medium",
+                               "The schedule names another party here without saying who supplies the "
+                               "item - confirm it is CBC's to quote", page))
+        if "supply_read_by_model" in (line.get("flags") or []):
+            flags.append(_flag(label, "supply", "medium",
+                               "Moved to 'Supplied by others' on the model's reading of the schedule's "
+                               "words - confirm, or move it back into the bid", page))
         if "price_read_by_model" in (line.get("flags") or []):
             flags.append(_flag(label, "cost", "medium",
                                "List price read off the price-book page by the model - confirm it against the sheet",

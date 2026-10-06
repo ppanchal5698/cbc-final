@@ -193,3 +193,26 @@ def test_hardware_already_on_the_door_is_not_cbcs_to_supply(notes, others) -> No
 ])
 def test_who_supplies_it_not_who_installs_it(notes, others) -> None:
     assert takeoff.supplied_by_others(notes) == others
+
+
+@pytest.mark.parametrize("notes,definite,unclear", [
+    ("Owner to furnish", "Owner to furnish", None),
+    ("Furnished under separate contract", "Furnished under separate contract", None),
+    ("Power supply by Div 28", None, "by Div 28"),
+    ("Wiring by electrical contractor", None, "by electrical"),
+    ("Permanent cores by owner", None, "by owner"),
+    ("Installed under separate contract", None, "under separate contract"),
+    ("Color selected by owner", None, None),
+    ("Finish approved by the owner", None, None),
+    ("Provided by Div 08", None, None),
+])
+def test_another_party_named_without_saying_who_supplies_it(notes, definite, unclear) -> None:
+    assert takeoff.supplied_by_others(notes) == definite
+    assert (None if definite else takeoff.supply_unclear(notes)) == unclear
+
+
+def test_an_item_whose_supply_is_unclear_stays_in_the_bid_flagged() -> None:
+    sets = [{"name": "E1", "items": [{"qty": "1", "part": "PS902", "manufacturer": "Von Duprin",
+                                      "description": "POWER SUPPLY", "notes": "by Div 28"}]}]
+    [line], _ = takeoff.hardware_lines(sets, [{"mark": "100A", "set": "E1"}])
+    assert line.alternate is None and "supply_unclear" in line.flags

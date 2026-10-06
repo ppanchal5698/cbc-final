@@ -338,3 +338,15 @@ def test_an_exit_device_on_a_rated_door_asks_for_listed_fire_exit_hardware(proje
     ]})
     [flag] = [f for f in review.derive_flags(slug) if f["field"] == "fire_rating"]
     assert flag["severity"] == "high" and "fire exit hardware" in flag["note"]
+
+
+def test_a_line_whose_supply_is_unclear_or_read_by_the_model_asks_for_a_look(project) -> None:
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "1:01", "group": "01", "cost_source": "CATALOG_BASELINE", "cost": 80.0,
+         "flags": ["supply_unclear"]},
+        {"line_id": "1:02", "group": "01", "cost_source": "CATALOG_BASELINE", "cost": 12.0,
+         "alternate_group": "Supplied by others", "flags": ["supplied_by_others", "supply_read_by_model"]},
+    ]})
+    notes = [f["note"] for f in review.derive_flags(slug) if f["field"] == "supply"]
+    assert len(notes) == 2 and "confirm it is CBC's to quote" in notes[0] and "move it back" in notes[1]

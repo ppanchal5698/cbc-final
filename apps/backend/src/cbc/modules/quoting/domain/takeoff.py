@@ -36,6 +36,8 @@ _BY_OTHERS = re.compile(
     r"\b(?:OFCI|O\.F\.C\.I|OFOI|O\.F\.O\.I|N\.I\.C|NIC|BY\s+OTHERS"
     r"|(?:OWNER|TENANT|LANDLORD)[\s-]+(?:FURNISHED|SUPPLIED|PROVIDED)"
     r"|(?:PROVIDED|FURNISHED|SUPPLIED)\s+BY\s+(?:THE\s+)?(?:OWNER|TENANT|LANDLORD|G\.?C|GENERAL\s+CONTRACTOR)"
+    r"|(?:OWNER|TENANT|LANDLORD)\s+TO\s+(?:FURNISH|SUPPLY|PROVIDE)"
+    r"|(?:PROVIDED|FURNISHED|SUPPLIED)\s+UNDER\s+SEPARATE\s+CONTRACT"
     # Hardware already on the door is not CBC's to supply either.
     r"|EXISTING\s+TO\s+(?:REMAIN|BE\s+RE-?USED)|RE-?USE\s+(?:THE\s+)?EXISTING)\b",
     re.I,
@@ -91,6 +93,28 @@ def supplied_by_others(*texts: Any) -> str | None:
         found = _BY_OTHERS.search(str(text or ""))
         if found:
             return found.group(0)
+    return None
+
+
+# Another party named without saying it supplies the item: "power supply by Div
+# 28" may be the wiring, "cores by owner" the cores. A person or the model
+# (classify_supply) reads these; "color selected by owner" is nobody's supply.
+_OTHER_PARTY = re.compile(
+    r"\bBY\s+(?:THE\s+)?(?:OWNER|TENANT|LANDLORD|G\.?C\b|GENERAL\s+CONTRACTOR|ELEC(?:TRICAL\b|\.)|SECURITY"
+    r"|ACCESS\s+CONTROL|(?:FIRE\s+)?ALARM|DIV(?:ISION|\.)?\s*(?:2[5-8]|1[0-4])\b|OTHER\s+TRADES?)"
+    r"|\bUNDER\s+SEPARATE\s+CONTRACT\b|\bOFE\b",
+    re.I,
+)
+_JUDGED = re.compile(r"\b(?:SELECTED|APPROVED|CHOSEN|VERIFIED|DETERMINED|CONFIRMED|DIRECTED)\s*$", re.I)
+
+
+def supply_unclear(*texts: Any) -> str | None:
+    """The words naming another party when they do not say who supplies it."""
+    for text in texts:
+        text = str(text or "")
+        for found in _OTHER_PARTY.finditer(text):
+            if not _JUDGED.search(text[: found.start()]):
+                return found.group(0)
     return None
 
 
@@ -226,6 +250,8 @@ def _set_lines(hw_set: dict[str, Any], name: str, key: str, group: str | None,
             line.alternate = (f"supplied by {party} per the legend" if party
                               else f"the schedule says {others!r} - another party supplies it")
             line.flags.append("supplied_by_others")
+        elif supply_unclear(item.get("notes"), item.get("description")):
+            line.flags.append("supply_unclear")
         lines.append(line)
     if cited.get("smoke") and lines and not any("smoke_label" in line.flags for line in lines):
         # A smoke-labeled door needs listed seals, and this set names none.
@@ -270,6 +296,8 @@ def specialty_lines(rows: list[dict[str, Any]], frp_constants: dict[str, Any] | 
         if others:
             line.alternate = f"the schedule says {others!r} - another party supplies it"
             line.flags.append("supplied_by_others")
+        elif supply_unclear(row.get("notes"), row.get("description")):
+            line.flags.append("supply_unclear")
         converted = frp.convert(row["geometry"], frp_constants) if row.get("geometry") and frp_constants else None
         lines += _frp_lines(line, converted, frp_constants) if converted else [line]
     return lines
