@@ -9,6 +9,19 @@ import pytest
 from cbc.modules.ops.api import worker
 
 
+class _Rows:
+    """An async cursor over a few job rows."""
+
+    def __init__(self, rows):
+        self.rows = rows
+
+    def __aiter__(self):
+        async def rows():
+            for row in self.rows:
+                yield row
+        return rows()
+
+
 @pytest.fixture(autouse=True)
 def _clear_parse_bind():
     worker.bind_parse_status(incomplete_parses=AsyncMock(return_value=[]))
@@ -73,7 +86,7 @@ def _stuck_parse(uploaded_seconds_ago: int):
     parse_job = {
         "_id": "parse1",
         "type": "parse_document",
-        "payload": {"filename": "plans.pdf"},
+        "payload": {"filename": "plans.pdf", "documentId": "doc1"},
         "status": "running",
     }
     uploaded = datetime.now(timezone.utc) - timedelta(seconds=uploaded_seconds_ago)
@@ -93,6 +106,7 @@ async def _defer(job, parse_job, pending, expire):
         resolve.return_value = ({"apiKey": "llx-test", "waitMaxSeconds": 1800}, {})
         jobs = MagicMock()
         jobs.find_one = AsyncMock(return_value=parse_job)
+        jobs.find = MagicMock(return_value=_Rows([parse_job]))
         jobs.update_one = AsyncMock()
         jobs.update_many = AsyncMock()
         jobs_col.return_value = jobs
@@ -132,8 +146,10 @@ async def test_released_at_twice_wait_max_with_the_parse_given_up():
 
 
 @pytest.mark.asyncio
-async def test_defer_while_document_parse_incomplete_even_without_job():
-    """Document parse.state queued/running blocks Claude even if the job row is gone."""
+async def test_a_document_no_parse_job_will_read_is_let_go_at_once():
+    """A parse cancelled in the queue left its document `queued` with no job to read
+    it, and the extract waited the hour it takes to give up. It is expired now -
+    read from the PDF itself - and the extract goes on."""
     job = {
         "_id": "extract1",
         "type": "extract_bid_set",
@@ -144,7 +160,8 @@ async def test_defer_while_document_parse_incomplete_even_without_job():
         "createdAt": datetime.now(timezone.utc),
     }
     pending = [{"_id": "doc1", "filename": "A1.pdf", "parse": {"state": "queued"}}]
-    worker.bind_parse_status(incomplete_parses=AsyncMock(return_value=pending))
+    expire = AsyncMock()
+    worker.bind_parse_status(incomplete_parses=AsyncMock(return_value=pending), expire_parse=expire)
 
     with (
         patch.object(worker, "settings_collection") as settings_col,
@@ -156,13 +173,13 @@ async def test_defer_while_document_parse_incomplete_even_without_job():
         resolve.return_value = ({"apiKey": "llx-test", "waitMaxSeconds": 1800}, {})
         jobs = MagicMock()
         jobs.find_one = AsyncMock(return_value=None)
+        jobs.find = MagicMock(return_value=_Rows([]))
         jobs.update_one = AsyncMock()
         jobs_col.return_value = jobs
 
-        other = await worker.defer_if_parsing(job)
-        assert other is not None
-        note = jobs.update_one.await_args.args[1]["$set"]["note"]
-        assert "waiting for A1.pdf to be parsed" in note
+        assert await worker.defer_if_parsing(job) is None
+        expire.assert_awaited_once_with("doc1", "no parse job left to read it")
+        jobs.update_one.assert_not_awaited()
 
 
 @pytest.mark.asyncio

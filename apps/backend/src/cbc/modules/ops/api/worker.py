@@ -536,6 +536,18 @@ async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
     pending_docs: list[dict[str, Any]] = []
     if _incomplete_parses is not None:
         pending_docs = await _incomplete_parses(job["projectId"])
+    if pending_docs:
+        # A document still `queued` with no parse job left to read it - one cancelled
+        # in the queue, where no worker ran the hook that marks it - will never be
+        # parsed. Waiting the hour it takes to give up held the bid for nothing.
+        live = {str((j.get("payload") or {}).get("documentId")) async for j in jobs_collection().find(
+            {"projectId": job["projectId"], "type": "parse_document", "status": {"$in": ["queued", "running"]}},
+            {"payload.documentId": 1})}
+        orphans = [d for d in pending_docs if str(d["_id"]) not in live]
+        if orphans and _expire_parse is not None:
+            for doc in orphans:
+                await _expire_parse(doc["_id"], "no parse job left to read it")
+        pending_docs = [d for d in pending_docs if str(d["_id"]) in live]
 
     if not other and not pending_docs:
         return None
