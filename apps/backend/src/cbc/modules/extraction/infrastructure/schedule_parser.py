@@ -90,6 +90,9 @@ SMOKE_LABEL = re.compile(
 )
 SMOKE_WORD = re.compile(r"\bSMOKE\b", re.IGNORECASE)
 NO_HOSE_STREAM = re.compile(r"\b(?:NO|W/O|WITHOUT)\s+HOSE(?:\s+STREAM)?\b|\bN\.?H\.?S\b", re.IGNORECASE)
+# A temperature-rise door - "450 TEMP RISE", "TEMP. RISE 250", "450° MAX" - which the
+# label states (requirements 6.1): a stair door's core, quoted as its own door.
+TEMP_RISE = re.compile(r"\bTEMP(?:ERATURE)?\.?\s*RISE\b|\b(?:250|450)\s*(?:°|º|DEG(?:REES?)?\b)", re.IGNORECASE)
 
 HW_GROUP = re.compile(r"\b(?:GROUP|HW|HDW|HG)[\s-]*(\d+)\b", re.IGNORECASE)
 # Column that is just "5" under a HARDWARE GROUP header.
@@ -1092,6 +1095,8 @@ def parse_opening(
         flags.append("smoke_label")
     if NO_HOSE_STREAM.search(f"{rating_raw or ''} {text}"):
         flags.append("no_hose_stream")
+    if TEMP_RISE.search(f"{rating_raw or ''} {text}"):
+        flags.append("temperature_rise")
 
     if opening["handing"] is None:
         opening["evidence_note"] = (
@@ -1109,7 +1114,7 @@ def parse_opening(
 
     opening["flags"] = flags
     # What the door is listed as is a fact about it, not a doubt about the reading.
-    problems = [flag for flag in flags if flag not in ("smoke_label", "no_hose_stream")]
+    problems = [flag for flag in flags if flag not in ("smoke_label", "no_hose_stream", "temperature_rise")]
     opening["confidence"] = round(max(0.3, 1.0 - 0.12 * len(problems)), 2)
     return opening
 

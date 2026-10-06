@@ -256,3 +256,14 @@ def test_the_schedules_alternate_takes_the_bid_forms_name() -> None:
 
     assert _as_on_the_form("Alternate 1", ["Alt #1 - auto operators", "Alt #2"]) == "Alt #1 - auto operators"
     assert _as_on_the_form("Alternate 3", ["Alt #1"]) == "Alternate 3"
+
+
+def test_a_temperature_rise_door_says_so() -> None:
+    """Requirements 6.1: the label states the temperature rise - a stair door's core."""
+    header = ["Door No.", "Width", "Height", "Rating"]
+    for written in ("90 MIN 450° TEMP RISE", "60 MIN TEMP. RISE 250", "90 MIN 450 DEG MAX"):
+        rise = _opening(["201", "3'-0\"", "7'-0\"", written], header)
+        assert rise["fire_rating"] in ("90", "60") and "temperature_rise" in rise["flags"], written
+    plain = _opening(["202", "3'-0\"", "7'-0\"", "90 MIN"], header)
+    assert "temperature_rise" not in plain["flags"]
+    assert rise["confidence"] == plain["confidence"], "a listing is not a doubt about the reading"

@@ -256,6 +256,10 @@ def _set_lines(hw_set: dict[str, Any], name: str, key: str, group: str | None,
     if cited.get("smoke") and lines and not any("smoke_label" in line.flags for line in lines):
         # A smoke-labeled door needs listed seals, and this set names none.
         lines[0].flags.append("smoke_gasketing_missing")
+    if cited.get("rated") and lines:
+        # Requirements 6.1, rules 2 and 3: rated doors take listed hardware, and the
+        # library records no listings - so the set says it once, for a person to confirm.
+        next((line for line in lines if not line.alternate), lines[0]).flags.append("rated_set")
     return lines
 
 
@@ -370,7 +374,7 @@ def door_and_frame_lines(openings: list[dict[str, Any]]) -> list[Line]:
     naming the doors it covers - the same size, material, type and rating are one
     line, as a door supplier quotes them. `openings`: {mark, count, door_material,
     frame_material, door_type, frame_type, width, height, rating, frame_depth,
-    source_page, source_file, undecided}."""
+    source_page, source_file, undecided, smoke, no_hose_stream, temperature_rise}."""
     grouped: dict[str, Line] = {}
     for door in openings:
         width, height = door.get("width"), door.get("height")
@@ -385,7 +389,9 @@ def door_and_frame_lines(openings: list[dict[str, Any]]) -> list[Line]:
                 continue  # wood and laminate are door faces; CBC's frames are hollow metal
             style = door.get(f"{kind}_type")
             depth = door.get("frame_depth") if kind == "frame" else None
-            spec = (material or "material unread", width, height, style, rating, depth)
+            # A temperature-rise door is another door to its supplier (requirements 6.1).
+            rise = kind == "door" and bool(door.get("temperature_rise"))
+            spec = (material or "material unread", width, height, style, rating, depth) + (("TEMP RISE",) if rise else ())
             group = door.get("alternate_group") or None
             key = _keyed(f"{kind}:" + "|".join(str(part or "") for part in spec), group)
             line = grouped.get(key)
@@ -394,7 +400,8 @@ def door_and_frame_lines(openings: list[dict[str, Any]]) -> list[Line]:
                          f"{width} X {height}" if width and height else None,
                          f"TYPE {style}" if style else None,
                          f"{depth} DEPTH" if depth else None,
-                         f"{rating} RATED" if rating and rating != "NOT RATED" else None]
+                         f"{rating} RATED" if rating and rating != "NOT RATED" else None,
+                         "TEMPERATURE RISE" if rise else None]
                 line = grouped[key] = Line(
                     key=key, group=f"{kind.capitalize()}s", division=division,
                     description=", ".join(w for w in words if w), part=None, manufacturer=None,
@@ -411,6 +418,8 @@ def door_and_frame_lines(openings: list[dict[str, Any]]) -> list[Line]:
                     line.flags.append("pair_check")  # two leaves, or one oversize leaf?
                 if rating and rating != "NOT RATED":
                     line.flags.append("fire_rated")
+                if rise:
+                    line.flags.append("temperature_rise")
             # Requirements 6.1: the S label is the door's and the frame's, and a
             # 20-minute door tested without hose stream is the door's listing.
             for said, flag in ((door.get("smoke"), "smoke_label"),

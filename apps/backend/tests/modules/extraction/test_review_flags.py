@@ -350,3 +350,22 @@ def test_a_line_whose_supply_is_unclear_or_read_by_the_model_asks_for_a_look(pro
     ]})
     notes = [f["note"] for f in review.derive_flags(slug) if f["field"] == "supply"]
     assert len(notes) == 2 and "confirm it is CBC's to quote" in notes[0] and "move it back" in notes[1]
+
+
+def test_a_temperature_rise_door_asks_for_its_core(project) -> None:
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "door:hollow metal|3'-0\"|7'-0\"||90 MIN||TEMP RISE", "group": "Doors", "cost_source": "MANUAL",
+         "cost": 900.0, "flags": ["fire_rated", "temperature_rise"]},
+    ]})
+    [flag] = [f for f in review.derive_flags(slug) if "Temperature-rise" in f["note"]]
+    assert flag["field"] == "fire_rating" and flag["severity"] == "medium"
+
+
+def test_a_set_serving_rated_doors_asks_for_listed_hardware(project) -> None:
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "1:01", "group": "01", "cost_source": "LIST_X_MULTIPLIER", "cost": 4.99, "flags": ["rated_set"]},
+    ]})
+    [flag] = [f for f in review.derive_flags(slug) if "fire-rated doors" in f["note"]]
+    assert flag["field"] == "fire_rating" and flag["severity"] == "medium" and not flag.get("blocking")

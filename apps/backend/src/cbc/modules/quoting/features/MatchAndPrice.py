@@ -140,7 +140,8 @@ def _takeoff_rows(
         mark = row.get("mark") or row.get("doorNumber")
         flags = row.get("flags") or []
         # What the rating cell said beside the minutes (requirements 6.1).
-        listed = {"smoke": "smoke_label" in flags, "no_hose_stream": "no_hose_stream" in flags}
+        listed = {"smoke": "smoke_label" in flags, "no_hose_stream": "no_hose_stream" in flags,
+                  "temperature_rise": "temperature_rise" in flags}
         if row.get("hwSet"):
             hardware.append({"mark": mark, "set": row["hwSet"], "count": row.get("qty"),
                              "rating": row.get("fireRating"), **listed, **where})

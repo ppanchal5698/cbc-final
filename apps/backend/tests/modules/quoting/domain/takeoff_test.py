@@ -216,3 +216,29 @@ def test_an_item_whose_supply_is_unclear_stays_in_the_bid_flagged() -> None:
                                       "description": "POWER SUPPLY", "notes": "by Div 28"}]}]
     [line], _ = takeoff.hardware_lines(sets, [{"mark": "100A", "set": "E1"}])
     assert line.alternate is None and "supply_unclear" in line.flags
+
+
+def test_a_temperature_rise_door_is_its_own_door_to_its_supplier() -> None:
+    same = {"door_material": "HM", "frame_material": "HM", "width": "3'-0\"", "height": "7'-0\"", "rating": "90"}
+    lines = takeoff.door_and_frame_lines([{"mark": "S1", **same, "temperature_rise": True}, {"mark": "102", **same}])
+    doors = [line for line in lines if line.key.startswith("door:")]
+    frames = [line for line in lines if line.key.startswith("frame:")]
+    assert len(doors) == 2 and len(frames) == 1, "the frame is the same frame"
+    rise = next(line for line in doors if "temperature_rise" in line.flags)
+    assert rise.openings == ["S1"] and rise.description.endswith("TEMPERATURE RISE")
+    plain = next(line for line in doors if line is not rise)
+    assert plain.key == "door:hollow metal|3'-0\"|7'-0\"||90 MIN|", "an ordinary door keeps its key"
+
+
+def test_a_set_serving_rated_doors_says_so_once() -> None:
+    """Requirements 6.1, rules 2 and 3: rated doors take listed hardware, and nothing
+    in the library says which parts are - one flag a set, not one an item."""
+    sets = [{"name": "01", "items": [
+        {"qty": "1", "part": "346C", "description": "GASKET", "notes": "by owner to furnish"},
+        {"qty": "3", "part": "BB1279", "description": "HINGE"},
+        {"qty": "1", "part": "5100", "description": "CLOSER"},
+    ]}]
+    rated, _ = takeoff.hardware_lines(sets, [{"mark": "101", "set": "01", "rating": "90 MIN"}])
+    assert [("rated_set" in line.flags) for line in rated] == [False, True, False], "on the first base line"
+    unrated, _ = takeoff.hardware_lines(sets, [{"mark": "101", "set": "01", "rating": "NR"}])
+    assert not any("rated_set" in line.flags for line in unrated)

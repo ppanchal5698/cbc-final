@@ -233,11 +233,20 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
             flags.append(_flag(label, "cost", "medium",
                                "List price read off the price-book page by the model - confirm it against the sheet",
                                page))
+        if "temperature_rise" in (line.get("flags") or []):
+            flags.append(_flag(label, "fire_rating", "medium",
+                               "Temperature-rise door (stair or exit enclosure) - quote it with its "
+                               "temperature-rise core, and confirm the limit the schedule gives", page))
         if "no_hose_stream" in (line.get("flags") or []):
             flags.append(_flag(label, "fire_rating", "medium",
                                "20-minute door tested without hose stream - confirm the listing allows it here",
                                page))
 
+        if "rated_set" in (line.get("flags") or []):
+            flags.append(_flag(label, "fire_rating", "medium",
+                               "This set serves fire-rated doors and the library does not record which parts "
+                               "are listed - confirm its hinges, closer, latching and seals are listed for "
+                               "the doors' rating", page))
         if "fire_exit_hardware_required" in (line.get("flags") or []):
             # Panic hardware on a rated door must be listed fire exit hardware
             # (requirements 6.1): a part priced off a list cannot say it is.
