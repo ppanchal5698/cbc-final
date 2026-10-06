@@ -68,6 +68,11 @@ def _money(value: Any) -> float:
         return 0.0
 
 
+def natural(text: Any) -> list[Any]:
+    """Set 9 before set 10, door 2 before door 10."""
+    return [(0, int(part)) if part.isdigit() else (1, part.lower()) for part in re.split(r"(\d+)", str(text)) if part]
+
+
 def blocks(lines: Iterable[dict[str, Any]], ratings: dict[str, str] | None = None) -> list[dict[str, Any]]:
     """Sections in print order, each grouped by door, each group subtotalled.
 
@@ -104,7 +109,8 @@ def blocks(lines: Iterable[dict[str, Any]], ratings: dict[str, str] | None = Non
         if not groups:
             continue
         for group in groups.values():
-            doors = group.get("doors") or []
+            # Doors 1, 2, 3 ... 10 - not in the order the lines happened to name them.
+            doors = group["doors"] = sorted(group.get("doors") or [], key=natural)
             group["ratings"] = sorted({rated[d] for d in doors if rated.get(d)})
             # One rating for the group when its doors share one; each door's own
             # when they differ - "20 MIN / 90 MIN" would not say which is which.
@@ -115,7 +121,7 @@ def blocks(lines: Iterable[dict[str, Any]], ratings: dict[str, str] | None = Non
             group["complete"] = all(line.get("ext_price") is not None for line in group["lines"])
             group["title"] = (f"Hardware set {group['name']}" if key == "door" and _BARE_SET.match(group["name"])
                               else group["name"])
-        ordered = [groups[name] for name in sorted(groups)]
+        ordered = [groups[name] for name in sorted(groups, key=natural)]
         out.append(
             {
                 "key": key,

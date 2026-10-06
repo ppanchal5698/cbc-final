@@ -174,6 +174,9 @@ async def _build(project: dict[str, Any], markup: float = 0.0) -> dict[str, Any]
     # Computed, not stored - see api/services/quote.py. Rendering a proposal used
     # to re-price and re-store the whole quote, and `/pdf` did it twice.
     totals, lines = await quote_service.totals_for(project)
+    # A set's items in the legend's order - its key is the set and the item's place
+    # in it, 5:01 hinges before 5:06 the wall stop - not the order they were saved in.
+    lines = sorted(lines, key=lambda line: quote_layout.natural(line.get("lineKey") or ""))
 
     rows: list[dict[str, Any]] = []
     marked: list[dict[str, Any]] = []

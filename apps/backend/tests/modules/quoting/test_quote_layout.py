@@ -108,3 +108,15 @@ def test_freight_lands_in_a_block_rather_than_nowhere() -> None:
 
 def test_empty_input_renders_no_blocks() -> None:
     assert layout.blocks([]) == []
+
+
+def test_sets_and_doors_print_in_number_order() -> None:
+    """The Shakopee proposal printed "Doors · doors 3, 7, 8, 1, 2, 6, 4, 5"."""
+    blocks = layout.blocks([
+        line(group="10", division="08 71 00", ext_price=1.0, openings=["12", "9"]),
+        line(group="9", division="08 71 00", ext_price=1.0, openings=["10", "2"]),
+        line(group="Doors", division="08 14 16", ext_price=1.0, openings=["3", "7", "8", "1", "2", "6", "4", "5"]),
+    ])
+    groups = blocks[0]["groups"]
+    assert [g["name"] for g in groups] == ["9", "10", "Doors"]
+    assert [g["doors"] for g in groups] == [["2", "10"], ["9", "12"], ["1", "2", "3", "4", "5", "6", "7", "8"]]
