@@ -431,3 +431,12 @@ def test_a_level_header_is_not_read_as_stacked_words() -> None:
         row(1135.1, [("102", 1500, 1515), ("3'-4\" x7'-2\"", 1623, 1700), ("A", 1907, 1913), ("PC", 1949, 1960)]),
     ]
     assert ps._stacked_header(rows) is None
+
+
+def test_a_column_the_header_gives_several_fields_is_no_ones_blank() -> None:
+    """DTGO's header pins door type, material and finish to one column; a blank
+    there says nothing, so the row's own HM still reads as its material."""
+    collapsed = {"door_number": 0, "door_type": 2, "door_material": 2, "finish": 2,
+                 "_x": {"door_material": (100.0, 120.0), "door_number": (10.0, 20.0)}}
+    assert not ps._column_of_its_own(collapsed, "door_material")
+    assert ps._column_of_its_own(collapsed, "door_number")

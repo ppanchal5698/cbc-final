@@ -891,6 +891,16 @@ def _words_in_column(words: list, box: list[float], field: str,
     return " ".join(mine).strip() or ""
 
 
+def _column_of_its_own(header_map: dict[str, Any], field: str) -> bool:
+    """Was `field` found by position, in a column no other field claims? Only then is
+    a blank cell the sheet's silence. DTGO's header pins its door type, material and
+    finish to one column, and its door 103's HM is read off the row's other cells."""
+    if field not in (header_map.get("_x") or {}):
+        return False
+    index = header_map.get(field)
+    return sum(1 for key, value in header_map.items() if not key.startswith("_") and value == index) == 1
+
+
 def _row_is_opening(row: dict[str, Any], header_map: dict[str, int] | None = None) -> bool:
     """True only for real schedule opening rows — not elevation dimensions."""
     door_no = _door_number_from_row(row)
@@ -1155,7 +1165,7 @@ def parse_opening(
     # A material column found by position that the row leaves blank is blank:
     # the row's other cells are not it. Evernorth's door 101 has no panel
     # material, and its glazing type GL-2 read as a glass door.
-    if not door_material and "door_material" not in (header_map.get("_x") or {}):
+    if not door_material and not _column_of_its_own(header_map, "door_material"):
         materials = MATERIAL.findall(text)
         # Skip false hits inside notes
         if materials:
@@ -1270,7 +1280,8 @@ def parse_opening(
     # estimator on every door, and still saying it after the plan was read. The
     # flags say what is missing; review says it once for the bid.
     opening["flags"] = flags
-    opening["columns_read"] = sorted(field for field in (header_map.get("_x") or {}) if field in opening)
+    opening["columns_read"] = sorted(field for field in (header_map.get("_x") or {})
+                                     if field in opening and _column_of_its_own(header_map, field))
     # What the door is listed as is a fact about it, not a doubt about the reading.
     # Nor is a field the row leaves blank - most schedules give no handing or finish.
     problems = [flag for flag in flags if flag not in (
