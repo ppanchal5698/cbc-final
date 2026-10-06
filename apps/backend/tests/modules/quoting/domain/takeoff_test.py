@@ -180,3 +180,16 @@ def test_a_smoke_labeled_door_carries_its_label_and_needs_its_seals() -> None:
 ])
 def test_hardware_already_on_the_door_is_not_cbcs_to_supply(notes, others) -> None:
     assert takeoff.supplied_by_others(notes) == others
+
+
+@pytest.mark.parametrize("notes,others", [
+    ("OFOI", "OFOI"),
+    ("Furnished by the G.C.", "Furnished by the G.C"),
+    ("Supplied by general contractor", "Supplied by general contractor"),
+    ("Tenant furnished, contractor installed", "Tenant furnished"),
+    ("Color selected by owner", None),
+    ("Installed by GC", None),
+    ("Furnished by GCS Industries", None),
+])
+def test_who_supplies_it_not_who_installs_it(notes, others) -> None:
+    assert takeoff.supplied_by_others(notes) == others

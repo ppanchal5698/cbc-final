@@ -31,9 +31,11 @@ _PAIR = {"PR", "PRS", "PAIR", "PAIRS"}
 # Schedule wording for an item another party supplies - owner furnished,
 # contractor installed, by others. Quoting it would put it in CBC's price.
 _BY_OTHERS = re.compile(
-    r"\b(?:OFCI|O\.F\.C\.I|N\.I\.C|NIC|BY\s+OTHERS"
-    r"|OWNER[\s-]+(?:FURNISHED|SUPPLIED|PROVIDED)"
-    r"|(?:PROVIDED|FURNISHED|SUPPLIED)\s+BY\s+(?:THE\s+)?(?:OWNER|TENANT|LANDLORD)"
+    # Who supplies it, never who installs it: CBC supplies, others install. A bare
+    # "by owner" is left alone - "color selected by owner" says nothing of supply.
+    r"\b(?:OFCI|O\.F\.C\.I|OFOI|O\.F\.O\.I|N\.I\.C|NIC|BY\s+OTHERS"
+    r"|(?:OWNER|TENANT|LANDLORD)[\s-]+(?:FURNISHED|SUPPLIED|PROVIDED)"
+    r"|(?:PROVIDED|FURNISHED|SUPPLIED)\s+BY\s+(?:THE\s+)?(?:OWNER|TENANT|LANDLORD|G\.?C|GENERAL\s+CONTRACTOR)"
     # Hardware already on the door is not CBC's to supply either.
     r"|EXISTING\s+TO\s+(?:REMAIN|BE\s+RE-?USED)|RE-?USE\s+(?:THE\s+)?EXISTING)\b",
     re.I,
