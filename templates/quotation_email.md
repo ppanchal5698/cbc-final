@@ -1,7 +1,7 @@
 {% if not body_only %}
 # Quotation Email - DRAFT
 
-> **This is a draft. It is not sent by the copilot.**
+> **This is a draft. Nothing has been sent: the copilot never sends.**
 > An estimator reviews the quote, approves it, and sends it themselves (NFR-1).
 
 **To:** {{ initiator_name or "no initiator recorded on this bid" }}{% if initiator_email %} <{{ initiator_email }}>{% endif %}
