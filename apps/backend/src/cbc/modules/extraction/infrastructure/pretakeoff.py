@@ -142,7 +142,14 @@ def _blend(parsed: dict[str, Any], prior: dict[str, Any]) -> dict[str, Any]:
     """
     found = set(parsed.get("columns_read") or ())
     kept = {key: value for key, value in parsed.items() if value not in (None, "", []) or key in found}
+    kept.update({key: parsed.get(key) for key in _THE_READINGS_OWN})
     return {**prior, **kept}
+
+
+# What a reading says of itself rather than of the door - the new parse's, even
+# blank. The parser's notes were once an agent's instructions; it stopped writing
+# them, and a merge that keeps what a parse leaves out kept them on every door.
+_THE_READINGS_OWN = ("evidence_note", "columns_read")
 
 
 def _merge(parsed: list[dict[str, Any]], existing: list[dict[str, Any]]) -> list[dict[str, Any]]:

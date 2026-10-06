@@ -56,7 +56,8 @@ def test_a_blank_in_a_column_the_parser_found_clears_an_earlier_misreading() -> 
     """Evernorth's door 101: an older parser read the glazing type GL-2 as the door's
     material. The material column, found by position, is blank - and the blank is
     the sheet's. The handing column was not found, so the plan's reading stays."""
-    existing = [{"door_number": "101", "door_material": "GL", "handing": "RH"}]
+    existing = [{"door_number": "101", "door_material": "GL", "handing": "RH",
+                 "evidence_note": "Handing not on this schedule row - resolve from floor-plan swing"}]
     parsed = [{"door_number": "101", "door_material": None, "handing": None,
                "columns_read": ["door_material", "door_number"]}]
 
@@ -64,3 +65,4 @@ def test_a_blank_in_a_column_the_parser_found_clears_an_earlier_misreading() -> 
 
     assert merged["door_material"] is None
     assert merged["handing"] == "RH"
+    assert merged["evidence_note"] is None, "a note an earlier parse wrote is that parse's, not the door's"
