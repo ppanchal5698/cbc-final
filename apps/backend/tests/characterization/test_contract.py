@@ -41,6 +41,7 @@ def _request(client, op: str, **kwargs):
 
 
 def test_the_route_table(snapshots) -> None:
+    # 141: FR-14 added PATCH /api/projects/{code}/alternates/{name} - an alternate's kind and priority.
     # 140: NR-4 added POST /api/projects/{code}/quote/lines/{line_id}/adders/{index}.
     # 139: FR-8 added POST /api/projects/{code}/quote/lines/{line_id}/close-matches/{index}.
     # 138: templated bids added POST /api/projects/{code}/quote/carried/keep (FR-1d).
@@ -53,7 +54,7 @@ def test_the_route_table(snapshots) -> None:
     # assigned to, names only and readable without the admin role.
     # 131: FR-13 added POST /api/learning/apply, which drains the estimator
     # corrections into what the matcher knows.
-    assert len(ROUTES) == 140
+    assert len(ROUTES) == 141
     snapshots.pin_value("routes", ROUTES)
 
 

@@ -27,6 +27,20 @@ async def add_alternate(project_id: Any, name: str) -> None:
     )
 
 
+async def describe_alternate(project_id: Any, spec: dict[str, Any]) -> None:
+    """What an alternate is - its kind, its place on the bid form, what it says
+    (FR-14) - kept beside its name, one entry per name."""
+    now = datetime.now(timezone.utc)
+    found = await bid_requests().update_one(
+        {"_id": project_id, "alternateSpecs.name": spec["name"]},
+        {"$set": {"alternateSpecs.$": spec, "updatedAt": now}},
+    )
+    if not found.matched_count:
+        await bid_requests().update_one(
+            {"_id": project_id}, {"$push": {"alternateSpecs": spec}, "$set": {"updatedAt": now}}
+        )
+
+
 async def remember_removed(project_id: Any, keys: list[str]) -> None:
     """Openings the estimator deleted, by the key a take-off reaches them by, so
     the next take-off of the same sheets leaves them out rather than back in."""

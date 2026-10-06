@@ -54,6 +54,11 @@
   .alt { margin-top: 12px; }
   .alt h3 { margin: 0 0 2px; font-size: 11.5px; }
   .alt .with { margin-top: 3px; text-align: right; font-size: 10.5px; color: var(--muted); }
+  .alt .alt-note { margin: 0 0 4px; font-size: 10.5px; }
+  .combos { margin-top: 10px; width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  .combos th { text-align: left; font-weight: 700; padding: 3px 0; border-bottom: 1px solid var(--rule, #ccc); }
+  .combos td { padding: 2px 0; }
+  .combos .num { text-align: right; }
   .totals { margin: 22px 0 0 auto; width: 300px; border-collapse: collapse; font-size: 11.5px; }
   .totals td { padding: 3px 0; }
   .totals td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
@@ -150,17 +155,28 @@
 
 {% if alternates %}
 <div class="alts">
-  <h2>Alternates &mdash; not included in the base bid</h2>
+  <h2>Alternates</h2>
   {% for alt in alternates %}
   <div class="alt">
-    <h3>{{ alt.name }}</h3>
+    <h3>{{ alt.name }} &mdash; {% if alt.kind == "deductive" %}deduct alternate{% elif alt.kind == "substitution" %}substitution{% else %}add alternate{% endif %}</h3>
+    {% if alt.description %}<p class="alt-note">{{ alt.description }}</p>{% endif %}
+    {% if alt.replaces %}<p class="alt-note">Offered instead of: {{ alt.replaces | join("; ") }}.</p>{% endif %}
+    {% if alt.kind == "deductive" %}<p class="alt-note">Included in the base bid; this alternate deletes it.</p>{% endif %}
+    {% if alt.lines %}
     <table class="lines">
       <thead><tr><th>PART</th><th>QTY</th><th>UOM</th><th>DESCRIPTION</th><th class="num">UNIT PRICE</th><th class="num">EXT. PRICE</th></tr></thead>
       <tbody>{{ rows(alt.lines) }}</tbody>
     </table>
-    <div class="with">{% if alt.complete is defined and not alt.complete %}Alternate total TBD &mdash; priced on request{% else %}Alternate total ${{ "{:,.2f}".format(alt.total) }}{% if alt.with_base is not none %} &middot; base bid with this alternate ${{ "{:,.2f}".format(alt.with_base) }} before tax and freight{% endif %}{% endif %}</div>
+    {% endif %}
+    <div class="with">{% if not alt.complete %}Alternate price TBD &mdash; priced on request{% else %}{% if alt.total < 0 %}Deduct{% else %}Add{% endif %} ${{ "{:,.2f}".format(alt.total | abs) }}{% if alt.with_base is not none %} &middot; base bid with this alternate ${{ "{:,.2f}".format(alt.with_base) }} before tax and freight{% endif %}{% endif %}</div>
   </div>
   {% endfor %}
+  {% if cumulative %}
+  <table class="combos">
+    <tr><th colspan="2">Alternates accepted in order of priority, before tax and freight</th></tr>
+    {% for combo in cumulative %}<tr><td>Base bid with {{ combo.label }}</td><td class="num">${{ "{:,.2f}".format(combo.total) }}</td></tr>{% endfor %}
+  </table>
+  {% endif %}
 </div>
 {% endif %}
 

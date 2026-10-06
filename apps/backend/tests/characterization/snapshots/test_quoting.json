@@ -63,7 +63,9 @@
  "GET /api/projects/{code}/proposal": {
   "body": {
    "alternates": [],
+   "cumulative": [],
    "doorRatings": {},
+   "overlaps": [],
    "project": {
     "autopilot": "bool",
     "bidAlternates": [],
@@ -361,7 +363,9 @@
  "PATCH /api/projects/{code}/proposal": {
   "body": {
    "alternates": [],
+   "cumulative": [],
    "doorRatings": {},
+   "overlaps": [],
    "project": {
     "autopilot": "bool",
     "bidAlternates": [],

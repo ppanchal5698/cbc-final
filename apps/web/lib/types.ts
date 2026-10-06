@@ -307,6 +307,8 @@ export interface QuoteLine {
   costSourceDetail?: string | null;
   /** The NOTE a substitution prints on the quote (FR-17). */
   substitutionNote?: string | null;
+  /** Substitution alternates that take this base line out when accepted (FR-14). */
+  deductedBy?: string[];
   /** List adders the legend names, for the estimator to add (NR-4), and those added. */
   adderCandidates?: { name: string; listAdder: number }[];
   appliedAdders?: { name: string; listAdder: number }[];
@@ -798,19 +800,38 @@ export interface VersionsResponse {
   pending: string;
 }
 
+/** FR-14: additive adds its lines; deductive takes base scope out; a substitution
+ * is offered instead of the base lines that name it. "by_others" is out of the bid. */
+export type AlternateKind = "additive" | "deductive" | "substitution" | "by_others";
+
 export interface Alternate {
   name: string | null;
   label: string;
   isBase: boolean;
+  kind?: AlternateKind | null;
+  priority?: number | null;
+  description?: string | null;
   lineItemCount: number;
   quoteLineCount: number;
+  /** The group's own lines, before tax and freight. */
   subtotal: number;
   grandTotal: number;
   unpricedLines: number;
+  /** What accepting it does: lines added, base lines taken out, the difference. */
+  added?: number;
+  deducted?: number;
+  net?: number;
+  withBase?: number;
+  complete?: boolean;
+  takeoff?: { item: string | null; baseQty: number; withAlternateQty: number; netQty: number }[];
 }
 
 export interface AlternatesResponse {
   alternates: Alternate[];
+  /** Accepted in priority order, each base line taken out once. */
+  cumulative?: { through: string; total: number }[];
+  /** Base lines two alternates both take out. */
+  overlaps?: { line: string | null; alternates: string[] }[];
   pending: string;
 }
 

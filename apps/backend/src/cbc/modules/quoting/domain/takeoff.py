@@ -108,6 +108,8 @@ class Line:
     source_file: str | None = None
     source_page: int | None = None
     alternate: str | None = None  # why the line is not in the base total, when it is not
+    # The bid alternate its doors are in (FR-14): their own line, never the base's.
+    alternate_group: str | None = None
     flags: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
@@ -123,17 +125,20 @@ def hardware_lines(
     """The door hardware lines, and what was left out and why.
 
     `sets`: {name, items: [{qty, part, manufacturer, finish, description, ...}],
-    source_page}. `openings`: {mark, set, count, source_page}, in scope only -
-    `count` is how many doors the row stands for (1 unless the schedule says).
+    source_page}. `openings`: {mark, set, count, source_page, alternate_group}, in
+    scope only - `count` is how many doors the row stands for (1 unless the
+    schedule says). Doors in a bid alternate are their own lines, keyed `@` the
+    alternate, so the base keeps only the base's doors (FR-14).
     """
-    cited: dict[str, dict[str, Any]] = {}
+    cited: dict[tuple[str, str | None], dict[str, Any]] = {}
     for door in openings:  # the take-off's own rows, not extraction's documents
         key = set_key(door.get("set"))
         if key is None:
             continue
-        entry = cited.setdefault(key, {"name": str(door["set"]).strip(), "marks": [], "doors": 0.0,
-                                       "source_page": door.get("source_page"),
-                                       "source_file": door.get("source_file")})
+        group = door.get("alternate_group") or None
+        entry = cited.setdefault((key, group), {"name": str(door["set"]).strip(), "marks": [], "doors": 0.0,
+                                                "source_page": door.get("source_page"),
+                                                "source_file": door.get("source_file")})
         entry["marks"].append(str(door.get("mark") or "?"))
         entry["doors"] += quantity(door.get("count"))[0] or 1.0
         entry["rated"] = entry.get("rated") or fire_rating.is_rated(door.get("rating"))
@@ -144,62 +149,77 @@ def hardware_lines(
     for hw_set in sets:
         name = str(hw_set.get("name") or "SET").strip() or "SET"
         key = set_key(name)
-        if key not in cited:
+        groups = [group for (cited_key, group) in cited if cited_key == key]
+        if not groups:
             notes.append(f"{name} is in the hardware legend but no opening cites it - not priced")
             continue
         seen.add(key)
-        marks, doors = cited[key]["marks"], cited[key]["doors"]
-        page = hw_set.get("source_page") or cited[key]["source_page"]
-        source_file = hw_set.get("source_file") or cited[key]["source_file"]
-        items = [item for item in hw_set.get("items") or [] if isinstance(item, dict)]
-        if not items:
-            lines.append(Line(
-                key=f"{key}:set", group=name, division=DOOR_HARDWARE,
-                description=f"Hardware {name} - its items were not read from the legend",
-                part=None, manufacturer=None, finish=None, qty=doors, unit="SET",
-                openings=marks, source_file=source_file, source_page=page,
-                flags=["hardware_set_not_itemised"],
-            ))
-            continue
-        for index, item in enumerate(items, start=1):
-            each, unit = quantity(item.get("qty"))
-            # The legend's own "supplied by" (landlord, storefront supplier), else its wording.
-            party = item.get("by_others")
-            others = None if party else supplied_by_others(item.get("notes"), item.get("description"))
-            line = Line(
-                key=f"{key}:{index:02d}", group=name, division=DOOR_HARDWARE,
-                description=item.get("description") or None,
-                part=str(item.get("part") or "").strip() or None,
-                manufacturer=str(item.get("manufacturer") or "").strip() or None,
-                finish=str(item.get("finish") or "").strip() or None,
-                qty=round(each * doors, 4) if each is not None else None,
-                qty_per_opening=each, unit=unit or "EA", openings=marks,
-                text=_text(item, "description", "notes", "size"),
-                source_file=item.get("source_file") or source_file,
-                source_page=item.get("source_page") or page,
-            )
-            if each is None:
-                line.flags.append("quantity_unread")
-            if cited[key].get("rated") and _EXIT_DEVICE.search(f"{line.text} {line.part or ''}"):
-                # Panic hardware on a rated door has to be listed fire exit hardware
-                # (CBC requirements 6.1): the estimator confirms the part is.
-                line.flags.append("fire_exit_hardware_required")
-            if party or others:
-                line.alternate = (f"supplied by {party} per the legend" if party
-                                  else f"the schedule says {others!r} - another party supplies it")
-                line.flags.append("supplied_by_others")
-            lines.append(line)
+        for group in groups:
+            lines += _set_lines(hw_set, name, key, group, cited[(key, group)])
 
-    for key, group in cited.items():
+    for (key, group), entry in cited.items():
         if key not in seen:
             lines.append(Line(
-                key=f"{key}:set", group=group["name"], division=DOOR_HARDWARE,
-                description=f"Hardware {group['name']} - not in the hardware legend that was read",
-                part=None, manufacturer=None, finish=None, qty=group["doors"], unit="SET",
-                openings=group["marks"], source_file=group["source_file"],
-                source_page=group["source_page"], flags=["hardware_set_not_in_legend"],
+                key=_keyed(f"{key}:set", group), group=entry["name"], division=DOOR_HARDWARE,
+                description=f"Hardware {entry['name']} - not in the hardware legend that was read",
+                part=None, manufacturer=None, finish=None, qty=entry["doors"], unit="SET",
+                openings=entry["marks"], source_file=entry["source_file"],
+                source_page=entry["source_page"], alternate_group=group, flags=["hardware_set_not_in_legend"],
             ))
     return lines, notes
+
+
+def _keyed(key: str, alternate: str | None) -> str:
+    """A line's key in its alternate: stable across re-prices, apart from the base's."""
+    return f"{key}@{alternate}" if alternate else key
+
+
+def _set_lines(hw_set: dict[str, Any], name: str, key: str, group: str | None,
+               cited: dict[str, Any]) -> list[Line]:
+    """The lines of one hardware set, for the doors of one group that cite it."""
+    marks, doors = cited["marks"], cited["doors"]
+    page = hw_set.get("source_page") or cited["source_page"]
+    source_file = hw_set.get("source_file") or cited["source_file"]
+    items = [item for item in hw_set.get("items") or [] if isinstance(item, dict)]
+    if not items:
+        return [Line(
+            key=_keyed(f"{key}:set", group), group=name, division=DOOR_HARDWARE,
+            description=f"Hardware {name} - its items were not read from the legend",
+            part=None, manufacturer=None, finish=None, qty=doors, unit="SET",
+            openings=marks, source_file=source_file, source_page=page, alternate_group=group,
+            flags=["hardware_set_not_itemised"],
+        )]
+    lines: list[Line] = []
+    for index, item in enumerate(items, start=1):
+        each, unit = quantity(item.get("qty"))
+        # The legend's own "supplied by" (landlord, storefront supplier), else its wording.
+        party = item.get("by_others")
+        others = None if party else supplied_by_others(item.get("notes"), item.get("description"))
+        line = Line(
+            key=_keyed(f"{key}:{index:02d}", group), group=name, division=DOOR_HARDWARE,
+            description=item.get("description") or None,
+            part=str(item.get("part") or "").strip() or None,
+            manufacturer=str(item.get("manufacturer") or "").strip() or None,
+            finish=str(item.get("finish") or "").strip() or None,
+            qty=round(each * doors, 4) if each is not None else None,
+            qty_per_opening=each, unit=unit or "EA", openings=marks,
+            text=_text(item, "description", "notes", "size"),
+            source_file=item.get("source_file") or source_file,
+            source_page=item.get("source_page") or page,
+            alternate_group=group,
+        )
+        if each is None:
+            line.flags.append("quantity_unread")
+        if cited.get("rated") and _EXIT_DEVICE.search(f"{line.text} {line.part or ''}"):
+            # Panic hardware on a rated door has to be listed fire exit hardware
+            # (CBC requirements 6.1): the estimator confirms the part is.
+            line.flags.append("fire_exit_hardware_required")
+        if party or others:
+            line.alternate = (f"supplied by {party} per the legend" if party
+                              else f"the schedule says {others!r} - another party supplies it")
+            line.flags.append("supplied_by_others")
+        lines.append(line)
+    return lines
 
 
 def specialty_lines(rows: list[dict[str, Any]]) -> list[Line]:
@@ -230,6 +250,7 @@ def specialty_lines(rows: list[dict[str, Any]]) -> list[Line]:
             qty=each, qty_per_opening=None, unit=unit or row.get("unit"),
             text=_text(row, "description", "notes"),
             source_file=row.get("source_file"), source_page=row.get("source_page"),
+            alternate_group=row.get("alternate_group") or None,
         )
         if each is None:
             line.flags.append("quantity_unread")
@@ -292,7 +313,8 @@ def door_and_frame_lines(openings: list[dict[str, Any]]) -> list[Line]:
             style = door.get(f"{kind}_type")
             depth = door.get("frame_depth") if kind == "frame" else None
             spec = (material or "material unread", width, height, style, rating, depth)
-            key = f"{kind}:" + "|".join(str(part or "") for part in spec)
+            group = door.get("alternate_group") or None
+            key = _keyed(f"{kind}:" + "|".join(str(part or "") for part in spec), group)
             line = grouped.get(key)
             if line is None:
                 words = [f"{(material or '').upper()} {kind.upper()}".strip(),
@@ -305,6 +327,7 @@ def door_and_frame_lines(openings: list[dict[str, Any]]) -> list[Line]:
                     description=", ".join(w for w in words if w), part=None, manufacturer=None,
                     finish=None, qty=0.0, qty_per_opening=1.0, unit="EA",
                     source_file=door.get("source_file"), source_page=door.get("source_page"),
+                    alternate_group=group,
                 )
                 if material is None:
                     line.flags.append(f"{kind}_material_unread")

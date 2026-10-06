@@ -1,4 +1,4 @@
-"""POST /api/projects/{code}/alternates - name a new, empty alternate group.
+"""POST /api/projects/{code}/alternates - name a new, empty alternate group, with its kind and priority.
 """
 from __future__ import annotations
 
@@ -18,15 +18,20 @@ async def create_alternate(code: str, body: AlternateCreate, actor: Actor) -> di
     project = await load(code)
     name = body.name.strip()
 
-    if name in (project.get("alternates") or []):
+    if name in (project.get("alternates") or []) or name in (project.get("bidAlternates") or []):
         raise HTTPException(409, f"{name} already exists on this bid")
 
+    spec = {"name": name, "kind": body.kind, "priority": body.priority, "description": body.description}
     await bids.add_alternate(project["_id"], name)
-    await audit.record("alternate.create", actor, {"projectId": project["_id"]}, after=name)
+    await bids.describe_alternate(project["_id"], spec)
+    await audit.record("alternate.create", actor, {"projectId": project["_id"]}, after=spec)
     return {
         "name": name,
         "label": name,
         "isBase": False,
+        "kind": body.kind,
+        "priority": body.priority,
+        "description": body.description,
         "lineItemCount": 0,
         "quoteLineCount": 0,
         "note": "Empty. Move lines into it, or add them by hand. " + PENDING_NOTE,

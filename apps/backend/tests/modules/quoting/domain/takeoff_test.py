@@ -128,3 +128,25 @@ def test_an_exit_device_on_a_rated_door_must_be_fire_exit_hardware() -> None:
     assert "fire_exit_hardware_required" in rated[0].flags and "fire_exit_hardware_required" not in rated[1].flags
     unrated, _ = takeoff.hardware_lines(sets, [{"mark": "101", "set": "01", "rating": "NR"}])
     assert "fire_exit_hardware_required" not in unrated[0].flags
+
+
+def test_doors_in_a_bid_alternate_are_their_own_lines_and_the_base_keeps_the_rest() -> None:
+    """FR-14: the base quantity and the alternate's, from the doors each covers."""
+    sets = [{"name": "01", "items": [{"qty": "3", "part": "BB1279", "description": "HINGE"}]}]
+    doors = [{"mark": "101", "set": "01"}, {"mark": "102", "set": "01"},
+             {"mark": "120", "set": "01", "alternate_group": "Alternate 1"}]
+    lines, _ = takeoff.hardware_lines(sets, doors)
+    by_key = {line.key: line for line in lines}
+    assert (by_key["1:01"].qty, by_key["1:01"].openings, by_key["1:01"].alternate_group) == (6.0, ["101", "102"], None)
+    assert (by_key["1:01@Alternate 1"].qty, by_key["1:01@Alternate 1"].openings) == (3.0, ["120"])
+    assert by_key["1:01@Alternate 1"].alternate_group == "Alternate 1"
+
+    framed = takeoff.door_and_frame_lines([
+        {"mark": "101", "door_material": "HM", "frame_material": "HM", "width": "3'-0\"", "height": "7'-0\""},
+        {"mark": "120", "door_material": "HM", "frame_material": "HM", "width": "3'-0\"", "height": "7'-0\"",
+         "alternate_group": "Alternate 1"},
+    ])
+    assert sorted((line.key.split("|")[0], line.alternate_group or "", line.qty) for line in framed) == [
+        ("door:hollow metal", "", 1.0), ("door:hollow metal", "Alternate 1", 1.0),
+        ("frame:hollow metal", "", 1.0), ("frame:hollow metal", "Alternate 1", 1.0),
+    ]

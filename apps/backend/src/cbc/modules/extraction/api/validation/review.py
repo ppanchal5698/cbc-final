@@ -200,7 +200,7 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
             # not in the bid's total, and the bid can go out without it.
             flags.append(
                 _flag(label, "cost", "medium", UNFINISHED_COST_SOURCES[source], page,
-                      blocking=not line.get("alternate_group"))
+                      blocking=bool(line.get("in_base", not line.get("alternate_group"))))
             )
 
         if "carried_from_prior" in (line.get("flags") or []):

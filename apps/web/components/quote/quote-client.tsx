@@ -220,10 +220,13 @@ export function QuoteClient({
   );
 
   // Same SWR key as AlternateBar, so this is the same request, not a second one.
-  const { data: alternateData } = useSWR<AlternatesResponse>(
+  const { data: alternateData, mutate: mutateAlternates } = useSWR<AlternatesResponse>(
     `/api/proxy/projects/${code}/alternates`,
     proxyFetcher,
   );
+  // FR-14: the groups a line may sit in, and the substitutions a base line may be replaced in.
+  const lineGroups = (alternateData?.alternates ?? []).filter((entry) => !entry.isBase);
+  const substitutions = lineGroups.filter((entry) => entry.kind === "substitution");
 
   const { data: integrations } = useSWR<IntegrationsResponse>(
     endpoints.integrations(),
@@ -306,6 +309,19 @@ export function QuoteClient({
       mutate();
     } catch (problem) {
       toast.error("Could not remove that line", { description: errorMessage(problem) });
+    }
+  }
+
+  /** FR-14: move a line into a group, or mark a base line a substitution replaces. */
+  async function regroup(line: QuoteLine, alternate: string | null, role?: "replaced") {
+    try {
+      await proxyMutate(`/api/proxy/projects/${code}/alternates/assign`, {
+        body: { ids: [line.id], alternate, scope: "quote-lines", ...(role ? { role } : {}) },
+      });
+      mutate();
+      mutateAlternates();
+    } catch (problem) {
+      toast.error("Could not move that line", { description: errorMessage(problem) });
     }
   }
 
@@ -715,6 +731,36 @@ export function QuoteClient({
                               onClick={() => editText(line, "substitutionNote", "Substitution NOTE printed on the quote")}>
                               {line.substitutionNote ? "Edit NOTE" : "Add NOTE"}
                             </button>
+                            {lineGroups.length > 0 && (
+                              <select
+                                aria-label={`Group for ${line.description}`}
+                                value={line.alternateGroup ?? ""}
+                                onChange={(event) => regroup(line, event.target.value || null)}
+                                className="max-w-[140px] truncate rounded border border-subtle bg-background px-1 text-[11px] font-medium text-tx-secondary"
+                              >
+                                <option value="">Base bid</option>
+                                {lineGroups.map((group) => (
+                                  <option key={group.label} value={group.name ?? ""}>
+                                    {group.label}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                            {!line.alternateGroup && substitutions.length > 0 && (
+                              <select
+                                aria-label={`Substitution replacing ${line.description}`}
+                                value={line.deductedBy?.[0] ?? ""}
+                                onChange={(event) => regroup(line, event.target.value || null, "replaced")}
+                                className="max-w-[160px] truncate rounded border border-subtle bg-background px-1 text-[11px] font-medium text-tx-secondary"
+                              >
+                                <option value="">Not replaced</option>
+                                {substitutions.map((group) => (
+                                  <option key={group.label} value={group.name ?? ""}>
+                                    Replaced in {group.label}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
                           </span>
                           {!!line.closeMatches?.length && (
                             <details className="mt-1 text-[11.5px]">

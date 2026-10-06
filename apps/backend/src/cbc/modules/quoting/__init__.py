@@ -53,12 +53,14 @@ def register(app) -> None:
         UpdateQuoteLine,
         UpdateQuoteSettings,
         UpdateRfiStatus,
+        UpdateAlternate,
         UpdateVendorRfqStatus,
     )
 
     for feature in (
         ListAlternates,
         CreateAlternate,
+        UpdateAlternate,
         AssignToAlternate,
         GetQuote,
         UpdateQuoteSettings,

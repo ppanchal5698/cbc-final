@@ -14,6 +14,7 @@ from typing import Any
 from pymongo import DeleteOne, InsertOne, UpdateOne
 
 from cbc.modules.quoting.infrastructure.collections import estimate_lines, quotes
+from cbc.modules.quoting.domain import alternates
 from cbc.shared import storage
 from cbc.shared.pass_files import distinct_keys, read_json, write_json
 
@@ -196,6 +197,8 @@ async def import_quote_lines(
             "substitutionNote": line.get("substitution_note"),
             # The rows it could as well be, priced, for an estimator to choose (FR-8).
             "closeMatches": [_close_match(m) for m in line.get("close_matches") or []],
+            # The alternates that take this base line out when accepted (FR-14).
+            "deductedBy": list(line.get("deducted_by") or []),
             # List adders the legend names (NR-4), for the estimator to add.
             "adderCandidates": [{"name": a.get("name"), "listAdder": a.get("list_adder")}
                                 for a in line.get("adder_candidates") or []],
@@ -284,6 +287,7 @@ async def export_quote_lines(project: dict[str, Any], *, allow_empty: bool = Fal
     existing_rows = _lines_in(existing or {}, "priced/line_items.json", "lines")
     previous = dict(zip(distinct_keys(existing_rows, _content_key), existing_rows))
     lines = []
+    deductive = alternates.in_base(project.get("alternateSpecs"))
     async for doc in estimate_lines().find({"projectId": project_id}):
         lines.append(
             {
@@ -312,6 +316,9 @@ async def export_quote_lines(project: dict[str, Any], *, allow_empty: bool = Fal
                 "added_by_hand": doc.get("addedByHand", False),
                 "flags": doc.get("flags", []),
                 "carried_from": doc.get("carriedFrom"),  # the prior bid a templated line came from
+                "deducted_by": doc.get("deductedBy") or [],  # the alternates that replace it
+                # Whether the base bid counts it - a deductive alternate's lines it does (FR-14).
+                "in_base": alternates.counts_in_base(doc, deductive),
                 # The review's margin rule reads these. Dropping them made every
                 # margin typed on the quote grid look like an unexplained one,
                 # and a below-band margin with a reason is the estimator's call.

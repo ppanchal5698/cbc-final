@@ -1,4 +1,5 @@
-"""POST /api/projects/{code}/alternates/assign - move openings or quote lines into a group.
+"""POST /api/projects/{code}/alternates/assign - move openings or quote lines into a group, or mark
+base lines a substitution alternate replaces.
 """
 from __future__ import annotations
 
@@ -10,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api.lookup import load
+from cbc.modules.quoting.api import quote as quote_service
 from cbc.modules.quoting.infrastructure.collections import estimate_lines
 from cbc.shared.auth import Actor
 from cbc.shared.mongo import oid
@@ -27,7 +29,7 @@ def _parse_assign_payload(
     query_ids: list[str] | None,
     query_alternate: str | None,
     query_scope: str,
-) -> tuple[list[str], str | None, str]:
+) -> tuple[list[str], str | None, str, bool]:
     """Accept legacy array bodies, object bodies, and query-param fallbacks.
 
     FastAPI cannot expose ``AlternateAssign`` alongside top-level ``alternate`` /
@@ -37,6 +39,7 @@ def _parse_assign_payload(
     line_ids: list[str] | None = None
     alternate = query_alternate
     scope = query_scope
+    replaced = False
 
     if raw:
         try:
@@ -62,6 +65,7 @@ def _parse_assign_payload(
                 alternate = alt
             if "scope" in payload:
                 scope = payload["scope"]
+            replaced = payload.get("role") == "replaced"
         else:
             raise HTTPException(400, "body must be a list of ids or an object with an ids field")
 
@@ -72,8 +76,10 @@ def _parse_assign_payload(
 
     if scope not in ("line-items", "quote-lines"):
         raise HTTPException(400, "scope must be 'line-items' or 'quote-lines'")
+    if replaced and scope != "quote-lines":
+        raise HTTPException(400, "only quote lines are replaced by a substitution alternate")
 
-    return line_ids, alternate, scope
+    return line_ids, alternate, scope, replaced
 
 
 @router.post("/alternates/assign")
@@ -85,7 +91,7 @@ async def assign_to_alternate(
     alternate: str | None = Query(default=None),
     scope: str = Query(default="line-items"),
 ) -> dict:
-    line_ids, alternate, scope = _parse_assign_payload(
+    line_ids, alternate, scope, replaced = _parse_assign_payload(
         await request.body(),
         query_ids=ids,
         query_alternate=alternate,
@@ -96,7 +102,21 @@ async def assign_to_alternate(
     object_ids = [oid(i) for i in line_ids]
 
     now = _now()
-    if scope == "line-items":
+    if replaced:
+        # Base lines a substitution is offered instead of (FR-14): they stay in the
+        # base, and the alternate takes them out. Recorded as an edit, so a re-price
+        # keeps the estimator's word for it.
+        # Two alternates may both name a line: that is the overlap the rollup reports.
+        change = {"$addToSet": {"deductedBy": alternate}} if alternate else {"$set": {"deductedBy": []}}
+        result = await estimate_lines().update_many(
+            {"_id": {"$in": object_ids}, "projectId": project["_id"]},
+            {**change,
+             "$set": {**change.get("$set", {}), "updatedAt": now},
+             "$push": {"overrides": {"at": now, "by": actor, "after": {"deductedBy": alternate},
+                                     "reason": f"replaced in {alternate}" if alternate else "replaced in no alternate"}}},
+        )
+        moved = result.modified_count
+    elif scope == "line-items":
         moved = await extraction_openings.assign_group(project["_id"], object_ids, alternate, at=now, by=actor)
     else:
         result = await estimate_lines().update_many(
@@ -109,10 +129,13 @@ async def assign_to_alternate(
         )
         moved = result.modified_count
 
+    # Which lines are in the base bid just changed: re-total the quote, as every
+    # other edit to its lines does - its cached totals were the old ones.
+    await quote_service.persist(project)
     await audit.record(
         "alternate.assign",
         actor,
         {"projectId": project["_id"]},
-        after={"alternate": alternate, "moved": moved, "scope": scope},
+        after={"alternate": alternate, "moved": moved, "scope": scope, "replaced": replaced},
     )
     return {"moved": moved, "alternate": alternate}

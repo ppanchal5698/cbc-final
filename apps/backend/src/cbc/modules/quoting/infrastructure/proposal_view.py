@@ -20,6 +20,7 @@ from cbc.modules.extraction.api.validation import review
 from cbc.modules.ops.api import identity, jobs
 from cbc.modules.quoting.api import priced_lines
 from cbc.modules.quoting.api import quote as quote_service
+from cbc.modules.quoting.domain import alternates
 from cbc.modules.quoting.infrastructure.collections import estimate_lines, proposals, rfis
 from cbc.shared.config import settings
 from cbc.modules.ops.api import freshness as freshness_settings
@@ -83,7 +84,7 @@ def email_draft(
         {"description": line.get("description"), "vendor": line.get("manufacturer"),
          "reason": line.get("costSourceDetail") or "no cost yet"}
         for line in data.get("lines") or []
-        if line.get("cost") is None and not line.get("alternateGroup")
+        if line.get("cost") is None and alternates.counts_in_base(line, alternates.in_base(project.get("alternateSpecs")))
     ]
     out_of_scope = [
         {"item": f"Door {o.get('mark')}", "reason": o.get("scopeReason") or "outside CBC's scope",
@@ -139,11 +140,12 @@ def _money(value: Any) -> float:
     return float(Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
-def qualifications(lines: list[dict[str, Any]], openings: list[dict[str, Any]]) -> list[str]:
+def qualifications(lines: list[dict[str, Any]], openings: list[dict[str, Any]],
+                   deductive: set[str] | frozenset[str] = frozenset()) -> list[str]:
     """What this bid's quote assumes, substitutes and leaves out, from its own lines -
     said on the quote, where the customer reads the price (FR-17's NOTE among them)."""
     out: list[str] = []
-    base = [line for line in lines if not line.get("alternateGroup")]
+    base = [line for line in lines if alternates.counts_in_base(line, deductive)]
     # A substitution's NOTE prints under its own line (FR-17), not again here.
     others = list(dict.fromkeys(
         f"{line.get('description') or line.get('part')} ({line.get('notes')})" if line.get("notes")
@@ -172,8 +174,8 @@ async def _build(project: dict[str, Any], markup: float = 0.0) -> dict[str, Any]
     # to re-price and re-store the whole quote, and `/pdf` did it twice.
     totals, lines = await quote_service.totals_for(project)
 
-    sections: dict[str, dict[str, Any]] = {}
-    alternates: dict[str, dict[str, Any]] = {}
+    rows: list[dict[str, Any]] = []
+    marked: list[dict[str, Any]] = []
     for line in lines:
         unit = line.get("sell")
         extended = line.get("extended")
@@ -183,7 +185,7 @@ async def _build(project: dict[str, Any], markup: float = 0.0) -> dict[str, Any]
             exact = Decimal(str(unit)) * Decimal(str(1 + markup))
             unit = _money(exact)
             extended = _money(exact * Decimal(str(line.get("qty") or 0)))
-        row = {
+        rows.append({
             "part": line.get("part"),
             "qty": line.get("qty"),
             "uom": "EA",
@@ -200,21 +202,39 @@ async def _build(project: dict[str, Any], markup: float = 0.0) -> dict[str, Any]
             "manufacturer": line.get("manufacturer"),
             "openings": line.get("openings") or [],
             "qtyPerOpening": line.get("qtyPerOpening"),
-        }
-        if line.get("alternateGroup"):
-            # Offered beside the bid with its own total, never in the bid's (FR-14).
-            alternate = alternates.setdefault(line["alternateGroup"], {
-                "name": line["alternateGroup"], "lines": [], "total": 0.0,
-            })
-            alternate["lines"].append(row)
-            alternate["total"] = round(alternate["total"] + (extended or 0), 2)
-            continue
+        })
+        # The figures every combination is added from are the printed ones.
+        marked.append({**line, "extended": extended, "_row": len(rows) - 1})
+
+    names = [*(project.get("alternates") or []), *(project.get("bidAlternates") or []),
+             *(line.get("alternateGroup") for line in lines)]
+    rolled = alternates.rollup(
+        marked, alternates.specs(project.get("alternateSpecs"), names, project.get("bidAlternates")))
+
+    sections: dict[str, dict[str, Any]] = {}
+    for line in rolled["base"]:
         key = quote_layout.section_of(line.get("division"))
         section = sections.setdefault(
             key, {"key": key, "title": SECTION_TITLES[key], "lines": [], "subtotal": 0.0}
         )
-        section["lines"].append(row)
-        section["subtotal"] = round(section["subtotal"] + (extended or 0), 2)
+        section["lines"].append(rows[line["_row"]])
+        section["subtotal"] = round(section["subtotal"] + (line.get("extended") or 0), 2)
+
+    offered = []
+    for figure in rolled["alternates"]:
+        # Offered beside the bid with its own figure (FR-14): what it adds, or for
+        # a deductive alternate the base scope it takes out.
+        own = rolled["lines"][figure["name"]]
+        shown = own["removes"] if figure["kind"] == "deductive" else own["adds"]
+        offered.append({
+            "name": figure["name"], "kind": figure["kind"], "priority": figure["priority"],
+            "description": figure["description"],
+            "lines": [rows[line["_row"]] for line in shown],
+            "replaces": [str(line.get("description") or line.get("part") or "").upper()
+                         for line in own["removes"]] if figure["kind"] == "substitution" else [],
+            "total": figure["net"], "withBase": figure["withBase"],
+            "complete": figure["complete"] and bool(shown),
+        })
 
     ordered = [sections[key] for key, _ in quote_layout.SECTIONS if key in sections]
     figures = dict(totals)
@@ -228,10 +248,10 @@ async def _build(project: dict[str, Any], markup: float = 0.0) -> dict[str, Any]
     figures["markup"] = markup
     return {
         "sections": ordered,
-        "alternates": [
-            {**alt, "withBase": round(figures["subtotal"] + alt["total"], 2)}
-            for alt in sorted(alternates.values(), key=lambda a: a["name"])
-        ],
+        "alternates": offered,
+        # Accepted in the bid form's order - each base line taken out once.
+        "cumulative": rolled["cumulative"] if len(offered) > 1 else [],
+        "overlaps": rolled["overlaps"],
         "totals": figures,
         "lines": lines,
     }
@@ -324,7 +344,7 @@ async def proposal_payload(project: dict[str, Any], *, internal: bool = False) -
         },
         "project": serialise(project),
         **built,
-        "qualifications": qualifications(lines, openings),
+        "qualifications": qualifications(lines, openings, alternates.in_base(project.get("alternateSpecs"))),
         # The rating each door carries, so a hardware group can print its doors'.
         "doorRatings": {
             str(o.get("mark")): str(o.get("fireRating")).strip()
@@ -396,9 +416,10 @@ def render_html(project: dict[str, Any], data: dict[str, Any], autoprint: bool) 
         [_printable(row) for section in data["sections"] for row in section["lines"]],
         data.get("doorRatings"),
     )
-    alternates = [
-        {"name": alt["name"], "total": alt["total"], "with_base": alt.get("withBase"),
-         "complete": all(row["extPrice"] is not None for row in alt["lines"]),
+    offered = [
+        {"name": alt["name"], "kind": alt.get("kind") or "additive", "description": alt.get("description"),
+         "replaces": alt.get("replaces") or [], "total": alt["total"], "with_base": alt.get("withBase"),
+         "complete": alt.get("complete", all(row["extPrice"] is not None for row in alt["lines"])),
          "lines": [_printable(row) for row in alt["lines"]]}
         for alt in data.get("alternates") or []
     ]
@@ -420,7 +441,10 @@ def render_html(project: dict[str, Any], data: dict[str, Any], autoprint: bool) 
         notes=proposal["exclusions"],
         qualifications=data.get("qualifications") or [],
         blocks=blocks,
-        alternates=alternates,
+        alternates=offered,
+        # "Base bid with Alternate 1 + Alternate 2", in the bid form's order.
+        cumulative=[{"label": " + ".join(c["through"] for c in data["cumulative"][: n + 1]), "total": c["total"]}
+                    for n, c in enumerate(data.get("cumulative") or [])],
         totals={
             "subtotal": totals["subtotal"],
             "freight": totals.get("freight"),

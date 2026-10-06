@@ -141,6 +141,8 @@ def _row(line: Line, src: Sources) -> dict[str, Any]:
     if line.alternate:
         out["alternate_group"] = BY_OTHERS_ALTERNATE
         out["notes"] = line.alternate
+    elif line.alternate_group:
+        out["alternate_group"] = line.alternate_group  # the doors' bid alternate (FR-14)
     if src.special_margin:
         out["margin"], out["margin_override_reason"] = src.special_margin
     return out
@@ -415,6 +417,9 @@ def _allegion_rows(line: Line, src: Sources) -> list[dict[str, Any]]:
                            "is priced as an alternate."),
     )
     base["flags"].append("allegion_equal_needed")
+    # The Allegion part as specified is offered instead of the equal: a substitution,
+    # which takes this line out of the bid it is accepted with.
+    base["deducted_by"] = [ALLEGION_ALTERNATE]
     alternate = _row(line, src)
     alternate.update(
         line_id=f"{line.key}:allegion", cost_source="DISTRIBUTOR_MANUAL", alternate_group=ALLEGION_ALTERNATE,

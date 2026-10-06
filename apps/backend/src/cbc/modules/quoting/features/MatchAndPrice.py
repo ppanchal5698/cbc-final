@@ -111,7 +111,9 @@ def _takeoff_rows(
         if row.get("inScope") is False or row.get("status") == "duplicate":
             continue
         evidence = row.get("evidence") if isinstance(row.get("evidence"), dict) else {}
-        where = {"source_page": evidence.get("sourcePage"), "source_file": evidence.get("sourceFile")}
+        # The bid alternate the estimator put the row in: priced as its own lines (FR-14).
+        where = {"source_page": evidence.get("sourcePage"), "source_file": evidence.get("sourceFile"),
+                 "alternate_group": row.get("alternateGroup") or None}
         specialty = row.get("specialty") if isinstance(row.get("specialty"), dict) else None
         if specialty:
             frp = specialty.get("kind") == "frp"

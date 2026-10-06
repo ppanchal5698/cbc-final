@@ -196,3 +196,23 @@ def test_a_re_price_keeps_what_an_estimator_typed_and_refreshes_the_rest(bid) ->
     edited = _lines(db, project)["1:05"]
     assert (edited["cost"], edited["costSource"]) == (88.0, "VENDOR_RFQ")
     assert edited["qty"] == 2.0 and edited["openings"] == ["101", "102"]
+
+
+def test_a_door_moved_into_an_alternate_is_priced_as_its_own_lines(bid) -> None:
+    """FR-14: the estimator puts door 102 in Alternate 1 on the take-off; the set's
+    hardware splits - the base keeps door 101's, the alternate prices door 102's -
+    and the Allegion part as specified is a substitution for its Hager equal."""
+    from cbc.modules.quoting.features import MatchAndPrice
+
+    project, db, _asked = bid
+    db[names.OPENINGS].update_one({"projectId": project["_id"], "mark": "102"},
+                                  {"$set": {"alternateGroup": "Alternate 1"}})
+    run(MatchAndPrice.price_in_code({"_id": ObjectId(), "type": "match_and_price"}, project))
+    lines = _lines(db, project)
+
+    base, alternate = lines["1:01"], lines["1:01@Alternate 1"]
+    assert (base["openings"], base["qty"], base.get("alternateGroup")) == (["101"], 3.0, None)
+    assert (alternate["openings"], alternate["qty"], alternate["alternateGroup"]) == (["102"], 3.0, "Alternate 1")
+    assert lines["1:03"]["deductedBy"] == ["Allegion as specified"]
+    quote = db[names.QUOTES].find_one({"projectId": project["_id"]})
+    assert quote["subtotal"] == round(sum(l.get("extended") or 0 for l in lines.values() if not l.get("alternateGroup")), 2)
