@@ -253,3 +253,8 @@ def test_what_the_schedule_says_of_a_door_goes_to_whoever_prices_it() -> None:
     ])
     door = next(line for line in lines if line.key.startswith("door:"))
     assert door.text == "doors 1, 2: DOOR PRE-HUNG IN FRAME; door 6: GLASS PROVIDED BY GC"
+
+
+def test_a_width_with_a_fraction_is_read_to_the_fraction() -> None:
+    assert takeoff._inches("5'-7 1/2\"") == 67.5
+    assert takeoff._inches("3'-0\"") == 36.0

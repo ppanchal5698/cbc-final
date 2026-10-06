@@ -358,15 +358,17 @@ _MATERIALS = {
 # (requirements 5.2 and 7.2), and a leaf over 4'-0" wide is usually a pair.
 _TALLEST_STOCK_IN = 96.0
 _WIDEST_LEAF_IN = 48.0
-_FEET_INCHES = re.compile(r"""^\s*(\d+)\s*'\s*-?\s*(\d+(?:\.\d+)?)?\s*"?\s*$""")
+_FEET_INCHES = re.compile(r"""^\s*(\d+)\s*'\s*-?\s*(\d+(?:\.\d+)?)?(?:\s+(\d+)/(\d+))?\s*"?\s*$""")
 
 
 def _inches(value: Any) -> float | None:
-    """3'-0" -> 36. A size the schedule printed some other way says nothing here."""
+    """3'-0" -> 36, 5'-7 1/2" -> 67.5. A size the schedule printed some other way
+    says nothing here."""
     match = _FEET_INCHES.match(str(value or ""))
     if not match:
         return None
-    return int(match.group(1)) * 12 + float(match.group(2) or 0)
+    fraction = int(match.group(3)) / int(match.group(4)) if match.group(4) and int(match.group(4)) else 0.0
+    return int(match.group(1)) * 12 + float(match.group(2) or 0) + fraction
 
 
 def door_and_frame_lines(openings: list[dict[str, Any]]) -> list[Line]:

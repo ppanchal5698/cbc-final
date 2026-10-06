@@ -341,3 +341,93 @@ def test_a_field_the_row_leaves_blank_is_not_a_doubt_about_the_reading() -> None
     assert opening["confidence"] == 1.0
     no_set = _opening(["102", "3'-0\"", "7'-0\""], ["Door No.", "Width", "Height"])
     assert no_set["confidence"] < 1.0, "a door with no hardware set is a gap in the reading"
+
+
+# ── a header of rotated words, as the Evernorth schedule prints it ─────────────
+
+def _evernorth_rows():
+    """Page 21 of the Evernorth set, as the words fall: each column labelled by a
+    stack of rotated words (DOOR under NUMBER, PANEL under TYPE), the frame's
+    MATERIAL the same word as the door's, and door 100's width and height close
+    enough to cluster as one cell."""
+    def row(y, cells):
+        return {"y": y, "source_page": 21, "cells": [c[0] for c in cells],
+                "cell_boxes": [list(c[1]) for c in cells],
+                "cell_words": [c[2] if len(c) > 2 else [(c[1][0], c[1][2], c[0])] for c in cells],
+                "text": " | ".join(c[0] for c in cells)}
+
+    def label(x, y0):
+        return (x, y0, x + 17.0, 188.5)
+
+    def cell(x0, x1, y):
+        return (x0, y, x1, y + 12.9)
+
+    return [
+        row(93.4, [("NUMBER", label(195.0, 93.4))]),
+        row(111.4, [("TYPE", label(330.1, 111.4)), ("TYPE", label(753.1, 108.6)), ("RATING", label(1168.7, 109.3))]),
+        row(117.0, [("HARDWARE", label(1132.7, 115.6))]),
+        row(126.0, [("MATERIAL", label(423.4, 126.0)), ("MATERIAL", label(816.1, 126.0))]),
+        row(141.3, [("HEIGHT", label(285.1, 141.3))]),
+        row(147.5, [("WIDTH", label(244.5, 147.5)), ("PANEL", label(330.1, 147.5)), ("FRAME", label(753.1, 144.8))]),
+        row(151.0, [("DOOR", label(195.0, 151.0))]),
+        row(160.0, [("FIRE", label(1168.7, 160.0))]),
+        row(202.7, [("100", cell(196.1, 212.0, 202.7)),
+                    ("5' - 7 1/2\" 9' - 0\"", cell(233.8, 306.4, 202.7),
+                     [(233.8, 241.0, "5'"), (243.0, 247.0, "-"), (249.0, 254.0, "7"), (256.0, 265.8, "1/2\""),
+                      (282.2, 288.0, "9'"), (290.0, 294.0, "-"), (296.0, 306.4, "0\"")]),
+                    ("DD", cell(332.4, 346.1, 202.7)), ("EXISTING", cell(410.5, 454.8, 202.7)),
+                    ("5", cell(759.5, 764.8, 202.7)), ("EXISTING", cell(803.2, 847.6, 202.7))]),
+        *[row(y, [(mark, cell(196.1, 212.0, y)), (width, cell(241.6, 265.8, y)), ("7' - 0\"", cell(282.2, 306.4, y)),
+                  (kind, cell(332.4, 346.1, y)), ("TBD", cell(538.1, 557.1, y)), ("1 3/4\"", cell(611.1, 635.6, y)),
+                  ("GL-2", cell(677.8, 698.9, y)), ("1", cell(759.5, 764.8, y)), ("HM", cell(817.9, 832.6, y)),
+                  ("PT-4", cell(888.9, 909.5, y)), ("NO", cell(974.9, 989.2, y)), ("02", cell(1136.5, 1147.0, y)),
+                  ("YES", cell(1197.7, 1216.7, y))])
+          for y, mark, width, kind in ((215.7, "101", "5' - 0\"", "DD"), (228.6, "103", "3' - 0\"", "B"))],
+        row(241.6, [("106", cell(196.1, 212.0, 241.6)), ("3' - 0\"", cell(241.6, 265.8, 241.6)),
+                    ("7' - 0\"", cell(282.2, 306.4, 241.6)), ("A", cell(336.0, 342.0, 241.6)),
+                    ("EXISTING", cell(410.5, 454.8, 241.6)), ("TBD", cell(538.1, 557.1, 241.6)),
+                    ("1 3/4\"", cell(611.1, 635.6, 241.6)), ("NO", cell(681.0, 696.0, 241.6)),
+                    ("3", cell(759.5, 764.8, 241.6)), ("EXISTING", cell(803.2, 847.6, 241.6)),
+                    ("PT-4", cell(888.9, 909.5, 241.6)), ("EXISTING", cell(960.0, 1004.4, 241.6)),
+                    ("1' - 6\"", cell(1033.0, 1056.0, 241.6)), ("03", cell(1136.5, 1147.0, 241.6)),
+                    ("NO", cell(1197.7, 1213.0, 241.6))]),
+    ]
+
+
+def test_a_header_of_rotated_words_is_read_column_by_column() -> None:
+    rows = _evernorth_rows()
+    mapping = ps._detect_header_map(rows)
+    spans = mapping["_x"]
+    assert spans["hardware_set"][0] == 1132.7 and spans["fire_rating"][0] == 1168.7
+    assert spans["door_material"][0] == 423.4 and spans["frame_material"][0] == 816.1, \
+        "the MATERIAL right of the FRAME label is the frame's"
+    assert spans["door_type"][0] == 330.1 and spans["frame_type"][0] == 753.1
+    one = ps.parse_opening(next(r for r in rows if r["cells"][0] == "101"), mapping)
+    assert (one["hardware_set"], one["frame_type"], one["frame_material"], one["door_type"]) == ("GROUP 02", "1", "HM", "DD")
+    assert one["door_material"] is None, "a blank material column is blank - GL-2 is the glazing"
+
+
+def test_a_door_whose_size_carries_a_fraction_is_an_opening() -> None:
+    rows = _evernorth_rows()
+    mapping = ps._detect_header_map(rows)
+    hundred = next(r for r in rows if r["cells"][0] == "100")
+    assert ps._row_is_opening(hundred, mapping)
+    opening = ps.parse_opening(hundred, mapping)
+    assert (opening["width"], opening["height"]) == ("5'-7 1/2\"", "9'-0\"")
+    assert ps.parse_size("9'-0\" 10'-0\"")["size"] == "9'-0\" x 10'-0\"", "no four-digit code holds a 10-ft door"
+
+
+def test_a_level_header_is_not_read_as_stacked_words() -> None:
+    """A202 sets its title and a vendor note over a level two-tier header."""
+    def row(y, cells):
+        return {"y": y, "cells": [c[0] for c in cells], "cell_boxes": [[c[1], y, c[2], y + 9.0] for c in cells],
+                "text": " | ".join(c[0] for c in cells)}
+
+    rows = [
+        row(913.0, [("OPENING SCHEDULE", 1502, 1634), ("NATIONAL ACCOUNT DOOR AND FRAME SUPPLIER", 1708, 2374)]),
+        row(943.0, [("FRAME", 1738, 1765), ("DOOR", 1944, 1967)]),
+        row(950.0, [("OPNG.", 1495, 1520), ("OPENING", 1552, 1588), ("FIRE", 2037, 2054), ("HARDWARE NOTES:", 2068, 2151)]),
+        row(983.2, [("100A", 1497, 1520), ("6'-4\" x 8'-11 3/8\"", 1623, 1700), ("B", 1907, 1913), ("ALUM.", 1943, 1970)]),
+        row(1135.1, [("102", 1500, 1515), ("3'-4\" x7'-2\"", 1623, 1700), ("A", 1907, 1913), ("PC", 1949, 1960)]),
+    ]
+    assert ps._stacked_header(rows) is None

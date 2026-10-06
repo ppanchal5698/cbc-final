@@ -58,7 +58,8 @@ SCHEDULE_MARKERS = [
 
 # FR-2 / Matrix 7.1 — 4-digit shorthand, explicit feet-inches, or inch-only columns.
 SIZE_4DIGIT = re.compile(r"\b([2-9])([0-9])([4-9])([0-9])\b")
-SIZE_EXPLICIT = re.compile(r"(\d+)\s*'\s*-?\s*(\d+)\s*\"")
+# Inches may carry a fraction: Evernorth's door 100 is 5' - 7 1/2" wide.
+SIZE_EXPLICIT = re.compile(r"(\d+)\s*'\s*-?\s*(\d+(?:\s+\d+/\d+)?)\s*\"")
 # Retail / quick-serve schedules often print WIDTH/HGT as bare inches: 36" × 84".
 SIZE_INCHES = re.compile(r"\b(\d{2,3})\s*\"")
 HANDING = re.compile(
@@ -229,7 +230,9 @@ def _normalize_material(raw: str | None) -> str | None:
         "PLASTICLAMINATE": "HPL",
         "PLAM": "HPL",
     }
-    return mapping.get(token, token)
+    # A code closes up (H M is HM); words keep their spaces - Evernorth's
+    # SECURITY GATE SYSTEM came back as SECURITYGATESYSTEM.
+    return mapping.get(token) or (token if len(token) <= 4 else " ".join(raw.split()).upper())
 
 
 def inches_to_feet_inches(total_inches: int) -> str:
@@ -381,8 +384,9 @@ def parse_size(text: str) -> dict[str, Any]:
     if len(explicit) >= 2:
         (wf, wi), (hf, hi) = explicit[0], explicit[1]
         return {
-            # 2'-10" x 7'-0" has no four-digit code; it is still a size.
-            "size": f"{wf}{wi}{hf}{hi}" if len(wi) == 1 and len(hi) == 1
+            # 2'-10" x 7'-0" and 9'-0" x 10'-0" have no four-digit code; each is
+            # still a size.
+            "size": f"{wf}{wi}{hf}{hi}" if all(len(v) == 1 for v in (wf, wi, hf, hi))
             else f"{wf}'-{wi}\" x {hf}'-{hi}\"",
             "width": f"{wf}'-{wi}\"",
             "height": f"{hf}'-{hi}\"",
@@ -600,11 +604,103 @@ def _detect_header_map(rows: list[dict[str, Any]]) -> dict[str, int]:
             best_y = float(row.get("y") or 0)
             best_row = row
             best["_matrix"] = 1 if matrix_hits >= 2 else 0  # type: ignore[assignment]
+    stacked = _stacked_header(rows)
+    if stacked is not None:
+        mapping, spans = _map_stacked(stacked)
+        if len(mapping) >= 4 and len(mapping) > best_hits:
+            # Every tier is in it already: nothing is left to fill from beside it.
+            _frame_subheaders(rows, stacked, mapping, spans, stacked["y"], labels=stacked["labels"])
+            return {**mapping, "_matrix": 0, "_x": spans}  # type: ignore[dict-item]
     if best_x:
         _frame_subheaders(rows, best_row, best, best_x, best_y)
         _fill_from_neighbouring_tiers(rows, best, best_x, best_y)
         best["_x"] = best_x  # type: ignore[assignment]
     return best
+
+
+# Words a stacked header names its columns with that no single-row header needs:
+# a lone MATERIAL is the door's (FRAME's own is told apart by its group label), a
+# lone HARDWARE is the set, COMMENTS the notes.
+_STACKED_ALIASES: dict[str, tuple[str, ...]] = {
+    **HEADER_ALIASES,
+    "door_number": (*HEADER_ALIASES["door_number"], "DOOR"),
+    "door_material": (*HEADER_ALIASES["door_material"], "MATERIAL"),
+    "hardware_set": (*HEADER_ALIASES["hardware_set"], "HARDWARE"),
+    "notes": (*HEADER_ALIASES["notes"], "COMMENTS"),
+}
+
+
+def _stacked_header(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """A header written as stacks of words - each column's label a vertical stack,
+    a word a tier - as one row. Evernorth's schedule labels its columns PANEL over
+    TYPE, FIRE over RATING, HARDWARE alone: no row holds more than six of them, so
+    the best single row mapped three fields and every door came back with no
+    hardware set. The words above the first door row, inside the table's width,
+    are grouped by column and joined both ways - a rotated label reads upward, a
+    wrapped one down."""
+    anchors = [(row, run) for row in rows if (run := _mark_run(row)) and _row_is_opening(row, None)]
+    if len(anchors) < 2:
+        return None
+    x0 = min(run[0] for _, run in anchors) - 10
+    x1 = max(run[1] for _, run in anchors) + 10
+    # The table starts at its first mark-led row - one the opening test may not take
+    # (Evernorth's door 100 prints its size as one cell) - not at its first opening.
+    first = min(float(row["y"]) for row, _ in anchors)
+    top = min([first] + [float(row["y"]) for row in rows if first - 40 <= float(row.get("y") or 0) < first
+                         and (run := _mark_run(row)) and run[0] >= x0])
+    words: list[tuple[float, float, str, list[float]]] = []
+    for row in rows:
+        if not top - 130 <= float(row.get("y") or 0) < top - 1:
+            continue
+        for cell, box in zip(row.get("cells") or [], row.get("cell_boxes") or []):
+            text = str(cell).strip().upper()
+            # A tier is a word or two. A202's title (OPENING SCHEDULE) and the
+            # vendor note set over its table are not, and as tiers they made one
+            # 670-point "column" that read a laminate code's -60 as a fire rating.
+            if (not text or len(text) > 16 or len(text.split()) > 2 or "SCHEDULE" in text
+                    or len(box) < 3 or not x0 <= float(box[0]) <= x1):
+                continue
+            words.append(((float(box[0]) + float(box[2])) / 2, float(row["y"]), text, [float(v) for v in box]))
+    # Only a header of rotated words is stacked this way. A level header in two
+    # tiers - DTGO's DOORS over NO. and SIZE, A202's OPENING over OPNG. - is the
+    # tier logic's, and stacking it mapped a group label as a column.
+    rotated = sum(1 for w in words if w[3][3] - w[3][1] > 1.5 * (w[3][2] - w[3][0]))
+    if len(words) < 4 or rotated * 2 < len(words):
+        return None
+    columns: list[list[tuple[float, float, str, list[float]]]] = []
+    for word in sorted(words, key=lambda w: w[0]):
+        if columns and abs(word[0] - columns[-1][-1][0]) <= 15:
+            columns[-1].append(word)
+        else:
+            columns.append([word])
+    cells, boxes = [], []
+    for column in columns:
+        upward = " ".join(w[2] for w in sorted(column, key=lambda w: -w[1]))
+        downward = " ".join(w[2] for w in sorted(column, key=lambda w: w[1]))
+        cells.append(upward if upward == downward else f"{upward} / {downward}")
+        boxes.append([min(w[3][0] for w in column), min(w[3][1] for w in column),
+                      max(w[3][2] for w in column), max(w[3][3] for w in column)])
+    labels = [(w[3][0], w[2].rstrip(":")) for w in words if w[2].rstrip(":") in ("DOOR", "FRAME")]
+    return {"y": top - 1, "cells": cells, "cell_boxes": boxes, "text": " | ".join(cells), "labels": labels}
+
+
+def _map_stacked(header: dict[str, Any]) -> tuple[dict[str, int], dict[str, tuple[float, float]]]:
+    """Each stacked label to the field whose alias it matches most specifically:
+    FRAME TYPE is the frame's type, though TYPE alone would make it the door's."""
+    mapping: dict[str, int] = {}
+    spans: dict[str, tuple[float, float]] = {}
+    for index, (cell, box) in enumerate(zip(header["cells"], header["cell_boxes"])):
+        best_field, best_len = None, 0
+        for field, aliases in _STACKED_ALIASES.items():
+            if field in mapping:
+                continue
+            reach = max((len(a) for a in aliases if _alias_matches(a, cell)), default=0)
+            if reach > best_len:
+                best_field, best_len = field, reach
+        if best_field is not None:
+            mapping[best_field] = index
+            spans[best_field] = (float(box[0]), float(box[2]))
+    return mapping, spans
 
 
 def _frame_subheaders(
@@ -613,6 +709,7 @@ def _frame_subheaders(
     best: dict[str, int],
     best_x: dict[str, tuple[float, float]],
     best_y: float,
+    labels: list[tuple[float, str]] | None = None,
 ) -> None:
     """The frame's columns under a stacked header that names them with the door's
     words - DOOR: over MAT'L | TYPE, FRAME: over MAT'L | TYPE. The second MAT'L
@@ -620,14 +717,15 @@ def _frame_subheaders(
     frame type was never read, and `ALUM | E, 3'-4"` came back as one material.
     A repeat of a door word belongs to the group label nearest it on the left.
     In place."""
-    labels: list[tuple[float, str]] = []
-    for row in rows[:40]:
+    found: list[tuple[float, str]] = list(labels or [])
+    for row in rows[:40] if labels is None else ():
         if not 0 < best_y - float(row.get("y") or 0) <= 40:
             continue
         for cell, box in zip(row.get("cells") or [], row.get("cell_boxes") or []):
             word = str(cell).strip().upper().rstrip(":")
             if word in ("DOOR", "FRAME") and len(box) >= 3:
-                labels.append((float(box[0]), word))
+                found.append((float(box[0]), word))
+    labels = found
     if not any(word == "FRAME" for _, word in labels):
         return
     for index, (cell, box) in enumerate(zip(header.get("cells") or [], header.get("cell_boxes") or [])):
@@ -635,7 +733,7 @@ def _frame_subheaders(
         for door_field, frame_field in (("door_material", "frame_material"), ("door_type", "frame_type")):
             if best.get(door_field) == index or frame_field in best_x and best.get(frame_field) == index:
                 continue
-            if len(box) < 3 or not any(_alias_matches(a, text) for a in HEADER_ALIASES[door_field]):
+            if len(box) < 3 or not any(_alias_matches(a, text) for a in _STACKED_ALIASES[door_field]):
                 continue
             owner = max((label for label in labels if label[0] <= float(box[0]) + 4), default=None)
             if owner and owner[1] == "FRAME":
@@ -1054,7 +1152,10 @@ def parse_opening(
             raw_frame
         ):
             frame_material = raw_frame.strip().upper()
-    if not door_material:
+    # A material column found by position that the row leaves blank is blank:
+    # the row's other cells are not it. Evernorth's door 101 has no panel
+    # material, and its glazing type GL-2 read as a glass door.
+    if not door_material and "door_material" not in (header_map.get("_x") or {}):
         materials = MATERIAL.findall(text)
         # Skip false hits inside notes
         if materials:
