@@ -218,16 +218,14 @@ def cost_from_list(
 
 
 def ceil_to_grid(value: float, keys: list[int]) -> int | None:
-    """Next-largest even inch per NGP lite-kit sizing rule."""
+    """Next-largest even inch per NGP lite-kit sizing rule; None past the largest,
+    where the sheet says the size is a vendor quote, not its biggest printed cell."""
     if not keys or value <= 0:
         return None
     target = int(math.ceil(value))
     if target % 2 == 1:
         target += 1
-    for key in sorted(keys):
-        if key >= target:
-            return key
-    return max(keys)
+    return next((key for key in sorted(keys) if key >= target), None)
 
 
 def lookup_lite_kit_list_price_from_data(

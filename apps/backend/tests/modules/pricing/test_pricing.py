@@ -384,3 +384,13 @@ def test_frp_is_priced_at_the_commodity_band_wherever_a_spec_book_files_it():
 
     assert pricing.band_for_division("06 64 00") == "commodity"
     assert pricing.band_for_division("09 77 13") == "commodity"
+
+
+def test_a_lite_past_the_printed_table_is_a_quote_not_its_biggest_cell():
+    """It took the largest printed cell: a 40-inch lite priced as an 8-inch one."""
+    from cbc.modules.pricing.domain.calc import lookup_lite_kit_list_price_from_data
+
+    data = {"tables": [{"pdf_page": 30, "widths": [6, 8], "prices": {"10": {"6": 113, "8": 121}}}]}
+    assert lookup_lite_kit_list_price_from_data(data, 7, 9)["list_price"] == 121
+    assert lookup_lite_kit_list_price_from_data(data, 40, 9)["list_price"] is None
+    assert lookup_lite_kit_list_price_from_data(data, 8, 12)["list_price"] is None
