@@ -976,12 +976,13 @@ export function QuoteClient({
                               >
                                 {formatCostSourceLabel(line.priceStatus ?? line.costSource)}
                               </span>
+                              {/* Only a price can be stale; with none, the line wants the distributor's quote. */}
                               {line.costSource === "DISTRIBUTOR_MANUAL" && (
                                 <span
                                   className="text-[9.5px] font-medium text-status-warning whitespace-nowrap"
-                                  title="Price may be out of date — refresh"
+                                  title={line.cost === null ? "Ask the distributor for this part's price" : "Price may be out of date — refresh"}
                                 >
-                                  Price may be stale
+                                  {line.cost === null ? "Needs a distributor quote" : "Price may be stale"}
                                 </span>
                               )}
                             </span>

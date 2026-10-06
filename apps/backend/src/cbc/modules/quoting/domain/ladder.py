@@ -326,11 +326,15 @@ _FLAG_CONFIDENCE = (("ambiguous_match", 0.60), ("model_chose_match", 0.75), ("di
 
 def match_confidence(row: dict[str, Any]) -> float | None:
     """How sure the match is; None for a line that is not matched to a row at all -
-    a door or frame from its supplier, a cost typed by hand."""
+    a door or frame from its supplier, a cost typed by hand, a part as specified
+    that its distributor or vendor quotes (Evernorth's Schlage locks read "pick
+    match" with nothing to pick)."""
     flags = row.get("flags") or []
     for flag, score in _FLAG_CONFIDENCE:
         if flag in flags:
             return score
+    if row.get("cost_source") in ("DISTRIBUTOR_MANUAL", "VENDOR_RFQ"):
+        return None
     if row.get("cost") is None:
         return 0.0 if row.get("part_number") else None
     return _SOURCE_CONFIDENCE.get(str(row.get("cost_source") or ""))

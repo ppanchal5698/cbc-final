@@ -259,6 +259,8 @@ def test_each_match_says_how_sure_it_is() -> None:
 
     assert ladder.match_confidence({"flags": [], "cost": None, "part_number": "ZZ-404"}) == 0.0
     assert ladder.match_confidence({"flags": [], "cost": None, "part_number": None}) is None
+    assert ladder.match_confidence({"flags": [], "cost": None, "part_number": "ND53PD",
+                                    "cost_source": "DISTRIBUTOR_MANUAL"}) is None, "as specified: nothing to pick"
     assert confidence.band(None) is None
 
 
