@@ -267,3 +267,77 @@ def test_a_temperature_rise_door_says_so() -> None:
     plain = _opening(["202", "3'-0\"", "7'-0\"", "90 MIN"], header)
     assert "temperature_rise" not in plain["flags"]
     assert rise["confidence"] == plain["confidence"], "a listing is not a doubt about the reading"
+
+
+# ── a stacked DOOR: / FRAME: header, as the Shakopee reimage set prints it ──────
+
+def _box(x0, x1, y):
+    return [x0, y, x1, y + 9.0]
+
+
+def _shakopee_rows():
+    """Page 4 of the Shakopee set, as the words fall: the frame's MAT'L and TYPE
+    printed close enough to cluster as one cell, a notes cell set a few points
+    below its row, and a door type letter set a little above."""
+    def row(y, cells):
+        return {"y": y, "source_page": 4, "cells": [c[0] for c in cells],
+                "cell_boxes": [_box(c[1], c[2], y) for c in cells],
+                "cell_words": [c[3] if len(c) > 3 else [(c[1], c[2], c[0])] for c in cells],
+                "text": " | ".join(c[0] for c in cells)}
+
+    return [
+        row(151.0, [("DOOR:", 458, 509), ("FRAME:", 659, 719)]),
+        row(178.1, [("N0.", 458, 475), ("WIDTH", 493, 520), ("HGT.", 539, 558), ("MAT'L", 580, 607),
+                    ("TYPE", 623, 643), ("MAT'L", 662, 690), ("TYPE", 707, 728), ("GROUP", 747, 777),
+                    ("NOTES", 808, 838)]),
+        row(209.2, [("1", 464, 467), ('36"', 503, 523), ('84"', 544, 564), ("HPL", 583, 599), ("C", 633, 639),
+                    ("ALUM E, 3'-4\"", 668, 741, [(668, 690, "ALUM"), (700, 706, "E,"), (710, 741, "3'-4\"")]),
+                    ("5", 769, 776), ("TOILET: GC TO VERIFY WATER SUPPLY", 1024, 1342)]),
+        row(212.3, [("DOOR PRE-HUNG IN FRAME, OPTIONAL ARM PULL", 810, 980)]),
+        row(238.1, [("TOILET SEAT: TOTO SC534", 1087, 1205)]),
+        row(242.8, [("2", 464, 470), ('36"', 503, 523), ('84"', 544, 564), ("HPL", 583, 599), ("C", 633, 639),
+                    ("ALUM E, 3'-4\"", 668, 741, [(668, 690, "ALUM"), (700, 706, "E,"), (710, 741, "3'-4\"")]),
+                    ("5", 769, 776)]),
+        row(275.9, [("E", 630, 636)]),
+        row(277.1, [("3", 465, 471), ('28"', 502, 522), ('60"', 545, 567), ("HPL", 588, 604),
+                    ("ALUM E, 2'-8\"", 667, 741, [(667, 690, "ALUM"), (700, 706, "E,"), (710, 741, "2'-8\"")]),
+                    ("6", 769, 776), ("DOOR PRE-HUNG IN FRAME", 810, 903)]),
+    ]
+
+
+def test_a_cell_printed_off_its_rows_baseline_joins_the_row() -> None:
+    rows = _shakopee_rows()
+    mapping = ps._detect_header_map(rows)
+    merged = ps._attach_fragments(rows, mapping)
+    door = {r["cells"][0]: r for r in merged if r["cells"] and r["cells"][0] in ("1", "2", "3")}
+    assert door["1"]["cells"][-2:] == ["5", "DOOR PRE-HUNG IN FRAME, OPTIONAL ARM PULL"] or \
+        "DOOR PRE-HUNG IN FRAME, OPTIONAL ARM PULL" in door["1"]["cells"]
+    assert "E" in door["3"]["cells"] and door["3"]["cells"].index("E") == 4, "the type letter is the type column"
+    assert not any("TOILET SEAT" in c for c in door["2"]["cells"]), "the plumbing notes beside the table stay out"
+
+
+def test_the_frames_columns_under_a_frame_label_are_the_frames() -> None:
+    rows = _shakopee_rows()
+    mapping = ps._detect_header_map(rows)
+    assert (mapping["frame_material"], mapping["frame_type"]) == (5, 6)
+    merged = ps._attach_fragments(rows, mapping)
+    one = next(r for r in merged if r["cells"][0] == "1")
+    opening = ps.parse_opening(one, mapping)
+    assert (opening["frame_material"], opening["frame_type"]) == ("AL", "E, 3'-4\"")
+    assert opening["notes"] == "DOOR PRE-HUNG IN FRAME, OPTIONAL ARM PULL" and opening["door_type"] == "C"
+    three = ps.parse_opening(next(r for r in merged if r["cells"][0] == "3"), mapping)
+    assert three["door_type"] == "E" and three["size"] == "2450"
+
+
+def test_a_size_four_digits_cannot_write_is_still_a_size() -> None:
+    assert ps.parse_size('34" 84"')["size"] == "2'-10\" x 7'-0\""
+    assert ps.parse_size("2'-10\" x 7'-0\"")["size"] == "2'-10\" x 7'-0\""
+    assert ps.parse_size('36" 84"')["size"] == "3070"
+
+
+def test_a_field_the_row_leaves_blank_is_not_a_doubt_about_the_reading() -> None:
+    opening = _opening(["101", "3'-0\"", "7'-0\"", "5"], ["Door No.", "Width", "Height", "HW Set"])
+    assert {"fire_rating_missing", "handing_missing", "finish_missing"} <= set(opening["flags"])
+    assert opening["confidence"] == 1.0
+    no_set = _opening(["102", "3'-0\"", "7'-0\""], ["Door No.", "Width", "Height"])
+    assert no_set["confidence"] < 1.0, "a door with no hardware set is a gap in the reading"

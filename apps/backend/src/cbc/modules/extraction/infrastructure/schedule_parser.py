@@ -154,6 +154,7 @@ HEADER_ALIASES: dict[str, tuple[str, ...]] = {
     "door_number": (
         "DOOR NO",
         "DOOR NO.",
+        "N0.",
         "OPENING NO",
         "OPENING NO.",
         "MARK NO",
@@ -345,13 +346,18 @@ def cluster_rows(
         line = sorted(buckets[key], key=lambda w: w[0])
         cells: list[dict[str, Any]] = []
         current = [line[0]]
+
+        def close(group: list[tuple]) -> dict[str, Any]:
+            return {"text": " ".join(w[4] for w in group), "bbox": _bbox(group),
+                    "words": [(round(w[0], 2), round(w[2], 2), w[4]) for w in group]}
+
         for word in line[1:]:
             if word[0] - current[-1][2] > COLUMN_GAP:
-                cells.append({"text": " ".join(w[4] for w in current), "bbox": _bbox(current)})
+                cells.append(close(current))
                 current = [word]
             else:
                 current.append(word)
-        cells.append({"text": " ".join(w[4] for w in current), "bbox": _bbox(current)})
+        cells.append(close(current))
         rows.append(
             {
                 "source_page": page_number,
@@ -361,6 +367,7 @@ def cluster_rows(
                 "x_start": round(line[0][0], 1),
                 "cells": [c["text"] for c in cells],
                 "cell_boxes": [c["bbox"] for c in cells],
+                "cell_words": [c["words"] for c in cells],
                 "text": " | ".join(c["text"] for c in cells),
                 "_page_text": page_text,
             }
@@ -374,7 +381,9 @@ def parse_size(text: str) -> dict[str, Any]:
     if len(explicit) >= 2:
         (wf, wi), (hf, hi) = explicit[0], explicit[1]
         return {
-            "size": f"{wf}{wi}{hf}{hi}" if len(wi) == 1 and len(hi) == 1 else None,
+            # 2'-10" x 7'-0" has no four-digit code; it is still a size.
+            "size": f"{wf}{wi}{hf}{hi}" if len(wi) == 1 and len(hi) == 1
+            else f"{wf}'-{wi}\" x {hf}'-{hi}\"",
             "width": f"{wf}'-{wi}\"",
             "height": f"{hf}'-{hi}\"",
             "notation": "explicit",
@@ -399,6 +408,9 @@ def parse_size(text: str) -> dict[str, Any]:
         size_code = None
         if wi < 10 and hi < 10 and 2 <= wf <= 9 and 4 <= hf <= 9:
             size_code = f"{wf}{wi}{hf}{hi}"
+        elif 2 <= wf <= 9 and 4 <= hf <= 9:
+            # A 34-inch door is 2'-10": no four-digit code, still a size.
+            size_code = f"{inches_to_feet_inches(width_in)} x {inches_to_feet_inches(height_in)}"
         return {
             "size": size_code,
             "width": inches_to_feet_inches(width_in),
@@ -552,6 +564,7 @@ def _detect_header_map(rows: list[dict[str, Any]]) -> dict[str, int]:
     best_x: dict[str, tuple[float, float]] = {}
     best_hits = 0
     best_y = 0.0
+    best_row: dict[str, Any] = {}
     for row in rows[:40]:
         cells = [str(c).strip().upper() for c in (row.get("cells") or [])]
         joined = " ".join(cells)
@@ -585,11 +598,49 @@ def _detect_header_map(rows: list[dict[str, Any]]) -> dict[str, int]:
             best = mapping
             best_x = spans
             best_y = float(row.get("y") or 0)
+            best_row = row
             best["_matrix"] = 1 if matrix_hits >= 2 else 0  # type: ignore[assignment]
     if best_x:
+        _frame_subheaders(rows, best_row, best, best_x, best_y)
         _fill_from_neighbouring_tiers(rows, best, best_x, best_y)
         best["_x"] = best_x  # type: ignore[assignment]
     return best
+
+
+def _frame_subheaders(
+    rows: list[dict[str, Any]],
+    header: dict[str, Any],
+    best: dict[str, int],
+    best_x: dict[str, tuple[float, float]],
+    best_y: float,
+) -> None:
+    """The frame's columns under a stacked header that names them with the door's
+    words - DOOR: over MAT'L | TYPE, FRAME: over MAT'L | TYPE. The second MAT'L
+    matched nothing, so the FRAME label's whole span became `frame_material`, the
+    frame type was never read, and `ALUM | E, 3'-4"` came back as one material.
+    A repeat of a door word belongs to the group label nearest it on the left.
+    In place."""
+    labels: list[tuple[float, str]] = []
+    for row in rows[:40]:
+        if not 0 < best_y - float(row.get("y") or 0) <= 40:
+            continue
+        for cell, box in zip(row.get("cells") or [], row.get("cell_boxes") or []):
+            word = str(cell).strip().upper().rstrip(":")
+            if word in ("DOOR", "FRAME") and len(box) >= 3:
+                labels.append((float(box[0]), word))
+    if not any(word == "FRAME" for _, word in labels):
+        return
+    for index, (cell, box) in enumerate(zip(header.get("cells") or [], header.get("cell_boxes") or [])):
+        text = str(cell).strip().upper()
+        for door_field, frame_field in (("door_material", "frame_material"), ("door_type", "frame_type")):
+            if best.get(door_field) == index or frame_field in best_x and best.get(frame_field) == index:
+                continue
+            if len(box) < 3 or not any(_alias_matches(a, text) for a in HEADER_ALIASES[door_field]):
+                continue
+            owner = max((label for label in labels if label[0] <= float(box[0]) + 4), default=None)
+            if owner and owner[1] == "FRAME":
+                best[frame_field] = index
+                best_x[frame_field] = (float(box[0]), float(box[2]))
 
 
 def _fill_from_neighbouring_tiers(
@@ -704,6 +755,11 @@ def _cell(row: dict[str, Any], header_map: dict[str, int], field: str) -> str | 
             if overlap > best_overlap:
                 best_index, best_overlap = index, overlap
         if best_index is not None:
+            words = row.get("cell_words")
+            if isinstance(words, list) and len(words) == len(cells) and len(words[best_index] or []) > 1:
+                mine = _words_in_column(words[best_index], boxes[best_index], field, header_map["_x"])
+                if mine is not None:
+                    return mine
             text = str(cells[best_index]).strip()
             return text or None
         # The column exists on the header and no cell reaches it: this row has
@@ -716,6 +772,25 @@ def _cell(row: dict[str, Any], header_map: dict[str, int], field: str) -> str | 
         return None
     text = str(cells[index]).strip()
     return text or None
+
+
+def _words_in_column(words: list, box: list[float], field: str,
+                     spans: dict[str, tuple[float, float]]) -> str | None:
+    """The words of a cell that belong to `field` when the cell runs across more
+    than one mapped column - None when it sits in one. Two columns printed close
+    together (ALUM | E, 3'-4") cluster as one cell; each word goes to the column
+    nearest it."""
+    reached = [f for f, span in spans.items()
+               if min(span[1], float(box[2])) - max(span[0], float(box[0])) > 0]
+    if field not in reached or len(reached) < 2:
+        return None
+
+    def gap(center: float, span: tuple[float, float]) -> float:
+        return 0.0 if span[0] <= center <= span[1] else min(abs(center - span[0]), abs(center - span[1]))
+
+    mine = [str(w[2]) for w in words
+            if min(reached, key=lambda f: gap((float(w[0]) + float(w[1])) / 2, spans[f])) == field]
+    return " ".join(mine).strip() or ""
 
 
 def _row_is_opening(row: dict[str, Any], header_map: dict[str, int] | None = None) -> bool:
@@ -1114,7 +1189,10 @@ def parse_opening(
 
     opening["flags"] = flags
     # What the door is listed as is a fact about it, not a doubt about the reading.
-    problems = [flag for flag in flags if flag not in ("smoke_label", "no_hose_stream", "temperature_rise")]
+    # Nor is a field the row leaves blank - most schedules give no handing or finish.
+    problems = [flag for flag in flags if flag not in (
+        "smoke_label", "no_hose_stream", "temperature_rise",
+        "fire_rating_missing", "handing_missing", "finish_missing")]
     opening["confidence"] = round(max(0.3, 1.0 - 0.12 * len(problems)), 2)
     return opening
 
@@ -1156,15 +1234,15 @@ def _trim_to_columns(row: dict[str, Any], columns: tuple[float, float] | None) -
         return
     x0, x1 = columns
     pad = 0.05 * max(x1 - x0, 1.0)
-    kept = [
-        (cell, box)
-        for cell, box in zip(cells, boxes)
-        if box[0] >= x0 - pad and box[2] <= x1 + pad
-    ]
+    words = row.get("cell_words") if len(row.get("cell_words") or []) == len(cells) else None
+    keep = [i for i, box in enumerate(boxes) if box[0] >= x0 - pad and box[2] <= x1 + pad]
+    kept = [(cells[i], boxes[i]) for i in keep]
     if not kept or len(kept) == len(cells):
         return
     row["cells"] = [cell for cell, _ in kept]
     row["cell_boxes"] = [box for _, box in kept]
+    if words is not None:
+        row["cell_words"] = [words[i] for i in keep]
     row["text"] = " | ".join(row["cells"])
     row["bbox"] = [
         round(min(b[0] for _, b in kept), 2),
@@ -1217,6 +1295,88 @@ def _schedule_band(
         return None
     # Openings may sit above or below the title on rotated / tall sheets.
     return (header_y - 120.0, header_y + 900.0)
+
+
+_TABLE_GAP = 100.0  # wider than any column gap: past it is another drawing
+
+
+def _mark_run(row: dict[str, Any]) -> tuple[float, float] | None:
+    """Where a door row's own cells run: from its mark to the last cell before a
+    gap no column leaves - the plan or notes printed beside the table excluded."""
+    boxes = [b for b in row.get("cell_boxes") or [] if len(b) >= 3]
+    cells = row.get("cells") or []
+    if len(boxes) != len(cells):
+        return None
+    start = next((i for i, cell in enumerate(cells) if _is_door_mark(str(cell).strip())), None)
+    if start is None:
+        return None
+    end = float(boxes[start][2])
+    for box in boxes[start + 1:]:
+        if float(box[0]) - end > _TABLE_GAP:
+            break
+        end = max(end, float(box[2]))
+    return float(boxes[start][0]), end
+
+
+def _attach_fragments(rows: list[dict[str, Any]], header_map: dict[str, int]) -> list[dict[str, Any]]:
+    """Cells printed a few points off their row's baseline join that row.
+
+    Words are banded by height, six points a band, so a notes cell centred a
+    little lower than the row's mark - or a type letter set a little higher -
+    landed in a band of its own and was dropped: door 6's "GLASS PROVIDED BY GC"
+    and door 3's type never reached the take-off. A fragment inside the table's
+    columns joins the door row nearest it, when it is nearer than a third of the
+    way to the next row. A wrapped line farther off is left where it was."""
+    anchors = [(row, run) for row in rows if (run := _mark_run(row)) and _row_is_opening(row, header_map)]
+    if len(anchors) < 2:
+        return rows
+    ys = sorted(float(row["y"]) for row, _ in anchors)
+    steps = [b - a for a, b in zip(ys, ys[1:]) if b - a > 1]
+    reach = max(ROW_TOLERANCE, 0.3 * median(steps)) if steps else ROW_TOLERANCE
+    x0 = min(run[0] for _, run in anchors) - 4
+    x1 = max(run[1] for _, run in anchors) + 4
+    anchor_ids = {id(row) for row, _ in anchors}
+    merged: list[dict[str, Any]] = []
+    for row in rows:
+        if id(row) in anchor_ids or not row.get("cells"):
+            merged.append(row)
+            continue
+        boxes = row.get("cell_boxes") or []
+        words = row.get("cell_words") or [None] * len(row["cells"])
+        inside = [i for i, box in enumerate(boxes) if len(box) >= 3 and x0 <= float(box[0]) <= x1]
+        target = min(anchors, key=lambda a: abs(float(a[0]["y"]) - float(row["y"])))[0]
+        if not inside or abs(float(target["y"]) - float(row["y"])) > reach or _is_door_mark(str(row["cells"][inside[0]]).strip()):
+            merged.append(row)
+            continue
+        cells = list(zip(target["cells"], target["cell_boxes"], target.get("cell_words") or [None] * len(target["cells"])))
+        above = float(row["y"]) < float(target["y"])
+        for i in inside:
+            box, piece = boxes[i], (row["cells"][i], boxes[i], words[i] if i < len(words) else None)
+            overlaps = [(min(float(box[2]), float(c[1][2])) - max(float(box[0]), float(c[1][0])), n)
+                        for n, c in enumerate(cells)]
+            reach_x, n = max(overlaps, default=(0.0, -1))
+            if reach_x > 0:
+                # A second line of a cell the row already has: "HM" over "KNOCKDOWN"
+                # is one frame, the two lines of a frame size one size.
+                first, second = (piece, cells[n]) if above else (cells[n], piece)
+                cells[n] = (f"{first[0]} {second[0]}",
+                            [min(float(first[1][0]), float(second[1][0])), min(float(first[1][1]), float(second[1][1])),
+                             max(float(first[1][2]), float(second[1][2])), max(float(first[1][3]), float(second[1][3]))],
+                            (first[2] or []) + (second[2] or []) if first[2] is not None and second[2] is not None else None)
+            else:
+                cells.append(piece)
+        cells.sort(key=lambda c: float(c[1][0]))
+        target["cells"] = [c[0] for c in cells]
+        target["cell_boxes"] = [c[1] for c in cells]
+        target["cell_words"] = [c[2] for c in cells]
+        target["text"] = " | ".join(str(c[0]) for c in cells)
+        target["bbox"] = [round(min(float(c[1][0]) for c in cells), 2), round(min(float(c[1][1]) for c in cells), 2),
+                          round(max(float(c[1][2]) for c in cells), 2), round(max(float(c[1][3]) for c in cells), 2)]
+        rest = [i for i in range(len(row["cells"])) if i not in inside]
+        if rest:  # what lay outside the table stays a row of its own
+            merged.append({**row, "cells": [row["cells"][i] for i in rest], "cell_boxes": [boxes[i] for i in rest],
+                           "cell_words": [words[i] for i in rest], "text": " | ".join(row["cells"][i] for i in rest)})
+    return merged
 
 
 def _openings_from_row(
@@ -1331,6 +1491,7 @@ def schedule_rows(pdf_path: str, page_number: int) -> list[dict[str, Any]]:
     """Rows that describe an opening, with FR-2 fields filled when present."""
     rows = cluster_rows(pdf_path, page_number)
     header_map = _detect_header_map(rows)
+    rows = _attach_fragments(rows, header_map)
     sheet_finish = _page_sheet_finish(rows[0].get("_page_text") if rows else None)
     band = _schedule_band(rows, header_map)
     columns = _schedule_columns(rows, header_map)
