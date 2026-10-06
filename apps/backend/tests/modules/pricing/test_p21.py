@@ -108,3 +108,15 @@ def test_the_breaker_stops_after_one_failure(monkeypatch) -> None:
     assert client.last_po("A", "Hager") is None
     assert client.last_po("B", "Hager") is None
     assert calls["n"] == 1, "the breaker must not keep dialling a dead endpoint"
+
+
+def test_the_line_shows_the_last_pos_price_date_and_vendor(monkeypatch) -> None:
+    """Requirements 7.3: show last-PO price, date, and vendor."""
+    monkeypatch.setenv("P21_BASE_URL", "http://p21.local")
+    today = date.today().isoformat()
+    monkeypatch.setattr(p21, "_get", lambda url, **k: {"last_po_price": 1256.5, "po_date": today,
+                                                       "vendor_name": "Hager Companies"})
+    detail = p21.P21Client().last_po("3580", "Hager")["detail"]
+    assert detail == f"P21 last PO $1,256.50 on {today} from Hager Companies (fresh)"
+    monkeypatch.setattr(p21, "_get", lambda url, **k: {"last_po_price": 42.0, "po_date": today})
+    assert p21.P21Client().last_po("3580")["detail"] == f"P21 last PO $42.00 on {today} (fresh)"

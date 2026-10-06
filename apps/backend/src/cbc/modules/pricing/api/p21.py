@@ -98,9 +98,11 @@ class P21Client:
         po_date = payload.get("po_date") or payload.get("purchase_date") or payload.get("date")
         if price is None or po_date is None:
             return None
-        return self._classify(price, str(po_date))
+        # Requirements 7.3: the line shows the last PO's price, date and vendor.
+        supplier = payload.get("vendor_name") or payload.get("supplier_name") or payload.get("supplier")
+        return self._classify(price, str(po_date), str(supplier).strip() if supplier else None)
 
-    def _classify(self, price: Any, po_date: str) -> dict[str, Any] | None:
+    def _classify(self, price: Any, po_date: str, supplier: str | None = None) -> dict[str, Any] | None:
         from cbc.modules.ops.api.freshness import load_sync
         from cbc.modules.ops.api.freshness_rules import classify
 
@@ -120,8 +122,9 @@ class P21Client:
         )
         status = result["status"]
         if result["usable"]:
-            return {"cost": price_f, "detail": f"P21 last PO {po_date} ({status})", "po_date": po_date,
-                    "status": status}
+            source = f" from {supplier}" if supplier else ""
+            return {"cost": price_f, "detail": f"P21 last PO ${price_f:,.2f} on {po_date}{source} ({status})",
+                    "po_date": po_date, "status": status}
         if status == "unreliable":
             # No cost. The number is estimator context, not a value to quote.
             return {"context": f"P21 last PO {price_f} on {po_date} is unreliable — verify before use"}
