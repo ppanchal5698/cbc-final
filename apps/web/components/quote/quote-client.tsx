@@ -230,6 +230,8 @@ export function QuoteClient({
   const [belowBandOnly, setBelowBandOnly] = useState(false);
   // Collapsed openings, by group key. Nothing is collapsed until asked.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // The catalog-part composer is opened on purpose: its picks are not the bid's.
+  const [composing, setComposing] = useState<Set<string>>(new Set());
 
   const toggleGroup = useCallback((key: string) => {
     setCollapsed((current) => {
@@ -436,7 +438,7 @@ export function QuoteClient({
     setBusy(true);
     try {
       await proxyMutate(`/api/proxy/projects/${code}/quote/continue-to-proposal`);
-      toast.success("Proposal queued for Claude");
+      toast.success("Proposal queued");
       refresh();
       router.push(`/bids/${code}/proposal`);
     } catch (problem) {
@@ -489,7 +491,7 @@ export function QuoteClient({
 
         {running && (
           <div className="anim-fadein rounded-xl px-4 py-3 text-[13px] font-medium bg-status-warning-soft border border-status-warning/30 text-status-warning shadow-sm">
-            Claude is pricing the lines. Totals refresh as matches land.
+            Pricing the lines. Totals refresh as matches land.
           </div>
         )}
 
@@ -637,7 +639,7 @@ export function QuoteClient({
           {running && (
             <div className="anim-fadein relative overflow-hidden px-5 py-3 text-[13px] font-bold bg-status-warning-soft text-status-warning shadow-inner">
               <span className="anim-sweep" />
-              Claude is matching and pricing the confirmed openings.
+              Matching and pricing the openings.
             </div>
           )}
 
@@ -691,7 +693,7 @@ export function QuoteClient({
                   </span>
                   <span className="max-w-[440px] text-[13px] font-medium text-tx-secondary">
                     {running
-                      ? "Claude is working through the catalog and the price books."
+                      ? "Working through the catalog and the price books."
                       : filtering && data?.lineCount
                         ? "Move lines into this alternate on the extraction step, or add them by hand."
                         : "Confirm the openings on the extraction step, then hand off to pricing."}
@@ -701,6 +703,15 @@ export function QuoteClient({
                 groups.map((group) => {
                   const isOpening = group.group !== group.division;
                   const expanded = !collapsed.has(group.group);
+                  // A hardware set prices for the doors that cite it: say which.
+                  const doors = [...new Set(group.lines.flatMap((line) => line.openings ?? []))].sort((a, b) =>
+                    a.localeCompare(b, undefined, { numeric: true }),
+                  );
+                  const label = !isOpening
+                    ? group.division
+                    : /^\d+[A-Z]?$/i.test(group.group)
+                      ? `Hardware set ${group.group}`
+                      : group.group;
                   // Slot order is a display rule, so it is applied here rather
                   // than asking the API to sort on something it does not store.
                   const lines = [...group.lines].sort(
@@ -713,7 +724,7 @@ export function QuoteClient({
                         type="button"
                         onClick={() => toggleGroup(group.group)}
                         aria-expanded={expanded}
-                        aria-label={`${expanded ? "Collapse" : "Expand"} ${isOpening ? `opening ${group.group}` : group.division}`}
+                        aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
                         className="text-tx-muted transition-colors hover:text-tx-primary"
                       >
                         {expanded ? (
@@ -723,19 +734,36 @@ export function QuoteClient({
                         )}
                       </button>
                       <span className="text-[14px] font-bold text-tx-primary tracking-tight">
-                        {isOpening ? `Opening ${group.group}` : group.division}
+                        {label}
                       </span>
                       <span className="text-[12px] font-medium text-tx-muted">
+                        {doors.length > 0 && `door${doors.length === 1 ? "" : "s"} ${doors.join(", ")} · `}
                         {isOpening ? `${group.division} · ` : ""}
                         {group.lines.length} component{group.lines.length === 1 ? "" : "s"}
                       </span>
                       <span className="flex-1" />
+                      {isOpening && expanded && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setComposing((current) => {
+                              const next = new Set(current);
+                              if (next.has(group.group)) next.delete(group.group);
+                              else next.add(group.group);
+                              return next;
+                            })
+                          }
+                          className="text-[11.5px] font-semibold text-tx-muted hover:text-tx-primary"
+                        >
+                          {composing.has(group.group) ? "Close the part composer" : "Compose a catalog part"}
+                        </button>
+                      )}
                       <span className="tnum text-[14px] font-bold text-brand-primary">
                         ${formatMoney(group.subtotal)}
                       </span>
                     </div>
 
-                    {expanded && isOpening && (
+                    {expanded && isOpening && composing.has(group.group) && (
                       <Nomenclature opening={group.group} division={group.division} />
                     )}
 

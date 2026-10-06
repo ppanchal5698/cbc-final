@@ -374,6 +374,8 @@ export interface QuoteLine {
     product_type?: string;
   } | null;
   alternateGroup?: string | null;
+  /** The doors a set's line is for. */
+  openings?: string[];
   flags: string[];
 }
 

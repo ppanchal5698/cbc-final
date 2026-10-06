@@ -118,7 +118,7 @@ export function UploadPanel({
             result.note ??
             (queue.length > 1
               ? `${result.document.pages ?? "?"} pages · extract waits briefly so sibling PDFs join the same run.`
-              : `${result.document.pages ?? "?"} pages · Claude has been queued to read it.`),
+              : `${result.document.pages ?? "?"} pages · queued to be read.`),
         });
       } catch (problem) {
         toast.error(`${file.name} was not accepted`, { description: errorMessage(problem) });
@@ -171,7 +171,7 @@ export function UploadPanel({
           {!jobsError &&
           job &&
           (job.status === "running" || (job.status === "queued" && !waitingForSiblings(job)))
-            ? " · Claude is reading"
+            ? " · reading"
             : ""}
         </span>
         <span className="flex-1" />
@@ -298,8 +298,8 @@ export function UploadPanel({
           </span>
           <span className="max-w-[460px] text-[13px] font-medium text-tx-secondary leading-relaxed">
             Drop one combined PDF or several separate PDFs (plans, specs, RFP). Multi-file
-            uploads coalesce into one extract job after a short debounce so Claude sees the
-            full set. Uploading is what notifies Claude — nothing else is needed.
+            uploads coalesce into one extract job after a short debounce so the copilot reads the
+            full set. Uploading is all it takes — nothing else is needed.
           </span>
 
         <input

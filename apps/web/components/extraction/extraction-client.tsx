@@ -271,7 +271,7 @@ export function ExtractionClient({
               <span className="flex-1" />
 
               <button
-                onClick={() => post("/line-items/rerun", "Claude is re-reading the drawings")}
+                onClick={() => post("/line-items/rerun", "Re-reading the drawings")}
                 disabled={busy || running}
                 className="flex items-center gap-2 rounded-lg px-4 py-2 text-[12.5px] font-bold border border-subtle text-tx-secondary hover:bg-panel-muted hover:text-tx-primary transition-colors disabled:opacity-50 shadow-sm bg-background"
               >
@@ -346,8 +346,8 @@ export function ExtractionClient({
                   in row by row, and saying they did left an estimator watching
                   an empty table for half an hour on a 24-page set. */}
               {items.length > 0
-                ? "Claude is checking these against the sheets. Corrections land when the pass finishes."
-                : "Claude is reading the bid set. Rows appear once the take-off has been seeded."}
+                ? "Checking these against the sheets. Corrections land when the pass finishes."
+                : "Reading the bid set. Rows appear once the take-off has been seeded."}
             </div>
           )}
 
@@ -373,7 +373,7 @@ export function ExtractionClient({
                 if (action.label === "Add lines by hand") {
                   document.getElementById("add-by-hand")?.scrollIntoView({ behavior: "smooth" });
                 } else if (action.label === "Re-run extraction") {
-                  post("/line-items/rerun", "Claude is re-reading the drawings");
+                  post("/line-items/rerun", "Re-reading the drawings");
                 } else if (action.label === "Notify your admin") {
                   toast.message("Ask your administrator to configure the AI provider in Settings.");
                 }
@@ -436,7 +436,7 @@ export function ExtractionClient({
                 </span>
                 <span className="max-w-[420px] text-[13px] font-medium text-tx-secondary">
                   {running
-                    ? "Claude is working through the schedules and elevations."
+                    ? "Reading the schedules and elevations."
                     : filter === "all"
                       ? "Upload a plan set on the intake step, and the openings are read for you."
                       : "No lines match this filter."}
@@ -537,7 +537,7 @@ export function ExtractionClient({
             ) {
               return;
             }
-            post("/line-items/continue-to-quote", "Pricing queued for Claude", () =>
+            post("/line-items/continue-to-quote", "Pricing queued", () =>
               router.push(`/bids/${code}/quote`),
             );
           }}

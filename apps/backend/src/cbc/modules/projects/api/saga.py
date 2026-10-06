@@ -75,7 +75,7 @@ FAIL_STATE: dict[str, ChainState] = {
 
 _COPY: dict[ChainState, tuple[str, str]] = {
     "idle": ("Idle", ""),
-    "extracting": ("Extracting", "Claude is reading the bid set."),
+    "extracting": ("Extracting", "Reading the bid set."),
     "extraction_done": ("Take-off complete", ""),
     "extraction_needs_review": (
         "Needs review",

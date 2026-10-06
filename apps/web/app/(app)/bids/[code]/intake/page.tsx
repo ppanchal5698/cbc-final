@@ -179,7 +179,7 @@ export default async function IntakePage({ params }: { params: Promise<{ code: s
       <footer className="flex shrink-0 items-center gap-3 border-t border-subtle bg-background px-5 py-3">
         <span className="flex-1 text-[12.5px] text-tx-secondary">
           {documents.length === 0
-            ? "Phone-in or waiting on files: add the plan set when ready. Claude reads it as soon as it lands."
+            ? "Phone-in or waiting on files: add the plan set when ready. It is read as soon as it lands."
             : `${documents.length} document${documents.length === 1 ? "" : "s"} on file.`}
         </span>
         <Link

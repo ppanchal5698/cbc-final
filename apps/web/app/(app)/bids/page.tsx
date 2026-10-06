@@ -61,7 +61,7 @@ export default async function BidBoardPage({
             <span className="max-w-[420px] text-[13.5px] leading-relaxed text-tx-secondary">
               {q
                 ? "Try a different code, name, or brand — or clear the search to see all bids."
-                : "Create a bid to start intake. Upload a plan set and Claude reads the openings for you."}
+                : "Create a bid to start intake. Upload a plan set and the copilot reads the openings for you."}
             </span>
             {!q && (
               <div className="mt-4">

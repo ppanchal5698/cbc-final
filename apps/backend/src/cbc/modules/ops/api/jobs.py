@@ -137,7 +137,7 @@ def coalesce_note(job: dict[str, Any] | None) -> str | None:
             cap = f" (hard cap {COALESCE_MAX_SECONDS}s — starts by {ceiling.strftime('%H:%M:%S')} UTC at latest)"
         return (
             f"Waiting ~{secs}s for more files (quiet window {DEFAULT_COALESCE_SECONDS}s)"
-            f" before Claude starts reading{cap}."
+            f" before reading starts{cap}."
         )
     return None
 
