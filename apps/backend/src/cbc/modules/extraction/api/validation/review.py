@@ -24,6 +24,7 @@ could ever clear it.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -195,10 +196,10 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
 
         # .claude/guides/takeoff.md: an excluded vendor is not quoted at any price. The
         # tier sheet's `excluded` list is the record of who that is.
-        vendor = str(line.get("vendor") or line.get("manufacturer") or "").lower()
+        vendor = re.sub(r"[^a-z0-9]", "", str(line.get("vendor") or line.get("manufacturer") or "").lower())
         for entry in excluded or []:
             name = str(entry.get("name") or "")
-            if name and name.lower() in vendor:
+            if name and re.sub(r"[^a-z0-9]", "", name.lower()) in vendor:
                 note = "{} is not quoted by CBC ({}) - remove the line and list it as out of scope".format(
                     name, entry.get("reason") or "excluded vendor"
                 )

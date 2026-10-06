@@ -386,3 +386,15 @@ def test_a_match_under_the_auto_propose_line_says_why(project) -> None:
     notes = [f["note"] for f in review.derive_flags(slug) if f["field"] == "match"]
     assert notes == ["Matched at 0.80: it is a size of the series the legend names, not the part itself - confirm the part",
                      "Matched at 0.75: the model chose it among rows at different prices - confirm the part"]
+
+
+def test_an_excluded_vendor_is_caught_however_its_name_is_punctuated(project, monkeypatch) -> None:
+    slug, directory = project
+    monkeypatch.setattr(review, "_excluded_vendors",
+                        lambda: [{"name": "J.L. Industries", "reason": "another department"}])
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "10:FEC1", "group": "Division 10", "manufacturer": "JL Industries", "cost_source": "MANUAL",
+         "cost": 180.0, "flags": []},
+    ]})
+    [flag] = [f for f in review.derive_flags(slug) if f["field"] == "out_of_scope"]
+    assert flag["note"].startswith("J.L. Industries is not quoted by CBC")

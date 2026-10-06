@@ -358,6 +358,22 @@ def update_vendor_categories(vendor_key: str, categories: dict[str, float]) -> d
     raise ValueError(f"vendor {vendor_key!r} not in vendor_tiers")
 
 
+def update_excluded_vendors(entries: list[dict[str, Any]]) -> dict[str, Any]:
+    """The vendors CBC does not quote at any price (requirements 1.2), each with
+    why: another department's line, an account CBC lost."""
+    payload = load_vendor_tiers()
+    kept: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        name = str(entry.get("name") or "").strip()
+        if not name:
+            raise ValueError("an excluded vendor needs a name")
+        reason = str(entry.get("reason") or "").strip()
+        kept[re.sub(r"[^a-z0-9]", "", name.lower())] = {"name": name, **({"reason": reason} if reason else {})}
+    payload["excluded"] = list(kept.values())
+    update_vendor_tiers(payload)
+    return payload
+
+
 def update_vendor_distributors(vendor: str, distributors: list[str]) -> dict[str, Any]:
     """Who CBC buys a vendor through. Such a vendor's lines carry no list price and
     are priced by hand (NR-2), so one not on file is added with no multiplier."""

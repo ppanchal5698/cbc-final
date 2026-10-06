@@ -140,13 +140,19 @@ class FrpConstantsUpdate(BaseModel):
         return value
 
 
-class VendorCategoriesUpdate(BaseModel):
-    """PATCH one vendor in vendor_tiers: its category multipliers, or the
-    distributors CBC buys it through (NR-2)."""
+class ExcludedVendor(BaseModel):
+    name: str = Field(min_length=1)
+    reason: str | None = None
 
-    vendor: str = Field(min_length=1)
+
+class VendorCategoriesUpdate(BaseModel):
+    """PATCH vendor_tiers: one vendor's category multipliers, or the distributors
+    CBC buys it through (NR-2) - or the vendors CBC does not quote at all."""
+
+    vendor: str | None = None
     categories: dict[str, float] | None = None
     distributors: list[str] | None = None
+    excluded: list[ExcludedVendor] | None = None
 
     @field_validator("categories")
     @classmethod

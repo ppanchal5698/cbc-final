@@ -461,3 +461,18 @@ def test_an_equal_is_kept_by_the_part_specified() -> None:
     assert reflib.update_hardware_equals(remove=["L9080"])["rows"] == []
     with pytest.raises(ValueError):
         reflib.update_hardware_equals(items=[{"part": "L9080", "equal_part": " "}])
+
+
+def test_the_vendors_cbc_does_not_quote_are_kept_with_why() -> None:
+    after = reflib.update_excluded_vendors([{"name": "J.L. Industries", "reason": "another department"},
+                                            {"name": "JL Industries"}, {"name": "Scranton Products"}])
+    assert after["excluded"] == [{"name": "JL Industries"}, {"name": "Scranton Products"}], "one entry a vendor"
+    with pytest.raises(ValueError):
+        reflib.update_excluded_vendors([{"name": " "}])
+
+
+def test_admin_can_set_the_vendors_cbc_does_not_quote(admin_client) -> None:
+    body = {"excluded": [{"name": "J.L. Industries", "reason": "Another department sells it"}]}
+    response = admin_client.patch("/api/reference/vendor-tiers", json=body)
+    assert response.status_code == 200 and response.json()["excluded"][0]["name"] == "J.L. Industries"
+    assert admin_client.patch("/api/reference/vendor-tiers", json={"categories": {"locks": 0.3}}).status_code == 422

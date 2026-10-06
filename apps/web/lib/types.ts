@@ -1041,6 +1041,8 @@ export interface VendorTierRow {
 
 export interface VendorTierDoc {
   vendors: VendorTierRow[];
+  /** Vendors CBC does not quote at any price (requirements 1.2). */
+  excluded?: Array<{ name: string; reason?: string | null }>;
   description?: string;
   rule?: string;
 }
