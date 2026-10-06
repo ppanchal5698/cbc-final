@@ -301,3 +301,12 @@ def test_the_accessory_is_the_one_its_own_row_names() -> None:
     """A note beside the Wendy's schedule - "ALL GRAB BARS MUST BE PURCHASED FROM
     HJC" - made its jumbo-roll tissue dispenser a grab bar."""
     assert sp._product_type("SURFACE MOUNTED JUMBO ROLL TOILET") == "toilet_tissue_dispenser"
+
+
+def test_every_phase_1_hand_dryer_and_frp_maker_is_recognised() -> None:
+    """Requirements 5.3: Dyson and Excel XLERATOR dryers were "mentions", never items,
+    and FRP looked its maker up in the Division 10 list, so Marlite was never Marlite."""
+    assert sp._manufacturer_in("HAND DRYER | DYSON AIRBLADE V HU02")[0] == "Dyson"
+    assert sp._manufacturer_in("HAND DRYER | EXCEL DRYER XLERATOR XL-SB")[0] == "Excel Dryer"
+    assert sp._manufacturer_in("FRP WALL PANELS BY MARLITE", sp.FRP_MANUFACTURERS)[0] == "Marlite"
+    assert sp._manufacturer_in("FRP WALL PANELS BY MARLITE") is None, "Marlite makes no washroom accessory"

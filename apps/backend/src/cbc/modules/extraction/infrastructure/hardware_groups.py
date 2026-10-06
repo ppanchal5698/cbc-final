@@ -91,6 +91,11 @@ KNOWN_MANUFACTURERS = {
     # off a list.
     "VON DURPIN": "Von Duprin",
     "HAGER MFG": "Hager", "HID": "HID", "NORTON": "Norton",
+    # The rest of CBC's phase 1 vendors (requirements 5.3): hand dryers, FRP, doors.
+    "MARKAR": "Markar", "DYSON": "Dyson", "EXCEL DRYER": "Excel Dryer", "XLERATOR": "Excel Dryer",
+    "FIVE LAKES": "Five Lakes", "PIONEER": "Pioneer", "MASONITE": "Masonite Architectural",
+    "SPECIAL-LITE": "Special-Lite", "SPECIAL LITE": "Special-Lite", "HP FABRICATION": "HP Fabrication",
+    "ALLEGION": "Allegion",
 }
 # The abbreviations a specification's hardware schedule writes in its maker
 # column (`SCH`, `IVE`). Trusted only as a whole cell: in running text `DET` and

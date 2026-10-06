@@ -249,12 +249,12 @@ _EXIT_DEVICE = re.compile(
 # The door and its frame, as CBC quotes them (requirements 1.1): hollow metal and
 # wood doors, hollow metal frames. Storefront glass and aluminum leaves are out of
 # scope already (`scope_rules`); a material the schedule did not give is flagged.
+# Every material `scope_rules.IN_SCOPE_MATERIALS` puts in scope, as a line describes it.
 _MATERIALS = {
-    "HM": ("hollow metal", "08 11 13"), "STEEL": ("hollow metal", "08 11 13"), "STL": ("hollow metal", "08 11 13"),
-    "MTL": ("hollow metal", "08 11 13"), "METAL": ("hollow metal", "08 11 13"),
-    "WD": ("wood", "08 14 16"), "WOOD": ("wood", "08 14 16"), "SC": ("wood", "08 14 16"),
-    "SCWD": ("wood", "08 14 16"), "HPL": ("plastic laminate faced wood", "08 14 16"),
-    "PLAM": ("plastic laminate faced wood", "08 14 16"),
+    **dict.fromkeys(("HM", "HMD", "ST", "STL", "STEEL", "MTL", "METAL"), ("hollow metal", "08 11 13")),
+    **dict.fromkeys(("WD", "W", "WOOD", "SC", "SCWD", "HC"), ("wood", "08 14 16")),
+    **dict.fromkeys(("HPL", "PL", "P.LAM", "PLAM"), ("plastic laminate faced wood", "08 14 16")),
+    "FRP": ("FRP", "08 16 13"),  # fiberglass doors - Special-Lite is a phase 1 door vendor
 }
 # Standard stock sizes end at 4'-0" x 8'-0": a 9-ft door is a vendor quote
 # (requirements 5.2 and 7.2), and a leaf over 4'-0" wide is usually a pair.

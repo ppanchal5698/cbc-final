@@ -41,7 +41,7 @@ OUT_OF_SCOPE: tuple[Rule, ...] = (
         "coiling_door",
         "Coiling / overhead / oversized door - separate HP division (garage doors)",
         _any_of(r"COILING", r"OVERHEAD\s+DOOR", r"ROLL(?:ING|-?UP)", r"SECTIONAL\s+DOOR",
-                r"GRILLE\s+DOOR"),
+                r"GRILLE\s+DOOR", r"GARAGE\s+DOOR", r"OVERSIZED?\s+DOOR"),
     ),
     Rule(
         "engineered_wood",
@@ -61,12 +61,14 @@ OUT_OF_SCOPE: tuple[Rule, ...] = (
     Rule(
         "tile_masonry",
         "Tile / thin brick / masonry - another HP department",
-        _any_of(r"THIN\s+BRICK", r"MASONRY", r"CERAMIC\s+TILE", r"QUARRY\s+TILE"),
+        # Not a bare MASONRY: a door schedule names the wall a hollow metal frame is
+        # set in, and a frame in a masonry wall is CBC's (5-3/4" depth).
+        _any_of(r"THIN\s+BRICK", r"MASONRY\s+(?:VENEER|UNITS?|WORK)", r"CERAMIC\s+TILE", r"QUARRY\s+TILE"),
     ),
     Rule(
         "jl_industries",
         "JL Industries access doors and specialties - not CBC estimating",
-        _any_of(r"JL\s+INDUSTRIES"),
+        _any_of(r"J\.?\s*L\.?\s+INDUSTRIES", r"FIRE\s+EXTINGUISHER\s+CABINETS?"),
     ),
     Rule(
         "scranton",
@@ -94,7 +96,13 @@ IN_SCOPE_MATERIALS = {
     "FRP": "FRP",
     "ST": "steel",
     "STL": "steel",
+    "STEEL": "steel",
+    "MTL": "steel",
+    "METAL": "steel",
     "HC": "hollow core wood",
+    "SC": "solid core wood",
+    "WOOD": "wood",
+    "HPL": "plastic laminate",  # what the schedule reader makes of PLAM
 }
 
 # Aluminium is the storefront signal when it is the *door*. An aluminium frame

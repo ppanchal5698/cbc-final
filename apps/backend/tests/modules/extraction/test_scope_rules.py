@@ -163,3 +163,23 @@ def test_the_rules_match_the_written_rule_file() -> None:
             phrase.split()[0] in rule.key or phrase.split()[0] in rule.reason.lower()
             for rule in scope_rules.OUT_OF_SCOPE
         ), f"{phrase} is in the rule file but not in the code"
+
+
+@pytest.mark.parametrize("text", [
+    "OVERHEAD GARAGE DOOR", "12'X14' GARAGE DOOR", "OVERSIZED DOOR - SEE A5.1", "J.L. INDUSTRIES ACCESS PANEL",
+    "FIRE EXTINGUISHER CABINET",
+])
+def test_what_cbc_does_not_quote_is_out_whatever_it_is_called(text) -> None:
+    """Requirements 1.2 [C]: garage and oversized doors, JL Industries' products."""
+    assert scope_rules.classify({"description": text, "door_material": "HM"}).in_scope is False
+
+
+def test_a_frame_in_a_masonry_wall_is_still_cbcs() -> None:
+    """MASONRY on a door row names the wall; a 5-3/4\" masonry frame is CBC's."""
+    verdict = scope_rules.classify({"raw_row": "101 | 3070 | HM | HM | WALL: MASONRY", "door_material": "HM"})
+    assert verdict.in_scope is True
+
+
+@pytest.mark.parametrize("material", ["HPL", "WOOD", "SC", "STEEL"])
+def test_laminate_wood_and_steel_doors_are_in_scope(material) -> None:
+    assert scope_rules.classify({"door_material": material}).in_scope is True

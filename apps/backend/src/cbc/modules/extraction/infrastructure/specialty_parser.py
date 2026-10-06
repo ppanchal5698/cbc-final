@@ -28,8 +28,11 @@ from cbc.shared import pdfrows
 DIV10_MANUFACTURERS = {
     name: label
     for name, label in KNOWN_MANUFACTURERS.items()
-    if label in {"Bobrick", "ASI", "Bradley", "Gamco", "World Dryer", "Nudo"}
+    if label in {"Bobrick", "ASI", "Bradley", "Gamco", "World Dryer", "Dyson", "Excel Dryer", "Nudo"}
 }
+# And the FRP vendors (requirements 5.3). FRP looked its maker up in the Division 10
+# list, so a Marlite panel was never Marlite.
+FRP_MANUFACTURERS = {name: label for name, label in KNOWN_MANUFACTURERS.items() if label in {"Marlite", "Nudo"}}
 
 # What the accessory is, from how the schedule names it. Ordered: the first match
 # wins, so the more specific phrases come first.
@@ -103,10 +106,10 @@ def _product_type(line: str) -> str | None:
     return found[0] if found else None
 
 
-def _manufacturer_in(line: str) -> tuple[str, str] | None:
+def _manufacturer_in(line: str, makers: dict[str, str] | None = None) -> tuple[str, str] | None:
     """(canonical name, the token as written), or None."""
     upper = line.upper()
-    for token, label in DIV10_MANUFACTURERS.items():
+    for token, label in (makers if makers is not None else DIV10_MANUFACTURERS).items():
         if re.search(rf"\b{re.escape(token)}\b", upper):
             return label, token
     return None
@@ -322,7 +325,7 @@ def frp_findings(pdf: Path, pages: list[int]) -> dict[str, Any]:
                 for candidate in text.splitlines():
                     if not FRP_PRESENT.search(candidate):
                         continue
-                    found = _manufacturer_in(candidate)
+                    found = _manufacturer_in(candidate, FRP_MANUFACTURERS)
                     if found:
                         manufacturer = found[0]
                         break
