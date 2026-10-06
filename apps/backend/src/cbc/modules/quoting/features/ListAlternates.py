@@ -21,7 +21,9 @@ async def list_alternates(code: str) -> dict[str, Any]:
     project = await load(code)
     project_id = project["_id"]
 
-    names = list(project.get("alternates") or [])
+    # The alternates named on the create form (FR-1a) and those made on the quote:
+    # the form's were stored as `bidAlternates` and read by nothing here.
+    names = list(project.get("alternates") or []) + list(project.get("bidAlternates") or [])
     names += await extraction_openings.distinct_groups(project_id)
     names += await estimate_lines().distinct("alternateGroup", {"projectId": project_id})
     groups = [None] + sorted({n for n in names if n})

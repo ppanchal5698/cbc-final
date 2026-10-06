@@ -69,7 +69,7 @@ const STATUS_TONE: Record<BoardStatus, string> = {
   Extracting: "text-status-info",
   Review: "text-status-warning",
   "In progress": "text-brand-primary",
-  Sent: "text-status-success",
+  "Handed off": "text-status-success",
   Closed: "text-tx-muted",
   Shelved: "text-tx-muted",
 };

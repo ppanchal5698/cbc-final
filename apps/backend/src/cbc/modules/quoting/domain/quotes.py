@@ -17,6 +17,9 @@ CostSource = Literal[
     "DISTRIBUTOR_MANUAL",
     "MANUAL",
     "BOOK_PRICE",
+    # Requirements 5.2 [C] path 3: a part never sold direct, priced off the maker's site.
+    "MANUFACTURER_WEBSITE",
+    "CATALOG_BASELINE",
 ]
 
 
@@ -55,6 +58,11 @@ class QuoteLineUpdate(BaseModel):
     # bid, which it cannot do if nothing records that one is outstanding.
     costSource: CostSource | None = None
     costSourceDetail: str | None = None
+    # FR-9: the estimator names the part, its maker and the NOTE a substitution
+    # prints - a hand-added line had none of them to set.
+    part: str | None = None
+    manufacturer: str | None = None
+    substitutionNote: str | None = None
 
 
 class QuoteSettings(BaseModel):

@@ -34,6 +34,7 @@ class ProjectRef(TypedDict, total=False):
     version: int
     autopilot: bool
     alternates: list[str]
+    bidAlternates: list[str]  # named on the create form (FR-1a)
     state: str
     location: str
     gc: str

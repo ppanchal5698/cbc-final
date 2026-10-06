@@ -173,3 +173,22 @@ def test_apply_learning(client, snapshots) -> None:
     drained, so an operator can tell "nothing to learn" from "it did not run".
     """
     snapshots.pin("POST /api/learning/apply", client.post("/api/learning/apply"))
+
+
+# Last: these change the shared bid, and every pin above is taken first.
+def test_a_typed_cost_is_the_estimators_not_the_sheets(client, bid) -> None:
+    """A cost typed by hand kept the source the ladder priced the line from - "List x
+    multiplier, Hager #18" over a number nobody read off that book (NFR-3)."""
+    line = client.patch(_p(bid, f"/quote/lines/{bid['line']}"), json={"cost": 61.25}).json()["line"]
+    assert line["costSource"] == "MANUAL" and line["costSourceDetail"].startswith("entered by")
+    named = client.patch(_p(bid, f"/quote/lines/{bid['line']}"),
+                         json={"cost": 58.0, "costSource": "MANUFACTURER_WEBSITE", "substitutionNote": "Equal to X"})
+    assert named.json()["line"]["costSource"] == "MANUFACTURER_WEBSITE"
+    assert named.json()["line"]["substitutionNote"] == "Equal to X"
+
+
+def test_a_tax_exempt_buyer_pays_no_tax(client, bid) -> None:
+    """FR-18: an exempt flag, beside the ship-to state's ruling."""
+    totals = client.patch(_p(bid, "/quote/settings"), json={"taxJurisdiction": "EXEMPT"}).json()["totals"]
+    assert totals["tax"] == 0 and totals["taxExempt"] is True and "exempt" in totals["taxNote"].lower()
+    client.patch(_p(bid, "/quote/settings"), json={"taxJurisdiction": None})

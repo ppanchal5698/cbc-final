@@ -120,7 +120,8 @@ class P21Client:
         )
         status = result["status"]
         if result["usable"]:
-            return {"cost": price_f, "detail": f"P21 last PO {po_date} ({status})", "po_date": po_date}
+            return {"cost": price_f, "detail": f"P21 last PO {po_date} ({status})", "po_date": po_date,
+                    "status": status}
         if status == "unreliable":
             # No cost. The number is estimator context, not a value to quote.
             return {"context": f"P21 last PO {price_f} on {po_date} is unreliable — verify before use"}

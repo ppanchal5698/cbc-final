@@ -40,6 +40,21 @@ const TAX_OPTIONS = [
   { key: "KY", label: "Kentucky 6.5%" },
   // "NONE" is a deliberate ruling; an unset value means the ship-to state decides.
   { key: "NONE", label: "No nexus" },
+  // FR-18: a buyer with an exemption certificate on file. Prints as exempt.
+  { key: "EXEMPT", label: "Tax exempt" },
+];
+
+// Where a cost came from (requirements 5.2): the ladder's own rungs, and the paths
+// an estimator prices by hand - a distributor, the maker's website, a vendor quote.
+const COST_SOURCES = [
+  "P21_LAST_PO",
+  "SPECIAL_NET",
+  "CATALOG_BASELINE",
+  "LIST_X_MULTIPLIER",
+  "DISTRIBUTOR_MANUAL",
+  "MANUFACTURER_WEBSITE",
+  "VENDOR_RFQ",
+  "MANUAL",
 ];
 
 // Component first: an estimator checks a set in the order it is written.
@@ -61,6 +76,10 @@ function formatCostSourceLabel(source?: string | null): string {
       return "Special Net";
     case "BOOK_PRICE":
       return "Book Price";
+    case "CATALOG_BASELINE":
+      return "Catalog";
+    case "MANUFACTURER_WEBSITE":
+      return "Mfr website";
     case "MANUAL":
       return "Manual";
     default:
@@ -247,6 +266,14 @@ export function QuoteClient({
     } catch (problem) {
       toast.error("Could not save that", { description: errorMessage(problem) });
     }
+  }
+
+  /** A text field the estimator names by hand (FR-9): the part, a description, a NOTE. */
+  function editText(line: QuoteLine, field: "part" | "description" | "substitutionNote", label: string) {
+    const current = (line[field] as string | null | undefined) ?? "";
+    const next = window.prompt(label, current);
+    if (next === null || next.trim() === current || (field === "description" && !next.trim())) return;
+    patchLine(line, { [field]: next.trim() || null });
   }
 
   async function deleteLine(line: QuoteLine) {
@@ -587,13 +614,34 @@ export function QuoteClient({
                           {slotOf(line.description)}
                         </span>
 
-                        <span className="truncate text-[13px] font-medium text-tx-secondary" title={line.part ?? undefined}>
+                        <button
+                          type="button"
+                          onClick={() => editText(line, "part", "Part number")}
+                          aria-label={`Part number for ${line.description}`}
+                          className="truncate text-left text-[13px] font-medium text-tx-secondary hover:text-tx-primary hover:underline"
+                          title={line.part ?? "Name the part"}
+                        >
                           {line.part ?? "—"}
-                        </span>
+                        </button>
 
                         <span className="min-w-0">
                           <span className="block truncate text-[13.5px] font-semibold text-tx-primary" title={line.description}>
                             {line.description}
+                          </span>
+                          {line.substitutionNote && (
+                            <span className="mt-0.5 block text-[11.5px] font-medium text-brand-primary" title={line.substitutionNote}>
+                              NOTE: {line.substitutionNote}
+                            </span>
+                          )}
+                          <span className="mt-0.5 flex gap-2 text-[11px] font-semibold text-tx-muted">
+                            <button type="button" className="hover:text-tx-primary hover:underline"
+                              onClick={() => editText(line, "description", "Description")}>
+                              Edit
+                            </button>
+                            <button type="button" className="hover:text-tx-primary hover:underline"
+                              onClick={() => editText(line, "substitutionNote", "Substitution NOTE printed on the quote")}>
+                              {line.substitutionNote ? "Edit NOTE" : "Add NOTE"}
+                            </button>
                           </span>
                           {(line.marginOverridden || line.addedByHand) && (
                             <span className="text-[11.5px] font-medium text-status-error mt-0.5 block">
@@ -686,6 +734,18 @@ export function QuoteClient({
                           >
                             {line.basis ?? "—"}
                           </span>
+                          <select
+                            aria-label={`Cost source for ${line.description}`}
+                            value={line.costSource ?? "MANUAL"}
+                            onChange={(event) => patchLine(line, { costSource: event.target.value })}
+                            className="mt-0.5 w-full truncate rounded border border-subtle bg-background px-1 py-0.5 text-[11px] font-medium text-tx-secondary"
+                          >
+                            {[...new Set([...(line.costSource ? [line.costSource] : []), ...COST_SOURCES])].map((source) => (
+                              <option key={source} value={source}>
+                                {formatCostSourceLabel(source)}
+                              </option>
+                            ))}
+                          </select>
                           {line.lapsed && (
                             <span
                               className="inline-block mt-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-status-warning-soft text-status-warning shadow-sm"

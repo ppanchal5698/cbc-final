@@ -36,6 +36,12 @@ async def update_line(
     reason = changes.pop("overrideReason", None)
     if not changes:
         return {"line": serialise(line), "totals": await quote_service.persist(project)}
+    if changes.get("cost") is not None and "costSource" not in changes:
+        # A cost typed by hand is the estimator's, not the sheet the ladder priced
+        # the line from: it kept saying "List x multiplier, Hager Price Book #18"
+        # over a number nobody read off that book (NFR-3).
+        changes["costSource"] = "MANUAL"
+        changes.setdefault("costSourceDetail", f"entered by {actor}")
 
     override = {
         "at": _now(),

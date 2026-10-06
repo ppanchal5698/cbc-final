@@ -39,6 +39,13 @@ def days_from_months(months: int) -> int:
 FRESH_DAYS = days_from_months(FRESH_MONTHS)
 DISCARD_AFTER_DAYS = days_from_months(DISCARD_AFTER_MONTHS)
 
+# CBC's own rule for a last PO (requirements 5.2 [C]): "use if sold within a year
+# and no price increase". Past `fresh` and within the year it still prices, but
+# aging - the amber of the requirements' proposed states (green under 6 months,
+# amber 6-12, red over 12, blocked over 3 years).
+USABLE_MONTHS = 12
+USABLE_DAYS = days_from_months(USABLE_MONTHS)
+
 # A vendor price sheet is a different question from a purchase-order price, and a
 # different rule answers it. Price changes arrive as dated memos with a protection
 # window (Matrix 6.3), and a sheet past ~24 months is due for review. This used
@@ -98,6 +105,15 @@ def classify(
             "status": "fresh",
             "usable": True,
             "guidance": "Usable if there has been no price increase.",
+        }
+    if age_days <= max(USABLE_DAYS, fresh_days):
+        return {
+            "status": "aging",
+            "usable": True,
+            "guidance": (
+                f"More than {fresh_label} old but sold within the year - usable if there "
+                "has been no price increase since; check the vendor's latest memo."
+            ),
         }
     if age_days <= discard_after_days:
         return {

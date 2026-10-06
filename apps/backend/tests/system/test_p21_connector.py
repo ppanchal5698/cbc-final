@@ -49,7 +49,7 @@ def test_a_price_past_the_review_window_is_unreliable() -> None:
     """A year-old cost used to come back `fresh` and go straight onto a quote."""
     from datetime import date, timedelta
 
-    mid = (date.today() - timedelta(days=365)).isoformat()
+    mid = (date.today() - timedelta(days=400)).isoformat()  # past "sold within the year"
     result = check_freshness(mid)
     assert result["freshness_status"] == "unreliable"
     assert result["usable"] is False
@@ -119,13 +119,13 @@ def test_freshness_respects_a_narrower_admin_window(monkeypatch) -> None:
 
     bands = Bands(
         catalog_stale_months=6,
-        discard_after_months=12,
+        discard_after_months=24,
         catalog_stale_days=core.days_from_months(6),
-        discard_after_days=core.days_from_months(12),
-        rule=core.rule_text(6, 12),
+        discard_after_days=core.days_from_months(24),
+        rule=core.rule_text(6, 24),
     )
     monkeypatch.setattr(_server, "load_sync", lambda: bands)
-    mid = (date.today() - timedelta(days=250)).isoformat()
+    mid = (date.today() - timedelta(days=500)).isoformat()
     result = check_freshness(mid)
     assert result["freshness_status"] == "unreliable"
     assert result["usable"] is False

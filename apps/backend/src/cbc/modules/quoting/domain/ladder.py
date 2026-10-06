@@ -400,7 +400,11 @@ def price(line: Line, src: Sources) -> list[dict[str, Any]]:
     if src.last_po is not None:
         po = src.last_po(part, line.manufacturer)
         if po and po.get("cost") is not None:
-            return [_priced(row, po["cost"], "P21_LAST_PO", po.get("detail") or "P21 last PO")]
+            priced = _priced(row, po["cost"], "P21_LAST_PO", po.get("detail") or "P21 last PO",
+                             last_po_date=po.get("po_date"))
+            if po.get("status") == "aging":
+                priced["flags"].append("cost_aging")  # sold 6-12 months ago: check for an increase
+            return [priced]
         if po and po.get("context"):
             tried.append(po["context"])
 

@@ -71,8 +71,8 @@ def tax_state(project: dict[str, Any], quote: dict[str, Any]) -> str | None:
     pricing pass must not freeze a model-written jurisdiction into the quote.
     """
     stored = quote.get("taxJurisdiction")
-    if stored == "NONE":
-        return "NONE"
+    if stored in ("NONE", "EXEMPT"):
+        return stored  # the estimator's ruling: no nexus, or an exempt buyer
     # Honor an explicit settings override (e.g. OH nexus on a NY ship-to bid).
     # Auto-persisted jurisdiction always matches project.state and must not
     # block ship-to from staying authoritative on every reprice.

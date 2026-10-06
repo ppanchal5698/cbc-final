@@ -82,6 +82,8 @@ export interface Project {
   mode?: "one_off" | "templated" | null;
   /** Phase 0: alternate names noted at intake (Matrix 4.1 reconciliation pending). */
   bidAlternates?: string[];
+  /** Scope notes from the call, or the text of the email or RFP (FR-1, FR-1a). */
+  rfpText?: string | null;
   stage: Stage;
   progress: number;
   /** Which phase an autopilot / coalesce run has reached. */
@@ -301,6 +303,9 @@ export interface QuoteLine {
   basis?: string | null;
   costSource?: string | null;
   costSourceDetail?: string | null;
+  /** The NOTE a substitution prints on the quote (FR-17). */
+  substitutionNote?: string | null;
+  manufacturer?: string | null;
   multiplier?: number | null;
   multiplierTier?: string | null;
   multiplierEffectiveDate?: string | null;

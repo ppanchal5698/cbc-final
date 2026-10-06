@@ -165,6 +165,7 @@ async def import_quote_lines(
             "multiplierTier": line.get("multiplier_tier"),
             "multiplierEffectiveDate": line.get("multiplier_effective_date"),
             "priceBookVersion": line.get("price_book_version"),
+            "lastPoDate": line.get("last_po_date"),  # NFR-3: the PO a P21 cost came from
             "sourcePage": line.get("source_page"),
             "priceStatus": line.get("price_status"),
             "listPrice": line.get("list_price"),

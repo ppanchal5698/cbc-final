@@ -59,7 +59,7 @@ def test_a_stale_po_is_written_nowhere(monkeypatch) -> None:
 
 def test_an_unreliable_po_is_context_not_cost(monkeypatch) -> None:
     monkeypatch.setenv("P21_BASE_URL", "http://p21.local")
-    old = (date.today() - timedelta(days=300)).isoformat()  # >6mo, <3yr
+    old = (date.today() - timedelta(days=400)).isoformat()  # past the year, <3yr
     monkeypatch.setattr(p21, "_get", lambda url, **k: {"last_po_price": 42.0, "po_date": old})
     result = p21.P21Client().last_po("X", "Hager")
     assert result is not None and result.get("cost") is None

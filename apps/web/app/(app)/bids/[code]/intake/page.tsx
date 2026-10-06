@@ -73,6 +73,11 @@ export default async function IntakePage({ params }: { params: Promise<{ code: s
       value: project.bidAlternates?.length ? project.bidAlternates.join(", ") : null,
       sourceKey: "bidAlternates",
     },
+    {
+      label: "Scope notes",
+      value: project.rfpText ?? null,
+      sourceKey: "rfpText",
+    },
   ];
 
   return (

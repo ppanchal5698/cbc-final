@@ -174,6 +174,7 @@ class QuoteTotals(TypedDict):
     grandTotal: float
     taxJurisdiction: str | None
     taxNote: str | None
+    taxExempt: bool  # FR-18: an exempt buyer, which prints as exempt
     groups: list[dict[str, Any]]
     unpricedLines: int
 
@@ -187,12 +188,14 @@ def totals(lines: list[dict[str, Any]], state: str | None, freight: float | None
         }
         for line in lines
     ]
-    # NONE is an explicit "no nexus" ruling, not a missing value.
-    explicit_none = state == "NONE"
+    # NONE is an explicit "no nexus" ruling, not a missing value; EXEMPT is a buyer
+    # with an exemption certificate on file (FR-18), which prints as exempt.
+    explicit_none = state in ("NONE", "EXEMPT")
     result = calc.compute_totals(payload, project_state=None if explicit_none else state)
     if explicit_none:
-        result["project_state"] = "NONE"
-        result["tax_note"] = "No nexus - the estimator has ruled this bid untaxed."
+        result["project_state"] = state
+        result["tax_note"] = ("Tax exempt - the buyer's exemption certificate is on file."
+                              if state == "EXEMPT" else "No nexus - the estimator has ruled this bid untaxed.")
 
     if freight:
         result["freight"] = round(float(freight), 2)
@@ -217,6 +220,7 @@ def totals(lines: list[dict[str, Any]], state: str | None, freight: float | None
         "grandTotal": result["grand_total"],
         "taxJurisdiction": result["project_state"],
         "taxNote": result["tax_note"],
+        "taxExempt": state == "EXEMPT",
         "groups": result["groups"],
         "unpricedLines": sum(1 for line in lines if line.get("cost") is None),
     }
