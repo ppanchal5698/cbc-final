@@ -19,6 +19,7 @@ from cbc.modules.extraction.api import documents as extraction_documents, openin
 from cbc.modules.extraction.infrastructure import geometry
 from cbc.modules.ops.api import (
     jobs as ops_jobs,
+    pipeline as ops_pipeline,
     runmetrics as ops_runmetrics,
     worker as ops_worker,
 )
@@ -165,6 +166,9 @@ async def prepare(job: dict[str, Any], project: dict[str, Any], payload: dict[st
 
     # Cumulative over all uploads/raw — re-checked on every extract_bid_set,
     # including stragglerMerge follow-ups (late PDFs can push the set over the cap).
+    # The Claude pass's breaker: it hands pages to the model. Reading in code costs
+    # no token a page, and a drawing set with its project manual is routinely past
+    # 400 pages - the Evernorth bid is 932, and was refused outright.
     if (
         job["type"] in ("extract_bid_set", "rerun_extraction", "run_full_pipeline")
         and EXTRACT_MAX_PDF_PAGES > 0
@@ -172,7 +176,7 @@ async def prepare(job: dict[str, Any], project: dict[str, Any], payload: dict[st
         over, pages = await asyncio.to_thread(
             sheetmap.exceeds_page_cap, project["slug"], EXTRACT_MAX_PDF_PAGES
         )
-        if over:
+        if over and await ops_pipeline.extraction_engine() == "legacy":
             merge = " (straggler merge; set still subject to page cap)" if payload.get(
                 "stragglerMerge"
             ) else ""
