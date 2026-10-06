@@ -239,3 +239,20 @@ def test_a_rating_cell_says_smoke_label_and_hose_stream_beside_the_minutes() -> 
     assert plain["fire_rating"] == "45" and "smoke_label" not in plain["flags"]
     hose = _opening(["106", "3'-0\"", "7'-0\"", "20 MIN NO HOSE STREAM"], header)
     assert "no_hose_stream" in hose["flags"]
+
+
+def test_a_door_in_a_bid_alternate_says_which() -> None:
+    """FR-2: the alternate designation - from an ALT column, else the remarks."""
+    by_column = _opening(["120", "3'-0\"", "7'-0\"", "2"], ["Door No.", "Width", "Height", "Alt"])
+    assert by_column["alternate"] == "Alternate 2"
+    by_remark = _opening(["121", "3'-0\"", "7'-0\"", "PART OF ADD ALT #1"], ["Door No.", "Width", "Height", "Remarks"])
+    assert by_remark["alternate"] == "Alternate 1"
+    plain = _opening(["122", "3'-0\"", "7'-0\"", "PROVIDE ALT. LEVER"], ["Door No.", "Width", "Height", "Remarks"])
+    assert plain["alternate"] is None
+
+
+def test_the_schedules_alternate_takes_the_bid_forms_name() -> None:
+    from cbc.modules.extraction.api.line_items import _as_on_the_form
+
+    assert _as_on_the_form("Alternate 1", ["Alt #1 - auto operators", "Alt #2"]) == "Alt #1 - auto operators"
+    assert _as_on_the_form("Alternate 3", ["Alt #1"]) == "Alternate 3"

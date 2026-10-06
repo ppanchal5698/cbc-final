@@ -15,6 +15,7 @@ from pymongo import InsertOne, UpdateOne
 
 from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.extraction.domain.schedule import (
+    alternate_designation,
     _identity,
     _normalize_schedule_payload,
     _status_for,
@@ -45,6 +46,16 @@ def _merge_flags(*groups: list[str] | None) -> list[str]:
 def _edited(doc: dict[str, Any]) -> set[str]:
     """The fields an estimator corrected on this row."""
     return {field for edit in doc.get("edits") or [] for field in (edit.get("after") or {})}
+
+
+def _as_on_the_form(name: str, form: list[str] | None) -> str:
+    """A schedule's "ALT 1" is the bid form's "Alternate #1" when both name the
+    same alternate (FR-2, FR-14): one group, under the form's name."""
+    wanted = alternate_designation(name)
+    for named in form or []:
+        if wanted and alternate_designation(named) == wanted:
+            return named
+    return name
 
 
 def _opening_finish(item: dict[str, Any]) -> tuple[str | None, list[str]]:
@@ -204,6 +215,8 @@ async def import_extraction(
         fields = _mongo_fields(
             item, key=key, project_id=project_id, payload=payload
         )
+        if fields.get("alternateGroup"):
+            fields["alternateGroup"] = _as_on_the_form(fields["alternateGroup"], project.get("bidAlternates"))
 
         current = existing.get(key)
         if current is None and key.split("#", 1)[0] in removed:

@@ -5,6 +5,7 @@ measurements taken off the sheet (extraction.infrastructure.geometry).
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
@@ -64,3 +65,26 @@ def _status_for(item: dict[str, Any]) -> str:
     if item.get("flags") or (confidence is not None and confidence < CONFIDENCE_FLOOR):
         return "needs_look"
     return "clear"
+
+
+# A door's bid alternate (FR-2): "ALT 1", "Alternate No. 2", "ADD ALT #3", "Bid
+# Alternate A". Never "ALTERATION": the designation must stand alone.
+ALTERNATE = re.compile(
+    r"\b(?:(?:ADD(?:ITIVE)?|DEDUCT(?:IVE)?|BID)\s+)?ALT(?:ERNATE)?\.?\s*(?:NO\.?\s*|#\s*)?([0-9]{1,2}|[A-Z])\b",
+    re.IGNORECASE,
+)
+_ALTERNATE_MARK = re.compile(r"#?\s*([0-9]{1,2}|[A-Z])", re.IGNORECASE)
+_CHECKED = {"X", "Y", "YES", "✓", "✔"}
+
+
+def alternate_designation(text: str | None, *, column: bool = False) -> str | None:
+    """The bid alternate a door is in, as "Alternate N", or None. Under an ALT
+    column a bare "1" or "#2" is the number, and a mark that only says yes is an
+    alternate the schedule does not number."""
+    raw = " ".join(str(text or "").split())
+    if not raw:
+        return None
+    if column and raw.upper() in _CHECKED:
+        return "Alternate"
+    found = ALTERNATE.search(raw) or (_ALTERNATE_MARK.fullmatch(raw) if column else None)
+    return f"Alternate {found.group(1).upper()}" if found else None

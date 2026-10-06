@@ -30,6 +30,8 @@ from statistics import median
 from pathlib import Path
 from typing import Any
 
+from cbc.modules.extraction.domain.schedule import alternate_designation
+
 try:
     import fitz  # PyMuPDF
 except ImportError:  # pragma: no cover
@@ -178,6 +180,8 @@ HEADER_ALIASES: dict[str, tuple[str, ...]] = {
     # here handed `derive_frame_depths` a hardware value to look a throat up by.
     "wall_type": ("WALL TYPE", "WALL CONST", "PARTITION TYPE", "PARTITION"),
     "notes": ("DOOR NOTES", "NOTES", "REMARKS"),
+    # The bid alternate a door is in (FR-2).
+    "alternate": ("ALTERNATE", "BID ALT", "ALT NO", "ALT.", "ALT"),
     "detail": ("DETAIL", "DETAIL LOCATIONS", "DETAILS"),
 }
 
@@ -1044,6 +1048,10 @@ def parse_opening(
         # Mapped from its header and then dropped, so every frame depth waited on
         # an estimator: the wall a frame is set in is what decides its throat.
         "wall_type": _cell(row, header_map, "wall_type") or None,
+        # FR-2: the bid alternate the schedule puts the door in - its ALT column,
+        # else its remarks, else the row.
+        "alternate": alternate_designation(_cell(row, header_map, "alternate"), column=True)
+        or alternate_designation(_cell(row, header_map, "notes")) or alternate_designation(text),
         "notes": "; ".join(notes_parts) if notes_parts else None,
         "source_page": row["source_page"],
         "page_size": row.get("page_size"),
