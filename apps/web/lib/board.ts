@@ -108,3 +108,9 @@ export function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]>
 export function estimatorLabel(project: Project): string {
   return project.estimator?.name ?? (project.assignedEstimator || "Unassigned");
 }
+
+/** FR-1c: the bid form names alternates, and the board says so. */
+export function alternatesNote(project: Project): string {
+  const count = project.bidAlternates?.length ?? 0;
+  return count ? ` · ${count} alternate${count === 1 ? "" : "s"}` : "";
+}

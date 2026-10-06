@@ -18,6 +18,7 @@ import {
 
 import {
   PIPELINE_STAGES,
+  alternatesNote,
   boardStatus,
   daysUntil,
   dueLabel,
@@ -212,6 +213,7 @@ export function DueNext({ projects }: { projects: Project[] }) {
                   </span>
                   <span className="truncate text-[11.5px] font-medium text-tx-muted">
                     {estimatorLabel(project)}
+                    {alternatesNote(project)}
                   </span>
                 </span>
                 <span

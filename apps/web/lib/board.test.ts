@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { boardStatus, daysUntil, dueLabel, isLive, outcomeCounts } from "@/lib/board";
+import { alternatesNote, boardStatus, daysUntil, dueLabel, isLive, outcomeCounts } from "@/lib/board";
 import type { Project } from "@/lib/types";
 
 /** The handful of fields the board derivations actually read. */
@@ -101,5 +101,13 @@ describe("daysUntil / dueLabel", () => {
     expect(daysUntil(null)).toBeNull();
     expect(daysUntil("not a date")).toBeNull();
     expect(dueLabel(null)).toBe("no due date");
+  });
+});
+
+describe("alternatesNote", () => {
+  it("flags a bid whose form names alternates, and says nothing otherwise", () => {
+    expect(alternatesNote(bid({ bidAlternates: ["Alt 1", "Alt 2"] }))).toBe(" · 2 alternates");
+    expect(alternatesNote(bid({ bidAlternates: ["Alt 1"] }))).toBe(" · 1 alternate");
+    expect(alternatesNote(bid())).toBe("");
   });
 });

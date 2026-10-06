@@ -23,7 +23,7 @@ import {
   outcomeTone,
 } from "@/components/bids/bid-state";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { daysUntil, dueLabel, estimatorLabel } from "@/lib/board";
+import { alternatesNote, daysUntil, dueLabel, estimatorLabel } from "@/lib/board";
 import { formatMoneyShort } from "@/lib/format";
 import { brandInitials } from "@/lib/initials";
 import type { BidStatus, Outcome, Project } from "@/lib/types";
@@ -239,6 +239,7 @@ export function BoardGroups({
                           </span>
                           <span className="mt-0.5 truncate text-[11px] font-medium text-tx-secondary">
                             {project.name}
+                            {alternatesNote(project)}
                           </span>
                         </span>
 
