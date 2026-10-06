@@ -524,7 +524,9 @@ def _ladder(line: Line, src: Sources) -> list[dict[str, Any]]:
     if line.unit == "SET" and not line.part:
         # A whole set to price by hand: the take-off already says why.
         row["cost_source_detail"] = f"{line.description}; price the set from the sheet"
-        if line.text:
+        # A whole set the legend did not itemise carries its doors' notes; an item
+        # the legend sells as a SET (seals) carries only its own words.
+        if line.text and {"hardware_set_not_in_legend", "hardware_set_not_itemised"} & set(line.flags):
             row["cost_source_detail"] += f"; the schedule says {line.text}"
         return [row]
     if line.key.startswith(("door:", "frame:")):
@@ -543,9 +545,16 @@ def _ladder(line: Line, src: Sources) -> list[dict[str, Any]]:
         return [row]
     # Only a door hardware legend writes the model into its description; a
     # specialty row's description is a location (`6/A2.2`), not a part.
+    if line.alternate and not line.part:
+        # Evernorth's card readers and door contacts are the security vendor's:
+        # there is no part for CBC to name, and nothing to price.
+        row["cost_source_detail"] = f"{line.alternate} - not CBC's to price"
+        return [row]
     part = line.part or (guess_part(line) if line.division.startswith("08") else None)
     if not part:
-        row["cost_source_detail"] = "no part number on the legend - name the part, then price it"
+        row["cost_source_detail"] = ("no part number on the legend - name the part, then price it"
+                                     if line.division.startswith("08")
+                                     else "no product named on the drawings - name it, then price it")
         row["flags"].append("no_part_number")
         return [row]
     if line.qty is None:

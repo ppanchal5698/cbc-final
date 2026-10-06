@@ -113,6 +113,11 @@ def test_what_another_party_supplies_is_priced_as_an_alternate_and_allegion_is_n
     assert row["alternate_group"] == ladder.BY_OTHERS_ALTERNATE and row["cost"] == 43.33
     [allegion] = ladder.price(line("1792NL", manufacturer="Falcon", alternate="supplied by landlord"), sources())
     assert allegion["cost_source"] == "DISTRIBUTOR_MANUAL" and allegion["alternate_group"] == ladder.BY_OTHERS_ALTERNATE
+    # Evernorth's card reader: the security vendor's, with no part - nothing to name or price.
+    [reader] = ladder.price(line(None, text="CARD READER", alternate="supplied by SECURITY VENDOR per the legend"),
+                            sources())
+    assert reader["cost_source_detail"] == "supplied by SECURITY VENDOR per the legend - not CBC's to price"
+    assert "no_part_number" not in reader["flags"]
 
 
 def test_a_special_margin_rides_on_every_line_with_its_reason() -> None:
