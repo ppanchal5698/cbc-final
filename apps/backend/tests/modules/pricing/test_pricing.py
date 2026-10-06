@@ -199,6 +199,15 @@ def test_both_finish_nomenclatures_read_the_same_finish():
         assert resolve_finish(spelling)["us_code"] == "US26D"
 
 
+def test_a_hinge_finish_plated_on_steel_is_its_brass_twin():
+    """Evernorth's hinges are 652 and its locks 626: one satin chrome, and the
+    Hager book lists BB1279 in US26D. The number the spec wrote is kept."""
+    from cbc.modules.pricing.api.reference_library import normalize_finish_value, resolve_finish
+
+    assert resolve_finish("652")["us_code"] == "US26D" and resolve_finish("640")["us_code"] == "US10B"
+    assert normalize_finish_value("652")["value"] == "US26D (652)"
+
+
 def test_us19_is_never_read_as_us26d():
     """They are different satins. A lockset in the wrong one is a return."""
     from cbc.modules.pricing.api.reference_library import resolve_finish

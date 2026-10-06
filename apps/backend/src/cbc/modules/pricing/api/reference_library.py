@@ -743,6 +743,13 @@ def depth_for_wall_type(wall_type: str | None) -> dict[str, Any] | None:
 
 _FINISH_TOKEN = re.compile(r"^(?:US)?\s*(\d{1,3}[A-Z]?)$", re.IGNORECASE)
 
+# BHMA A156.18 gives a finish plated on a steel base - a hinge's - its own number:
+# 652 is satin chrome as 626 is, on steel. A spec writes 652 for the hinges and 626
+# for the locks of one set, and the price books list both as US26D. The crosswalk's
+# rows are keyed by US code, so it cannot hold the twin; this is the twin.
+_ON_STEEL = {"632": "605", "633": "606", "637": "611", "639": "612", "640": "613",
+             "645": "618", "646": "619", "651": "625", "652": "626"}
+
 
 def resolve_finish(text: str | None) -> dict[str, Any] | None:
     """Read a finish written in either nomenclature, or say it is ambiguous."""
@@ -765,6 +772,10 @@ def resolve_finish(text: str | None) -> dict[str, Any] | None:
         return {**by_us[f"US{body}"], "matched_on": "us_code"}
 
     numeric = [f for f in finishes if str(f.get("numeric_code") or "") == body]
+    if not numeric and body in _ON_STEEL:
+        # The twin's finish, under the number the spec wrote: US26D (652).
+        numeric = [{**f, "numeric_code": body} for f in finishes
+                   if str(f.get("numeric_code") or "") == _ON_STEEL[body]]
     if len(numeric) == 1:
         return {**numeric[0], "matched_on": "numeric_code"}
     if len(numeric) > 1:
