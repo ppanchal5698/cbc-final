@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ from cbc.shared.auth import Actor
 from cbc.shared.mongo import serialise
 
 router = APIRouter(prefix="/api/projects/{code}/quote", tags=["quote"])
+_FRACTIONAL = re.compile(r"\bADD\s+(\d+(?:\.\d+)?)\s*%\s+FOR\s+FRACTIONAL\s+SIZES?\b", re.I)
 
 
 class LiteKitCreate(BaseModel):
@@ -58,6 +60,12 @@ def lite_kit_line(prices: dict[str, Any], body: LiteKitCreate, tier: dict[str, A
     listed = float(found["list_price"])
     cell = f'{found["width_used"]}" x {found["height_used"]}"'
     where = f"{book} p.{page}: {size} prices at the {cell} cell, list ${listed:.2f}"
+    # Some tables price a fractional size above its cell: "Add 15% for Fractional Sizes".
+    surcharge = next((float(m.group(1)) for rule in table.get("rules") or []
+                      if (m := _FRACTIONAL.search(str(rule)))), None)
+    if surcharge and (body.width % 1 or body.height % 1):
+        listed = round(listed * (1 + surcharge / 100), 2)
+        where += f" + {surcharge:g}% for a fractional size = ${listed:.2f}"
     multiplier = (tier or {}).get("multiplier")
     out["listPrice"] = listed
     if not multiplier or lapsed:

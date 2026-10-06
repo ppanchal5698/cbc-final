@@ -52,3 +52,15 @@ def test_the_estimator_adds_one_to_the_quote(client) -> None:
     assert line["cost"] == round(line["listPrice"] * line["multiplier"], 2) and line["group"] == "101"
     assert client.post(f"/api/projects/{bid['code']}/quote/lite-kits",
                        json={"table": 999, "width": 10, "height": 10}).status_code == 404
+
+
+def test_a_table_that_charges_for_a_fractional_size_charges_for_it() -> None:
+    """SG-10's page: "Odd inch sizes, use next largest even size" and "Add 15% for
+    Fractional Sizes" - a 9 1/2-inch lite is the 10-inch cell plus 15%."""
+    prices = {"tables": [{**PRICES["tables"][0], "rules": ["Odd inch sizes, use next largest even size",
+                                                           "Add 15% for Fractional Sizes"]}]}
+    fraction = lite_kit_line(prices, LiteKitCreate(table=0, width=9.5, height=10), NGP, lapsed=False)
+    assert (fraction["listPrice"], fraction["cost"]) == (139.15, 62.62)  # 121 + 15%, x 0.45
+    assert "+ 15% for a fractional size = $139.15" in fraction["costSourceDetail"]
+    whole = lite_kit_line(prices, LiteKitCreate(table=0, width=9, height=10), NGP, lapsed=False)
+    assert whole["listPrice"] == 121.0, "an odd inch takes the next cell, with nothing added"
