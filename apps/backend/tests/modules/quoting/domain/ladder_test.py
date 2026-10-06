@@ -118,6 +118,9 @@ def test_what_another_party_supplies_is_priced_as_an_alternate_and_allegion_is_n
                             sources())
     assert reader["cost_source_detail"] == "supplied by SECURITY VENDOR per the legend - not CBC's to price"
     assert "no_part_number" not in reader["flags"]
+    [seals] = ladder.price(line(None, text="SEALS", unit="SET", alternate="supplied by aluminum frame per the legend"),
+                           sources())
+    assert seals["cost_source_detail"] == "supplied by aluminum frame per the legend - not CBC's to price"
 
 
 def test_a_special_margin_rides_on_every_line_with_its_reason() -> None:

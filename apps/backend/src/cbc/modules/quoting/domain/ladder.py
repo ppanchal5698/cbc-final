@@ -525,6 +525,11 @@ def _price_rows(line: Line, src: Sources) -> list[dict[str, Any]]:
 def _ladder(line: Line, src: Sources) -> list[dict[str, Any]]:
     """Rungs 1 to 6 for a part CBC can price: always one row."""
     row = _row(line, src)
+    if line.alternate and not line.part:
+        # Evernorth's card readers are the security vendor's and its seals come with
+        # the aluminum frames: there is no part for CBC to name, and nothing to price.
+        row["cost_source_detail"] = f"{line.alternate} - not CBC's to price"
+        return [row]
     if line.unit == "SET" and not line.part:
         # A whole set to price by hand: the take-off already says why.
         row["cost_source_detail"] = f"{line.description}; price the set from the sheet"
@@ -549,11 +554,6 @@ def _ladder(line: Line, src: Sources) -> list[dict[str, Any]]:
         return [row]
     # Only a door hardware legend writes the model into its description; a
     # specialty row's description is a location (`6/A2.2`), not a part.
-    if line.alternate and not line.part:
-        # Evernorth's card readers and door contacts are the security vendor's:
-        # there is no part for CBC to name, and nothing to price.
-        row["cost_source_detail"] = f"{line.alternate} - not CBC's to price"
-        return [row]
     part = line.part or (guess_part(line) if line.division.startswith("08") else None)
     if not part:
         row["cost_source_detail"] = ("no part number on the legend - name the part, then price it"
