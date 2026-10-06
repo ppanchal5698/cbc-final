@@ -194,7 +194,8 @@ def hardware_lines(
         if key not in seen:
             lines.append(Line(
                 key=_keyed(f"{key}:set", group), group=entry["name"], division=DOOR_HARDWARE,
-                description=f"Hardware {entry['name']} - not in the hardware legend that was read",
+                # The customer reads the description; why it is priced by hand is the flag's.
+                description=f"Hardware {entry['name']} as scheduled",
                 part=None, manufacturer=None, finish=None, qty=entry["doors"], unit="SET",
                 openings=entry["marks"], source_file=entry["source_file"],
                 source_page=entry["source_page"], alternate_group=group, flags=["hardware_set_not_in_legend"],
@@ -219,7 +220,7 @@ def _set_lines(hw_set: dict[str, Any], name: str, key: str, group: str | None,
     if not items:
         return [Line(
             key=_keyed(f"{key}:set", group), group=name, division=DOOR_HARDWARE,
-            description=f"Hardware {name} - its items were not read from the legend",
+            description=f"Hardware {name} as scheduled",
             part=None, manufacturer=None, finish=None, qty=doors, unit="SET",
             openings=marks, source_file=source_file, source_page=page, alternate_group=group,
             flags=["hardware_set_not_itemised"], text=_said(cited.get("said") or {}),

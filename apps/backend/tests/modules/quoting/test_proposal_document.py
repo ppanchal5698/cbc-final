@@ -116,6 +116,8 @@ def test_the_draft_goes_to_the_initiator_by_address_or_says_it_has_none() -> Non
 
 
 def test_a_bare_set_name_reads_as_a_hardware_set_and_doors_print_as_they_are() -> None:
-    blocks = quote_layout.blocks([_line(), _line(group="Doors", description="HOLLOW METAL DOOR")])
+    blocks = quote_layout.blocks([_line(), _line(group="Doors", description="HOLLOW METAL DOOR"),
+                                  _line(group="GROUP 05", description="Hardware GROUP 05 as scheduled")])
     titles = {group["name"]: group["title"] for group in blocks[0]["groups"]}
-    assert titles == {"01": "Hardware set 01", "Doors": "Doors"}
+    # Evernorth's GROUP 05 is a set the schedule cites and the legend never listed.
+    assert titles == {"01": "Hardware set 01", "Doors": "Doors", "GROUP 05": "Hardware set 05"}

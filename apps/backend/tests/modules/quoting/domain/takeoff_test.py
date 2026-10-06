@@ -269,3 +269,4 @@ def test_a_set_priced_by_hand_carries_what_the_schedule_says_its_doors_need() ->
     ])
     assert line.flags == ["hardware_set_not_in_legend"]
     assert line.text == "doors 123, 133: STOREROOM FUNCTION LOCKSET"
+    assert line.description == "Hardware GROUP 05 as scheduled", "the customer reads it; the flag says why"

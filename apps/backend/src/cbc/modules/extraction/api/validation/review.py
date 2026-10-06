@@ -271,6 +271,18 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
         if why and line.get("cost") is not None and isinstance(match, (int, float)) and match < AUTO_PROPOSE:
             flags.append(_flag(label, "match", "medium",
                                "Matched at {:.2f}: {} - confirm the part".format(match, why), page))
+        # A set priced by hand because the legend does not give it: Evernorth's schedule
+        # cites groups 05, 06 and 08, and its manual lists 01 to 04.
+        doors = ", ".join(str(d) for d in line.get("openings") or [])
+        if "hardware_set_not_in_legend" in (line.get("flags") or []):
+            flags.append(_flag(label, "hardware_set", "high",
+                               "{} is cited by door{} {} but is not in the hardware legend - price it from "
+                               "the schedule's notes, or ask for the set (RFI)".format(
+                                   label, "s" if len(line.get("openings") or []) > 1 else "", doors), page))
+        if "hardware_set_not_itemised" in (line.get("flags") or []):
+            flags.append(_flag(label, "hardware_set", "medium",
+                               "The legend names {} without its items - price the set from the sheet".format(label),
+                               page))
         if "supply_unclear" in (line.get("flags") or []):
             flags.append(_flag(label, "supply", "medium",
                                "The schedule names another party here without saying who supplies the "

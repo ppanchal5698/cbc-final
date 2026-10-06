@@ -37,7 +37,9 @@ SECTION_TITLES = dict(SECTIONS)
 
 # A hardware set as a legend names it - `01`, `E1`, `H-1` - which reads as a set
 # only with the words in front of it; `Doors`, `Frames` or a room print as they are.
-_BARE_SET = re.compile(r"^[A-Z]{0,3}-?[0-9]{1,3}[A-Z]?$", re.I)
+# A set's name as a legend or a schedule writes it - "02", "HW-3", and "GROUP 05"
+# for a set the schedule cites that the legend never listed - and its number.
+_BARE_SET = re.compile(r"^(?:(?:HARDWARE\s+|HW\s*)?(?:GROUP|SET)\s*(?:NO\.?\s*)?)?([A-Z]{0,3}-?[0-9]{1,3}[A-Z]?)$", re.I)
 
 
 def section_of(division: str | None, group_type: str | None = None) -> str:
@@ -119,8 +121,8 @@ def blocks(lines: Iterable[dict[str, Any]], ratings: dict[str, str] | None = Non
             )
             # A group with a line still to price has no total yet - not $0.00.
             group["complete"] = all(line.get("ext_price") is not None for line in group["lines"])
-            group["title"] = (f"Hardware set {group['name']}" if key == "door" and _BARE_SET.match(group["name"])
-                              else group["name"])
+            named = _BARE_SET.match(group["name"]) if key == "door" else None
+            group["title"] = f"Hardware set {named.group(1)}" if named else group["name"]
         ordered = [groups[name] for name in sorted(groups, key=natural)]
         out.append(
             {

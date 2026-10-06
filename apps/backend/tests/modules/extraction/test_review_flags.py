@@ -430,6 +430,18 @@ def test_a_handing_read_off_the_plan_is_not_the_schedules(project) -> None:
     assert flags[0]["note"].endswith("1 read off the plan - confirm them; still to read: doors 100, 101")
 
 
+def test_a_set_the_legend_never_lists_is_a_question_for_the_estimator(project) -> None:
+    """Evernorth's schedule cites GROUP 05; its manual lists 01 to 04."""
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "05:set", "group": "GROUP 05", "openings": ["123", "131"], "cost": None, "source_page": 21,
+         "cost_source": "MANUAL", "flags": ["hardware_set_not_in_legend"]},
+    ]})
+    [flag] = [f for f in review.derive_flags(slug) if f["field"] == "hardware_set"]
+    assert flag["severity"] == "high"
+    assert flag["note"].startswith("GROUP 05 is cited by doors 123, 131 but is not in the hardware legend")
+
+
 def test_no_rated_door_is_said_once_whoever_noticed(project) -> None:
     """The scope summary and the doors themselves both notice: one finding."""
     slug, directory = project
