@@ -128,6 +128,9 @@ def _takeoff_rows(
                 "room": specialty.get("room") or row.get("location"),
                 "unit": specialty.get("unit"),
                 "mark": row.get("mark"),
+                # What an FRP area measured: perimeter, wall height, corners (FR-12).
+                "geometry": {key: specialty.get(key) for key in
+                             ("perimeterLf", "wallHeightFt", "insideCorners", "outsideCorners")} if frp else None,
                 **where,
             })
             continue
@@ -199,11 +202,13 @@ async def _sources(project: dict[str, Any], lines: list[takeoff.Line]) -> ladder
     )
 
 
-def plan(project: dict[str, Any], openings: list[dict[str, Any]]) -> tuple[list[takeoff.Line], list[str]]:
+def plan(project: dict[str, Any], openings: list[dict[str, Any]],
+         frp_constants: dict[str, Any] | None = None) -> tuple[list[takeoff.Line], list[str]]:
     """The bid's take-off as lines to price, and what was left out. Reads files only."""
     hardware, specialties, doors = _takeoff_rows(openings)
     lines, notes = takeoff.hardware_lines(_hardware_sets(project["slug"]), hardware)
-    return takeoff.door_and_frame_lines(doors) + lines + takeoff.specialty_lines(specialties), notes
+    return (takeoff.door_and_frame_lines(doors) + lines + takeoff.specialty_lines(specialties, frp_constants),
+            notes)
 
 
 def _choice_prompt(row: dict[str, Any], pending: dict[str, Any]) -> str:
@@ -244,7 +249,8 @@ async def price_bid(project: dict[str, Any], *, choose: bool = True) -> dict[str
     """The priced file for a bid, as v2 would write it. Writes nothing - the
     job writes it; an evaluation compares it with the estimators' own quote."""
     openings = await extraction_openings.list_for_project(project["_id"], limit=5000)
-    lines, notes = plan(project, openings)
+    frp_constants = await asyncio.to_thread(reference_library.load_frp_constants)
+    lines, notes = plan(project, openings, frp_constants)
     sources = await _sources(project, lines)
     rows = await asyncio.to_thread(lambda: [row for line in lines for row in ladder.price(line, sources)])
     if choose:

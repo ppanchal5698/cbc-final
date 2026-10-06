@@ -13,9 +13,10 @@ Pure: the take-off in, line skeletons out. Nothing here prices anything.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
+from cbc.modules.quoting.domain import frp
 from cbc.shared import fire_rating
 
 DOOR_HARDWARE = "08 71 00"
@@ -222,12 +223,14 @@ def _set_lines(hw_set: dict[str, Any], name: str, key: str, group: str | None,
     return lines
 
 
-def specialty_lines(rows: list[dict[str, Any]]) -> list[Line]:
+def specialty_lines(rows: list[dict[str, Any]], frp_constants: dict[str, Any] | None = None) -> list[Line]:
     """Division 10 and FRP rows: one line each, at the count the schedule gives.
 
     `rows`: {division, qty, part, manufacturer, description, notes, room,
-    source_page}. A row with no count (an FRP run nobody has measured) is a line
-    with no quantity - flagged, never priced at one.
+    source_page, geometry}. A row with no count (an FRP run nobody has measured) is
+    a line with no quantity - flagged, never priced at one. A measured FRP area,
+    once CBC's conversion constants are set, is the panels, adhesive and trim it
+    takes (FR-12).
     """
     lines: list[Line] = []
     used: set[str] = set()
@@ -257,8 +260,37 @@ def specialty_lines(rows: list[dict[str, Any]]) -> list[Line]:
         if others:
             line.alternate = f"the schedule says {others!r} - another party supplies it"
             line.flags.append("supplied_by_others")
-        lines.append(line)
+        converted = frp.convert(row["geometry"], frp_constants) if row.get("geometry") and frp_constants else None
+        lines += _frp_lines(line, converted, frp_constants) if converted else [line]
     return lines
+
+
+# What one measured FRP area takes, in the order an estimator lists it.
+_FRP_ITEMS = (
+    ("panels", "FRP PANEL {size}"), ("adhesive", "FRP ADHESIVE"),
+    ("insideCornerSticks", "INSIDE CORNER TRIM"), ("outsideCornerSticks", "OUTSIDE CORNER TRIM"),
+    ("dividerSticks", "DIVIDER BAR"), ("capSticks", "CAP TRIM"),
+)
+
+
+def _frp_lines(line: Line, converted: dict[str, Any], constants: dict[str, Any]) -> list[Line]:
+    """One measured FRP area as its materials, each saying what it was computed from."""
+    basis = (f"{converted['netSqft']:g} SF net; panel {constants['panel_size']}, waste {constants['waste_pct']}, "
+             f"trim in {constants['trim_stick_length']:g} ft sticks")
+    out = []
+    for field_name, name in _FRP_ITEMS:
+        count = converted[field_name]
+        if not count:
+            continue
+        item = name.format(size=str(constants["panel_size"]).upper())
+        out.append(replace(
+            line, key=f"{line.key}:{field_name}",
+            description=f"{item} - {line.description}" if line.description else item,
+            part=None, qty=float(count), unit="EA", text=f"{line.text} {basis}".strip(),
+            openings=list(line.openings), notes=[basis],
+            flags=[*(f for f in line.flags if f != "quantity_unread"), "frp_converted"],
+        ))
+    return out
 
 
 # An exit device by any of the names a legend gives one.
