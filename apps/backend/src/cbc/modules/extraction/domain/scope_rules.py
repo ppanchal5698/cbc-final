@@ -109,6 +109,7 @@ IN_SCOPE_MATERIALS = {
 # around a wood or laminate door is ordinary - the Wendy's restroom doors are
 # exactly that - so the frame alone never puts an opening out of scope.
 _ALUMINIUM = {"AL", "ALUM", "ALUMINUM", "ALUMINIUM"}
+_EXISTING = {"EXISTING", "EXIST", "EXG", "(E)"}
 
 
 class Verdict(NamedTuple):
@@ -148,6 +149,16 @@ def classify(opening: dict[str, Any]) -> Verdict:
 
     if door in IN_SCOPE_MATERIALS:
         return Verdict(True, f"material_{IN_SCOPE_MATERIALS[door].replace(' ', '_')}", None)
+
+    # Hardware sets and hollow metal frames are CBC's on their own (takeoff.md). An
+    # existing door the schedule gives a hardware set is having that set fitted, and
+    # a door whose material cell is blank inside a hollow metal frame still has the
+    # frame. Evernorth left 32 of its 34 doors undecided on these two alone.
+    if door.rstrip(".") in _EXISTING and opening.get("hardware_set"):
+        return Verdict(True, "existing_door_new_hardware", None)
+    frame = str(opening.get("frame_material") or "").strip().upper()
+    if not door and IN_SCOPE_MATERIALS.get(frame) in ("hollow metal", "steel"):
+        return Verdict(True, "hollow_metal_frame", None)
 
     # A door with no material column is not evidence of anything. Say so.
     if not door:

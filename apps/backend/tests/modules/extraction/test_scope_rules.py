@@ -183,3 +183,14 @@ def test_a_frame_in_a_masonry_wall_is_still_cbcs() -> None:
 @pytest.mark.parametrize("material", ["HPL", "WOOD", "SC", "STEEL"])
 def test_laminate_wood_and_steel_doors_are_in_scope(material) -> None:
     assert scope_rules.classify({"door_material": material}).in_scope is True
+
+
+def test_an_existing_door_given_a_hardware_set_is_having_its_hardware_quoted() -> None:
+    """Evernorth: EXISTING door and frame, GROUP 03 - a new passage set on an old door."""
+    assert scope_rules.classify({"door_material": "EXISTING", "hardware_set": "GROUP 03"}).in_scope is True
+    assert scope_rules.classify({"door_material": "EXISTING"}).in_scope is None, "no set: nothing of CBC's"
+
+
+def test_a_blank_door_material_inside_a_hollow_metal_frame_is_still_cbcs() -> None:
+    assert scope_rules.classify({"frame_material": "HM"}).in_scope is True
+    assert scope_rules.classify({"frame_material": "AL"}).in_scope is None
