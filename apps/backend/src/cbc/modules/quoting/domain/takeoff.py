@@ -16,6 +16,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from cbc.shared import fire_rating
+
 DOOR_HARDWARE = "08 71 00"
 
 _QTY = re.compile(
@@ -134,6 +136,7 @@ def hardware_lines(
                                        "source_file": door.get("source_file")})
         entry["marks"].append(str(door.get("mark") or "?"))
         entry["doors"] += quantity(door.get("count"))[0] or 1.0
+        entry["rated"] = entry.get("rated") or fire_rating.is_rated(door.get("rating"))
 
     lines: list[Line] = []
     notes: list[str] = []
@@ -177,6 +180,10 @@ def hardware_lines(
             )
             if each is None:
                 line.flags.append("quantity_unread")
+            if cited[key].get("rated") and _EXIT_DEVICE.search(f"{line.text} {line.part or ''}"):
+                # Panic hardware on a rated door has to be listed fire exit hardware
+                # (CBC requirements 6.1): the estimator confirms the part is.
+                line.flags.append("fire_exit_hardware_required")
             if party or others:
                 line.alternate = (f"supplied by {party} per the legend" if party
                                   else f"the schedule says {others!r} - another party supplies it")
@@ -231,3 +238,85 @@ def specialty_lines(rows: list[dict[str, Any]]) -> list[Line]:
             line.flags.append("supplied_by_others")
         lines.append(line)
     return lines
+
+
+# An exit device by any of the names a legend gives one.
+_EXIT_DEVICE = re.compile(
+    r"\b(?:EXIT\s+DEVICES?|PANIC|RIM\s+EXIT|MORTISE\s+EXIT|(?:CONCEALED|SURFACE)\s+VERTICAL\s+ROD|CVR|SVR)\b",
+    re.I,
+)
+
+# The door and its frame, as CBC quotes them (requirements 1.1): hollow metal and
+# wood doors, hollow metal frames. Storefront glass and aluminum leaves are out of
+# scope already (`scope_rules`); a material the schedule did not give is flagged.
+_MATERIALS = {
+    "HM": ("hollow metal", "08 11 13"), "STEEL": ("hollow metal", "08 11 13"), "STL": ("hollow metal", "08 11 13"),
+    "MTL": ("hollow metal", "08 11 13"), "METAL": ("hollow metal", "08 11 13"),
+    "WD": ("wood", "08 14 16"), "WOOD": ("wood", "08 14 16"), "SC": ("wood", "08 14 16"),
+    "SCWD": ("wood", "08 14 16"), "HPL": ("plastic laminate faced wood", "08 14 16"),
+    "PLAM": ("plastic laminate faced wood", "08 14 16"),
+}
+# Standard stock sizes end at 4'-0" x 8'-0": a 9-ft door is a vendor quote
+# (requirements 5.2 and 7.2), and a leaf over 4'-0" wide is usually a pair.
+_TALLEST_STOCK_IN = 96.0
+_WIDEST_LEAF_IN = 48.0
+_FEET_INCHES = re.compile(r"""^\s*(\d+)\s*'\s*-?\s*(\d+(?:\.\d+)?)?\s*"?\s*$""")
+
+
+def _inches(value: Any) -> float | None:
+    """3'-0" -> 36. A size the schedule printed some other way says nothing here."""
+    match = _FEET_INCHES.match(str(value or ""))
+    if not match:
+        return None
+    return int(match.group(1)) * 12 + float(match.group(2) or 0)
+
+
+def door_and_frame_lines(openings: list[dict[str, Any]]) -> list[Line]:
+    """One line per door specification and one per frame specification, each
+    naming the doors it covers - the same size, material, type and rating are one
+    line, as a door supplier quotes them. `openings`: {mark, count, door_material,
+    frame_material, door_type, frame_type, width, height, rating, frame_depth,
+    source_page, source_file, undecided}."""
+    grouped: dict[str, Line] = {}
+    for door in openings:
+        width, height = door.get("width"), door.get("height")
+        rating = fire_rating.label(door.get("rating"))
+        count = quantity(door.get("count"))[0] or 1.0
+        for kind in ("door", "frame"):
+            written = str(door.get(f"{kind}_material") or "").strip().upper()
+            material, division = _MATERIALS.get(written, (None, "08 11 13"))
+            if written and material is None:
+                continue  # a material CBC does not quote here: aluminum, glass, "by others"
+            if kind == "frame" and material and material != "hollow metal":
+                continue  # wood and laminate are door faces; CBC's frames are hollow metal
+            style = door.get(f"{kind}_type")
+            depth = door.get("frame_depth") if kind == "frame" else None
+            spec = (material or "material unread", width, height, style, rating, depth)
+            key = f"{kind}:" + "|".join(str(part or "") for part in spec)
+            line = grouped.get(key)
+            if line is None:
+                words = [f"{(material or '').upper()} {kind.upper()}".strip(),
+                         f"{width} X {height}" if width and height else None,
+                         f"TYPE {style}" if style else None,
+                         f"{depth} DEPTH" if depth else None,
+                         f"{rating} RATED" if rating and rating != "NOT RATED" else None]
+                line = grouped[key] = Line(
+                    key=key, group=f"{kind.capitalize()}s", division=division,
+                    description=", ".join(w for w in words if w), part=None, manufacturer=None,
+                    finish=None, qty=0.0, qty_per_opening=1.0, unit="EA",
+                    source_file=door.get("source_file"), source_page=door.get("source_page"),
+                )
+                if material is None:
+                    line.flags.append(f"{kind}_material_unread")
+                high, wide = _inches(height), _inches(width)
+                if high is not None and high > _TALLEST_STOCK_IN:
+                    line.flags.append("custom_size")
+                if kind == "door" and wide is not None and wide > _WIDEST_LEAF_IN:
+                    line.flags.append("pair_check")  # two leaves, or one oversize leaf?
+                if rating and rating != "NOT RATED":
+                    line.flags.append("fire_rated")
+            line.qty = (line.qty or 0) + count
+            line.openings.append(str(door.get("mark") or "?"))
+            if door.get("undecided") and "scope_undecided" not in line.flags:
+                line.flags.append("scope_undecided")
+    return list(grouped.values())

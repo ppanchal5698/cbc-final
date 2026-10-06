@@ -31,6 +31,7 @@ from cbc.modules.pricing.api import calc
 from cbc.shared.paths import repo_root, storage_root
 from cbc.modules.pricing.api import pricing, reference_library
 from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
+from cbc.shared import fire_rating
 
 ROOT = repo_root()
 
@@ -125,6 +126,8 @@ def reconcile_flags(opening: dict[str, Any]) -> list[str]:
 def _opening_flags(openings: list[dict], fire_ratings_present: bool = False) -> list[dict]:
     flags: list[dict] = []
     for opening in openings:
+        if opening.get("specialty"):
+            continue  # Division 10 / FRP rows an export wrote here: not doors
         label = _label(opening)
         page = opening.get("source_page")
 
@@ -132,8 +135,10 @@ def _opening_flags(openings: list[dict], fire_ratings_present: bool = False) -> 
             if opening.get(field) in (None, "", []):
                 # In a set that rates its doors, an unrated opening may be a
                 # rated door priced as an unrated one - a code problem, not a
-                # price one. In a set with no ratings anywhere it is just a gap.
-                blocking = field == "fire_rating" and fire_ratings_present
+                # price one (requirements 6.1, rule 1). In a set with no ratings
+                # anywhere it is just a gap; on a door CBC is not quoting, nothing.
+                blocking = (field == "fire_rating" and fire_ratings_present
+                            and opening.get("in_scope") is not False)
                 flags.append(
                     _flag(label, field, "high", note + " - estimator review", page,
                           blocking=blocking)
@@ -197,6 +202,13 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
                 _flag(label, "cost", "medium", UNFINISHED_COST_SOURCES[source], page,
                       blocking=not line.get("alternate_group"))
             )
+
+        if "fire_exit_hardware_required" in (line.get("flags") or []):
+            # Panic hardware on a rated door must be listed fire exit hardware
+            # (requirements 6.1): a part priced off a list cannot say it is.
+            flags.append(_flag(label, "fire_rating", "high",
+                               "Exit device on a rated opening - confirm the part is listed fire exit hardware",
+                               page))
 
         margin = line.get("margin")
         if isinstance(margin, (int, float)):
@@ -316,7 +328,11 @@ def derive_flags(slug: str) -> list[dict]:
     else:
         lines = []
     scope = _load(project / "extracted" / "scope_summary.json")
-    rated = isinstance(scope, dict) and scope.get("fire_ratings_present") is True
+    # Whether the set rates its doors is read off the doors: the summary flag this
+    # waited for was written by no code path, so rule 1 never held anything.
+    rated = (isinstance(scope, dict) and scope.get("fire_ratings_present") is True) or any(
+        fire_rating.is_rated(o.get("fire_rating")) for o in openings
+        if o.get("in_scope") is not False and not o.get("specialty"))
 
     return [
         *_no_scope_flags(schedule, openings),

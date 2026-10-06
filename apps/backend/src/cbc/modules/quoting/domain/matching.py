@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
+from cbc.shared import fire_rating
 
 # How many candidates to surface. The reference rule describes an estimator
 # asking "here are 3 close matches - is it one of these?", and that is the
@@ -40,12 +41,10 @@ def _norm(value: Any) -> str | None:
 
 
 def _rating_minutes(value: Any) -> int | None:
-    """`90`, `"90"`, `"90 min"`, `"90-minute"` -> 90. Anything else -> None."""
-    text = _norm(value)
-    if not text:
-        return None
-    digits = "".join(ch for ch in text if ch.isdigit())
-    return int(digits) if digits else None
+    """Minutes, read the way every rating in the app is (`cbc.shared.fire_rating`).
+    This joined every digit it found: `1-1/2 HR` was 112 and refused a 90-minute
+    item, and `3 HR` was 3 and took a 20-minute one."""
+    return fire_rating.minutes(value)
 
 
 def rating_conflict(opening_rating: Any, candidate_rating: Any) -> bool:
@@ -56,7 +55,7 @@ def rating_conflict(opening_rating: Any, candidate_rating: Any) -> bool:
     45-minute one. Matrix 7.3.
     """
     needed = _rating_minutes(opening_rating)
-    if needed is None:
+    if not needed:  # unread, or not rated: nothing to require
         return False
     offered = _rating_minutes(candidate_rating)
     return offered is None or offered < needed

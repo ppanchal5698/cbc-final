@@ -90,3 +90,41 @@ def test_the_legends_own_supplier_makes_an_item_an_alternate() -> None:
     [line], _ = takeoff.hardware_lines(sets, [{"mark": "100A", "set": "E1"}])
     assert line.alternate == "supplied by the storefront supplier per the legend"
     assert "supplied_by_others" in line.flags
+
+
+DOORS = [
+    {"mark": "101", "door_material": "HM", "frame_material": "HM", "width": "3'-0\"", "height": "7'-0\"",
+     "door_type": "A", "rating": "90 MIN", "source_page": 21},
+    {"mark": "102", "door_material": "HM", "frame_material": "HM", "width": "3'-0\"", "height": "7'-0\"",
+     "door_type": "A", "rating": "1-1/2 HR", "source_page": 21},   # the same rating, written another way
+    {"mark": "103", "door_material": "WD", "frame_material": "HM", "width": "3'-0\"", "height": "9'-0\"",
+     "door_type": "B", "rating": None, "undecided": True},
+    {"mark": "104", "door_material": "AL", "frame_material": "AL", "width": "6'-0\"", "height": "7'-0\""},  # storefront
+    {"mark": "105", "door_material": None, "frame_material": None, "width": "6'-0\"", "height": "7'-0\""},
+]
+
+
+def test_doors_and_frames_are_one_line_per_specification_naming_their_doors() -> None:
+    lines = {line.key: line for line in takeoff.door_and_frame_lines(DOORS)}
+
+    rated = next(line for key, line in lines.items() if key.startswith("door:hollow metal") and "90 MIN" in key)
+    assert (rated.qty, rated.openings, rated.division) == (2.0, ["101", "102"], "08 11 13")
+    assert rated.description == "HOLLOW METAL DOOR, 3'-0\" X 7'-0\", TYPE A, 90 MIN RATED" and "fire_rated" in rated.flags
+    tall = next(line for key, line in lines.items() if key.startswith("door:wood"))
+    assert tall.division == "08 14 16" and {"custom_size", "scope_undecided"} <= set(tall.flags)
+    assert not any("104" in line.openings for line in lines.values()), "aluminum is storefront, not CBC's"
+    unread = next(line for key, line in lines.items() if key.startswith("door:material unread"))
+    assert {"door_material_unread", "pair_check"} <= set(unread.flags)
+    frames = [line for key, line in lines.items() if key.startswith("frame:")]
+    assert all(line.group == "Frames" for line in frames) and sum(line.qty for line in frames) == 4.0
+
+
+def test_an_exit_device_on_a_rated_door_must_be_fire_exit_hardware() -> None:
+    sets = [{"name": "01", "items": [
+        {"qty": "1", "part": "99EO", "manufacturer": "Von Duprin", "description": "RIM EXIT DEVICE"},
+        {"qty": "1", "part": "4040XP", "manufacturer": "LCN", "description": "CLOSER"},
+    ]}]
+    rated, _ = takeoff.hardware_lines(sets, [{"mark": "101", "set": "01", "rating": "90 MIN"}])
+    assert "fire_exit_hardware_required" in rated[0].flags and "fire_exit_hardware_required" not in rated[1].flags
+    unrated, _ = takeoff.hardware_lines(sets, [{"mark": "101", "set": "01", "rating": "NR"}])
+    assert "fire_exit_hardware_required" not in unrated[0].flags

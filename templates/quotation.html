@@ -133,13 +133,13 @@
       {% for group in block.groups %}
         {% if block.groups | length > 1 or group.doors %}
         <tr class="group"><td colspan="6">
-          {% if group.doors and " " not in group.name %}Hardware set {% endif %}{{ group.name }}
+          {{ group.title or group.name }}
           {% if group.doors %}<span class="doors"> &middot; door{{ "s" if group.doors | length > 1 }} {{ (group.door_labels or group.doors) | join(", ") }}{% if group.ratings | length == 1 %} &middot; {{ group.ratings[0] }} fire rated{% endif %}</span>{% endif %}
         </td></tr>
         {% endif %}
         {{ rows(group.lines) }}
         {% if block.groups | length > 1 %}
-        <tr class="group-sum"><td colspan="5">Subtotal &mdash; {{ group.name }}</td><td class="num">{% if group.complete is defined and not group.complete %}TBD{% else %}${{ "{:,.2f}".format(group.subtotal) }}{% endif %}</td></tr>
+        <tr class="group-sum"><td colspan="5">Subtotal &mdash; {{ group.title or group.name }}</td><td class="num">{% if group.complete is defined and not group.complete %}TBD{% else %}${{ "{:,.2f}".format(group.subtotal) }}{% endif %}</td></tr>
         {% endif %}
       {% endfor %}
       </tbody>

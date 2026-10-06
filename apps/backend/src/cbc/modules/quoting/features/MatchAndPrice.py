@@ -98,10 +98,14 @@ def _hardware_sets(slug: str) -> list[dict[str, Any]]:
     ]
 
 
-def _takeoff_rows(openings: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """The in-scope openings that cite a hardware set, and the specialty rows."""
+def _takeoff_rows(
+    openings: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """The in-scope openings that cite a hardware set, the specialty rows, and every
+    in-scope door with what its door and frame lines are priced from."""
     hardware: list[dict[str, Any]] = []
     specialties: list[dict[str, Any]] = []
+    doors: list[dict[str, Any]] = []
     for row in openings:
         # A row superseded by a later pass is kept as `duplicate`; it is not the bid.
         if row.get("inScope") is False or row.get("status") == "duplicate":
@@ -124,10 +128,19 @@ def _takeoff_rows(openings: list[dict[str, Any]]) -> tuple[list[dict[str, Any]],
                 "mark": row.get("mark"),
                 **where,
             })
-        elif row.get("hwSet"):
-            hardware.append({"mark": row.get("mark") or row.get("doorNumber"), "set": row["hwSet"],
-                             "count": row.get("qty"), **where})
-    return hardware, specialties
+            continue
+        mark = row.get("mark") or row.get("doorNumber")
+        if row.get("hwSet"):
+            hardware.append({"mark": mark, "set": row["hwSet"], "count": row.get("qty"),
+                             "rating": row.get("fireRating"), **where})
+        doors.append({
+            "mark": mark, "count": row.get("qty"), "rating": row.get("fireRating"),
+            "door_material": row.get("doorMaterial"), "frame_material": row.get("frameMaterial"),
+            "door_type": row.get("doorType"), "frame_type": row.get("frameType"),
+            "width": row.get("width"), "height": row.get("height"), "frame_depth": row.get("frameDepth"),
+            "undecided": row.get("inScope") is None, **where,
+        })
+    return hardware, specialties, doors
 
 
 def _tiers(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -184,9 +197,9 @@ async def _sources(project: dict[str, Any], lines: list[takeoff.Line]) -> ladder
 
 def plan(project: dict[str, Any], openings: list[dict[str, Any]]) -> tuple[list[takeoff.Line], list[str]]:
     """The bid's take-off as lines to price, and what was left out. Reads files only."""
-    hardware, specialties = _takeoff_rows(openings)
+    hardware, specialties, doors = _takeoff_rows(openings)
     lines, notes = takeoff.hardware_lines(_hardware_sets(project["slug"]), hardware)
-    return lines + takeoff.specialty_lines(specialties), notes
+    return takeoff.door_and_frame_lines(doors) + lines + takeoff.specialty_lines(specialties), notes
 
 
 def _choice_prompt(row: dict[str, Any], pending: dict[str, Any]) -> str:

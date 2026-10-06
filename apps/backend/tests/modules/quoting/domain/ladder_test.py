@@ -181,3 +181,15 @@ def test_a_row_chosen_among_the_undecided_is_priced_through_its_rung_and_says_wh
     assert "model_chose_match" in priced["flags"] and "ambiguous_match" not in priced["flags"]
     assert "chosen among 2 by the model (parallel arm) - an estimator confirms it" in priced["cost_source_detail"]
     assert ladder.price_choice(undecided, 5, "no such row", sources()) is None
+
+
+def test_a_door_is_priced_from_its_supplier_and_a_size_past_stock_is_a_vendor_quote() -> None:
+    door = Line(key="door:hollow metal|3'-0\"|7'-0\"|A|90 MIN|", group="Doors", division="08 11 13",
+                description="HOLLOW METAL DOOR, 3'-0\" X 7'-0\"", part=None, manufacturer=None, finish=None, qty=2.0)
+    [row] = ladder.price(door, sources())
+    assert row["cost"] is None and row["cost_source"] == "MANUAL" and "door supplier" in row["cost_source_detail"]
+    tall = Line(key="door:wood|3'-0\"|9'-0\"|B||", group="Doors", division="08 14 16",
+                description="WOOD DOOR, 3'-0\" X 9'-0\"", part=None, manufacturer=None, finish=None, qty=1.0,
+                flags=["custom_size"])
+    [rfq] = ladder.price(tall, sources())
+    assert rfq["cost_source"] == "VENDOR_RFQ" and "past stock" in rfq["cost_source_detail"]

@@ -140,8 +140,16 @@ def test_a_take_off_is_priced_in_code_and_rolled_up_without_its_alternates(bid) 
 
     project, db, asked = bid
     note = run(MatchAndPrice.price_in_code({"_id": ObjectId(), "type": "match_and_price"}, project))
-    assert "priced in code: 4/7 lines have a cost" in note, note
+    assert "priced in code: 4/11 lines have a cost" in note, note
     lines = _lines(db, project)
+
+    # Each in-scope door's door and frame, one line per specification: CBC quotes
+    # them (requirements 1.1), priced from the door supplier - never off a list.
+    doors = {key: line for key, line in lines.items() if key.startswith(("door:", "frame:"))}
+    assert len(doors) == 4 and all(line["cost"] is None for line in doors.values())
+    rated_door = next(line for key, line in doors.items() if key.startswith("door:") and "90 MIN" in key)
+    assert rated_door["openings"] == ["101"] and "fire_rated" in rated_door["flags"]
+    assert "price from the door supplier" in rated_door["costSourceDetail"]
 
     hinges = lines["1:01"]  # 1 1/2 pair = 3 a door, on the two in-scope doors that cite the set
     assert (hinges["qty"], hinges["qtyPerOpening"], hinges["openings"]) == (6.0, 3.0, ["101", "102"])

@@ -369,6 +369,18 @@ def price(line: Line, src: Sources) -> list[dict[str, Any]]:
         # A whole set to price by hand: the take-off already says why.
         row["cost_source_detail"] = f"{line.description}; price the set from the sheet"
         return [row]
+    if line.key.startswith(("door:", "frame:")):
+        # A door or frame is priced from its supplier - P21's last PO for the same
+        # specification, or a quote - never off a hardware list, and never by a part
+        # number guessed out of "3'-0" X 7'-0"". A size past stock is a vendor quote
+        # (requirements 5.2, 7.2).
+        if "custom_size" in line.flags:
+            row.update(cost_source="VENDOR_RFQ", cost_source_detail=(
+                f"{line.description}: a size past stock (over 8'-0\") - request a quote from the door supplier"))
+        else:
+            row["cost_source_detail"] = (f"{line.description}: price from the door supplier - P21's last PO "
+                                         "for this specification, or a quote")
+        return [row]
     # Only a door hardware legend writes the model into its description; a
     # specialty row's description is a location (`6/A2.2`), not a part.
     part = line.part or (guess_part(line) if line.division.startswith("08") else None)

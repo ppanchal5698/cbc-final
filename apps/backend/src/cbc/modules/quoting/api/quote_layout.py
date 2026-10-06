@@ -21,6 +21,7 @@ into `Line` and get the same document back.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Iterable
 
 # Order is the order they print in. `other` exists because a division nobody
@@ -33,6 +34,10 @@ SECTIONS: tuple[tuple[str, str], ...] = (
 )
 
 SECTION_TITLES = dict(SECTIONS)
+
+# A hardware set as a legend names it - `01`, `E1`, `H-1` - which reads as a set
+# only with the words in front of it; `Doors`, `Frames` or a room print as they are.
+_BARE_SET = re.compile(r"^[A-Z]{0,3}-?[0-9]{1,3}[A-Z]?$", re.I)
 
 
 def section_of(division: str | None, group_type: str | None = None) -> str:
@@ -108,6 +113,8 @@ def blocks(lines: Iterable[dict[str, Any]], ratings: dict[str, str] | None = Non
             )
             # A group with a line still to price has no total yet - not $0.00.
             group["complete"] = all(line.get("ext_price") is not None for line in group["lines"])
+            group["title"] = (f"Hardware set {group['name']}" if key == "door" and _BARE_SET.match(group["name"])
+                              else group["name"])
         ordered = [groups[name] for name in sorted(groups)]
         out.append(
             {

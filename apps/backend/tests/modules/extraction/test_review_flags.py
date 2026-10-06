@@ -313,3 +313,28 @@ def test_the_seed_tier_sheet_excludes_the_vendors_the_scope_rule_names(project) 
         {"line_id": "P1", "vendor": "Scranton Products"},
     ]})
     assert ("P1", "out_of_scope") in _fields(review.derive_flags(slug))
+
+
+def test_a_door_with_no_rating_blocks_when_its_schedule_rates_the_others(project) -> None:
+    """Rule 1 (requirements 6.1), read off the doors themselves: the summary flag it
+    waited for was written by no code path, so it never held anything."""
+    slug, directory = project
+    _write(directory, "extracted/line_items.json", {"openings": [
+        {"door_number": "101", "bbox": [1, 2, 3, 4], "handing": "LH", "size": "3070", "fire_rating": "1-1/2 HR"},
+        {"door_number": "102", "bbox": [1, 2, 3, 4], "handing": "LH", "size": "3070", "fire_rating": None},
+        {"door_number": "100A", "bbox": [1, 2, 3, 4], "handing": "LH", "size": "6070", "fire_rating": None,
+         "in_scope": False},
+    ]})
+    blocking = _blocking(review.derive_flags(slug))
+    assert blocking[("Door 102", "fire_rating")] is True
+    assert blocking[("Door 100A", "fire_rating")] is False, "a door CBC is not quoting holds nothing"
+
+
+def test_an_exit_device_on_a_rated_door_asks_for_listed_fire_exit_hardware(project) -> None:
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "1:01", "group": "01", "cost_source": "CATALOG_BASELINE", "cost": 412.0,
+         "flags": ["fire_exit_hardware_required"]},
+    ]})
+    [flag] = [f for f in review.derive_flags(slug) if f["field"] == "fire_rating"]
+    assert flag["severity"] == "high" and "fire exit hardware" in flag["note"]

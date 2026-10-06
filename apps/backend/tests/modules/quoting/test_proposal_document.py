@@ -102,3 +102,9 @@ def test_one_email_draft_with_nothing_meant_for_a_model_in_it() -> None:
     for expected in ("EXIT DEVICE (Von Duprin) - distributor quote", "Door 100A - aluminum storefront",
                      "Confirm hinge count per leaf at door 104", "Total: **$328.44**"):
         assert expected in draft["body"]
+
+
+def test_a_bare_set_name_reads_as_a_hardware_set_and_doors_print_as_they_are() -> None:
+    blocks = quote_layout.blocks([_line(), _line(group="Doors", description="HOLLOW METAL DOOR")])
+    titles = {group["name"]: group["title"] for group in blocks[0]["groups"]}
+    assert titles == {"01": "Hardware set 01", "Doors": "Doors"}

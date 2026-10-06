@@ -107,3 +107,13 @@ def test_a_series_matches_its_sizes_past_a_separator_and_never_by_length() -> No
     assert choose('GRAB BAR 36"').row["part"] == "B-5806.99x36"
     unsized = choose("GRAB BAR")
     assert unsized.ambiguous and {r["part"] for r in unsized.candidates} == {"B-5806.99x48", "B-5806.99x36"}
+
+
+def test_a_rating_is_compared_in_minutes_however_it_is_written() -> None:
+    """`1-1/2 HR` was 112 minutes to the matcher and `3 HR` was 3."""
+    from cbc.modules.quoting.domain.matching import rating_conflict
+
+    assert not rating_conflict("1-1/2 HR", "90 MIN")
+    assert rating_conflict("3 HR", "20")
+    assert not rating_conflict("NR", None) and not rating_conflict(None, None)
+    assert rating_conflict("90", None), "a rated door takes only an item that says it is rated"
