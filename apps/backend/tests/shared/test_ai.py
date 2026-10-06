@@ -119,3 +119,15 @@ def test_only_an_anthropic_key_uses_the_api():
     assert ai.transport_for("anthropic_api", {"ANTHROPIC_API_KEY": "k"}).__qualname__.startswith("api_transport")
     assert ai.transport_for("bedrock", {"ANTHROPIC_API_KEY": "k"}).__qualname__.startswith("cli_transport")
     assert ai.transport_for("anthropic_api", {}).__qualname__.startswith("cli_transport")
+
+
+def test_chatty_libraries_log_their_warnings_only() -> None:
+    """httpx logged every signed download URL, query token and all; fontTools forty
+    lines a proposal."""
+    import logging
+
+    from cbc.shared import logs
+
+    logs.configure("cbc.test")
+    assert all(logging.getLogger(name).getEffectiveLevel() >= logging.WARNING
+               for name in ("httpx", "httpcore", "fontTools", "weasyprint"))

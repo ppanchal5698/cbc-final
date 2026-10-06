@@ -71,6 +71,12 @@ def configure(service: str) -> logging.Logger:
         root.removeHandler(existing)
     root.addHandler(handler)
     root.setLevel(level)
+    # Libraries that talk at INFO about their own internals. httpx logs every
+    # request URL - the parser's are signed download links with their tokens in
+    # the query - and fontTools logs each glyph table WeasyPrint subsets, forty
+    # lines a proposal. Their warnings still come through.
+    for chatty in ("httpx", "httpcore", "fontTools", "weasyprint"):
+        logging.getLogger(chatty).setLevel(max(level, logging.WARNING))
     return logging.getLogger(service)
 
 
