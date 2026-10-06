@@ -297,6 +297,7 @@ async def price_bid(project: dict[str, Any], *, choose: bool = True) -> dict[str
         if ladder.UNDECIDED in row:
             row["close_matches"] = ladder.close_matches(row, sources)
         row.pop(ladder.UNDECIDED, None)
+        row["match_confidence"] = ladder.match_confidence(row)  # FR-8
     priced = sum(1 for row in rows if row.get("cost") is not None)
     return {
         "source": SOURCE,

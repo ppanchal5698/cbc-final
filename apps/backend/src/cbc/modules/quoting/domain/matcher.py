@@ -108,6 +108,8 @@ class Choice:
     # Rows that are this item at different prices: a person decides. Otherwise a
     # miss (no row, or none in the legend's finish or size) lets the next source try.
     ambiguous: bool = False
+    # Matched as a size of the series the legend named, not the part itself.
+    series: bool = False
 
 
 FinishKey = Callable[[str | None], str | None]
@@ -215,7 +217,7 @@ def choose(
     if not prices:
         return Choice(candidates=matched, reason="the row carries no price")
     if len(prices) == 1:
-        return Choice(row=matched[0], candidates=matched)
+        return Choice(row=matched[0], candidates=matched, series=series)
     if describe is not None:
         said = _words(f"{spec.part or ''} {spec.text}")
         worded = [(row, _words(describe(row))) for row in matched]
@@ -223,7 +225,7 @@ def choose(
         telling = said & (set.union(*(words for _, words in worded)) - shared)
         kept = [row for row, words in worded if telling and telling <= words]
         if kept and len({round(float(price_of(r)), 2) for r in kept if price_of(r) is not None}) == 1:
-            return Choice(row=kept[0], candidates=kept)
+            return Choice(row=kept[0], candidates=kept, series=series)
     what = "sizes of the series" if series else "rows"
     return Choice(candidates=matched, ambiguous=True,
                   reason=f"{len(matched)} {what} at {len(prices)} prices - the legend does not say which")

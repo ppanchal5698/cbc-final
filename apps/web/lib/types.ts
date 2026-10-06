@@ -325,6 +325,9 @@ export interface QuoteLine {
   costSourceDetail?: string | null;
   /** The NOTE a substitution prints on the quote (FR-17). */
   substitutionNote?: string | null;
+  /** How sure the match is (FR-8), and the API's band for it (requirements 7.1). */
+  matchConfidence?: number | null;
+  matchBand?: "auto" | "review" | "manual" | null;
   /** On its maker's stock list (NR-6); null when the maker has none on file. */
   stock?: boolean | null;
   /** Why its margin is not the band's, as a code (requirements 5.1). */

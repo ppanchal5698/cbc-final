@@ -166,6 +166,8 @@ def test_a_take_off_is_priced_in_code_and_rolled_up_without_its_alternates(bid) 
     assert len(asked) == 1 and "1. 5100 ALM $440.71" in asked[0] and "2. 5100 ALM $512.0" in asked[0]
     assert (closer["cost"], closer["costSource"]) == (153.6, "LIST_X_MULTIPLIER")
     assert "model_chose_match" in closer["flags"] and "the legend says hold open" in closer["costSourceDetail"]
+    # FR-8: each match says how sure it is - a price-book row for the part, a row the model chose.
+    assert (hinges["matchConfidence"], closer["matchConfidence"]) == (0.90, 0.75)
 
     quote = db[names.QUOTES].find_one({"projectId": project["_id"]})
     base = [line for line in lines.values() if not line.get("alternateGroup")]

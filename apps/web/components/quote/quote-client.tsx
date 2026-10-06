@@ -83,6 +83,21 @@ const FRESHNESS: Record<string, { label: string; tone: string }> = {
   future_dated: { label: "future date", tone: "text-status-error bg-status-error-soft border-status-error/30" },
 };
 
+// FR-8 and requirements 7.1, the API's band for each match. An automatic match
+// says nothing; the others say what the estimator has to do.
+const MATCH_BANDS: Record<string, { label: string; tone: string; note: string }> = {
+  review: {
+    label: "check match",
+    tone: "text-status-warning bg-status-warning-soft border-status-warning/30",
+    note: "proposed with its close matches beside it - confirm it",
+  },
+  manual: {
+    label: "pick match",
+    tone: "text-status-error bg-status-error-soft border-status-error/30",
+    note: "several rows or none - the estimator picks or prices it",
+  },
+};
+
 /** A line copied from a prior bid that nobody has kept yet (FR-1d). */
 function isCarried(line: QuoteLine): boolean {
   return line.flags.includes("carried_from_prior");
@@ -974,6 +989,14 @@ export function QuoteClient({
                               </option>
                             ))}
                           </select>
+                          {line.matchBand && MATCH_BANDS[line.matchBand] && (
+                            <span
+                              className={`inline-block mt-0.5 mr-1 rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest shadow-sm ${MATCH_BANDS[line.matchBand].tone}`}
+                              title={`Match confidence ${line.matchConfidence ?? "—"}: ${MATCH_BANDS[line.matchBand].note}`}
+                            >
+                              {MATCH_BANDS[line.matchBand].label}
+                            </span>
+                          )}
                           {line.freshness && !line.lapsed && FRESHNESS[line.freshness.status] && (
                             <span
                               className={`inline-block mt-0.5 rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest shadow-sm ${FRESHNESS[line.freshness.status].tone}`}

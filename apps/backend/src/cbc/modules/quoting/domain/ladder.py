@@ -292,6 +292,36 @@ def price_choice(row: dict[str, Any], index: int, reason: str, src: Sources) -> 
     return priced
 
 
+def _as_matched(priced: dict[str, Any], choice: matcher.Choice) -> dict[str, Any]:
+    """Say when the row is a size of the series the legend named, not the part itself."""
+    if choice.series:
+        priced["flags"].append("series_match")
+    return priced
+
+
+# FR-8: "confidence score per match". The order of the evidence, not a measured
+# probability: CBC's own purchase of the part, then its special net, a catalog or
+# price-book row for the part, a size of its series or a brand's equal, a row the
+# model chose among several, rows nobody has chosen among. ponytail: calibrate
+# against the estimators' quotes once ground_truth/ arrives.
+_SOURCE_CONFIDENCE = {"P21_LAST_PO": 0.95, "SPECIAL_NET": 0.95, "CATALOG_BASELINE": 0.92,
+                      "LIST_X_MULTIPLIER": 0.90}
+_FLAG_CONFIDENCE = (("ambiguous_match", 0.60), ("model_chose_match", 0.75), ("direct_equal", 0.80),
+                    ("series_match", 0.80))
+
+
+def match_confidence(row: dict[str, Any]) -> float | None:
+    """How sure the match is; None for a line that is not matched to a row at all -
+    a door or frame from its supplier, a cost typed by hand."""
+    flags = row.get("flags") or []
+    for flag, score in _FLAG_CONFIDENCE:
+        if flag in flags:
+            return score
+    if row.get("cost") is None:
+        return 0.0 if row.get("part_number") else None
+    return _SOURCE_CONFIDENCE.get(str(row.get("cost_source") or ""))
+
+
 CLOSE_MATCHES = 3  # FR-8: "offer 3 close matches"
 # What choosing one sets on the line: the part, its cost, and where that came from.
 _MATCH_FIELDS = ("part_number", "manufacturer", "cost", "cost_source", "cost_source_detail", "list_price",
@@ -503,7 +533,7 @@ def _price_rows(line: Line, src: Sources) -> list[dict[str, Any]]:
         if choice.row is not None:
             priced = _from_net(row, choice.row, src, tried)
             if priced is not None:
-                return [priced]
+                return [_as_matched(priced, choice)]
 
     # 3. Catalog row.
     choice = _rung_catalog(spec, models, vendor, src)
@@ -515,7 +545,7 @@ def _price_rows(line: Line, src: Sources) -> list[dict[str, Any]]:
     if catalog_row is not None:
         priced = _from_catalog(row, catalog_row, src, line.manufacturer, tried)
         if priced is not None:
-            return [priced]
+            return [_as_matched(priced, choice)]
 
     # 4. Price book list x the multiplier for its section.
     choice = _rung_book(spec, models, vendor, src)
@@ -526,7 +556,7 @@ def _price_rows(line: Line, src: Sources) -> list[dict[str, Any]]:
     if choice.row is not None:
         priced = _from_book(row, choice.row, src, vendor, tried)
         if priced is not None:
-            return [priced]
+            return [_as_matched(priced, choice)]
 
     # 5. Division 10: the direct equal CBC can price.
     if line.division.startswith("10") and src.equals:

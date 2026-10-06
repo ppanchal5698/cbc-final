@@ -277,6 +277,7 @@
         "rate": "number",
         "resolvedFrom": "str"
        },
+       "matchBand": "null",
        "multiplierTierSnapshot": "null",
        "priceBookSnapshot": "null",
        "priceError": "null",

@@ -238,3 +238,20 @@ def test_a_named_adder_rides_on_the_line_and_is_never_added_by_the_ladder() -> N
     assert "adder_candidates" not in plain
     assert named["adder_candidates"] == [{"name": "Lead lined", "list_adder": 214.25}]
     assert "adder_named" in named["flags"] and named.get("cost") == plain.get("cost")
+
+
+def test_each_match_says_how_sure_it_is() -> None:
+    """FR-8: a confidence per match, by the evidence behind it (requirements 7.1)."""
+    from cbc.modules.pricing.api import confidence
+
+    [net] = ladder.price(line("431S", text='THRESHOLD 48"'), sources())
+    assert ladder.match_confidence(net) == 0.95 and confidence.band(0.95) == "auto"
+
+    [undecided] = ladder.price(line("5100", finish_="ALM"), sources())
+    assert ladder.match_confidence(undecided) == 0.60 and confidence.band(0.60) == "manual"
+    chosen = ladder.price_choice(undecided, 1, "parallel arm", sources())
+    assert ladder.match_confidence(chosen) == 0.75 and confidence.band(0.75) == "review"
+
+    assert ladder.match_confidence({"flags": [], "cost": None, "part_number": "ZZ-404"}) == 0.0
+    assert ladder.match_confidence({"flags": [], "cost": None, "part_number": None}) is None
+    assert confidence.band(None) is None

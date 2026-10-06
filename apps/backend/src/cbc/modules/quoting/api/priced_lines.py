@@ -197,6 +197,8 @@ async def import_quote_lines(
             "substitutionNote": line.get("substitution_note"),
             # The rows it could as well be, priced, for an estimator to choose (FR-8).
             "closeMatches": [_close_match(m) for m in line.get("close_matches") or []],
+            # How sure the match is (FR-8), by how the line was matched.
+            "matchConfidence": line.get("match_confidence"),
             # On its maker's stock list (NR-6): None when the maker has no list on file.
             "stock": line.get("stock"),
             # The alternates that take this base line out when accepted (FR-14).
