@@ -22,6 +22,8 @@ def register(app) -> None:
     # board's quote totals and listens for a bid being deleted.
     board_sources.bind_quotes(quote_api.by_project)
     events.subscribe(bids.PROJECT_DELETED, delete_for_project)
+    # A bid started from a prior one: quoting carries that quote's lines across.
+    events.subscribe(bids.TEMPLATE_CHOSEN, lines_api.carry_from_prior)
     # intake announces a version, and quoting stamps its live lines; extraction
     # announces confirmed openings, and quoting drops the bid's totals cache.
     events.subscribe(events.VERSION_SNAPSHOT_REQUESTED, lines_api.set_version)
@@ -38,6 +40,7 @@ def register(app) -> None:
         EmailDraft,
         GetProposal,
         GetQuote,
+        KeepCarriedLines,
         ListAlternates,
         ListRfis,
         ListVendorRfqs,
@@ -60,6 +63,7 @@ def register(app) -> None:
         AddQuoteLine,
         UpdateQuoteLine,
         DeleteQuoteLine,
+        KeepCarriedLines,
         ContinueToProposal,
         GetProposal,
         UpdateProposal,

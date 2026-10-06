@@ -250,6 +250,31 @@ async def test_a_hand_added_line_survives_a_reprice(reconciling_store) -> None:
 
 
 @pytest.mark.asyncio
+async def test_pricing_the_bids_own_take_off_clears_the_rows_carried_from_a_prior(
+    reconciling_store,
+) -> None:
+    """FR-1d: a templated bid's residual rows. One the new take-off reproduces is
+    this job's now; one it does not is the other job's and goes; a hand-added one
+    has nothing to be reproduced from, so it waits for the estimator."""
+    project, path, docs = reconciling_store
+    carried = {"projectId": project["_id"], "carriedFrom": "CBC-260001", "flags": ["carried_from_prior"]}
+    docs.extend([
+        {"_id": ObjectId(), **carried, "lineKey": "L1", "description": "Hinge"},
+        {"_id": ObjectId(), **carried, "lineKey": "L2", "description": "Kick plate"},
+        {"_id": ObjectId(), **carried, "lineKey": "hand-1", "description": "Site visit", "addedByHand": True},
+    ])
+
+    path.write_text(json.dumps(_priced("Hinge")), encoding="utf-8")
+    result = await priced_lines.import_quote_lines(project)
+
+    assert result["removed"] == 1, result
+    by_key = {d["lineKey"]: d for d in docs}
+    assert set(by_key) == {"L1", "hand-1"}
+    assert by_key["L1"]["flags"] == [] and by_key["L1"]["carriedFrom"] == "CBC-260001"
+    assert by_key["hand-1"]["flags"] == ["carried_from_prior"]
+
+
+@pytest.mark.asyncio
 async def test_an_empty_pricing_file_removes_nothing(reconciling_store) -> None:
     """An empty agent shell must never wipe a priced quote."""
     project, path, docs = reconciling_store

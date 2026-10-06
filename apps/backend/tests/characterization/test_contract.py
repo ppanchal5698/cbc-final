@@ -41,6 +41,7 @@ def _request(client, op: str, **kwargs):
 
 
 def test_the_route_table(snapshots) -> None:
+    # 138: templated bids added POST /api/projects/{code}/quote/carried/keep (FR-1d).
     # 137: the memory agents added POST /api/memory/findings/dismiss (admin).
     # 136: the memory graph added GET /api/memory, POST /api/memory/sync (admin)
     # and GET /api/memory/projects/{code}/similar.
@@ -50,7 +51,7 @@ def test_the_route_table(snapshots) -> None:
     # assigned to, names only and readable without the admin role.
     # 131: FR-13 added POST /api/learning/apply, which drains the estimator
     # corrections into what the matcher knows.
-    assert len(ROUTES) == 137
+    assert len(ROUTES) == 138
     snapshots.pin_value("routes", ROUTES)
 
 

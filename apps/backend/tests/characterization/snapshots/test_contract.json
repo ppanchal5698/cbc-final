@@ -887,6 +887,12 @@
   },
   "status": 401
  },
+ "POST /api/projects/{code}/quote/carried/keep #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "POST /api/projects/{code}/quote/continue-to-proposal #wrong token": {
   "body": {
    "detail": "str"
@@ -1656,6 +1662,11 @@
   {
    "admin": false,
    "op": "POST /api/projects/{code}/proposal/complete",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/quote/carried/keep",
    "status": 200
   },
   {

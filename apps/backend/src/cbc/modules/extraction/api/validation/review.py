@@ -203,6 +203,14 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
                       blocking=not line.get("alternate_group"))
             )
 
+        if "carried_from_prior" in (line.get("flags") or []):
+            # FR-1d: a templated bid starts as a copy of a prior job's quote, and a
+            # row left over from that job must not go out on this one unseen.
+            flags.append(_flag(label, "carried", "medium",
+                               "Carried from {} - keep it if it applies to this job, or remove it".format(
+                                   line.get("carried_from") or "a prior bid"),
+                               page, blocking=True))
+
         if "fire_exit_hardware_required" in (line.get("flags") or []):
             # Panic hardware on a rated door must be listed fire exit hardware
             # (requirements 6.1): a part priced off a list cannot say it is.

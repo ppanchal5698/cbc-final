@@ -175,6 +175,12 @@ def test_apply_learning(client, snapshots) -> None:
     snapshots.pin("POST /api/learning/apply", client.post("/api/learning/apply"))
 
 
+def test_keep_carried_lines(client, bid, snapshots) -> None:
+    """FR-1d: the lines a templated bid copied from a prior one apply to this job.
+    This bid was not started from one, so there is nothing to keep."""
+    snapshots.pin("POST /api/projects/{code}/quote/carried/keep", client.post(_p(bid, "/quote/carried/keep")))
+
+
 # Last: these change the shared bid, and every pin above is taken first.
 def test_a_typed_cost_is_the_estimators_not_the_sheets(client, bid) -> None:
     """A cost typed by hand kept the source the ladder priced the line from - "List x

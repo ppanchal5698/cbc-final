@@ -288,6 +288,7 @@ async def export_quote_lines(project: dict[str, Any], *, allow_empty: bool = Fal
                 "alternate_group": doc.get("alternateGroup"),
                 "added_by_hand": doc.get("addedByHand", False),
                 "flags": doc.get("flags", []),
+                "carried_from": doc.get("carriedFrom"),  # the prior bid a templated line came from
                 # The review's margin rule reads these. Dropping them made every
                 # margin typed on the quote grid look like an unexplained one,
                 # and a below-band margin with a reason is the estimator's call.

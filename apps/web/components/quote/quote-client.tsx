@@ -18,6 +18,7 @@ import {
   CaretRight,
   ArrowsInLineVertical,
   ArrowsOutLineVertical,
+  ClockCounterClockwise,
 } from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
 
@@ -60,6 +61,11 @@ const COST_SOURCES = [
 // Component first: an estimator checks a set in the order it is written.
 const COLUMNS =
   "96px minmax(150px,1.1fr) minmax(200px,2fr) 56px 95px 120px 72px minmax(110px,1fr) 100px 32px";
+
+/** A line copied from a prior bid that nobody has kept yet (FR-1d). */
+function isCarried(line: QuoteLine): boolean {
+  return line.flags.includes("carried_from_prior");
+}
 
 function formatCostSourceLabel(source?: string | null): string {
   if (!source) return "MANUAL";
@@ -248,6 +254,10 @@ export function QuoteClient({
     0,
   );
 
+  // FR-1d: lines a templated bid copied from a prior one, until an estimator
+  // keeps them. The proposal waits on them, so a leftover row cannot go out.
+  const carried = (data?.groups ?? []).flatMap((group) => group.lines.filter(isCarried));
+
   // When a group is selected the footer must show that group's money, not the
   // whole bid's. These totals are the API's own per-alternate figures.
   const selectedAlternate = filtering
@@ -286,6 +296,25 @@ export function QuoteClient({
       mutate();
     } catch (problem) {
       toast.error("Could not remove that line", { description: errorMessage(problem) });
+    }
+  }
+
+  async function keepCarried() {
+    const from = carried[0]?.carriedFrom ?? "the prior bid";
+    if (
+      !window.confirm(
+        `Keep the ${carried.length} line${carried.length === 1 ? "" : "s"} carried from ${from}? ` +
+          "Remove any that do not apply to this job first.",
+      )
+    ) {
+      return;
+    }
+    try {
+      await proxyMutate(`/api/proxy/projects/${code}/quote/carried/keep`);
+      toast.success("Carried lines kept");
+      mutate();
+    } catch (problem) {
+      toast.error("Could not keep those lines", { description: errorMessage(problem) });
     }
   }
 
@@ -434,6 +463,18 @@ export function QuoteClient({
                 <PencilLine size={14} weight="fill" />
                 {data.edited.count} line{data.edited.count === 1 ? "" : "s"} edited by hand
               </span>
+            )}
+
+            {carried.length > 0 && (
+              <button
+                type="button"
+                onClick={keepCarried}
+                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] font-bold bg-status-warning-soft border border-status-warning/30 text-status-warning shadow-sm hover:brightness-110"
+                title="Copied from a past bid. Remove what does not apply to this job, then keep the rest; the proposal waits until you do."
+              >
+                <ClockCounterClockwise size={14} weight="fill" />
+                {carried.length} carried from {carried[0].carriedFrom ?? "a past bid"} · Keep
+              </button>
             )}
 
             {!!data?.lapsedCount && (
@@ -647,6 +688,14 @@ export function QuoteClient({
                             <span className="text-[11.5px] font-medium text-status-error mt-0.5 block">
                               {line.addedByHand ? "added by hand" : "margin overridden"}
                               {line.overrideReason ? ` · ${line.overrideReason}` : ""}
+                            </span>
+                          )}
+                          {isCarried(line) && (
+                            <span
+                              className="inline-block mt-1 mr-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-status-warning border border-status-warning/30 bg-status-warning-soft shadow-sm"
+                              title={`Copied from ${line.carriedFrom ?? "a past bid"}: keep it if it applies to this job, or remove it`}
+                            >
+                              carried
                             </span>
                           )}
                           {isBelowBand(line) && (

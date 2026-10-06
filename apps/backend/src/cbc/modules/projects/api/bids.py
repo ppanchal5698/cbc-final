@@ -9,6 +9,9 @@ from cbc.modules.projects.infrastructure.collections import bid_requests
 # Published with project_id= while a bid is being deleted - after its jobs are
 # cancelled, before its record goes - so each module removes its own rows.
 PROJECT_DELETED = "projects.project_deleted"
+# Published with project= and prior= when a bid starts from a prior one (FR-11),
+# before the bid records it, so quoting can refuse and nothing is half-done.
+TEMPLATE_CHOSEN = "projects.template_chosen"
 
 
 async def set_version(project_id: Any, number: int) -> None:

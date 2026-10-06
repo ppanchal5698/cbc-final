@@ -48,6 +48,7 @@ class ProjectRef(TypedDict, total=False):
     bidDue: Any
     jobName: str
     p21OrderNo: str  # the P21 order raised against the bid
+    templateSourceCode: str  # the prior bid a templated one started from (FR-11)
 
 
 async def load(code_or_id: str) -> ProjectRef:

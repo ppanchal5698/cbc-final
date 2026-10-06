@@ -680,6 +680,12 @@
   },
   "status": 200
  },
+ "POST /api/projects/{code}/quote/carried/keep": {
+  "body": {
+   "kept": "number"
+  },
+  "status": 200
+ },
  "POST /api/projects/{code}/quote/continue-to-proposal": {
   "body": {
    "job": {

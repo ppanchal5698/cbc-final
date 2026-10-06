@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from cbc.modules.extraction.api import feedback
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api.lookup import load
+from cbc.modules.quoting.api import lines as lines_api
 from cbc.modules.quoting.api import quote as quote_service
 from cbc.modules.quoting.domain.quotes import QuoteLineUpdate
 from cbc.modules.quoting.infrastructure.collections import estimate_lines
@@ -68,7 +69,9 @@ async def update_line(
         update["overrideReason"] = reason
 
     await estimate_lines().update_one(
-        {"_id": line["_id"]}, {"$set": update, "$push": {"overrides": override}}
+        {"_id": line["_id"]},
+        # An estimator who edits a line carried from a prior bid has looked at it.
+        {"$set": update, "$push": {"overrides": override}, "$pull": {"flags": lines_api.CARRIED}},
     )
     await audit.record(
         "quote.line_edit",

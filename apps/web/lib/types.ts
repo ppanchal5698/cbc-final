@@ -116,6 +116,8 @@ export interface Project {
   outcome?: Outcome;
   /** The P21 order raised against a won bid. */
   p21OrderNo?: string | null;
+  /** The past bid a templated bid's quote was copied from (FR-11). */
+  templateSourceCode?: string | null;
   counts: Counts;
   documentCount: number;
   quoteTotal?: number | null;
@@ -305,6 +307,8 @@ export interface QuoteLine {
   costSourceDetail?: string | null;
   /** The NOTE a substitution prints on the quote (FR-17). */
   substitutionNote?: string | null;
+  /** The prior bid a templated quote copied this line from (FR-1d). */
+  carriedFrom?: string | null;
   manufacturer?: string | null;
   multiplier?: number | null;
   multiplierTier?: string | null;

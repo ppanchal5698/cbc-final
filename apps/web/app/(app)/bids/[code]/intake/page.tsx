@@ -63,6 +63,7 @@ export default async function IntakePage({ params }: { params: Promise<{ code: s
             : null,
       sourceKey: "mode",
     },
+    { label: "Started from", value: project.templateSourceCode ?? null },
     {
       label: "Bid due",
       value: project.bidDue ? new Date(project.bidDue).toLocaleDateString() : null,
@@ -97,7 +98,11 @@ export default async function IntakePage({ params }: { params: Promise<{ code: s
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_340px]">
           <div className="flex flex-col gap-4">
             <UploadPanel code={project.code} initialDocuments={documents} />
-            <StartFromPrior code={project.code} documentCount={documents.length} />
+            <StartFromPrior
+              code={project.code}
+              documentCount={documents.length}
+              startedFrom={project.templateSourceCode}
+            />
             <VersionsPanel code={project.code} />
           </div>
 
