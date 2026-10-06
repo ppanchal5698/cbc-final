@@ -98,6 +98,10 @@ const FLAG_HINTS: Record<string, string> = {
   wall_type_missing: "Missing wall type",
   frame_depth_underivable: "Frame depth needs wall type",
   details_dropped: "Schedule cells (glass / materials / notes) were not carried into fields",
+  handing_read_from_plan: "Handing read off the floor plan by the model — confirm the swing on the plan",
+  read_by_model: "Read off a picture of the sheet by the model (no text to parse) — confirm it on the sheet",
+  bbox_row_not_found: "The row could not be found again on its sheet — the page is right; find the row by eye",
+  qty_not_stated: "The schedule states no count — take it off the plans or elevations",
 };
 
 const MATERIAL_FIELDS = [

@@ -319,6 +319,17 @@ def page_image(
         doc.close()
 
 
+def page_text(file_path: str | Path, page_number: int) -> str:
+    """The page's text layer as it stands - empty for a scan or outlined text."""
+    doc = _open(file_path)
+    try:
+        if not 0 < page_number <= doc.page_count:
+            return ""
+        return doc[page_number - 1].get_text()
+    finally:
+        doc.close()
+
+
 def find_text(file_path: str | Path, page_number: int, needle: str) -> list[dict[str, Any]]:
     """Locate a string on a page and return its bboxes.
 

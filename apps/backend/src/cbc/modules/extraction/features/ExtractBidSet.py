@@ -20,6 +20,7 @@ import asyncio
 from typing import Any
 
 from cbc.modules.extraction.api import documents, line_items, openings, passes
+from cbc.modules.extraction.features import ReadByModel
 from cbc.modules.extraction.infrastructure import pretakeoff
 from cbc.modules.ops.api import jobs as ops_jobs, pipeline as ops_pipeline
 from cbc.modules.projects.api import bids, lookup, pipeline, saga
@@ -56,11 +57,21 @@ async def extract_in_code(job: dict[str, Any], project: dict[str, Any]) -> str:
             await asyncio.to_thread(pretakeoff.seed_frp_takeoff, slug)
         if scope.get("div10_in_scope"):
             await asyncio.to_thread(pretakeoff.seed_div10_takeoff, slug)
+    # What the parsers cannot read, asked of the model - each answer only where the
+    # take-off has nothing, and flagged for the estimator to confirm.
+    tables = await ReadByModel.schedules(slug)
+    titled = await ReadByModel.title_block(slug)
+    handed = await ReadByModel.handing(slug)
     if not await ops_jobs.holds_lease(job):
         return "lease stolen; discarded output"
     # Every box came off the text layer already; only what has none is measured.
     await asyncio.to_thread(passes.measure, project, overwrite=False)
-    return await _land(job, project)
+    note = await _land(job, project)
+    asked = [f"{tables.get('doors', 0)} door(s) and {tables.get('sets', 0)} hardware set(s) off pictures "
+             "of the sheets" if any(tables.values()) else "",
+             f"{titled} project field(s) off the title block" if titled else "",
+             f"handing off the plan for {handed}" if handed else ""]
+    return "; ".join([note, *filter(None, asked)])
 
 
 async def sync_results(job: dict[str, Any], project: dict[str, Any] | None) -> str:
