@@ -33,7 +33,9 @@ _PAIR = {"PR", "PRS", "PAIR", "PAIRS"}
 _BY_OTHERS = re.compile(
     r"\b(?:OFCI|O\.F\.C\.I|N\.I\.C|NIC|BY\s+OTHERS"
     r"|OWNER[\s-]+(?:FURNISHED|SUPPLIED|PROVIDED)"
-    r"|(?:PROVIDED|FURNISHED|SUPPLIED)\s+BY\s+(?:THE\s+)?(?:OWNER|TENANT|LANDLORD))\b",
+    r"|(?:PROVIDED|FURNISHED|SUPPLIED)\s+BY\s+(?:THE\s+)?(?:OWNER|TENANT|LANDLORD)"
+    # Hardware already on the door is not CBC's to supply either.
+    r"|EXISTING\s+TO\s+(?:REMAIN|BE\s+RE-?USED)|RE-?USE\s+(?:THE\s+)?EXISTING)\b",
     re.I,
 )
 
@@ -143,6 +145,7 @@ def hardware_lines(
         entry["marks"].append(str(door.get("mark") or "?"))
         entry["doors"] += quantity(door.get("count"))[0] or 1.0
         entry["rated"] = entry.get("rated") or fire_rating.is_rated(door.get("rating"))
+        entry["smoke"] = entry.get("smoke") or bool(door.get("smoke"))
 
     lines: list[Line] = []
     notes: list[str] = []
@@ -215,11 +218,16 @@ def _set_lines(hw_set: dict[str, Any], name: str, key: str, group: str | None,
             # Panic hardware on a rated door has to be listed fire exit hardware
             # (CBC requirements 6.1): the estimator confirms the part is.
             line.flags.append("fire_exit_hardware_required")
+        if cited.get("smoke") and _GASKETING.search(f"{line.text} {line.part or ''}"):
+            line.flags.append("smoke_label")  # a smoke door's seals are listed for smoke (6.1)
         if party or others:
             line.alternate = (f"supplied by {party} per the legend" if party
                               else f"the schedule says {others!r} - another party supplies it")
             line.flags.append("supplied_by_others")
         lines.append(line)
+    if cited.get("smoke") and lines and not any("smoke_label" in line.flags for line in lines):
+        # A smoke-labeled door needs listed seals, and this set names none.
+        lines[0].flags.append("smoke_gasketing_missing")
     return lines
 
 
@@ -292,6 +300,9 @@ def _frp_lines(line: Line, converted: dict[str, Any], constants: dict[str, Any])
         ))
     return out
 
+
+# What seals a door for smoke: gasketing, seals, a sweep or an astragal.
+_GASKETING = re.compile(r"\b(?:GASKET\w*|SEALS?|SMOKE\s+SEAL|SWEEP|ASTRAGAL|DOOR\s+BOTTOM)\b", re.I)
 
 # An exit device by any of the names a legend gives one.
 _EXIT_DEVICE = re.compile(
@@ -370,6 +381,12 @@ def door_and_frame_lines(openings: list[dict[str, Any]]) -> list[Line]:
                     line.flags.append("pair_check")  # two leaves, or one oversize leaf?
                 if rating and rating != "NOT RATED":
                     line.flags.append("fire_rated")
+            # Requirements 6.1: the S label is the door's and the frame's, and a
+            # 20-minute door tested without hose stream is the door's listing.
+            for said, flag in ((door.get("smoke"), "smoke_label"),
+                               (door.get("no_hose_stream") and kind == "door", "no_hose_stream")):
+                if said and flag not in line.flags:
+                    line.flags.append(flag)
             line.qty = (line.qty or 0) + count
             line.openings.append(str(door.get("mark") or "?"))
             if door.get("undecided") and "scope_undecided" not in line.flags:

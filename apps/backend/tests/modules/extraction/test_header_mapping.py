@@ -225,3 +225,17 @@ def test_the_wall_type_column_reaches_the_opening() -> None:
         ["101", "3'-0\"", "7'-0\"", "W2"], ["Door No.", "Width", "Height", "Wall Type"]
     )
     assert opening["wall_type"] == "W2"
+
+
+def test_a_rating_cell_says_smoke_label_and_hose_stream_beside_the_minutes() -> None:
+    """Requirements 6.1: "20 MIN S" is a 20-minute, smoke-labeled door; "45 MINS" is
+    neither; "NO HOSE STREAM" is the 20-minute door's listing."""
+    header = ["Door No.", "Width", "Height", "Rating"]
+    smoke = _opening(["104", "3'-0\"", "7'-0\"", "20 MIN S"], header)
+    assert smoke["fire_rating"] == "20" and "smoke_label" in smoke["flags"]
+    same = _opening(["107", "3'-0\"", "7'-0\"", "20 MIN"], header)
+    assert smoke["confidence"] == same["confidence"], "a listing is not a doubt about the reading"
+    plain = _opening(["105", "3'-0\"", "7'-0\"", "45 MINS"], header)
+    assert plain["fire_rating"] == "45" and "smoke_label" not in plain["flags"]
+    hose = _opening(["106", "3'-0\"", "7'-0\"", "20 MIN NO HOSE STREAM"], header)
+    assert "no_hose_stream" in hose["flags"]

@@ -211,6 +211,21 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
                                    line.get("carried_from") or "a prior bid"),
                                page, blocking=True))
 
+        # Requirements 6.1: a smoke-labeled assembly, and a 20-minute door tested
+        # without hose stream - both the estimator's to confirm against the listing.
+        if "smoke_gasketing_missing" in (line.get("flags") or []):
+            flags.append(_flag(label, "smoke_gasketing", "high",
+                               "Smoke-labeled doors cite this set, and it lists no gasketing - a smoke "
+                               "assembly needs seals listed for smoke and draft control (UL 1784)", page))
+        if "smoke_label" in (line.get("flags") or []) and str(line.get("line_id") or "").startswith("door:"):
+            flags.append(_flag(label, "smoke_label", "medium",
+                               "Smoke-labeled door (S label): the door, frame and gasketing must be "
+                               "listed for smoke and draft control", page))
+        if "no_hose_stream" in (line.get("flags") or []):
+            flags.append(_flag(label, "fire_rating", "medium",
+                               "20-minute door tested without hose stream - confirm the listing allows it here",
+                               page))
+
         if "fire_exit_hardware_required" in (line.get("flags") or []):
             # Panic hardware on a rated door must be listed fire exit hardware
             # (requirements 6.1): a part priced off a list cannot say it is.

@@ -150,3 +150,33 @@ def test_doors_in_a_bid_alternate_are_their_own_lines_and_the_base_keeps_the_res
         ("door:hollow metal", "", 1.0), ("door:hollow metal", "Alternate 1", 1.0),
         ("frame:hollow metal", "", 1.0), ("frame:hollow metal", "Alternate 1", 1.0),
     ]
+
+
+def test_a_smoke_labeled_door_carries_its_label_and_needs_its_seals() -> None:
+    """Requirements 6.1: the S label is the door's and the frame's; its set's
+    gasketing is listed for smoke, and a set with none is reported."""
+    sealed = [{"name": "01", "items": [{"qty": "3", "part": "BB1279", "description": "HINGE"},
+                                       {"qty": "1", "part": "S88", "description": "SMOKE GASKET"}]}]
+    lines, _ = takeoff.hardware_lines(sealed, [{"mark": "104", "set": "01", "smoke": True}])
+    assert ["smoke_label" in line.flags for line in lines] == [False, True]
+
+    bare = [{"name": "02", "items": [{"qty": "3", "part": "BB1279", "description": "HINGE"}]}]
+    [hinge], _ = takeoff.hardware_lines(bare, [{"mark": "105", "set": "02", "smoke": True}])
+    assert "smoke_gasketing_missing" in hinge.flags
+
+    door, frame = takeoff.door_and_frame_lines([
+        {"mark": "104", "door_material": "HM", "frame_material": "HM", "width": "3'-0\"", "height": "7'-0\"",
+         "rating": "20", "smoke": True, "no_hose_stream": True},
+    ])
+    assert {"smoke_label", "no_hose_stream"} <= set(door.flags)
+    assert "smoke_label" in frame.flags and "no_hose_stream" not in frame.flags
+
+
+@pytest.mark.parametrize("notes,others", [
+    ("EXISTING TO REMAIN", "EXISTING TO REMAIN"),
+    ("Reuse existing closer", "Reuse existing"),
+    ("existing to be re-used", "existing to be re-used"),
+    ("Provide new; existing removed", None),
+])
+def test_hardware_already_on_the_door_is_not_cbcs_to_supply(notes, others) -> None:
+    assert takeoff.supplied_by_others(notes) == others

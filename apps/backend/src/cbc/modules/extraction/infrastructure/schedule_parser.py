@@ -80,6 +80,15 @@ FIRE_RATING_QUALIFIED = re.compile(
     re.IGNORECASE,
 )
 
+# The S label beside the minutes - "20 MIN S", "45/S", "90 (S)", "S-LABEL" - but
+# never the S of "45 MINS".
+SMOKE_LABEL = re.compile(
+    r"\b\d{1,3}\s*(?:MIN(?:UTE)?S?\.?)?\s*(?:[-/]\s*|\(\s*|\s+)S\)?(?![A-Z])|\bS[-\s]?LABEL\b",
+    re.IGNORECASE,
+)
+SMOKE_WORD = re.compile(r"\bSMOKE\b", re.IGNORECASE)
+NO_HOSE_STREAM = re.compile(r"\b(?:NO|W/O|WITHOUT)\s+HOSE(?:\s+STREAM)?\b|\bN\.?H\.?S\b", re.IGNORECASE)
+
 HW_GROUP = re.compile(r"\b(?:GROUP|HW|HDW|HG)[\s-]*(\d+)\b", re.IGNORECASE)
 # Column that is just "5" under a HARDWARE GROUP header.
 HW_GROUP_BARE = re.compile(r"^\d{1,3}$")
@@ -1069,6 +1078,13 @@ def parse_opening(
             "CBC does not quote storefront (Matrix 2.3)."
         ).strip()
 
+    # Requirements 6.1: a smoke-labeled door (the S label, UL 1784) and a 20-minute
+    # door tested without hose stream - written in the rating cell beside the minutes.
+    if SMOKE_LABEL.search(rating_raw or "") or SMOKE_WORD.search(text):
+        flags.append("smoke_label")
+    if NO_HOSE_STREAM.search(f"{rating_raw or ''} {text}"):
+        flags.append("no_hose_stream")
+
     if opening["handing"] is None:
         opening["evidence_note"] = (
             (opening.get("evidence_note") + " " if opening.get("evidence_note") else "")
@@ -1084,7 +1100,9 @@ def parse_opening(
         ).strip()
 
     opening["flags"] = flags
-    opening["confidence"] = round(max(0.3, 1.0 - 0.12 * len(flags)), 2)
+    # What the door is listed as is a fact about it, not a doubt about the reading.
+    problems = [flag for flag in flags if flag not in ("smoke_label", "no_hose_stream")]
+    opening["confidence"] = round(max(0.3, 1.0 - 0.12 * len(problems)), 2)
     return opening
 
 

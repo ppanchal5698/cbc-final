@@ -135,15 +135,18 @@ def _takeoff_rows(
             })
             continue
         mark = row.get("mark") or row.get("doorNumber")
+        flags = row.get("flags") or []
+        # What the rating cell said beside the minutes (requirements 6.1).
+        listed = {"smoke": "smoke_label" in flags, "no_hose_stream": "no_hose_stream" in flags}
         if row.get("hwSet"):
             hardware.append({"mark": mark, "set": row["hwSet"], "count": row.get("qty"),
-                             "rating": row.get("fireRating"), **where})
+                             "rating": row.get("fireRating"), **listed, **where})
         doors.append({
             "mark": mark, "count": row.get("qty"), "rating": row.get("fireRating"),
             "door_material": row.get("doorMaterial"), "frame_material": row.get("frameMaterial"),
             "door_type": row.get("doorType"), "frame_type": row.get("frameType"),
             "width": row.get("width"), "height": row.get("height"), "frame_depth": row.get("frameDepth"),
-            "undecided": row.get("inScope") is None, **where,
+            "undecided": row.get("inScope") is None, **listed, **where,
         })
     return hardware, specialties, doors
 
