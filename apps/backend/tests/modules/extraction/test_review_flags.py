@@ -416,6 +416,20 @@ def test_a_field_no_door_on_the_schedule_gives_is_said_once(project) -> None:
     assert per_door == [("Door 2", "handing"), ("Door 3", "handing")]
 
 
+def test_a_handing_read_off_the_plan_is_not_the_schedules(project) -> None:
+    """Evernorth: no handing column, the plan gave some doors theirs, and each
+    of the rest came back a HIGH flag of its own. One note, naming who is left."""
+    slug, directory = project
+    door = {"bbox": [1, 2, 3, 4], "size": "3070", "source_page": 21, "in_scope": True}
+    _write(directory, "extracted/line_items.json", {"openings": [
+        {"door_number": "110", **door, "handing": "LH", "flags": ["handing_read_from_plan"]},
+        {"door_number": "100", **door}, {"door_number": "101", **door},
+    ]})
+    flags = [f for f in review.derive_flags(slug) if f["field"] == "handing"]
+    assert [(f["opening"], f["severity"]) for f in flags] == [("All doors", "medium")]
+    assert flags[0]["note"].endswith("1 read off the plan - confirm them; still to read: doors 100, 101")
+
+
 def test_no_rated_door_is_said_once_whoever_noticed(project) -> None:
     """The scope summary and the doors themselves both notice: one finding."""
     slug, directory = project

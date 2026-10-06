@@ -138,12 +138,24 @@ def _opening_flags(openings: list[dict], fire_ratings_present: bool = False) -> 
     flags: list[dict] = []
     doors = [o for o in openings if not o.get("specialty")]
     # A field no door has is the schedule's silence, said once - unless rule 1 makes
-    # each door's missing rating a stop of its own.
+    # each door's missing rating a stop of its own. A handing read off the plan is
+    # not the schedule's: Evernorth's has no handing column, the plan gave 13 doors
+    # theirs, and the other 21 came back one HIGH flag each.
+    def on_schedule(opening: dict, field: str) -> bool:
+        if field == "handing" and "handing_read_from_plan" in (opening.get("flags") or []):
+            return False
+        return opening.get(field) not in (None, "", [])
+
     absent = {field for field in REQUIRED_OPENING_FIELDS
-              if len(doors) > 1 and all(o.get(field) in (None, "", []) for o in doors)
+              if len(doors) > 1 and not any(on_schedule(o, field) for o in doors)
               and not (field == "fire_rating" and fire_ratings_present)}
     for field in sorted(absent):
         severity, note = ABSENT_FROM_SCHEDULE[field]
+        unread = [str(o.get("door_number") or o.get("mark") or "?") for o in doors
+                  if o.get(field) in (None, "", [])]
+        if len(unread) < len(doors):
+            note = (f"{note}: {len(doors) - len(unread)} read off the plan - confirm them"
+                    + (f"; still to read: doors {', '.join(unread)}" if unread else ""))
         flags.append(_flag("All doors", field, severity, note, doors[0].get("source_page")))
     for opening in openings:
         if opening.get("specialty"):
@@ -502,7 +514,8 @@ def _document_not_parsed_flags(project: Path) -> list[dict]:
             "its pages were read from the PDF's own text instead"
         )
         if doc.get("error"):
-            note = f"{note}. {doc['error']}"
+            error = str(doc["error"])
+            note = f"{note}. {error[:1].upper()}{error[1:]}"
         flags.append(
             _flag(None, "document_not_parsed", "info", note, source_page=None)
         )

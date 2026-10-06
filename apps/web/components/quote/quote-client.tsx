@@ -814,7 +814,9 @@ export function QuoteClient({
                               NOTE: {line.substitutionNote}
                             </span>
                           )}
-                          <span className="mt-0.5 flex gap-2 text-[11px] font-semibold text-tx-muted">
+                          {/* Wraps: two selects beside Edit / NOTE are wider than the column, and
+                              on a tall row they ran under the quantity box. */}
+                          <span className="mt-0.5 flex flex-wrap gap-x-2 gap-y-1 text-[11px] font-semibold text-tx-muted">
                             <button type="button" className="hover:text-tx-primary hover:underline"
                               onClick={() => editText(line, "description", "Description")}>
                               Edit
