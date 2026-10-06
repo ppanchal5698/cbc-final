@@ -46,6 +46,9 @@ BBOX_COVERAGE = 0.5
 # What a page read by `local_window` is stored under, so bid-docs and the review
 # flags can tell a local read from a LlamaParse one.
 LOCAL_PARSER = {"name": "local", "version": "pymupdf", "tier": None}
+# A page read from the PDF's own text by choice, not because the reader failed: a
+# spec book's pages outside the divisions CBC quotes. Not a fallback.
+TEXT_LAYER_PARSER = {"name": "text-layer", "version": "pymupdf", "tier": None}
 
 # Types that legitimately carry no text to anchor, so they keep their place in
 # the page without being scored or dropped.

@@ -65,7 +65,7 @@ def _window_payload(start: int, end: int) -> list[dict]:
 
 
 def _run_job(
-    *, pages: int, window: int, concurrency: int, parse_window, existing=0, parse=None
+    *, pages: int, window: int, concurrency: int, parse_window, existing=0, parse=None, kind=None, texts=None
 ):
     doc = {
         "_id": DOC_ID,
@@ -74,6 +74,7 @@ def _run_job(
         "pages": pages,
         "contentSha": "sha",
         "filename": "x.pdf",
+        "kind": kind,
         "parse": {"fileId": "file-1", **(parse or {})},
     }
     sets: list[dict] = []
@@ -99,6 +100,7 @@ def _run_job(
             patch.object(ParseDocument.worker, "job_cancelled", AsyncMock(return_value=False)),
             patch.object(ParseDocument.llamaparse, "upload", AsyncMock(return_value="file-1")),
             patch.object(ParseDocument.llamaparse, "parse_window", parse_window),
+            patch.object(ParseDocument.pdfpages, "pages_text", lambda _p: texts or [""] * pages),
             patch.object(
                 ParseDocument.page_blocks,
                 "normalise_window",
@@ -247,3 +249,39 @@ async def test_a_window_past_the_deadline_is_not_sent_to_llamaparse():
     assert sets[0]["parse.startedAt"] == started
     final = next(s for s in sets if "parse.fallbackPages" in s)
     assert final["parse.settings.backend"] == "local"
+
+
+def test_a_spec_book_sends_the_reader_only_the_sections_cbc_quotes() -> None:
+    """The Evernorth manual is 859 pages; 72 hold Divisions 08 and 10. A window with
+    none of them is read from the text layer, and is no fallback."""
+    asked: list[tuple[int, int]] = []
+
+    async def parse_window(_client, *, start_page, end_page, **_k):
+        asked.append((start_page, end_page))
+        return _window_payload(start_page, end_page)
+
+    texts = ["SECTION 03 30 00 - CONCRETE"] * 8 + ["SECTION 087100 - DOOR HARDWARE"] * 4 + ["SECTION 23 05 00"] * 12
+    summary, sets, pages_col = _run_job(pages=24, window=8, concurrency=2, parse_window=parse_window,
+                                        kind="spec", texts=texts)
+    assert asked == [(9, 16)], "only the window holding 08 71 00"
+    assert {p: row["parser"]["name"] for p, row in pages_col.rows.items() if p in (1, 9, 17)} == {
+        1: "text-layer", 9: "llamaparse", 17: "text-layer"}
+    assert next(s["parse.fallbackPages"] for s in sets if "parse.fallbackPages" in s) == []
+
+
+def test_a_parse_given_up_on_from_a_wait_finishes_without_a_job_log() -> None:
+    """The extract's wait expires a parse with no job's log at hand; the digest
+    rebuild logged to None and failed the extract it was letting go."""
+    finished: list[tuple] = []
+
+    async def go():
+        with (
+            patch.object(ParseDocument, "_finish_parse", AsyncMock(side_effect=lambda *a: finished.append(a))),
+            patch.object(ParseDocument, "documents", lambda: _Docs({"projectId": PROJ_ID}, [])),
+            patch("cbc.modules.projects.api.lookup.get", AsyncMock(return_value={"slug": "s", "_id": PROJ_ID})),
+            patch("cbc.modules.intake.api.digest.build", AsyncMock(return_value={"documents": 1, "path": "p"})),
+        ):
+            await ParseDocument.after_finish({"payload": {"documentId": str(DOC_ID)}}, "dead", "gave up", None)
+
+    asyncio.run(go())
+    assert finished and finished[0][1:] == ("dead", "gave up")

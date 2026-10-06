@@ -330,6 +330,15 @@ def page_text(file_path: str | Path, page_number: int) -> str:
         doc.close()
 
 
+def pages_text(file_path: str | Path) -> list[str]:
+    """Every page's text layer, in one open - page 1 first."""
+    doc = _open(file_path)
+    try:
+        return [page.get_text() for page in doc]
+    finally:
+        doc.close()
+
+
 def find_text(file_path: str | Path, page_number: int, needle: str) -> list[dict[str, Any]]:
     """Locate a string on a page and return its bboxes.
 

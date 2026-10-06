@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -22,7 +23,7 @@ import httpx
 
 from cbc.modules.intake.infrastructure.collections import document_pages, documents
 from cbc.modules.ops.api import llamaparse, nim_parse, page_blocks, parsing_config, worker
-from cbc.shared import storage
+from cbc.shared import pdfpages, storage
 from cbc.shared.mongo import oid
 
 log = logging.getLogger("cbc.parse_document")
@@ -35,6 +36,29 @@ ParsePermanent = llamaparse.ParsePermanent
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+# A spec book runs to hundreds of pages and CBC quotes two divisions of it. Every
+# page of a section prints the section's number, so the book's own text says which
+# pages those are - Division 08 and 10, FRP (06 64, or 09 77 where a book files it),
+# and the bid's alternates (01 23 00). Only
+# those go to the reader; the rest are read from the text layer, at no cost. The
+# Evernorth manual is 859 pages: every one of them went to the top tier.
+_OUR_SECTIONS = re.compile(
+    r"\b(?:08|10)\s?\d{2}\s?\d{2}\b|\b(?:06\s?64|09\s?77)\s?\d{2}\b|\b01\s?23\s?00\b"
+    r"|\bDIVISION\s+(?:0?8|10)\b|\bDOOR\s+HARDWARE\b", re.I)
+
+
+def pages_for_the_reader(texts: list[str], kind: str | None) -> set[int] | None:
+    """The pages the cloud reader gets - None for every page: not a spec book, a
+    book that is mostly scanned (only the reader can read it), or one whose text
+    names none of our sections (better every page than none)."""
+    if kind != "spec" or not texts:
+        return None
+    if sum(1 for text in texts if text.strip()) < 0.8 * len(texts):
+        return None
+    wanted = {number for number, text in enumerate(texts, start=1) if _OUR_SECTIONS.search(text)}
+    return wanted or None
 
 
 async def _load_settings() -> dict[str, Any]:
@@ -52,6 +76,8 @@ async def after_finish(job: dict[str, Any], status: str, error: str | None, job_
     if not document_id:
         return
     oid_id = oid(document_id)
+    # Given up on from an extract's wait, there is no job's log to write to.
+    job_log = job_log or log
     try:
         await _finish_parse(oid_id, status, error)
     finally:
@@ -188,6 +214,11 @@ async def parse_document(job: dict[str, Any]) -> str:
 
     window = max(1, int(resolved.get("windowPages") or 8))
     timeout = float(resolved.get("windowTimeoutSeconds") or 1800)
+    reader_pages = (pages_for_the_reader(await asyncio.to_thread(pdfpages.pages_text, path), doc.get("kind"))
+                    if doc.get("kind") == "spec" else None)
+    if reader_pages is not None:
+        log.info("%s: %d of %d pages to the reader, the rest from the text layer",
+                 doc.get("filename"), len(reader_pages), pages)
 
     project = await _project_slug(doc["projectId"])
     out_dir = storage.project_dir(project) / "uploads" / "processed" / "parsed" / str(doc["_id"])
@@ -275,9 +306,10 @@ async def parse_document(job: dict[str, Any]) -> str:
                         )
                 elif existing < span:
                     window_pages = None
+                    ours = reader_pages is None or any(p in reader_pages for p in range(start, end + 1))
                     # A window that would start after the deadline is never
                     # sent: it would wait up to its own timeout on top.
-                    if file_id and _now() < deadline_at:
+                    if file_id and _now() < deadline_at and ours:
                         window_pages = await or_local(
                             llamaparse.parse_window(
                                 client,
@@ -293,7 +325,7 @@ async def parse_document(job: dict[str, Any]) -> str:
                         )
                     window_parser = parser_meta
                     if window_pages is None:
-                        window_parser = page_blocks.LOCAL_PARSER
+                        window_parser = page_blocks.LOCAL_PARSER if ours else page_blocks.TEXT_LAYER_PARSER
                         window_pages = await asyncio.to_thread(
                             lambda: [
                                 page_blocks.local_window(path, p)
