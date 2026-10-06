@@ -24,6 +24,7 @@ import { toast } from "sonner";
 
 import { AlternateBar } from "@/components/bids/alternate-bar";
 import { VendorRfqsPanel } from "@/components/quote/vendor-rfqs-panel";
+import { CustomLineDialog } from "@/components/quote/custom-line-dialog";
 import { JobFailedBanner } from "@/components/jobs/job-failed-banner";
 import { useUiState } from "@/components/shell/ui-state";
 import { formatMoney, formatPercent } from "@/lib/format";
@@ -205,6 +206,7 @@ export function QuoteClient({
   const router = useRouter();
   const { openNotes, userRole } = useUiState();
   const [busy, setBusy] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
   const [alternate, setAlternate] = useState<string | null | undefined>(undefined);
   // NFR-8 is "below-band lines are flagged". The API flags them; until this
   // existed nothing showed the flag, so the guardrail ended at the API boundary.
@@ -574,6 +576,15 @@ export function QuoteClient({
               <Plus size={14} weight="bold" />
               Add line
             </button>
+            <button
+              onClick={() => setCustomOpen(true)}
+              title="A line past the stock list, described from the custom / other options"
+              className="flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-bold border border-subtle bg-background text-tx-secondary hover:bg-panel-muted hover:text-tx-primary transition-colors shadow-sm"
+            >
+              <Plus size={14} weight="bold" />
+              Custom line
+            </button>
+            <CustomLineDialog code={code} open={customOpen} onOpenChange={setCustomOpen} onAdded={() => mutate()} />
             <button
               onClick={() =>
                 setCollapsed((current) =>
