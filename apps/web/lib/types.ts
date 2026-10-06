@@ -1010,9 +1010,13 @@ export interface UserRow {
 /** `v2` prices a bid in code; `legacy` runs the Claude pricing pass. */
 export type PricingEngine = "legacy" | "v2";
 
+/** `v2` reads a bid set in code; `legacy` runs the Claude extraction wave. */
+export type ExtractionEngine = "legacy" | "v2";
+
 export interface PipelineSettings {
   autopilotDefault: boolean;
   pricingEngine: PricingEngine;
+  extractionEngine: ExtractionEngine;
   note?: string;
   updatedAt?: string | null;
   updatedBy?: string | null;

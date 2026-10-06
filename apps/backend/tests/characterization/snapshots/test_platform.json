@@ -600,6 +600,7 @@
  "GET /api/settings/pipeline": {
   "body": {
    "autopilotDefault": "bool",
+   "extractionEngine": "str",
    "note": "str",
    "pricingEngine": "str",
    "updatedAt": "null",
@@ -1278,6 +1279,7 @@
  "PUT /api/settings/pipeline": {
   "body": {
    "autopilotDefault": "bool",
+   "extractionEngine": "str",
    "note": "str",
    "pricingEngine": "str",
    "updatedAt": "datetime",

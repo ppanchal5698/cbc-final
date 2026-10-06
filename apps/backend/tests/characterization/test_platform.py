@@ -218,7 +218,11 @@ def test_pipeline_settings(client, snapshots) -> None:
     assert client.put("/api/settings/pipeline", json={"autopilotDefault": False, "pricingEngine": "v2"}).json()["pricingEngine"] == "v2"
     assert client.put("/api/settings/pipeline", json={"autopilotDefault": True}).json()["pricingEngine"] == "v2"
     assert client.put("/api/settings/pipeline", json={"pricingEngine": "gpt"}).status_code == 422
-    client.put("/api/settings/pipeline", json={"autopilotDefault": False, "pricingEngine": "legacy"})
+    # Each phase has its own switch: reading a bid in code leaves its pricing alone.
+    both = client.put("/api/settings/pipeline", json={"autopilotDefault": True, "extractionEngine": "v2"}).json()
+    assert (both["extractionEngine"], both["pricingEngine"]) == ("v2", "v2")
+    assert client.put("/api/settings/pipeline", json={"extractionEngine": "ocr"}).status_code == 422
+    client.put("/api/settings/pipeline", json={"autopilotDefault": False, "pricingEngine": "legacy", "extractionEngine": "legacy"})
 
 
 def test_freshness_settings(client, snapshots) -> None:

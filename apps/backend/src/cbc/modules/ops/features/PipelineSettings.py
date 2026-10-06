@@ -1,4 +1,4 @@
-"""GET and PUT /api/settings/pipeline - whether a new bid starts on autopilot, and how it is priced."""
+"""GET and PUT /api/settings/pipeline - whether a new bid starts on autopilot, and how it is read and priced."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -29,6 +29,9 @@ class PipelineSettings(BaseModel):
     # estimators' own quotes. Omitted, it is left as it is: a screen that saves
     # only the autopilot default must not reset the engine.
     pricingEngine: Literal["legacy", "v2"] | None = None
+    # The same for the extract job: the take-off in code, with the model asked only
+    # what the parsers cannot read, or the Claude extraction wave.
+    extractionEngine: Literal["legacy", "v2"] | None = None
 
 
 @router.get("/pipeline")
@@ -37,6 +40,7 @@ async def get_pipeline_settings() -> dict[str, Any]:
     return {
         "autopilotDefault": bool(stored.get("autopilotDefault", False)),
         "pricingEngine": pipeline.engine_from(stored),
+        "extractionEngine": pipeline.engine_from(stored, "extraction"),
         "note": (
             "Autopilot runs Phase 0-6 in one pass when a drawing is uploaded. The "
             "openings are priced before anyone checks them and everything uncertain "
@@ -54,6 +58,7 @@ async def save_pipeline_settings(body: PipelineSettings, actor: Actor) -> dict[s
         {"_id": "pipeline"},
         {"$set": {"autopilotDefault": body.autopilotDefault,
                   **({"pricingEngine": body.pricingEngine} if body.pricingEngine else {}),
+                  **({"extractionEngine": body.extractionEngine} if body.extractionEngine else {}),
                   "updatedAt": _now(), "updatedBy": actor}},
         upsert=True,
     )
