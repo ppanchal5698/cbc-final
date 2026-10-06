@@ -433,6 +433,9 @@ def render_html(project: dict[str, Any], data: dict[str, Any], autoprint: bool) 
             "architect": project.get("architect"),
             "bid_due_date": _day(project.get("bidDue")),
             "order_number": project.get("p21OrderNo"),
+            # Bid forms ask for every addendum acknowledged by number (FR-14).
+            "addenda": [{"number": a.get("number"), "issued_on": _day(a.get("issuedOn"))}
+                        for a in sorted(project.get("addenda") or [], key=lambda a: a.get("number") or 0)],
             "version": project.get("version"),
         },
         customer={"gc": (proposal.get("customer") or {}).get("name") or project.get("gc"),

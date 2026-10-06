@@ -308,6 +308,17 @@ def test_audit_log(client, snapshots) -> None:
     snapshots.pin("GET /api/audit", client.get("/api/audit", params={"limit": 5}))
 
 
+def test_the_addendum_log(client, state, snapshots) -> None:
+    """FR-14: an addendum logged by number, then completed."""
+    base = f"/api/projects/{state['code']}/addenda"
+    op = "POST /api/projects/{code}/addenda"
+    snapshots.pin(op, client.post(base, json={"issuedOn": "2026-09-30", "changedDocuments": "A601"}))
+    snapshots.pin(op, client.post(base, json={"number": 1}), variant="number already logged")
+    op = "PATCH /api/projects/{code}/addenda/{number}"
+    snapshots.pin(op, client.patch(f"{base}/1", json={"changedForms": "bid form page 2"}))
+    snapshots.pin(op, client.patch(f"{base}/9", json={"notes": "x"}), variant="not logged")
+
+
 def test_delete_a_project(client, state, snapshots) -> None:
     op = "DELETE /api/projects/{code}"
     snapshots.pin(op, client.delete(f"/api/projects/{state['code']}"))

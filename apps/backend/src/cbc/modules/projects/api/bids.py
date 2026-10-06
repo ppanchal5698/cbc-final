@@ -41,6 +41,28 @@ async def describe_alternate(project_id: Any, spec: dict[str, Any]) -> None:
         )
 
 
+class AddendumExists(ValueError):
+    """An addendum by that number is already in the bid's log."""
+
+
+async def log_addendum(project_id: Any, entry: dict[str, Any], *, by: str | None = None) -> dict[str, Any]:
+    """Add an addendum to the bid's log (FR-14) - the next number when none is
+    given - and return it as stored. An addendum PDF uploaded to the bid is
+    logged by intake; one announced by phone or email, by the estimator."""
+    project = await bid_requests().find_one({"_id": project_id}, {"addenda": 1}) or {}
+    numbers = [a.get("number") for a in project.get("addenda") or []]
+    number = entry.get("number") or max([n for n in numbers if isinstance(n, int)] or [0]) + 1
+    if number in numbers:
+        raise AddendumExists(f"addendum {number} is already logged on this bid")
+    now = datetime.now(timezone.utc)
+    stored = {**{k: v for k, v in entry.items() if v is not None}, "number": number,
+              "recordedAt": now, "recordedBy": by}
+    await bid_requests().update_one(
+        {"_id": project_id}, {"$push": {"addenda": stored}, "$set": {"updatedAt": now}}
+    )
+    return stored
+
+
 async def remember_removed(project_id: Any, keys: list[str]) -> None:
     """Openings the estimator deleted, by the key a take-off reaches them by, so
     the next take-off of the same sheets leaves them out rather than back in."""

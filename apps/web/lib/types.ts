@@ -64,6 +64,22 @@ export interface Person {
   initials: string;
 }
 
+/** One entry in the bid's addendum log (FR-14). */
+export interface Addendum {
+  number: number;
+  issuedOn?: string | null;
+  changedDocuments?: string | null;
+  newBidDue?: string | null;
+  previousBidDue?: string | null;
+  changedForms?: string | null;
+  notes?: string | null;
+  filename?: string | null;
+  documentId?: string | null;
+  version?: number | null;
+  recordedAt?: string;
+  recordedBy?: string | null;
+}
+
 export interface Project {
   id: string;
   code: string;
@@ -116,6 +132,8 @@ export interface Project {
   outcome?: Outcome;
   /** The P21 order raised against a won bid. */
   p21OrderNo?: string | null;
+  /** The addendum log, in the order logged (FR-14). */
+  addenda?: Addendum[];
   /** The past bid a templated bid's quote was copied from (FR-11). */
   templateSourceCode?: string | null;
   counts: Counts;

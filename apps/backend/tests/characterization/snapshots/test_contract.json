@@ -539,6 +539,12 @@
   },
   "status": 401
  },
+ "PATCH /api/projects/{code}/addenda/{number} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "PATCH /api/projects/{code}/alternates/{name} #wrong token": {
   "body": {
    "detail": "str"
@@ -804,6 +810,12 @@
   "status": 401
  },
  "POST /api/projects #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/addenda #wrong token": {
   "body": {
    "detail": "str"
   },
@@ -1464,6 +1476,11 @@
   },
   {
    "admin": false,
+   "op": "PATCH /api/projects/{code}/addenda/{number}",
+   "status": 200
+  },
+  {
+   "admin": false,
    "op": "PATCH /api/projects/{code}/alternates/{name}",
    "status": 200
   },
@@ -1615,6 +1632,11 @@
   {
    "admin": false,
    "op": "POST /api/projects",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/addenda",
    "status": 201
   },
   {

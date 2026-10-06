@@ -25,6 +25,7 @@ def register(app) -> None:
     subscribe()
 
     from cbc.modules.projects.features import (
+        Addenda,
         CreateProject,
         DeleteCall,
         DeleteProject,
@@ -46,6 +47,7 @@ def register(app) -> None:
         ReusePriorQuote,
         GetProject,
         UpdateProject,
+        Addenda,
         DeleteProject,
         ListCalls,
         LogCall,

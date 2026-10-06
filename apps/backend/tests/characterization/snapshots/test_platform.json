@@ -677,6 +677,23 @@
   },
   "status": 200
  },
+ "PATCH /api/projects/{code}/addenda/{number}": {
+  "body": {
+   "changedDocuments": "str",
+   "changedForms": "str",
+   "issuedOn": "datetime",
+   "number": "number",
+   "recordedAt": "datetime",
+   "recordedBy": "str"
+  },
+  "status": 200
+ },
+ "PATCH /api/projects/{code}/addenda/{number} #not logged": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
  "PATCH /api/users/{user_id}": {
   "body": {
    "createdAt": "datetime",
@@ -844,6 +861,22 @@
    "version": "number"
   },
   "status": 201
+ },
+ "POST /api/projects/{code}/addenda": {
+  "body": {
+   "changedDocuments": "str",
+   "issuedOn": "datetime",
+   "number": "number",
+   "recordedAt": "datetime",
+   "recordedBy": "str"
+  },
+  "status": 201
+ },
+ "POST /api/projects/{code}/addenda #number already logged": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 409
  },
  "POST /api/projects/{code}/calls": {
   "body": {

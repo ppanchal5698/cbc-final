@@ -94,6 +94,7 @@
     <tr><td>Valid</td><td>{{ validity_days }} days</td></tr>
     <tr><td>Order #</td><td>{{ project.order_number or "&mdash;" | safe }}</td></tr>
     {% if project.bid_due_date %}<tr><td>Bid due</td><td>{{ project.bid_due_date }}</td></tr>{% endif %}
+    {% if project.addenda %}<tr><td>Addenda acknowledged</td><td>{% for addendum in project.addenda %}No. {{ addendum.number }}{% if addendum.issued_on %} ({{ addendum.issued_on }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</td></tr>{% endif %}
   </table>
 </header>
 

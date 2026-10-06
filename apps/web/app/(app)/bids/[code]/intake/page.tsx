@@ -6,6 +6,7 @@ import { DeleteBidButton } from "@/components/bids/delete-bid-button";
 import { EditBidButton } from "@/components/bids/edit-bid-button";
 import { UploadPanel } from "@/components/intake/upload-panel";
 import { VersionsPanel } from "@/components/intake/versions-panel";
+import { AddendaPanel } from "@/components/intake/addenda-panel";
 import { StartFromPrior } from "@/components/intake/start-from-prior";
 import { PageHeader } from "@/components/shell/page-header";
 import { runPillFor } from "@/lib/run-pill";
@@ -103,6 +104,7 @@ export default async function IntakePage({ params }: { params: Promise<{ code: s
               documentCount={documents.length}
               startedFrom={project.templateSourceCode}
             />
+            <AddendaPanel code={project.code} addenda={project.addenda ?? []} />
             <VersionsPanel code={project.code} />
           </div>
 
