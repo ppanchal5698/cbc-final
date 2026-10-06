@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SLOT_ORDER, slotOf, slotRank } from "@/lib/slot";
+import { SLOT_ORDER, componentOf, slotOf, slotRank } from "@/lib/slot";
 
 describe("slotOf", () => {
   it("reads the obvious ones off the description", () => {
@@ -20,6 +20,9 @@ describe("slotOf", () => {
     expect(slotOf("Kick plate, 10 x 34, stainless")).toBe("KICK PLATE");
     expect(slotOf("Surface vertical rod exit device")).toBe("EXIT DEVICE");
     expect(slotOf("Overlapping astragal")).toBe("ASTRAGAL");
+    // Evernorth's access control: sorted above the hinges as if each were a door.
+    expect(slotOf("DOOR POSITION")).toBe("HARDWARE");
+    expect(slotOf("DOOR CONTACT")).toBe("HARDWARE");
   });
 
   it("falls back to HARDWARE rather than guessing", () => {
@@ -39,5 +42,13 @@ describe("slotRank", () => {
 
   it("ranks every slot it knows about", () => {
     for (const slot of SLOT_ORDER) expect(slotRank(slot)).toBeLessThan(SLOT_ORDER.length);
+  });
+});
+
+describe("componentOf", () => {
+  it("names a Division 10 or FRP line by its division, not as hardware", () => {
+    expect(componentOf({ description: "accessory", division: "10 28" })).toBe("SPECIALTY");
+    expect(componentOf({ description: "FRP area", division: "06 64" })).toBe("FRP");
+    expect(componentOf({ description: "Hager BB hinge", division: "08 71 00" })).toBe("HINGES");
   });
 });

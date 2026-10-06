@@ -31,7 +31,7 @@ import { useUiState } from "@/components/shell/ui-state";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { belowBandTitle, isBelowBand, wouldBeBelowBand } from "@/lib/margin";
 import { Nomenclature } from "@/components/quote/nomenclature";
-import { slotOf, slotRank } from "@/lib/slot";
+import { componentOf, slotOf, slotRank } from "@/lib/slot";
 import { errorMessage, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
 import { endpoints } from "@/lib/endpoints";
 import { isAdminRole } from "@/lib/job-error";
@@ -707,10 +707,13 @@ export function QuoteClient({
                   const doors = [...new Set(group.lines.flatMap((line) => line.openings ?? []))].sort((a, b) =>
                     a.localeCompare(b, undefined, { numeric: true }),
                   );
+                  // A set the legend never listed keeps the schedule's own name for
+                  // it ("GROUP 05"); it is a hardware set all the same.
+                  const setNumber = /^(?:(?:hardware\s+)?(?:group|set)\s*(?:no\.?\s*)?)?(\d+[A-Z]?)$/i.exec(group.group);
                   const label = !isOpening
                     ? group.division
-                    : /^\d+[A-Z]?$/i.test(group.group)
-                      ? `Hardware set ${group.group}`
+                    : setNumber
+                      ? `Hardware set ${setNumber[1]}`
                       : group.group;
                   // Slot order is a display rule, so it is applied here rather
                   // than asking the API to sort on something it does not store.
@@ -781,7 +784,7 @@ export function QuoteClient({
                               : "text-tx-muted"
                           }`}
                         >
-                          {slotOf(line.description)}
+                          {componentOf(line)}
                         </span>
 
                         <button
