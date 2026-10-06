@@ -99,3 +99,6 @@ infra/infisical-client.env
 .env.bak
 .env.backup
 *.env.bak
+
+# The estimators' own quotes and line detail per bid: CBC's costs and margins.
+ground_truth/
