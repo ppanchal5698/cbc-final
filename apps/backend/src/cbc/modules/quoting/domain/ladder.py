@@ -524,6 +524,8 @@ def _ladder(line: Line, src: Sources) -> list[dict[str, Any]]:
     if line.unit == "SET" and not line.part:
         # A whole set to price by hand: the take-off already says why.
         row["cost_source_detail"] = f"{line.description}; price the set from the sheet"
+        if line.text:
+            row["cost_source_detail"] += f"; the schedule says {line.text}"
         return [row]
     if line.key.startswith(("door:", "frame:")):
         # A door or frame is priced from its supplier - P21's last PO for the same

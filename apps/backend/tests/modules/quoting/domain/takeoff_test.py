@@ -258,3 +258,14 @@ def test_what_the_schedule_says_of_a_door_goes_to_whoever_prices_it() -> None:
 def test_a_width_with_a_fraction_is_read_to_the_fraction() -> None:
     assert takeoff._inches("5'-7 1/2\"") == 67.5
     assert takeoff._inches("3'-0\"") == 36.0
+
+
+def test_a_set_priced_by_hand_carries_what_the_schedule_says_its_doors_need() -> None:
+    """Evernorth's schedule cites groups 05, 06 and 08, which its manual never lists:
+    the comments column is all the estimator has to price them from."""
+    [line], _ = takeoff.hardware_lines([], [
+        {"mark": "123", "set": "GROUP 05", "notes": "STOREROOM FUNCTION LOCKSET"},
+        {"mark": "133", "set": "GROUP 05", "notes": "STOREROOM FUNCTION LOCKSET"},
+    ])
+    assert line.flags == ["hardware_set_not_in_legend"]
+    assert line.text == "doors 123, 133: STOREROOM FUNCTION LOCKSET"

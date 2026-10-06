@@ -172,6 +172,9 @@ def hardware_lines(
         entry["doors"] += quantity(door.get("count"))[0] or 1.0
         entry["rated"] = entry.get("rated") or fire_rating.is_rated(door.get("rating"))
         entry["smoke"] = entry.get("smoke") or bool(door.get("smoke"))
+        note = str(door.get("notes") or "").strip()
+        if note:
+            entry.setdefault("said", {}).setdefault(note, []).append(str(door.get("mark") or "?"))
 
     lines: list[Line] = []
     notes: list[str] = []
@@ -195,6 +198,8 @@ def hardware_lines(
                 part=None, manufacturer=None, finish=None, qty=entry["doors"], unit="SET",
                 openings=entry["marks"], source_file=entry["source_file"],
                 source_page=entry["source_page"], alternate_group=group, flags=["hardware_set_not_in_legend"],
+                # Priced by hand: what the schedule says the doors need is the brief.
+                text=_said(entry.get("said") or {}),
             ))
     return lines, notes
 
@@ -217,7 +222,7 @@ def _set_lines(hw_set: dict[str, Any], name: str, key: str, group: str | None,
             description=f"Hardware {name} - its items were not read from the legend",
             part=None, manufacturer=None, finish=None, qty=doors, unit="SET",
             openings=marks, source_file=source_file, source_page=page, alternate_group=group,
-            flags=["hardware_set_not_itemised"],
+            flags=["hardware_set_not_itemised"], text=_said(cited.get("said") or {}),
         )]
     lines: list[Line] = []
     for index, item in enumerate(items, start=1):
@@ -439,6 +444,11 @@ def door_and_frame_lines(openings: list[dict[str, Any]]) -> list[Line]:
     # What the schedule says of these doors - "GLASS PROVIDED BY GC", "PRE-HUNG IN
     # FRAME" - goes to whoever prices them from the supplier.
     for key, notes in door_notes.items():
-        grouped[key].text = "; ".join(
-            f"door{'s' if len(marks) > 1 else ''} {', '.join(marks)}: {note}" for note, marks in notes.items())
+        grouped[key].text = _said(notes)
     return list(grouped.values())
+
+
+def _said(notes: dict[str, list[str]]) -> str:
+    """What the schedule says of these doors: "doors 1, 2: DOOR PRE-HUNG IN FRAME"."""
+    return "; ".join(f"door{'s' if len(marks) > 1 else ''} {', '.join(marks)}: {note}"
+                     for note, marks in notes.items())

@@ -144,7 +144,7 @@ def _takeoff_rows(
                   "temperature_rise": "temperature_rise" in flags}
         if row.get("hwSet"):
             hardware.append({"mark": mark, "set": row["hwSet"], "count": row.get("qty"),
-                             "rating": row.get("fireRating"), **listed, **where})
+                             "rating": row.get("fireRating"), "notes": row.get("notes"), **listed, **where})
         doors.append({
             "mark": mark, "count": row.get("qty"), "rating": row.get("fireRating"),
             "door_material": row.get("doorMaterial"), "frame_material": row.get("frameMaterial"),
