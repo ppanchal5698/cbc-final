@@ -12,7 +12,7 @@ from cbc.modules.ops.api import audit
 from cbc.modules.projects.api.lookup import load
 from cbc.modules.quoting.api import lines as lines_api
 from cbc.modules.quoting.api import quote as quote_service
-from cbc.modules.quoting.domain.quotes import QuoteLineUpdate
+from cbc.modules.quoting.domain.quotes import OVERRIDE_REASONS, QuoteLineUpdate
 from cbc.modules.quoting.infrastructure.collections import estimate_lines
 from cbc.shared.auth import Actor
 from cbc.shared.mongo import oid, serialise
@@ -35,6 +35,17 @@ async def update_line(
 
     changes = body.model_dump(exclude_unset=True)
     reason = changes.pop("overrideReason", None)
+    reason_code = changes.pop("overrideCode", None)
+    if reason_code and not changes and line.get("marginOverridden"):
+        # The reason for a margin already overridden (requirements 5.1): a code,
+        # with the estimator's words when they gave some.
+        said = {"overrideCode": reason_code, "overrideReason": reason or OVERRIDE_REASONS[reason_code]}
+        await estimate_lines().update_one({"_id": line["_id"]}, {"$set": {**said, "updatedAt": _now()}})
+        await audit.record("quote.override_reason", actor,
+                           {"projectId": project["_id"], "quoteLineId": line["_id"]},
+                           before={k: line.get(k) for k in said}, after=said)
+        return {"line": serialise(await estimate_lines().find_one({"_id": line["_id"]})),
+                "totals": await quote_service.persist(project)}
     if not changes:
         return {"line": serialise(line), "totals": await quote_service.persist(project)}
     if changes.get("cost") is not None and "costSource" not in changes:
@@ -44,12 +55,15 @@ async def update_line(
         changes["costSource"] = "MANUAL"
         changes.setdefault("costSourceDetail", f"entered by {actor}")
 
+    # The estimator's words, else the reason code's (requirements 5.1).
+    reason = reason or (OVERRIDE_REASONS[reason_code] if reason_code else None)
     override = {
         "at": _now(),
         "by": actor,
         "before": {key: line.get(key) for key in changes},
         "after": changes,
         "reason": reason,
+        "code": reason_code,
     }
     # FR-13: what the copilot proposed, what the estimator chose instead, and
     # how confident it had been. Recorded before the write, so `before` is still
@@ -67,6 +81,7 @@ async def update_line(
     if "margin" in changes:
         update["marginOverridden"] = True
         update["overrideReason"] = reason
+        update["overrideCode"] = reason_code
 
     await estimate_lines().update_one(
         {"_id": line["_id"]},

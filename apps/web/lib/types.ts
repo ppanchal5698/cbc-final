@@ -325,6 +325,8 @@ export interface QuoteLine {
   costSourceDetail?: string | null;
   /** The NOTE a substitution prints on the quote (FR-17). */
   substitutionNote?: string | null;
+  /** Why its margin is not the band's, as a code (requirements 5.1). */
+  overrideCode?: string | null;
   /** Substitution alternates that take this base line out when accepted (FR-14). */
   deductedBy?: string[];
   /** List adders the legend names, for the estimator to add (NR-4), and those added. */

@@ -525,6 +525,7 @@
      "resolvedFrom": "str"
     },
     "multiplierTierSnapshot": "null",
+    "overrideCode": "null",
     "overrideReason": "str",
     "overrides": [
      {
@@ -536,6 +537,7 @@
        "margin": "number"
       },
       "by": "str",
+      "code": "null",
       "reason": "str"
      }
     ],

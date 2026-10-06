@@ -62,6 +62,16 @@ const COST_SOURCES = [
 const COLUMNS =
   "96px minmax(150px,1.1fr) minmax(200px,2fr) 56px 95px 120px 72px minmax(110px,1fr) 100px 32px";
 
+// Why a margin is not the band's (requirements 5.1) - the API's codes, in its words.
+const OVERRIDE_REASONS: [string, string][] = [
+  ["special_customer", "Special customer or brand margin"],
+  ["distributor_buy", "Distributor buy"],
+  ["competitive", "Competitive bid"],
+  ["volume", "Volume or repeat work"],
+  ["estimator_judgment", "Estimator judgment"],
+  ["other", "Other"],
+];
+
 // FR-6a: the requirements' green / amber / red / blocked, from the API's verdict.
 const FRESHNESS: Record<string, { label: string; tone: string }> = {
   fresh: { label: "current", tone: "text-status-success bg-status-success-soft border-status-success/30" },
@@ -818,6 +828,27 @@ export function QuoteClient({
                               {line.addedByHand ? "added by hand" : "margin overridden"}
                               {line.overrideReason ? ` · ${line.overrideReason}` : ""}
                             </span>
+                          )}
+                          {line.marginOverridden && (
+                            <select
+                              aria-label={`Why the margin on ${line.description} is not the band's`}
+                              value={line.overrideCode ?? ""}
+                              onChange={(event) => event.target.value && patchLine(line, { overrideCode: event.target.value })}
+                              className={`mt-0.5 rounded border px-1 text-[11px] font-medium ${
+                                line.overrideCode
+                                  ? "border-subtle bg-background text-tx-secondary"
+                                  : "border-status-warning/40 bg-status-warning-soft text-status-warning"
+                              }`}
+                            >
+                              <option value="" disabled>
+                                Why? Choose a reason
+                              </option>
+                              {OVERRIDE_REASONS.map(([key, label]) => (
+                                <option key={key} value={key}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
                           )}
                           {isCarried(line) && (
                             <span
