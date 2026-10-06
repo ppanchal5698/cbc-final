@@ -31,7 +31,7 @@ from cbc.modules.ops.api import ai as ops_ai, jobs as ops_jobs, pipeline as ops_
 from cbc.modules.pricing.api import calc, p21, pricing, reference_library
 from cbc.modules.projects.api import bids, pipeline
 from cbc.modules.quoting.api import lines as quoting_lines, priced_lines, quote
-from cbc.modules.quoting.domain import ladder, matcher, matching, takeoff
+from cbc.modules.quoting.domain import ladder, matcher, matching, request_scope, takeoff
 from cbc.modules.quoting.domain.questions import CHOOSE_CATALOG_MATCH
 from cbc.shared import storage
 from cbc.shared.hardware_sets import SET_KEYS
@@ -207,8 +207,21 @@ def plan(project: dict[str, Any], openings: list[dict[str, Any]],
     """The bid's take-off as lines to price, and what was left out. Reads files only."""
     hardware, specialties, doors = _takeoff_rows(openings)
     lines, notes = takeoff.hardware_lines(_hardware_sets(project["slug"]), hardware)
-    return (takeoff.door_and_frame_lines(doors) + lines + takeoff.specialty_lines(specialties, frp_constants),
-            notes)
+    lines = takeoff.door_and_frame_lines(doors) + lines + takeoff.specialty_lines(specialties, frp_constants)
+    return lines, notes + _requested_scope(lines, project.get("rfpText"))
+
+
+def _requested_scope(lines: list[takeoff.Line], notes: Any) -> list[str]:
+    """What the bid request gives to someone else (FR-1): those lines stay on the
+    quote as supplied by others - out of the total, in the qualifications, and the
+    estimator's to move back."""
+    given = request_scope.excluded(notes)
+    for line in lines:
+        category = request_scope.category_of(line.key, line.division)
+        if category in given and not line.alternate:
+            line.alternate = f"the bid request says {given[category]!r} - another party supplies it"
+            line.flags.append("excluded_by_request")
+    return [f"{category} not quoted: the bid request says {words!r}" for category, words in given.items()]
 
 
 def _choice_prompt(row: dict[str, Any], pending: dict[str, Any]) -> str:

@@ -48,7 +48,7 @@ const FIELDS: Field[] = [
     key: "rfpText",
     label: "Scope notes",
     placeholder: "e.g. Div 08 hardware and Div 10 accessories only - doors by others",
-    hint: "Optional. What the caller, email or RFP says is in scope; kept on the bid.",
+    hint: "Optional. Pricing reads it: \"hardware only\", \"doors and frames by GC\" or \"no Div 10\" keeps those off the bid as supplied by others.",
   },
 ];
 

@@ -37,6 +37,7 @@ class ProjectRef(TypedDict, total=False):
     bidAlternates: list[str]  # named on the create form (FR-1a)
     alternateSpecs: list[dict[str, Any]]  # each alternate's kind, priority and description (FR-14)
     addenda: list[dict[str, Any]]  # the addendum log: number, issued, what it changed (FR-14)
+    rfpText: str  # the request's scope notes, which pricing reads (FR-1)
     state: str
     location: str
     gc: str

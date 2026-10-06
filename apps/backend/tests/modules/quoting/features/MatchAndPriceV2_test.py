@@ -232,3 +232,18 @@ def test_a_part_off_its_makers_stock_list_says_so() -> None:
         MatchAndPrice._mark_stock(row, lists)
     assert [(row.get("stock"), row["flags"]) for row in rows] == [
         (True, []), (False, ["non_stock"]), (None, []), (None, [])]
+
+
+def test_what_the_bid_request_gives_to_others_stays_out_of_the_bid(bid) -> None:
+    """FR-1: "hardware only" in the request's scope notes - the doors and frames
+    stay on the quote as supplied by others, and out of the total."""
+    from cbc.modules.quoting.features import MatchAndPrice
+
+    project, db, _asked = bid
+    run(MatchAndPrice.price_in_code({"_id": ObjectId(), "type": "match_and_price"},
+                                    {**project, "rfpText": "Hardware only per the GC's email"}))
+    lines = _lines(db, project)
+    doors = [line for key, line in lines.items() if key.startswith(("door:", "frame:"))]
+    assert doors and all(line["alternateGroup"] == "Supplied by others" for line in doors)
+    assert all("Hardware only" in line["notes"] and "excluded_by_request" in line["flags"] for line in doors)
+    assert lines["1:01"].get("alternateGroup") is None, "the hardware is still the bid"
