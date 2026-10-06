@@ -72,6 +72,14 @@ async def remember_removed(project_id: Any, keys: list[str]) -> None:
         )
 
 
+async def forget_removed(project_id: Any, keys: list[str]) -> None:
+    """Openings the estimator put back: a take-off may read them again."""
+    if keys:
+        await bid_requests().update_one(
+            {"_id": project_id}, {"$pull": {"removedOpenings": {"$in": keys}}}
+        )
+
+
 async def record_hand_off(project_id: Any, recipient: str | None) -> None:
     """The estimator signed the proposal off and routed it to `recipient`."""
     now = datetime.now(timezone.utc)

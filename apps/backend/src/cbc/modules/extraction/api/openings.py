@@ -166,3 +166,11 @@ async def remove(project_id: Any, ids: list[Any]) -> int:
     await bids.remember_removed(project_id, [removed_key(doc) for doc in docs])
     result = await openings().delete_many({"_id": {"$in": [doc["_id"] for doc in docs]}})
     return result.deleted_count
+
+
+async def restore(project_id: Any, doc: dict[str, Any]) -> None:
+    """Put back an opening a version still has - an addendum's removal the
+    estimator did not accept (FR-14) - and forget its removal, so the next
+    take-off keeps it."""
+    await openings().insert_one({**doc, "projectId": project_id})
+    await bids.forget_removed(project_id, [removed_key(doc)])

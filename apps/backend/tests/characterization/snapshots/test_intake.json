@@ -114,6 +114,8 @@
    "changed": [],
    "pending": "str",
    "removed": [],
+   "rows": [],
+   "undecided": "number",
    "version": "number"
   },
   "status": 200
@@ -250,6 +252,12 @@
    }
   },
   "status": 201
+ },
+ "POST /api/projects/{code}/versions/{version}/decisions #no such difference": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
  },
  "POST /api/projects/{code}/versions/{version}/reconcile": {
   "body": {

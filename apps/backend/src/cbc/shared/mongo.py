@@ -93,6 +93,24 @@ def serialise(document: Any) -> Any:
     return document
 
 
+def revive(document: dict[str, Any]) -> dict[str, Any]:
+    """`serialise` undone for a stored row: `id` back to `_id`, an `...Id` that is
+    an ObjectId's hex back to one, an `...At` timestamp back to a datetime - so a
+    row frozen in a snapshot can be written back as it was."""
+    out: dict[str, Any] = {}
+    for key, value in document.items():
+        name = "_id" if key == "id" else key
+        if (name == "_id" or name.endswith("Id")) and isinstance(value, str) and ObjectId.is_valid(value):
+            value = ObjectId(value)
+        elif name.endswith("At") and isinstance(value, str):
+            try:
+                value = datetime.fromisoformat(value)
+            except ValueError:
+                pass
+        out[name] = value
+    return out
+
+
 # ── index builds that survive a peer racing them ─────────────────────────────
 
 

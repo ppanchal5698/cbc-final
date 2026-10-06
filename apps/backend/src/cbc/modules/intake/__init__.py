@@ -21,6 +21,7 @@ def register(app) -> None:
     from cbc.modules.intake.features import (
         CreateVersion,
         DeleteDocument,
+        DecideDifference,
         DiffVersion,
         DownloadDocument,
         GetPageSize,
@@ -44,6 +45,7 @@ def register(app) -> None:
         ListVersions,
         GetVersion,
         CreateVersion,
+        DecideDifference,
         DiffVersion,
         MarkReconciled,
     ):

@@ -107,6 +107,14 @@ def test_diff_a_version(client, bid, snapshots) -> None:
     snapshots.pin("GET /api/projects/{code}/versions/{version}/diff", client.get(_url(VERSIONS + "/{version}/diff", bid, version=bid["version"])))
 
 
+def test_decide_a_difference(client, bid, snapshots) -> None:
+    """FR-14: keep or revert one difference. Nothing differs from the version yet."""
+    op = "POST /api/projects/{code}/versions/{version}/decisions"
+    snapshots.pin(op, client.post(_url(VERSIONS + "/{version}/decisions", bid, version=bid["version"]),
+                                  json={"kind": "opening", "key": "nothing", "decision": "keep"}),
+                  variant="no such difference")
+
+
 def test_reconcile_a_version(client, bid, snapshots) -> None:
     op = "POST /api/projects/{code}/versions/{version}/reconcile"
     snapshots.pin(op, client.post(_url(VERSIONS + "/{version}/reconcile", bid, version=bid["version"])))

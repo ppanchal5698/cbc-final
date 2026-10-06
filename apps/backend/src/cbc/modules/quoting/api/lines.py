@@ -94,3 +94,25 @@ async def keep_carried(project_id: Any) -> int:
         {"projectId": project_id, "flags": CARRIED}, {"$pull": {"flags": CARRIED}}
     )
     return result.modified_count
+
+
+async def set_fields(project_id: Any, key: str, fields: dict[str, Any], *, by: str, reason: str) -> int:
+    """A line's fields put back to a version's (FR-14), recorded as an estimator's
+    edit so a re-price keeps them."""
+    now = datetime.now(timezone.utc)
+    result = await estimate_lines().update_one(
+        {"projectId": project_id, "lineKey": key},
+        {"$set": {**fields, "updatedAt": now},
+         "$push": {"overrides": {"at": now, "by": by, "after": fields, "reason": reason}}},
+    )
+    return result.modified_count
+
+
+async def delete_by_key(project_id: Any, key: str) -> int:
+    result = await estimate_lines().delete_one({"projectId": project_id, "lineKey": key})
+    return result.deleted_count
+
+
+async def restore(project_id: Any, doc: dict[str, Any]) -> None:
+    """Put back a line a version still has - a removal the estimator did not accept."""
+    await estimate_lines().insert_one({**doc, "projectId": project_id})

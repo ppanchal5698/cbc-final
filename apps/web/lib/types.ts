@@ -794,6 +794,8 @@ export interface VersionSummary {
   createdAt: string;
   createdBy: string;
   reconciled: boolean;
+  /** Set once a newer version supersedes it: it is never written again. */
+  lockedAt?: string | null;
   lineItemCount: number;
   quoteLineCount: number;
   /** What the frozen take-off and quote were read from (FR-14). Absent on older versions. */
@@ -801,6 +803,18 @@ export interface VersionSummary {
     documents: { id: string; filename: string | null; kind: string | null }[];
     addenda: number[];
   };
+}
+
+/** One difference between a version and the bid as it stands, for the estimator to keep or revert (FR-14). */
+export interface VersionDiffRow {
+  kind: "opening" | "line";
+  key: string;
+  label: string | null;
+  change: "added" | "removed" | "changed";
+  fields?: string[];
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+  decision?: "keep" | "revert" | null;
 }
 
 export interface VersionDiff {
@@ -813,6 +827,8 @@ export interface VersionDiff {
     before: Record<string, unknown>;
     after: Record<string, unknown>;
   }[];
+  rows?: VersionDiffRow[];
+  undecided?: number;
   pending: string;
 }
 

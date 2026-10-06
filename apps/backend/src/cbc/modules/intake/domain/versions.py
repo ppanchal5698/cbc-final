@@ -6,9 +6,9 @@ from pydantic import BaseModel, Field
 
 
 PENDING_NOTE = (
-    "How an addendum reconciles against the previous version, and whether an "
-    "alternate inherits the base bid's confirmations, are still open questions "
-    "(Matrix 4.1 / Open Item 11). Differences are flagged, never merged."
+    "Each difference is the estimator's to keep or revert (requirements 6.4, "
+    "Matrix 4.1); nothing is merged on its own. Whether an alternate inherits the "
+    "base bid's confirmations is still open (Open Item 11)."
 )
 
 
