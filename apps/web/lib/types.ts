@@ -1035,6 +1035,8 @@ export interface VendorTierRow {
   price_book?: string | null;
   source?: string | null;
   share_of_volume?: number | null;
+  /** Not bought direct: lines are priced by hand from these (NR-2). */
+  distributors?: string[];
 }
 
 export interface VendorTierDoc {

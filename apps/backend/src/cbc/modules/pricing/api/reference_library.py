@@ -358,6 +358,24 @@ def update_vendor_categories(vendor_key: str, categories: dict[str, float]) -> d
     raise ValueError(f"vendor {vendor_key!r} not in vendor_tiers")
 
 
+def update_vendor_distributors(vendor: str, distributors: list[str]) -> dict[str, Any]:
+    """Who CBC buys a vendor through. Such a vendor's lines carry no list price and
+    are priced by hand (NR-2), so one not on file is added with no multiplier."""
+    payload = load_vendor_tiers()
+    names = [str(d).strip() for d in distributors if str(d).strip()]
+    needle = vendor.strip().lower()
+    record = next((r for r in payload.get("vendors", [])
+                   if needle in {str(r.get("key", "")).lower(), str(r.get("name", "")).lower()}), None)
+    if record is None:
+        if not names:
+            raise ValueError(f"vendor {vendor!r} not in vendor_tiers")
+        record = {"key": re.sub(r"[^a-z0-9]+", "_", needle).strip("_"), "name": vendor.strip(), "multiplier": None}
+        payload.setdefault("vendors", []).append(record)
+    record["distributors"] = names
+    update_vendor_tiers(payload)
+    return payload
+
+
 def update_special_net_items(
     items: list[dict[str, Any]] | None = None,
     remove: list[str] | None = None,

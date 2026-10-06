@@ -39,6 +39,7 @@ export function VendorTiersPanel() {
   const [busy, setBusy] = useState(false);
   const [picked, setVendorKey] = useState<string>("");
   const [draft, setDraft] = useState({ name: "", value: "" });
+  const [bought, setBought] = useState({ name: "", via: "" });
 
   const vendors = useMemo(() => data?.vendors ?? [], [data]);
   // Derived, not set in an effect: the first vendor until one is picked.
@@ -49,18 +50,42 @@ export function VendorTiersPanel() {
     [vendors, vendorKey],
   );
 
-  async function saveCategories(categories: Record<string, number>, success: string) {
+  async function save(body: Record<string, unknown>, success: string) {
     setBusy(true);
     try {
-      await proxyMutate(URL, { method: "PATCH", body: { vendor: vendorKey, categories } });
+      await proxyMutate(URL, { method: "PATCH", body });
       toast.success(success);
       mutate();
     } catch (problem) {
-      toast.error("Could not save the multiplier", { description: errorMessage(problem) });
+      toast.error("Could not save the vendor", { description: errorMessage(problem) });
       mutate();
     } finally {
       setBusy(false);
     }
+  }
+
+  function saveCategories(categories: Record<string, number>, success: string) {
+    return save({ vendor: vendorKey, categories }, success);
+  }
+
+  /** "Banner Solutions, SecLock" -> both names; an empty box buys direct again. */
+  function saveDistributors(name: string, raw: string, current: string[] = []) {
+    const distributors = raw.split(",").map((d) => d.trim()).filter(Boolean);
+    if (distributors.join(",") === current.join(",")) return;
+    save(
+      { vendor: name, distributors },
+      distributors.length ? `${name} is bought through ${distributors.join(" / ")}` : `${name} is bought direct`,
+    );
+  }
+
+  function addDistributorVendor(event: React.FormEvent) {
+    event.preventDefault();
+    if (!bought.name.trim() || !bought.via.trim()) {
+      toast.error("Name the vendor and who CBC buys it through");
+      return;
+    }
+    saveDistributors(bought.name.trim(), bought.via);
+    setBought({ name: "", via: "" });
   }
 
   function commit(name: string, raw: string, current: number) {
@@ -175,6 +200,22 @@ export function VendorTiersPanel() {
           {vendor?.note && (
             <p className="px-5 pt-3 text-[12.5px] font-medium text-tx-secondary">{vendor.note}</p>
           )}
+          {vendor && (
+            <label className="flex items-center gap-3 px-5 pt-3">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-tx-muted shrink-0">
+                Bought through
+              </span>
+              <input
+                key={`${vendor.key}-${(vendor.distributors ?? []).join(",")}`}
+                defaultValue={(vendor.distributors ?? []).join(", ")}
+                placeholder="Direct - or name the distributors, comma separated"
+                disabled={busy}
+                aria-label={`Distributors for ${vendor.name || vendor.key}`}
+                onBlur={(event) => saveDistributors(vendor.key, event.target.value, vendor.distributors)}
+                className="flex-1 rounded-md px-3 py-1.5 text-[13px] outline-none border border-subtle bg-background text-tx-primary focus:ring-1 focus:ring-brand-border transition-colors shadow-sm"
+              />
+            </label>
+          )}
 
           <div className="divide-y divide-subtle flex-1 overflow-y-auto">
             {categories.map(([name, value]) => (
@@ -222,7 +263,7 @@ export function VendorTiersPanel() {
 
           <form
             onSubmit={add}
-            className="flex items-end gap-3 border-t border-subtle bg-panel-muted px-5 py-4 rounded-b-xl"
+            className="flex items-end gap-3 border-t border-subtle bg-panel-muted px-5 py-4"
           >
             <label className="flex flex-col gap-1.5 flex-1">
               <span className="text-[11px] font-bold uppercase tracking-widest text-tx-muted">
@@ -255,6 +296,44 @@ export function VendorTiersPanel() {
             <button
               type="submit"
               disabled={busy || !vendorKey}
+              className="flex h-[38px] items-center gap-1.5 rounded-md px-4 py-2 text-[13px] font-semibold bg-brand-primary text-white shadow-sm hover:bg-brand-primary/90 transition-colors disabled:opacity-50"
+            >
+              <Plus size={16} weight="bold" />
+              Add
+            </button>
+          </form>
+
+          <form
+            onSubmit={addDistributorVendor}
+            className="flex items-end gap-3 border-t border-subtle bg-panel-muted px-5 py-4 rounded-b-xl"
+          >
+            <label className="flex flex-col gap-1.5 flex-1">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-tx-muted">
+                Vendor not bought direct
+              </span>
+              <input
+                value={bought.name}
+                onChange={(event) => setBought((b) => ({ ...b, name: event.target.value }))}
+                placeholder="Pionite"
+                aria-label="Vendor bought through a distributor"
+                className="w-full rounded-md px-3 py-2 text-[13px] outline-none border border-subtle bg-background text-tx-primary focus:ring-1 focus:ring-brand-border transition-colors shadow-sm"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5 flex-1">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-tx-muted">
+                Bought through
+              </span>
+              <input
+                value={bought.via}
+                onChange={(event) => setBought((b) => ({ ...b, via: event.target.value }))}
+                placeholder="J2"
+                aria-label="Distributors CBC buys it through"
+                className="w-full rounded-md px-3 py-2 text-[13px] outline-none border border-subtle bg-background text-tx-primary focus:ring-1 focus:ring-brand-border transition-colors shadow-sm"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={busy}
               className="flex h-[38px] items-center gap-1.5 rounded-md px-4 py-2 text-[13px] font-semibold bg-brand-primary text-white shadow-sm hover:bg-brand-primary/90 transition-colors disabled:opacity-50"
             >
               <Plus size={16} weight="bold" />

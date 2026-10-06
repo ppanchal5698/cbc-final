@@ -141,15 +141,17 @@ class FrpConstantsUpdate(BaseModel):
 
 
 class VendorCategoriesUpdate(BaseModel):
-    """PATCH category multipliers for one vendor in vendor_tiers."""
+    """PATCH one vendor in vendor_tiers: its category multipliers, or the
+    distributors CBC buys it through (NR-2)."""
 
     vendor: str = Field(min_length=1)
-    categories: dict[str, float]
+    categories: dict[str, float] | None = None
+    distributors: list[str] | None = None
 
     @field_validator("categories")
     @classmethod
-    def _non_negative(cls, value: dict[str, float]) -> dict[str, float]:
-        for key, amount in value.items():
+    def _non_negative(cls, value: dict[str, float] | None) -> dict[str, float] | None:
+        for key, amount in (value or {}).items():
             if amount < 0:
                 raise ValueError(f"multiplier for {key!r} must not be negative")
         return value

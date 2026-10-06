@@ -572,5 +572,10 @@ def _price_rows(line: Line, src: Sources) -> list[dict[str, Any]]:
     # 6. Nothing the ladder can stand behind.
     tried.append(f"no special net, catalog row or price-book row for {part}"
                  + (f" ({line.manufacturer})" if line.manufacturer else ""))
+    via = [str(d) for d in (src.tiers.get(vendor) or {}).get("distributors") or [] if d]
+    if via:  # purchasing buys this vendor through a distributor: its price is entered by hand (NR-2)
+        row.update(cost_source="DISTRIBUTOR_MANUAL", cost_source_detail="; ".join(tried)
+                   + f" - bought through {' / '.join(via)}: enter the distributor's price")
+        return [row]
     row["cost_source_detail"] = "; ".join(tried) + " - needs a distributor or vendor quote"
     return [row]

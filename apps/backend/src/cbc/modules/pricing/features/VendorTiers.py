@@ -25,14 +25,19 @@ async def get_vendor_tiers(actor: Actor) -> dict[str, Any]:
 
 @router.patch("/vendor-tiers")
 async def patch_vendor_tiers(body: VendorCategoriesUpdate, actor: AdminActor) -> dict[str, Any]:
+    if body.categories is None and body.distributors is None:
+        raise HTTPException(422, "send categories or distributors")
     try:
-        after = await run_sync(reflib.update_vendor_categories, body.vendor, body.categories)
+        if body.distributors is not None:
+            after = await run_sync(reflib.update_vendor_distributors, body.vendor, body.distributors)
+        if body.categories is not None:
+            after = await run_sync(reflib.update_vendor_categories, body.vendor, body.categories)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     await audit.record(
         "reference.vendor_tiers.update",
         actor,
         audit_family("vendor_tiers"),
-        after={"vendor": body.vendor, "categories": body.categories},
+        after=body.model_dump(exclude_none=True),
     )
     return after

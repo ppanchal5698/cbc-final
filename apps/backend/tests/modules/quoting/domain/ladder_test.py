@@ -267,3 +267,14 @@ def test_a_price_the_model_read_off_the_page_says_so() -> None:
     assert row["cost_source"] == "LIST_X_MULTIPLIER" and "price_read_by_model" in row["flags"]
     assert "read off the page by the model" in row["cost_source_detail"]
     assert confidence.band(ladder.match_confidence(row)) == "review"
+
+
+def test_a_vendor_bought_through_a_distributor_is_priced_by_hand() -> None:
+    """NR-2: laminate and the like come through a distributor - no list applies, so
+    the line names who to ask and waits for the estimator's price."""
+    tiers = {"pionite": {"name": "Pionite", "distributors": ["Laminate Distributor"]}}
+    [row] = ladder.price(line("AT100", manufacturer="Pionite"), sources(tiers=tiers))
+    assert (row["cost"], row["cost_source"]) == (None, "DISTRIBUTOR_MANUAL")
+    assert row["cost_source_detail"].endswith("bought through Laminate Distributor: enter the distributor's price")
+    [row] = ladder.price(line("AT100", manufacturer="Formica"), sources(tiers=tiers))
+    assert row["cost_source"] == "MANUAL"

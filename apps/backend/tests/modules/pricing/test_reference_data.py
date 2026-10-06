@@ -431,3 +431,22 @@ def test_get_vendor_tiers(admin_client) -> None:
     response = admin_client.get("/api/reference/vendor-tiers")
     assert response.status_code == 200
     assert any(v.get("key") == "hager" for v in response.json().get("vendors", []))
+
+
+def test_a_distributor_bought_vendor_can_be_added_and_named() -> None:
+    added = reflib.update_vendor_distributors("Pionite", ["Laminate Distributor", " "])
+    pionite = next(v for v in added["vendors"] if v["key"] == "pionite")
+    assert (pionite["name"], pionite["distributors"], pionite["multiplier"]) == (
+        "Pionite", ["Laminate Distributor"], None)
+    updated = reflib.update_vendor_distributors("allegion", ["SecLock"])
+    assert next(v for v in updated["vendors"] if v["key"] == "allegion")["distributors"] == ["SecLock"]
+    with pytest.raises(ValueError):
+        reflib.update_vendor_distributors("Nobody", [])
+
+
+def test_admin_can_name_a_vendors_distributors(admin_client) -> None:
+    body = {"vendor": "Wilsonart", "distributors": ["Laminate Distributor"]}
+    response = admin_client.patch("/api/reference/vendor-tiers", json=body)
+    assert response.status_code == 200
+    assert any(v.get("key") == "wilsonart" for v in response.json()["vendors"])
+    assert admin_client.patch("/api/reference/vendor-tiers", json={"vendor": "hager"}).status_code == 422
