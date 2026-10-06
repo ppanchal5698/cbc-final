@@ -135,9 +135,13 @@ def _blend(parsed: dict[str, Any], prior: dict[str, Any]) -> dict[str, Any]:
     A parser null means "this column was unreadable", which is no information at
     all - so it must not erase a handing or fire rating that a previous pass read
     off the sheet. Where the parser *did* read a value it wins, because it is the
-    one reading the drawing this time round.
+    one reading the drawing this time round - and so does a blank in a column it
+    found (`columns_read`), which is the sheet saying nothing. Evernorth's door 101
+    kept GL, the glazing type an older parser read as its material, through every
+    re-run after the parser learned better.
     """
-    kept = {key: value for key, value in parsed.items() if value not in (None, "", [])}
+    found = set(parsed.get("columns_read") or ())
+    kept = {key: value for key, value in parsed.items() if value not in (None, "", []) or key in found}
     return {**prior, **kept}
 
 

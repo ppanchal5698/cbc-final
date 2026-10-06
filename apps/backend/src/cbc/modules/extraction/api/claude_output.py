@@ -145,6 +145,10 @@ class Opening(BaseModel):
     frame_material: str | None = None
     glass: str | None = None
     keying: Keying | None = None
+    # The schedule columns the parser found this row's cells under. A blank in one
+    # is the sheet saying nothing there, so a re-parse clears what an earlier read
+    # put in it; a field with no column stays unread and keeps what a pass found.
+    columns_read: list[str] | None = None
     # export_line_items writes the estimator's own decisions back into the
     # schedule so a rerun can carry them across untouched.
     confirmed_by: str | None = None

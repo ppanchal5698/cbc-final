@@ -50,3 +50,17 @@ def test_a_schedule_over_several_sheets_is_read_whole_and_a_stray_row_is_not() -
     again = rows[7]
     assert again["duplicate_of"] == "101" and again["duplicate_reason"] == "door 101 is also on A.pdf p6"
     assert "duplicate_of" not in rows[3]
+
+
+def test_a_blank_in_a_column_the_parser_found_clears_an_earlier_misreading() -> None:
+    """Evernorth's door 101: an older parser read the glazing type GL-2 as the door's
+    material. The material column, found by position, is blank - and the blank is
+    the sheet's. The handing column was not found, so the plan's reading stays."""
+    existing = [{"door_number": "101", "door_material": "GL", "handing": "RH"}]
+    parsed = [{"door_number": "101", "door_material": None, "handing": None,
+               "columns_read": ["door_material", "door_number"]}]
+
+    merged = pretakeoff._merge(parsed, existing)[0]
+
+    assert merged["door_material"] is None
+    assert merged["handing"] == "RH"

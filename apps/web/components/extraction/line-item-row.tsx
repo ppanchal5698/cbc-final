@@ -83,11 +83,9 @@ const ATTRIBUTE_FIELDS = [
 ] as const;
 
 const FLAG_HINTS: Record<string, string> = {
-  fire_rating_missing:
-    "Mandatory fire rating — searched schedule / type schedule / Div 08 on the PDF; still absent or uncertain",
-  handing_missing:
-    "Agent searched schedule + floor-plan swing on the PDF — still unresolved",
-  finish_missing: "Required finish — checked HW group / sheet note on the PDF; still absent",
+  fire_rating_missing: "The schedule gives no rating for this door — confirm it on the type schedule or Div 08",
+  handing_missing: "No handing on the schedule, and none read off the plan — check the swing",
+  finish_missing: "No finish on the row or the sheet's notes — each item's finish is on its set",
   finish_ambiguous: "Ambiguous finish code — confirm which satin",
   finish_unrecognized: "Finish not in CBC crosswalk — confirm on sheet",
   keying_missing: "Lock/IC hardware implies keying options — fill the keying block",

@@ -1249,21 +1249,12 @@ def parse_opening(
         flags.append("hardware_set_missing")
     elif hardware_set is None and is_matrix:
         flags.append("hardware_matrix_unexpanded")
-        opening["evidence_note"] = (
-            "Hardware-matrix schedule (X columns). Expand butts/locks/closers "
-            "from the legend into `hardware` — do not invent a GROUP id."
-        )
 
     if STOREFRONT.search(text) or (
         (door_material or "").upper() == "AL"
         and (frame_material or "").upper() == "AL"
     ):
         flags.append("out_of_scope_storefront")
-        opening["evidence_note"] = (
-            (opening.get("evidence_note") + " " if opening.get("evidence_note") else "")
-            + "Aluminum/storefront opening — record under out_of_scope_items; "
-            "CBC does not quote storefront (Matrix 2.3)."
-        ).strip()
 
     # Requirements 6.1: a smoke-labeled door (the S label, UL 1784) and a 20-minute
     # door tested without hose stream - written in the rating cell beside the minutes.
@@ -1274,21 +1265,12 @@ def parse_opening(
     if TEMP_RISE.search(f"{rating_raw or ''} {text}"):
         flags.append("temperature_rise")
 
-    if opening["handing"] is None:
-        opening["evidence_note"] = (
-            (opening.get("evidence_note") + " " if opening.get("evidence_note") else "")
-            + "Handing not on this schedule row — resolve from floor-plan swing "
-            "(Matrix 7.4) before leaving handing_missing."
-        ).strip()
-
-    if opening["fire_rating"] is None:
-        opening["evidence_note"] = (
-            (opening.get("evidence_note") + " " if opening.get("evidence_note") else "")
-            + "Fire rating not on this row — check door/frame type schedule and "
-            "Div 08 notes (Matrix 7.3 pending); flag, do not invent."
-        ).strip()
-
+    # The notes written here were the agent's instructions - "resolve from
+    # floor-plan swing (Matrix 7.4) before leaving handing_missing" - shown to the
+    # estimator on every door, and still saying it after the plan was read. The
+    # flags say what is missing; review says it once for the bid.
     opening["flags"] = flags
+    opening["columns_read"] = sorted(field for field in (header_map.get("_x") or {}) if field in opening)
     # What the door is listed as is a fact about it, not a doubt about the reading.
     # Nor is a field the row leaves blank - most schedules give no handing or finish.
     problems = [flag for flag in flags if flag not in (
