@@ -119,8 +119,14 @@ COLUMN_GAP = 200.0
 DEFAULT_COLUMN_WIDTH = 450.0
 
 
+# Symbol-font glyphs a spec prints as markers - a link to the cut sheet, an
+# electrified opening - read out of the private-use area. They are no part, finish
+# or word: the Evernorth strike's finish came back as "630" and was lost.
+_PRIVATE_USE = re.compile("[-]")
+
+
 def _text(value: Any) -> str:
-    return re.sub(r"\s+", " ", str(value or "")).strip()
+    return re.sub(r"\s+", " ", _PRIVATE_USE.sub(" ", str(value or ""))).strip()
 
 
 def heading_counts(pdf: Path, pages: list[int]) -> dict[int, int]:
@@ -904,7 +910,7 @@ def _quantity(text: str) -> float | None:
 
 def classify_text_item(text: str) -> dict[str, Any]:
     """One quantity line: 'PEMKO 171A X 42" X DOUBLE NOTCH CUT ENDS X THRESHOLD'."""
-    flat = " ".join(text.replace(",", ", ").split())
+    flat = " ".join(_PRIVATE_USE.sub(" ", text).replace(",", ", ").split())
     upper = flat.upper()
     manufacturer = None
     after = flat
