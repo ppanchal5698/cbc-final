@@ -247,6 +247,12 @@
        "division": "str",
        "extended": "number",
        "flags": [],
+       "freshness": {
+        "asOf": "str",
+        "basis": "str",
+        "guidance": "str",
+        "status": "str"
+       },
        "id": "id",
        "lapsed": "bool",
        "lineKey": "str",

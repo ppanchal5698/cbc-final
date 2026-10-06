@@ -321,6 +321,13 @@ export interface QuoteLine {
   priceStatus?: string | null;
   /** The price book this cost came from is past its review window. */
   lapsed?: boolean;
+  /** How old the cost is, by the rule for where it came from (FR-6a). Null with no cost. */
+  freshness?: {
+    status: "fresh" | "aging" | "unreliable" | "stale" | "unknown" | "future_dated";
+    asOf: string | null;
+    basis: string;
+    guidance: string;
+  } | null;
   /**
    * Margin against its product-type floor (NFR-8). The API has computed this on
    * every line since quote.py:68 and the screen ignored it, so the one guardrail

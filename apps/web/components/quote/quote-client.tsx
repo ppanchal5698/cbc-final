@@ -62,6 +62,16 @@ const COST_SOURCES = [
 const COLUMNS =
   "96px minmax(150px,1.1fr) minmax(200px,2fr) 56px 95px 120px 72px minmax(110px,1fr) 100px 32px";
 
+// FR-6a: the requirements' green / amber / red / blocked, from the API's verdict.
+const FRESHNESS: Record<string, { label: string; tone: string }> = {
+  fresh: { label: "current", tone: "text-status-success bg-status-success-soft border-status-success/30" },
+  aging: { label: "aging", tone: "text-status-warning bg-status-warning-soft border-status-warning/30" },
+  unknown: { label: "undated", tone: "text-status-warning bg-status-warning-soft border-status-warning/30" },
+  unreliable: { label: "re-verify", tone: "text-status-error bg-status-error-soft border-status-error/30" },
+  stale: { label: "blocked", tone: "text-status-error bg-status-error-soft border-status-error" },
+  future_dated: { label: "future date", tone: "text-status-error bg-status-error-soft border-status-error/30" },
+};
+
 /** A line copied from a prior bid that nobody has kept yet (FR-1d). */
 function isCarried(line: QuoteLine): boolean {
   return line.flags.includes("carried_from_prior");
@@ -795,6 +805,14 @@ export function QuoteClient({
                               </option>
                             ))}
                           </select>
+                          {line.freshness && !line.lapsed && FRESHNESS[line.freshness.status] && (
+                            <span
+                              className={`inline-block mt-0.5 rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest shadow-sm ${FRESHNESS[line.freshness.status].tone}`}
+                              title={`${line.freshness.basis}${line.freshness.asOf ? ` ${line.freshness.asOf}` : ""} — ${line.freshness.guidance}`}
+                            >
+                              {FRESHNESS[line.freshness.status].label}
+                            </span>
+                          )}
                           {line.lapsed && (
                             <span
                               className="inline-block mt-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-status-warning-soft text-status-warning shadow-sm"
