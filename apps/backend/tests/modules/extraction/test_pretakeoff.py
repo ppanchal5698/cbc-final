@@ -66,3 +66,13 @@ def test_a_blank_in_a_column_the_parser_found_clears_an_earlier_misreading() -> 
     assert merged["door_material"] is None
     assert merged["handing"] == "RH"
     assert merged["evidence_note"] is None, "a note an earlier parse wrote is that parse's, not the door's"
+
+
+def test_a_handing_read_off_the_plan_keeps_its_flag_through_a_re_parse() -> None:
+    existing = [{"door_number": "119", "handing": "RH", "flags": ["handing_read_from_plan", "finish_missing"]}]
+    parsed = [{"door_number": "119", "handing": None, "flags": ["fire_rating_missing", "finish_missing"]}]
+
+    merged = pretakeoff._merge(parsed, existing)[0]
+
+    assert merged["handing"] == "RH" and "handing_read_from_plan" in merged["flags"]
+    assert "fire_rating_missing" in merged["flags"], "the parse's own flags still win"

@@ -173,8 +173,10 @@ def _opening_flags(openings: list[dict], fire_ratings_present: bool = False) -> 
                 # anywhere it is just a gap; on a door CBC is not quoting, nothing.
                 blocking = (field == "fire_rating" and fire_ratings_present
                             and opening.get("in_scope") is not False)
+                # As severe as the schedule's silence on it would be: a door's
+                # handing or finish orders the part, its rating or size prices it.
                 flags.append(
-                    _flag(label, field, "high", note + " - estimator review", page,
+                    _flag(label, field, ABSENT_FROM_SCHEDULE[field][0], note + " - estimator review", page,
                           blocking=blocking)
                 )
 

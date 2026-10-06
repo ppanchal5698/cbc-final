@@ -143,7 +143,18 @@ def _blend(parsed: dict[str, Any], prior: dict[str, Any]) -> dict[str, Any]:
     found = set(parsed.get("columns_read") or ())
     kept = {key: value for key, value in parsed.items() if value not in (None, "", []) or key in found}
     kept.update({key: parsed.get(key) for key in _THE_READINGS_OWN})
-    return {**prior, **kept}
+    merged = {**prior, **kept}
+    # A value kept from an earlier pass keeps the flag that says where it came from.
+    # The parse's flags replaced it, and 11 of Evernorth's 13 handings read off the
+    # plan lost their provenance while the handings stayed.
+    for field, flag in _FOUND_ELSEWHERE.items():
+        if field not in kept and flag in (prior.get("flags") or []) and flag not in (merged.get("flags") or []):
+            merged["flags"] = [*(merged.get("flags") or []), flag]
+    return merged
+
+
+# The flag a pass sets on a field it filled from outside the schedule.
+_FOUND_ELSEWHERE = {"handing": "handing_read_from_plan"}
 
 
 # What a reading says of itself rather than of the door - the new parse's, even
