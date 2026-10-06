@@ -154,6 +154,7 @@ async def import_quote_lines(
         doc.get("lineKey"): doc
         async for doc in estimate_lines().find({"projectId": project_id})
     }
+    removed = set(project.get("removedQuoteLines") or [])
 
     # `line_id` when Claude supplied one, otherwise derived from the line's own
     # content. The previous fallback keyed on list position, so re-ordering a
@@ -222,6 +223,9 @@ async def import_quote_lines(
         }
 
         current = existing.get(key)
+        if current is None and key in removed:
+            skipped += 1  # the estimator deleted it; the take-off still makes it
+            continue
         if current is None:
             bulk.append(
                 InsertOne(

@@ -48,6 +48,7 @@ class ProjectRef(TypedDict, total=False):
     producedBy: str
     hasTrustDialogAccepted: bool
     removedOpenings: list[str]  # take-off keys of openings the estimator deleted
+    removedQuoteLines: list[str]  # line keys of derived quote lines the estimator deleted
     bidDue: Any
     jobName: str
     p21OrderNo: str  # the P21 order raised against the bid

@@ -80,6 +80,14 @@ async def forget_removed(project_id: Any, keys: list[str]) -> None:
         )
 
 
+async def remember_removed_lines(project_id: Any, keys: list[str]) -> None:
+    """Quote lines the estimator deleted, by line key, so a re-price leaves them out."""
+    if keys:
+        await bid_requests().update_one(
+            {"_id": project_id}, {"$addToSet": {"removedQuoteLines": {"$each": keys}}}
+        )
+
+
 async def record_hand_off(project_id: Any, recipient: str | None) -> None:
     """The estimator signed the proposal off and routed it to `recipient`."""
     now = datetime.now(timezone.utc)

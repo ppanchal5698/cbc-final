@@ -129,6 +129,7 @@ async def test_deleting_last_line_clears_artifact_and_cannot_resurrect_it(quote_
     monkeypatch.setattr(DeleteQuoteLine, "estimate_lines", lambda: collection)
     monkeypatch.setattr(DeleteQuoteLine.audit, "record", AsyncMock())
     monkeypatch.setattr(DeleteQuoteLine.quote_service, "persist", AsyncMock(return_value={}))
+    monkeypatch.setattr(DeleteQuoteLine.bids, "remember_removed_lines", AsyncMock())
 
     await DeleteQuoteLine.delete_line(project["code"], line_id, "estimator")
     assert json.loads(path.read_text(encoding="utf-8"))["lines"] == []
@@ -308,3 +309,17 @@ def test_a_part_the_estimator_named_keeps_no_match_confidence_through_a_re_price
     kept = priced_lines._estimator_fields({"overrides": [{"after": {"part": "BB1279", "cost": 4.42}}]})
     assert "matchConfidence" in kept and "cost" in kept
     assert "matchConfidence" not in priced_lines._estimator_fields({"overrides": [{"after": {"margin": 0.3}}]})
+
+
+async def test_a_line_the_estimator_deleted_stays_deleted_through_a_re_price(quote_store):
+    """Evernorth's unmeasured FRP and Div 10 placeholders, removed by hand, came back."""
+    project, path, docs, _collection = quote_store
+    path.write_text(json.dumps({"lines": matched_lines()[:2]}), encoding="utf-8")
+    await priced_lines.import_quote_lines(project)
+    removed = docs.pop(0)
+    project["removedQuoteLines"] = [removed["lineKey"]]
+
+    counts = await priced_lines.import_quote_lines(project)
+
+    assert (counts["inserted"], counts["skipped"]) == (0, 1)
+    assert not any(doc.get("lineKey") == removed["lineKey"] for doc in docs)

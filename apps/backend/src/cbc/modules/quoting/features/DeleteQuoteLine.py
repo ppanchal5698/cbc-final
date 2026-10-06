@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from cbc.modules.ops.api import audit
+from cbc.modules.projects.api import bids
 from cbc.modules.projects.api.lookup import load
 from cbc.modules.quoting.api import priced_lines
 from cbc.modules.quoting.api import quote as quote_service
@@ -23,6 +24,10 @@ async def delete_line(code: str, line_id: str, actor: Actor) -> dict:
         raise HTTPException(404, "quote line not found")
 
     await estimate_lines().delete_one({"_id": line["_id"]})
+    if not line.get("addedByHand") and line.get("lineKey"):
+        # A line the take-off makes comes back on the next re-price unless this is
+        # remembered: Evernorth's unmeasured FRP and Div 10 placeholders did.
+        await bids.remember_removed_lines(project["_id"], [str(line["lineKey"])])
     await audit.record(
         "quote.line_delete",
         actor,
