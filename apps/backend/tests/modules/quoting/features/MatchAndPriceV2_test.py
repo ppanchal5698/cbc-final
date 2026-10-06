@@ -281,3 +281,21 @@ def test_the_model_reads_who_supplies_what_the_words_leave_open(monkeypatch) -> 
         (False, []),
         (False, ["supply_unclear"]),
     ]
+
+
+def test_the_harness_compares_a_bid_with_the_estimators_own_lines(bid, tmp_path) -> None:
+    """scripts/eval_bids.py on this bid: found by its folder's name, priced without
+    asking the model (so the closer stays undecided), compared part by part."""
+    from scripts import eval_bids
+
+    project, db, asked = bid
+    folder = tmp_path / "V2 fixture"
+    folder.mkdir()
+    (folder / "detail.csv").write_text(
+        "Part,Description,Qty,Unit Cost\nBB1279,Hinge,6,4.99\n431S,Threshold,2,$43.33\n"
+        "5100,Closer,2,153.60\n4040XP,LCN closer,2,250.00\n", encoding="utf-8")
+    result = run(eval_bids.evaluate(folder))
+    assert result["bid"] == "V2-001" and not asked
+    assert result["counts"] == {"agree": 2, "qty": 0, "cost": 0, "unpriced": 1, "missing": 1, "extra": 1}
+    assert [row["part"] for row in result["extra"]] == ["ZZ123"]
+    assert db[names.ESTIMATE_LINES].count_documents({"projectId": project["_id"]}) == 0, "the bid is not touched"
