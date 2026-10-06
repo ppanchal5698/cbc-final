@@ -144,12 +144,19 @@ def accessory(part, manufacturer) -> Line:
                 part=part, manufacturer=manufacturer, finish=None, qty=2.0, source_page=27)
 
 
-def test_a_division_10_part_cbc_cannot_price_is_its_preferred_brands_direct_equal() -> None:
+def test_a_division_10_part_cbc_cannot_price_is_the_equal_it_buys_for_least() -> None:
     [row] = ladder.price(accessory("B-212", "Bobrick"), sources(equals=EQUALS, equal_rows=EQUAL_ROWS))
-    # Bobrick is what was specified and unpriceable; ASI is the next preferred brand.
-    assert (row["cost"], row["part_number"], row["manufacturer"]) == (21.5, "10-0714", "ASI")
+    # Bobrick is what was specified and unpriceable; of its equals, Bradley costs CBC least.
+    assert (row["cost"], row["part_number"], row["manufacturer"]) == (19.0, "915", "Bradley")
     assert "Bobrick B-212 is specified" in row["substitution_note"] and "GC approves" in row["substitution_note"]
     assert "direct_equal" in row["flags"] and row["cost_source"] == "CATALOG_BASELINE"
+    assert row["flags"].count("direct_equal") == 1, "the brands not chosen leave nothing on the line"
+
+
+def test_brand_order_breaks_a_tie_between_equals() -> None:
+    tied = [{**EQUAL_ROWS[0], "cost": 19.0}, EQUAL_ROWS[1]]
+    [row] = ladder.price(accessory("B-212", "Bobrick"), sources(equals=EQUALS, equal_rows=tied))
+    assert row["manufacturer"] == "ASI"
 
 
 def test_a_division_10_part_cbc_can_price_is_quoted_as_specified() -> None:

@@ -98,18 +98,18 @@ def test_a_section_sits_in_its_parent_section_and_its_division():
     from cbc.modules.pricing.api import pricing
 
     rows = projection.section_rows(
-        ["10 28 13", "08 71 00", "09 77 00", None],
+        ["10 28 13", "08 71 00", "09 91 00", None],
         pricing.band_for_division,
         lambda code: code[:5] in pricing.DIVISION_BANDS,
     )
     sections = {s["key"]: s for s in rows["sections"]}
-    assert set(sections) == {"08 71 00", "09 77 00", "10 28 00", "10 28 13"}
+    assert set(sections) == {"08 71 00", "09 91 00", "10 28 00", "10 28 13"}
     assert sections["10 28 13"]["parent"] == "10 28 00" and sections["10 28 13"]["level"] == 3
     assert sections["10 28 00"]["parent"] is None and sections["10 28 00"]["division"] == "10"
     assert sections["08 71 00"]["title"] == "Door Hardware"
     # The band pricing applies, and whether that is only its default.
     assert (sections["10 28 13"]["marginBand"], sections["10 28 13"]["bandIsFallback"]) == ("accessories", False)
-    assert (sections["09 77 00"]["marginBand"], sections["09 77 00"]["bandIsFallback"]) == ("commodity", True)
+    assert (sections["09 91 00"]["marginBand"], sections["09 91 00"]["bandIsFallback"]) == ("commodity", True)
     assert [d["key"] for d in rows["divisions"]] == ["08", "09", "10"]
     assert projection.section_code("10 28") == "10 28 00" and projection.section_code("hinge") is None
 

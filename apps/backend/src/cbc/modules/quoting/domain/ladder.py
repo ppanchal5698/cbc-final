@@ -291,13 +291,17 @@ def _matrix_row(part: str, equals: dict[str, Any]) -> dict[str, Any] | None:
 
 def _direct_equal(row: dict[str, Any], line: Line, spec: matcher.Spec, src: Sources,
                   tried: list[str]) -> dict[str, Any] | None:
-    """A Division 10 part CBC cannot price, offered as the first preferred brand's
-    equal that it can - the GC approves a direct equal before it is ordered."""
+    """A Division 10 part CBC cannot price, offered as the direct equal CBC can buy
+    for least - the GC approves a direct equal before it is ordered, so the cost is
+    what decides between them, and the matrix's brand order only breaks a tie. (CBC
+    buys ASI at 0.375 of list and Bradley at 0.53 on current programs; Bobrick's
+    tier is 1.0 and dated 2020 - first in the matrix was the dearest.)"""
     entry = _matrix_row(spec.part or "", src.equals)
     if entry is None:
         return None
     prefixes = src.equals.get("catalog_prefixes") or {}
     specified = vendor_key(line.manufacturer)
+    best: tuple[dict[str, Any], dict[str, Any]] | None = None
     for brand in src.equals.get("preferred_brands") or []:
         value, key = entry.get(brand), _EQUAL_BRANDS.get(brand, vendor_key(brand))
         if not value or key == specified:
@@ -307,17 +311,21 @@ def _direct_equal(row: dict[str, Any], line: Line, spec: matcher.Spec, src: Sour
                                [form, value], key, replace(src, catalog=src.equal_rows))
         if choice.row is None:
             continue
-        priced = _from_catalog(row, choice.row, src, brand, tried)
-        if priced is not None:
-            specified_as = " ".join(v for v in (line.manufacturer, line.part) if v)
-            priced["substitution_note"] = (
-                f"{specified_as} is specified and CBC has no price for it; {choice.row.get('manufacturer')} "
-                f"{choice.row.get('part')} is its direct equal (CBC cross-reference). The GC approves a "
-                "direct equal before it is ordered.")
-            priced["flags"].append("direct_equal")
-            return priced
-    tried.append(f"the cross-reference lists equals for {spec.part}, but none the catalog prices")
-    return None
+        # Each brand is priced on its own copy: `_priced` writes into the row it is given.
+        priced = _from_catalog({**row, "flags": list(row["flags"])}, choice.row, src, brand, tried)
+        if priced is not None and (best is None or priced["cost"] < best[0]["cost"]):
+            best = (priced, choice.row)
+    if best is None:
+        tried.append(f"the cross-reference lists equals for {spec.part}, but none the catalog prices")
+        return None
+    priced, chosen = best
+    specified_as = " ".join(v for v in (line.manufacturer, line.part) if v)
+    priced["substitution_note"] = (
+        f"{specified_as} is specified and CBC has no price for it; {chosen.get('manufacturer')} "
+        f"{chosen.get('part')} is its direct equal (CBC cross-reference) at the lowest cost of those CBC "
+        "carries. The GC approves a direct equal before it is ordered.")
+    priced["flags"].append("direct_equal")
+    return priced
 
 
 def _allegion_rows(line: Line, src: Sources) -> list[dict[str, Any]]:

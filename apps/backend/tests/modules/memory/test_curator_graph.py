@@ -302,8 +302,9 @@ def test_the_steward_records_what_is_wrong_explains_it_once_and_resolves_it_when
         *FAMILIES["vendor_tiers"]["vendors"][:3],
         {"key": "world_dryer", "name": "World Dryer", "multiplier": 0.339, "effective_date": "2020-01-01"},
     ]}
-    frp_panel = {"part": "FRP-4x8", "manufacturer": "Nudo", "division": "09 77 00", "priceBasis": "net"}
-    _sources(monkeypatch, families=families, items=[*ITEMS, frp_panel])
+    # A section no margin band covers (FRP's 09 77 has its own now).
+    access_panel = {"part": "AP-1212", "manufacturer": "Nystrom", "division": "08 31 13", "priceBasis": "net"}
+    _sources(monkeypatch, families=families, items=[*ITEMS, access_panel])
     run(curator.sync_all())
     asked = _fake_model(monkeypatch)
 
@@ -316,17 +317,17 @@ def test_the_steward_records_what_is_wrong_explains_it_once_and_resolves_it_when
                      RETURN count(n) AS n""") == 3  # the vendor and both tiers
     assert "panel_size, waste_pct" in _finding("reference_pending:frp_constants")["summary"]
     assert _finding("multiplier_past_review:world_dryer")["status"] == "open"
-    assert "commodity band (27%)" in _finding("section_without_band:09 77 00")["summary"]
+    assert "commodity band (27%)" in _finding("section_without_band:08 31 13")["summary"]
     assert result["open"] == len(asked) == 4 and result["explained"] == 4
 
     # Nothing changed: nothing new to explain. Dismissed stays dismissed.
-    assert run(steward.dismiss("section_without_band:09 77 00", by="kevin@cbc.com", note="FRP is quoted by hand"))
+    assert run(steward.dismiss("section_without_band:08 31 13", by="kevin@cbc.com", note="access panels are quoted by hand"))
     assert run(steward.review())["explained"] == 0 and len(asked) == 4
-    assert _finding("section_without_band:09 77 00")["status"] == "dismissed"
+    assert _finding("section_without_band:08 31 13")["status"] == "dismissed"
 
     # Fixed at the source - the row priced at its labelled tier - and the finding closes itself.
     fixed = [dict(i, multiplier=0.33) if i["part"] == "1547A" else i for i in ITEMS]
-    _sources(monkeypatch, families=families, items=[*fixed, frp_panel])
+    _sources(monkeypatch, families=families, items=[*fixed, access_panel])
     run(curator.sync_all())
     assert run(steward.review())["resolved"] == 1
     assert _finding("category_multiplier_conflict:pemko:continuous_hinges")["status"] == "resolved"

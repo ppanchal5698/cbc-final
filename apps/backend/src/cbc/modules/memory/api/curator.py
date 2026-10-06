@@ -179,7 +179,9 @@ async def sync_all() -> dict[str, Any]:
     # was priced at (the row's multiplier, when exactly one of its vendor's tiers
     # has that value) - the record's fact; else its category's tier; else the
     # vendor's one account multiplier. `categoryAgrees` says whether the row's
-    # category label points at the same tier: on the Pemko rows it mostly does not.
+    # category label points at the same tier: on the Pemko rows it mostly does not,
+    # and the row's multiplier is the one that stands - each of the 2,828 equals
+    # exactly one Pemko tier, and it is what the row's cost was priced at.
     # A net price takes no multiplier - it is already a cost.
     await graph.write("""
         MATCH (c:CatalogItem) WHERE c.syncedAt = $run AND c.priceBasis IN ['list_x_multiplier', 'list']

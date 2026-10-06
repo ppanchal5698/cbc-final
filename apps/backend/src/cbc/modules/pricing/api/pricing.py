@@ -27,7 +27,11 @@ DIVISION_BANDS = {
     "08 71": "commodity",
     "10 21": "restroom_partitions",
     "10 28": "accessories",
+    # FRP. MasterFormat files it under 06 64 (plastic paneling), and that is where
+    # the take-off puts it; a spec book that files it under 09 77 (special wall
+    # surfacing) is the same panel, at the same band.
     "06 64": "specialty",
+    "09 77": "specialty",
 }
 DEFAULT_BAND = "commodity"
 
@@ -36,7 +40,10 @@ DEFAULT_BAND = "commodity"
 # title printed on its page. Hager prices by category (vendor_tiers) and its book
 # #18 names its sections; these are those names, longest match first. A section
 # not listed takes no multiplier, so its rows are priced by hand rather than at a
-# guessed tier. For CBC purchasing to confirm - the two auto-operator rows most.
+# guessed tier. The two judgment calls: the low-energy operator *controls* are
+# sold with the operator, so they take its tier (0.40, not electrified's 0.41);
+# stainless continuous hinges take stainless_steel_hinges, whose 0.325 is the
+# Roton geared tier too - either reading prices the same.
 SECTION_CATEGORIES: dict[str, tuple[tuple[str, str], ...]] = {
     "hager": (
         ("Commercial Hinges", "architectural_hinges"),
