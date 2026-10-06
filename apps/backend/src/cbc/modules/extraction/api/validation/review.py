@@ -30,7 +30,7 @@ from typing import Any
 from cbc.modules.pricing.api import calc
 from cbc.shared.paths import repo_root, storage_root
 from cbc.modules.pricing.api import pricing, reference_library
-from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
+from cbc.modules.pricing.api.confidence import AUTO_PROPOSE, CONFIDENCE_FLOOR
 from cbc.shared import fire_rating
 
 ROOT = repo_root()
@@ -176,6 +176,16 @@ def _opening_flags(openings: list[dict], fire_ratings_present: bool = False) -> 
     return flags
 
 
+# Requirements 7.1 / NFR-2: a priced match under the auto-propose line is amber, and
+# says what keeps it from certain. A price the model read has a note of its own.
+_MATCH_WHY = {
+    "model_chose_match": "the model chose it among rows at different prices",
+    "series_match": "it is a size of the series the legend names, not the part itself",
+    "direct_equal": "it is a direct equal for the part specified",
+    "hardware_equal": "it is the equal on file for the Allegion part specified",
+}
+
+
 def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[dict]:
     flags: list[dict] = []
     for line in lines:
@@ -221,6 +231,11 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
             flags.append(_flag(label, "smoke_label", "medium",
                                "Smoke-labeled door (S label): the door, frame and gasketing must be "
                                "listed for smoke and draft control", page))
+        match = line.get("match_confidence")
+        why = next((text for flag, text in _MATCH_WHY.items() if flag in (line.get("flags") or [])), None)
+        if why and line.get("cost") is not None and isinstance(match, (int, float)) and match < AUTO_PROPOSE:
+            flags.append(_flag(label, "match", "medium",
+                               "Matched at {:.2f}: {} - confirm the part".format(match, why), page))
         if "supply_unclear" in (line.get("flags") or []):
             flags.append(_flag(label, "supply", "medium",
                                "The schedule names another party here without saying who supplies the "

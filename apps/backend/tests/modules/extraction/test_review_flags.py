@@ -369,3 +369,20 @@ def test_a_set_serving_rated_doors_asks_for_listed_hardware(project) -> None:
     ]})
     [flag] = [f for f in review.derive_flags(slug) if "fire-rated doors" in f["note"]]
     assert flag["field"] == "fire_rating" and flag["severity"] == "medium" and not flag.get("blocking")
+
+
+def test_a_match_under_the_auto_propose_line_says_why(project) -> None:
+    """Requirements 7.1: 0.70-0.89 is proposed with an amber flag - and NFR-2 wants
+    every one of them flagged, saying what keeps it from certain."""
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "1:01", "group": "01", "cost_source": "CATALOG_BASELINE", "cost": 26.0,
+         "match_confidence": 0.8, "flags": ["series_match"]},
+        {"line_id": "1:02", "group": "01", "cost_source": "LIST_X_MULTIPLIER", "cost": 4.99,
+         "match_confidence": 0.9, "flags": []},
+        {"line_id": "1:03", "group": "01", "cost_source": "LIST_X_MULTIPLIER", "cost": 61.0,
+         "match_confidence": 0.75, "flags": ["model_chose_match"]},
+    ]})
+    notes = [f["note"] for f in review.derive_flags(slug) if f["field"] == "match"]
+    assert notes == ["Matched at 0.80: it is a size of the series the legend names, not the part itself - confirm the part",
+                     "Matched at 0.75: the model chose it among rows at different prices - confirm the part"]
