@@ -134,6 +134,11 @@ class Choice:
 FinishKey = Callable[[str | None], str | None]
 
 
+# A closer's painted finish: BHMA numbers it, a closer book names it. Evernorth's
+# LCN 4040XP is 689, and the Hager 5100 that stands in for it is listed in ALM.
+_PAINTED = {"689": "ALM", "693": "BLK"}
+
+
 def finish_key(text: str | None, resolve: Callable[[str], dict[str, Any] | None] | None = None) -> str | None:
     """One key per finish whichever nomenclature wrote it: `626`, `26D/626`, `US26D`
     and `US26D (626) - Satin Chrome` agree when the crosswalk says so (NR-3).
@@ -143,6 +148,9 @@ def finish_key(text: str | None, resolve: Callable[[str], dict[str, Any] | None]
     if not raw:
         return None
     pieces = [t for t in re.split(r"[^A-Z0-9]+", raw) if t]
+    painted = next((_PAINTED[piece] for piece in pieces if piece in _PAINTED), None)
+    if painted:
+        return painted
     if resolve is not None:
         for piece in [raw, *pieces]:
             found = resolve(piece)

@@ -31,7 +31,7 @@ def test_sizes_are_read_in_inches_and_part_numbers_are_not_sizes(text, sizes) ->
 
 @pytest.mark.parametrize(("written", "key"), [
     ("626", "26D"), ("US26D", "26D"), ("26D/626", "26D"), ("US26D (626) - Satin Chrome", "26D"),
-    ("652", "26D"), ("ALM", "ALM"), ("Satin Chrome", None), ("", None),
+    ("652", "26D"), ("ALM", "ALM"), ("689", "ALM"), ("693", "BLK"), ("Satin Chrome", None), ("", None),
 ])
 def test_one_finish_whichever_way_it_is_written(written, key) -> None:
     assert finish(written) == key
