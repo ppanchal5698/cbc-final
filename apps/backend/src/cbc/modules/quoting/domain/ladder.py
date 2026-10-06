@@ -251,15 +251,20 @@ def _from_book(row: dict[str, Any], entry: dict[str, Any], src: Sources, vendor:
         return None
     cost = src.cost_from_list(float(entry["listPrice"]), float(multiplier))
     book = src.books.get(str(entry.get("priceBookId"))) or {}
-    return _priced(
+    by_model = entry.get("readBy") == "model"  # a page the reader could not parse
+    priced = _priced(
         row, cost, "LIST_X_MULTIPLIER",
-        f"{where} list ${entry['listPrice']:.2f} x {category or 'account'} {multiplier:g} -> ${cost:.2f}",
+        f"{where} list ${entry['listPrice']:.2f} x {category or 'account'} {multiplier:g} -> ${cost:.2f}"
+        + (" - the list price was read off the page by the model; confirm it against the sheet" if by_model else ""),
         part_number=entry.get("model"), manufacturer=row.get("manufacturer") or entry_vendor.title(),
         list_price=entry.get("listPrice"), multiplier=float(multiplier), multiplier_tier=category or "all",
         multiplier_effective_date=tier.get("effective_date") or effective,
         price_book_version=f"{book.get('name') or entry.get('file')}, effective {effective}",
         catalog_page=entry.get("page"),
     )
+    if by_model:
+        priced["flags"].append("price_read_by_model")
+    return priced
 
 
 def _price_candidate(row: dict[str, Any], index: int, src: Sources) -> dict[str, Any] | None:
@@ -307,7 +312,7 @@ def _as_matched(priced: dict[str, Any], choice: matcher.Choice) -> dict[str, Any
 _SOURCE_CONFIDENCE = {"P21_LAST_PO": 0.95, "SPECIAL_NET": 0.95, "CATALOG_BASELINE": 0.92,
                       "LIST_X_MULTIPLIER": 0.90}
 _FLAG_CONFIDENCE = (("ambiguous_match", 0.60), ("model_chose_match", 0.75), ("direct_equal", 0.80),
-                    ("series_match", 0.80))
+                    ("series_match", 0.80), ("price_read_by_model", 0.80))
 
 
 def match_confidence(row: dict[str, Any]) -> float | None:

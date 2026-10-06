@@ -255,3 +255,15 @@ def test_each_match_says_how_sure_it_is() -> None:
     assert ladder.match_confidence({"flags": [], "cost": None, "part_number": "ZZ-404"}) == 0.0
     assert ladder.match_confidence({"flags": [], "cost": None, "part_number": None}) is None
     assert confidence.band(None) is None
+
+
+def test_a_price_the_model_read_off_the_page_says_so() -> None:
+    """A row read off a page's picture prices like any other, flagged for the
+    estimator to confirm against the sheet, in the review band."""
+    from cbc.modules.pricing.api import confidence
+
+    book = [{**row, "readBy": "model"} for row in sources().book if row.get("model") == "5100"][:1]
+    [row] = ladder.price(line("5100", finish_="ALM"), sources(book=book))
+    assert row["cost_source"] == "LIST_X_MULTIPLIER" and "price_read_by_model" in row["flags"]
+    assert "read off the page by the model" in row["cost_source_detail"]
+    assert confidence.band(ladder.match_confidence(row)) == "review"

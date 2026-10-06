@@ -221,6 +221,10 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
             flags.append(_flag(label, "smoke_label", "medium",
                                "Smoke-labeled door (S label): the door, frame and gasketing must be "
                                "listed for smoke and draft control", page))
+        if "price_read_by_model" in (line.get("flags") or []):
+            flags.append(_flag(label, "cost", "medium",
+                               "List price read off the price-book page by the model - confirm it against the sheet",
+                               page))
         if "no_hose_stream" in (line.get("flags") or []):
             flags.append(_flag(label, "fire_rating", "medium",
                                "20-minute door tested without hose stream - confirm the listing allows it here",

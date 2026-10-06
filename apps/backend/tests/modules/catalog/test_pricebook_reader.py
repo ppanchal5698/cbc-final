@@ -125,3 +125,37 @@ def test_entries_are_versioned_by_file_and_only_the_current_one_prices(db, tmp_p
     db[names.PRICE_BOOKS].update_one({"_id": book_id}, {"$set": {"entries.fileSha": "newer-file"}})
     assert run(catalog_products.list_prices(["5106"]))["5106"] == []
     assert db[names.PRICE_BOOK_ENTRIES].count_documents({}) == 40
+
+
+def test_a_table_page_the_reader_misses_is_read_off_its_picture(db, tmp_path, monkeypatch):
+    """The plan's read_price_row: the model transcribes, every row says it is the
+    model's, and the first page it does not answer ends the asking."""
+    from cbc.modules.catalog.domain.questions import PriceRow, PriceTable
+    from cbc.shared import ai
+
+    image = tmp_path / "page.png"
+    image.write_bytes(b"png")
+    monkeypatch.setattr(pricebook_reader, "read_book", lambda path: {"pages": [], "unread_pages": [18, 19, 65]})
+    monkeypatch.setattr(IndexCatalog.pdfpages, "page_image", lambda *a, **k: {"image_path": str(image)})
+    monkeypatch.setattr(IndexCatalog.pdfpages, "page_text", lambda *a, **k: "")
+    answers = {18: [PriceRow(model="BB1191", size='4-1/2" x 4"', finish="US26D", list_price=41.2)],
+               19: [PriceRow(model="bb1199", finish="US10B", list_price=38.0)]}
+    asked: list[str] = []
+
+    async def model(question, prompt, images=()):
+        asked.append(prompt)
+        page = int(prompt.split("page ")[1].rstrip("."))
+        return ai.Asked(PriceTable(rows=answers[page]) if page in answers else None, error=None)
+
+    monkeypatch.setattr(IndexCatalog.ops_ai, "ask", model)
+    book_id = db[names.PRICE_BOOKS].insert_one({"vendor": "Hager", "effective": "2026-03-01"}).inserted_id
+
+    book_file = tmp_path / "hager_book.pdf"
+    book_file.write_bytes(b"%PDF-1.4 a book whose pages are faked above")
+    summary = run(IndexCatalog.read_entries(db[names.PRICE_BOOKS].find_one({"_id": book_id}), book_file, "hager"))
+
+    assert len(asked) == 3 and summary.endswith("1 table page(s) not read")
+    rows = list(db[names.PRICE_BOOK_ENTRIES].find({}, {"_id": 0, "page": 1, "model": 1, "listPrice": 1, "readBy": 1}))
+    assert sorted((r["page"], r["model"], r["listPrice"], r["readBy"]) for r in rows) == [
+        (18, "BB1191", 41.2, "model"), (19, "BB1199", 38.0, "model")]
+    assert db[names.PRICE_BOOKS].find_one({"_id": book_id})["entries"]["unreadPages"] == [65]
