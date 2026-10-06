@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-import parse_schedule as ps
+from cbc.modules.extraction.infrastructure import schedule_parser as ps
 
 
 def _row(cells, boxes, y=100.0):
@@ -194,3 +194,34 @@ def test_a_bare_number_in_a_rating_column_is_still_a_rating() -> None:
     )
     assert ps._cell(data, mapping, "fire_rating") == "90"
     assert ps.FIRE_RATING.search("90") is not None
+
+
+def _opening(cells, header_cells):
+    boxes = [_span(10 + 60 * i, 50 + 60 * i) for i in range(len(header_cells))]
+    mapping = ps._detect_header_map([_row(header_cells, boxes)])
+    row = {**_row(cells, boxes[: len(cells)], y=200), "source_page": 3}
+    return ps.parse_opening(row, mapping)
+
+
+def test_a_rating_column_is_read_the_way_the_app_reads_a_rating() -> None:
+    """The column went through a regex that knew 20/45/60/90/180 and "1 HR", so a
+    90-minute door scheduled as "1-1/2 HR" came back unrated."""
+    header = ["Door No.", "Width", "Height", "Rating"]
+    assert _opening(["101", "3'-0\"", "7'-0\"", "1-1/2 HR"], header)["fire_rating"] == "90"
+    assert _opening(["102", "3'-0\"", "7'-0\"", "NR"], header)["fire_rating"] == "NR"
+
+
+def test_a_row_without_a_rating_column_is_not_rated_by_its_notes() -> None:
+    opening = _opening(
+        ["09", "3'-0\"", "7'-0\"", "NOTE: 1,15,16,20"], ["Door No.", "Width", "Height", "Remarks"]
+    )
+    assert opening["fire_rating"] is None
+
+
+def test_the_wall_type_column_reaches_the_opening() -> None:
+    """It was mapped from its header and then dropped, so every frame depth waited
+    on an estimator."""
+    opening = _opening(
+        ["101", "3'-0\"", "7'-0\"", "W2"], ["Door No.", "Width", "Height", "Wall Type"]
+    )
+    assert opening["wall_type"] == "W2"

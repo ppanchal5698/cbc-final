@@ -20,7 +20,6 @@ import pytest
 
 from tests.shared import FIXTURES, ROOT
 
-sys.path.insert(0, str(ROOT / ".claude" / "skills" / "extract-door-schedule" / "scripts"))
 
 GOLDEN_DIR = FIXTURES / "golden"
 FIXTURE_DIR = FIXTURES / "pdfs"
@@ -76,7 +75,7 @@ def test_the_parser_is_never_silently_wrong(reference: Path) -> None:
     blank - and scoring that as a miss would push the parser toward guessing,
     which is exactly what NFR-2 forbids.
     """
-    import parse_schedule
+    from cbc.modules.extraction.infrastructure import schedule_parser as parse_schedule
 
     from scripts.score_extraction import score
 
@@ -98,7 +97,7 @@ def test_the_parser_is_never_silently_wrong(reference: Path) -> None:
 @pytest.mark.parametrize("reference", REFERENCES, ids=_ids(REFERENCES))
 def test_every_opening_is_found(reference: Path) -> None:
     """Losing a whole opening is not a silent error, but it is a lost door."""
-    import parse_schedule
+    from cbc.modules.extraction.infrastructure import schedule_parser as parse_schedule
 
     from scripts.score_extraction import score
 

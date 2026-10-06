@@ -12,11 +12,9 @@ hardware schedule → Div 08 door/frame specs → floor plans → Div 10 / FRP.
 """
 from __future__ import annotations
 
-import importlib.util
 import json
 import logging
 import re
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -351,39 +349,12 @@ def annotate_visual_flags(
 
 
 def _load_parse_schedule():
-    path = (
-        ROOT
-        / ".claude"
-        / "skills"
-        / "extract-door-schedule"
-        / "scripts"
-        / "parse_schedule.py"
-    )
-    name = "cbc_parse_schedule"
-    # Cached on the file's mtime, not on the name alone.
-    #
-    # The worker is long-lived and `.claude` is a bind mount, so an edit to the
-    # parser lands on disk under a process that has already imported it. A
-    # `name in sys.modules` cache then serves the pre-edit module for the life
-    # of the worker, and the edit looks like it did nothing: a real fix to the
-    # schedule row parser was applied, a bid was re-run, and the output came
-    # back byte-identical with no error anywhere to explain it.
-    try:
-        stamp = path.stat().st_mtime_ns
-    except OSError:  # gone or unreadable - let the import below report it
-        stamp = None
-    cached = sys.modules.get(name)
-    if cached is not None and getattr(cached, "_cbc_loaded_from", None) == stamp:
-        return cached
+    """The door-schedule reader (`schedule_parser`). It was a skill script loaded by
+    path and re-imported on its mtime, for edits landing on a bind mount under a
+    running worker; it is backend code now, deployed and reloaded like the rest."""
+    from cbc.modules.extraction.infrastructure import schedule_parser
 
-    spec = importlib.util.spec_from_file_location(name, path)
-    if spec is None or spec.loader is None:  # pragma: no cover
-        raise ImportError(f"cannot load {path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    module._cbc_loaded_from = stamp
-    return module
+    return schedule_parser
 
 
 def _find_sheets(file_path: str) -> dict[str, Any]:

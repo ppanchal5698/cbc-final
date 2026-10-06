@@ -6,7 +6,7 @@ so these tests guard the contract the viewer depends on.
 """
 from __future__ import annotations
 
-import parse_schedule
+from cbc.modules.extraction.infrastructure import schedule_parser as parse_schedule
 from tests.shared import ROOT, SCHEDULE_PAGE
 
 from _runtime import load_server  # noqa: E402
