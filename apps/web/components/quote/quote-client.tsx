@@ -320,6 +320,17 @@ export function QuoteClient({
     }
   }
 
+  /** NR-4: a list adder the legend names, added by the estimator - never by the ladder. */
+  async function addAdder(line: QuoteLine, index: number) {
+    try {
+      await proxyMutate(`/api/proxy/projects/${code}/quote/lines/${line.id}/adders/${index}`);
+      toast.success("Adder added", { description: line.adderCandidates?.[index]?.name });
+      mutate();
+    } catch (problem) {
+      toast.error("Could not add that adder", { description: errorMessage(problem) });
+    }
+  }
+
   async function keepCarried() {
     const from = carried[0]?.carriedFrom ?? "the prior bid";
     if (
@@ -735,6 +746,26 @@ export function QuoteClient({
                                 })}
                               </ul>
                             </details>
+                          )}
+                          {!!line.adderCandidates?.length && (
+                            <span className="mt-1 flex flex-wrap gap-1">
+                              {line.adderCandidates.map((adder, index) => (
+                                <button
+                                  key={`${adder.name}-${index}`}
+                                  type="button"
+                                  onClick={() => addAdder(line, index)}
+                                  title="The legend names this list adder. It goes on the list price, and the line's multiplier applies to the sum."
+                                  className="rounded-md border border-status-warning/30 bg-status-warning-soft px-1.5 py-0.5 text-[10.5px] font-bold text-status-warning hover:brightness-110"
+                                >
+                                  + {adder.name} (list ${formatMoney(adder.listAdder)})
+                                </button>
+                              ))}
+                            </span>
+                          )}
+                          {!!line.appliedAdders?.length && (
+                            <span className="mt-0.5 block text-[11px] font-medium text-tx-muted">
+                              with {line.appliedAdders.map((adder) => adder.name).join(", ")}
+                            </span>
                           )}
                           {(line.marginOverridden || line.addedByHand) && (
                             <span className="text-[11.5px] font-medium text-status-error mt-0.5 block">

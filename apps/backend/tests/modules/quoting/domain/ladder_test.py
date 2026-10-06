@@ -207,3 +207,34 @@ def test_a_door_is_priced_from_its_supplier_and_a_size_past_stock_is_a_vendor_qu
                 flags=["custom_size"])
     [rfq] = ladder.price(tall, sources())
     assert rfq["cost_source"] == "VENDOR_RFQ" and "past stock" in rfq["cost_source_detail"]
+
+
+# ── NR-4: list adders the legend names ───────────────────────────────────────
+
+ADDERS = [
+    {"name": "SFIC construction core included with lockset", "list_adder": 69.95},
+    {"name": "Lead lined", "list_adder": 214.25},
+    {"name": "Extended lip ASA strike", "list_adder": 15.5},
+    {"name": "Anti-microbial (26D finish only)", "list_adder": 57.13},
+    {"name": "Security screws", "list_adder": 12.0},  # added in Settings, with no pattern in code
+]
+
+
+def test_a_legend_names_its_adders_and_nothing_more() -> None:
+    named = ladder.named_adders("LOCKSET 3580 LEAD-LINED W/ SFIC CORE, ASA STRIKE, US26D", ADDERS)
+    assert [a["name"] for a in named] == ["SFIC construction core included with lockset", "Lead lined"]
+    # A plain ASA strike is standard; only an extended lip is the adder.
+    assert ladder.named_adders("ASA STRIKE", ADDERS) == []
+    assert [a["name"] for a in ladder.named_adders("EXT. LIP ASA STRIKE", ADDERS)] == ["Extended lip ASA strike"]
+    assert [a["name"] for a in ladder.named_adders("ANTIMICROBIAL COATING", ADDERS)] == ["Anti-microbial (26D finish only)"]
+    assert [a["name"] for a in ladder.named_adders("PROVIDE SECURITY SCREWS", ADDERS)] == ["Security screws"]
+    assert ladder.named_adders("SECURITY HINGE", ADDERS) == []
+
+
+def test_a_named_adder_rides_on_the_line_and_is_never_added_by_the_ladder() -> None:
+    """Adding one is a deliberate, recorded act (CBC's rule in the adders sheet)."""
+    [plain] = ladder.price(line("5100", text="CLOSER 5100 PA US26D"), sources(adders=ADDERS))
+    [named] = ladder.price(line("5100", text="CLOSER 5100 LEAD LINED"), sources(adders=ADDERS))
+    assert "adder_candidates" not in plain
+    assert named["adder_candidates"] == [{"name": "Lead lined", "list_adder": 214.25}]
+    assert "adder_named" in named["flags"] and named.get("cost") == plain.get("cost")

@@ -196,6 +196,9 @@ async def import_quote_lines(
             "substitutionNote": line.get("substitution_note"),
             # The rows it could as well be, priced, for an estimator to choose (FR-8).
             "closeMatches": [_close_match(m) for m in line.get("close_matches") or []],
+            # List adders the legend names (NR-4), for the estimator to add.
+            "adderCandidates": [{"name": a.get("name"), "listAdder": a.get("list_adder")}
+                                for a in line.get("adder_candidates") or []],
             # Why a line sits outside the bid - "supplied by the landlord per the
             # legend" - which the proposal's qualifications say to the customer.
             "notes": line.get("notes"),

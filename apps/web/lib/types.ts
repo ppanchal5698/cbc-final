@@ -307,6 +307,9 @@ export interface QuoteLine {
   costSourceDetail?: string | null;
   /** The NOTE a substitution prints on the quote (FR-17). */
   substitutionNote?: string | null;
+  /** List adders the legend names, for the estimator to add (NR-4), and those added. */
+  adderCandidates?: { name: string; listAdder: number }[];
+  appliedAdders?: { name: string; listAdder: number }[];
   /** Rows this line could as well be, each priced, for an estimator to choose (FR-8). */
   closeMatches?: CloseMatch[];
   /** The prior bid a templated quote copied this line from (FR-1d). */

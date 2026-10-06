@@ -60,6 +60,40 @@ class Sources:
     priced_at: str = ""
     equals: dict[str, Any] = field(default_factory=dict)  # the Division 10 direct-equal matrix
     equal_rows: list[dict[str, Any]] = field(default_factory=list)  # catalog rows of the brands it names
+    adders: list[dict[str, Any]] = field(default_factory=list)  # Hager list adders: {name, list_adder}
+
+
+# How a legend says each Hager list adder (NR-4). One added in Settings without an
+# entry here is named when the legend uses every word of its name.
+_ADDER_SAID = {
+    "sfic construction core included with lockset": re.compile(r"\bSFIC\b"),
+    "lead lined": re.compile(r"\bLEAD[\s-]*LINED\b"),
+    "extended lip asa strike": re.compile(r"\bEXT(?:ENDED|\.)?[\s-]*LIP\b"),
+    "tactile warning": re.compile(r"\bTACTILE\b"),
+    "3/4 inch latchbolt": re.compile(r"3/4\s*(?:\"|IN(?:CH)?\.?)?\s*(?:THROW\s*)?LATCH"),
+    "anti-microbial (26d finish only)": re.compile(r"\bANTI[\s-]*MICROBIAL\b"),
+}
+_ADDER_FILLER = {"INCLUDED", "WITH", "INCH", "ONLY", "FINISH", "THE", "AND", "FOR"}
+
+
+def named_adders(text: str, adders: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The list adders a legend asks for on this item - never applied here. CBC's
+    rule is that adding one is a deliberate, recorded act; the estimator does it."""
+    said = str(text or "").upper()
+    words = set(re.split(r"[^A-Z0-9/]+", said))
+    found = []
+    for adder in adders:
+        name = str(adder.get("name") or "")
+        pattern = _ADDER_SAID.get(name.strip().lower())
+        if pattern is not None:
+            named = bool(pattern.search(said))
+        else:
+            wanted = {w for w in re.split(r"[^A-Z0-9/]+", re.sub(r"\([^)]*\)", "", name.upper()))
+                      if len(w) > 1 and w not in _ADDER_FILLER}
+            named = bool(wanted) and wanted <= words
+        if named and adder.get("list_adder") is not None:
+            found.append({"name": name, "list_adder": float(adder["list_adder"])})
+    return found
 
 
 def _desc_finish(text: Any) -> str | None:
@@ -391,7 +425,17 @@ def _allegion_rows(line: Line, src: Sources) -> list[dict[str, Any]]:
 
 
 def price(line: Line, src: Sources) -> list[dict[str, Any]]:
-    """The file rows for one take-off line: one, or two for an Allegion part."""
+    """The file rows for one take-off line: one, or two for an Allegion part - each
+    carrying the list adders its legend names, for the estimator to add (NR-4)."""
+    rows = _price_rows(line, src)
+    named = named_adders(f"{line.description} {line.text}", src.adders) if line.division.startswith("08") else []
+    for row in rows if named else ():
+        row["adder_candidates"] = named
+        row["flags"].append("adder_named")
+    return rows
+
+
+def _price_rows(line: Line, src: Sources) -> list[dict[str, Any]]:
     if matcher.is_allegion(line.part, line.description, manufacturer=line.manufacturer):
         if line.alternate:  # another party supplies it: there is no equal for CBC to find
             row = _row(line, src)

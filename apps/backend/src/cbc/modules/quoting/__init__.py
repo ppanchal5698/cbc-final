@@ -30,6 +30,7 @@ def register(app) -> None:
     events.subscribe(openings_api.LINES_CONFIRMED, quote_api.on_lines_confirmed)
 
     from cbc.modules.quoting.features import (
+        AddAdder,
         AddQuoteLine,
         AssignToAlternate,
         ChooseCloseMatch,
@@ -64,6 +65,7 @@ def register(app) -> None:
         AddQuoteLine,
         UpdateQuoteLine,
         ChooseCloseMatch,
+        AddAdder,
         DeleteQuoteLine,
         KeepCarriedLines,
         ContinueToProposal,

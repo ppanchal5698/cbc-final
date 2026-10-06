@@ -188,6 +188,13 @@ def test_choose_a_close_match(client, bid, snapshots) -> None:
     snapshots.pin(op, client.post(_p(bid, f"/quote/lines/{bid['line']}/close-matches/0")), variant="no such match")
 
 
+def test_add_an_adder(client, bid, snapshots) -> None:
+    """NR-4: a list adder the legend names, added by the estimator. This line's
+    legend names none."""
+    op = "POST /api/projects/{code}/quote/lines/{line_id}/adders/{index}"
+    snapshots.pin(op, client.post(_p(bid, f"/quote/lines/{bid['line']}/adders/0")), variant="no such adder")
+
+
 # Last: these change the shared bid, and every pin above is taken first.
 def test_a_typed_cost_is_the_estimators_not_the_sheets(client, bid) -> None:
     """A cost typed by hand kept the source the ladder priced the line from - "List x

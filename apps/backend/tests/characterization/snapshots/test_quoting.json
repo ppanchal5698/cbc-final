@@ -804,6 +804,12 @@
   },
   "status": 201
  },
+ "POST /api/projects/{code}/quote/lines/{line_id}/adders/{index} #no such adder": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
  "POST /api/projects/{code}/quote/lines/{line_id}/close-matches/{index} #no such match": {
   "body": {
    "detail": "str"

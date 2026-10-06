@@ -166,8 +166,9 @@ async def _sources(project: dict[str, Any], lines: list[takeoff.Line]) -> ladder
         str(b["_id"]): {"name": b.get("program") or b.get("filename"), "effective": b.get("effective")}
         for b in await catalog_products.price_book_summaries()
     }
-    nets, tiers = await asyncio.to_thread(
-        lambda: (reference_library.load_special_nets(), reference_library.load_vendor_tiers()))
+    nets, tiers, adders = await asyncio.to_thread(
+        lambda: (reference_library.load_special_nets(), reference_library.load_vendor_tiers(),
+                 reference_library.load_adders()))
     special = await asyncio.to_thread(pricing.special_margin, project.get("gc"), project.get("brand"))
     # A Division 10 part CBC cannot price may have a direct equal it can.
     equals = (await asyncio.to_thread(reference_library.load_div10_equals)
@@ -192,6 +193,7 @@ async def _sources(project: dict[str, Any], lines: list[takeoff.Line]) -> ladder
         priced_at=_now(),
         equals=equals,
         equal_rows=equal_rows,
+        adders=[a for a in (adders.get("hager_list_adders") or {}).get("items") or [] if isinstance(a, dict)],
     )
 
 
