@@ -82,6 +82,8 @@ async def update_line(
     )
 
     update: dict[str, Any] = {**changes, "updatedAt": _now()}
+    if "part" in changes:
+        update["matchConfidence"] = None  # a part the estimator named is not a match to doubt
     if "margin" in changes:
         update["marginOverridden"] = True
         update["overrideReason"] = reason

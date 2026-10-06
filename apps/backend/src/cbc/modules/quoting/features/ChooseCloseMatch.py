@@ -41,7 +41,8 @@ async def choose_close_match(code: str, line_id: str, index: int, actor: Actor) 
     await estimate_lines().update_one(
         {"_id": line["_id"]},
         {
-            "$set": {**chosen, "priceStatus": "PRICED", "updatedAt": now},
+            # The match is the estimator's now: the copilot's confidence no longer applies.
+            "$set": {**chosen, "priceStatus": "PRICED", "matchConfidence": None, "updatedAt": now},
             # An estimator's edit, so a re-price keeps it like any other.
             "$push": {"overrides": {"at": now, "by": actor, "before": before, "after": chosen, "reason": reason}},
             "$pullAll": {"flags": _SETTLED},

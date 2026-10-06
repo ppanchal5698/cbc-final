@@ -41,7 +41,7 @@ def undecided(client):
             "projectId": ObjectId(bid["id"]), "lineKey": "1:01:5100", "description": "CLOSER 5100 ALM",
             "division": "08 71 00", "group": "01", "qty": 2, "cost": None, "margin": None,
             "costSource": "MANUAL", "priceStatus": "NEEDS_JUDGMENT", "addedByHand": False,
-            "flags": ["ambiguous_match"], "closeMatches": MATCHES,
+            "flags": ["ambiguous_match"], "closeMatches": MATCHES, "matchConfidence": 0.6,
         }).inserted_id
     finally:
         raw.close()
@@ -58,6 +58,8 @@ def test_choosing_a_close_match_prices_the_line_from_it(client, undecided):
     assert line["priceBookVersion"].startswith("Hager Price Book #18")
     assert "ambiguous_match" not in line["flags"] and line["priceStatus"] == "PRICED"
     assert line["overrides"][-1]["reason"] == "chose a close match: Hager 5100 ALM PA, list $512.00"
+    # The estimator's choice: review no longer reads the pricing pass's 0.60 as a doubt.
+    assert line["matchConfidence"] is None
     assert response.json()["totals"]["unpricedLines"] == 0
 
 

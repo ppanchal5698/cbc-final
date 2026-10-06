@@ -319,6 +319,9 @@ async def export_quote_lines(project: dict[str, Any], *, allow_empty: bool = Fal
                 "alternate_group": doc.get("alternateGroup"),
                 "added_by_hand": doc.get("addedByHand", False),
                 "flags": doc.get("flags", []),
+                # The stored line's, not the pricing pass's: a match an estimator
+                # chose or named is no longer the copilot's to be unsure of.
+                "match_confidence": doc.get("matchConfidence"),
                 "carried_from": doc.get("carriedFrom"),  # the prior bid a templated line came from
                 "deducted_by": doc.get("deductedBy") or [],  # the alternates that replace it
                 # Whether the base bid counts it - a deductive alternate's lines it does (FR-14).
