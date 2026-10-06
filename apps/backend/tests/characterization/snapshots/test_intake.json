@@ -69,6 +69,18 @@
   "body": {
    "approvedAt": "null",
    "approvedBy": "null",
+   "basis": {
+    "addenda": [],
+    "documents": [
+     {
+      "contentSha": "str",
+      "filename": "str",
+      "id": "id",
+      "kind": "str",
+      "uploadedAt": "datetime"
+     }
+    ]
+   },
    "createdAt": "datetime",
    "createdBy": "str",
    "id": "id",
@@ -209,6 +221,18 @@
    "version": {
     "approvedAt": "null",
     "approvedBy": "null",
+    "basis": {
+     "addenda": [],
+     "documents": [
+      {
+       "contentSha": "str",
+       "filename": "str",
+       "id": "id",
+       "kind": "str",
+       "uploadedAt": "datetime"
+      }
+     ]
+    },
     "createdAt": "datetime",
     "createdBy": "str",
     "id": "id",

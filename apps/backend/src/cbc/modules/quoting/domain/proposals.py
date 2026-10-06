@@ -73,6 +73,43 @@ def approve(
     }
 
 
+def _naive(moment: Any) -> Any:
+    return moment.replace(tzinfo=None) if isinstance(moment, datetime) else moment
+
+
+def revised_since_issue(project: dict[str, Any], proposal: dict[str, Any]) -> bool:
+    """Whether the bid changed under the proposal last issued (FR-14): a version
+    frozen after it, or an addendum logged after it. Until it is approved again,
+    what prints is the next revision, a draft, superseding the one issued."""
+    issues = (proposal or {}).get("issues") or []
+    if not issues:
+        return False
+    last = issues[-1]
+    if (project.get("version") or 0) > (last.get("version") or 0):
+        return True
+    issued = _naive(last.get("at"))
+    return any(
+        issued is not None and _naive(addendum.get("recordedAt")) is not None
+        and _naive(addendum["recordedAt"]) > issued
+        for addendum in project.get("addenda") or []
+    )
+
+
+def revision(project: dict[str, Any], proposal: dict[str, Any]) -> dict[str, Any]:
+    """The revision being shown: its number (0 is the original), whether it is a
+    draft of a re-issue, and the issue it supersedes."""
+    issues = (proposal or {}).get("issues") or []
+    if revised_since_issue(project, proposal):
+        return {"number": len(issues), "reissue": True, "supersedes": issues[-1]}
+    return {"number": max(len(issues) - 1, 0), "reissue": False,
+            "supersedes": issues[-2] if len(issues) > 1 else None}
+
+
+def numbered(proposal_no: str, number: int) -> str:
+    """`Q-1234` as issued first, `Q-1234 R1` re-issued once."""
+    return f"{proposal_no} R{number}" if number else proposal_no
+
+
 def guard_approved(proposal: dict[str, Any]) -> None:
     """Refuse to act on a proposal that no person approved."""
     if not (proposal or {}).get("approvedBy"):

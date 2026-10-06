@@ -21,6 +21,7 @@ from cbc.modules.ops.api import identity, jobs
 from cbc.modules.quoting.api import priced_lines
 from cbc.modules.quoting.api import quote as quote_service
 from cbc.modules.quoting.domain import alternates
+from cbc.modules.quoting.domain import proposals as proposal_rules
 from cbc.modules.quoting.infrastructure.collections import estimate_lines, proposals, rfis
 from cbc.shared.config import settings
 from cbc.modules.ops.api import freshness as freshness_settings
@@ -324,10 +325,26 @@ async def proposal_payload(project: dict[str, Any], *, internal: bool = False) -
             f"{len(blocking_flags)} review flag(s) block approval: "
             + "; ".join(f"{f.get('opening') or 'bid'} - {f.get('note')}" for f in blocking_flags)
         )
+    # FR-14: an addendum or a new version after the proposal was issued makes
+    # this the next revision - a draft until approved again, superseding that one.
+    revision = proposal_rules.revision(project, stored)
+    number = stored.get("proposalNo") or f"Q-{project['code'].split('-')[-1]}"
+    superseded = revision["supersedes"]
+    if revision["reissue"]:
+        notes.append(
+            f"The bid changed after the proposal issued {_day(superseded.get('at'))}: this is revision "
+            f"{revision['number']}, a draft until it is approved again. Approving it supersedes "
+            f"{proposal_rules.numbered(number, superseded.get('revision') or 0)}."
+        )
 
     return {
         "proposal": {
-            "proposalNo": stored.get("proposalNo") or f"Q-{project['code'].split('-')[-1]}",
+            "proposalNo": proposal_rules.numbered(number, revision["number"]),
+            "revision": revision["number"],
+            "supersedes": {
+                "proposalNo": proposal_rules.numbered(number, superseded.get("revision") or 0),
+                "issuedOn": _day(superseded.get("at")),
+            } if superseded else None,
             "date": (stored.get("date") or date.today()).isoformat()
             if not isinstance(stored.get("date"), str)
             else stored["date"],
@@ -339,8 +356,9 @@ async def proposal_payload(project: dict[str, Any], *, internal: bool = False) -
             "exclusions": stored.get("exclusions") or DEFAULT_EXCLUSIONS,
             "signoff": stored.get("signoff") or [],
             "sentAt": stored.get("sentAt"),
-            # Until an estimator approves it (MarkComplete), it prints as a draft.
-            "draft": not stored.get("approvedBy"),
+            # Until an estimator approves it (MarkComplete), it prints as a draft -
+            # and again once the bid changes under it, until it is re-approved.
+            "draft": not stored.get("approvedBy") or revision["reissue"],
         },
         "project": serialise(project),
         **built,
@@ -458,6 +476,8 @@ def render_html(project: dict[str, Any], data: dict[str, Any], autoprint: bool) 
             "grand_total": totals["grandTotal"],
         },
         draft=proposal.get("draft", True),
+        # "Revision 1 - supersedes Q-1234 issued 2026-10-02" (FR-14).
+        supersedes=proposal.get("supersedes"),
         unpriced=data["readiness"].get("unpricedQuoteLines") or 0,
         flag_count=data["readiness"]["flaggedLineItems"],
     )

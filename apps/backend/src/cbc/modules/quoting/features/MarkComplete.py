@@ -66,6 +66,15 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
         },
     )
 
+    # Each approval of a changed bid is an issue (FR-14): the first is the
+    # original; one after an addendum or a new version is the next revision,
+    # approved afresh, and supersedes the last. Routing the same proposal to
+    # someone else is not a new issue.
+    issues = (stored or {}).get("issues") or []
+    revised = proposal_rules.revised_since_issue(project, stored or {})
+    issue = {"revision": len(issues), "at": _now(), "by": actor, "recipient": recipient,
+             "version": project.get("version")}  # the latest frozen version; None before the first
+
     # A proposal cannot come into existence via hand-off upsert (NFR-1 / §3.30).
     # Approval is an insert (or a stamp onto an existing draft); hand-off then
     # updates without upsert.
@@ -75,10 +84,19 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
                 "projectId": project["_id"],
                 **approval,
                 "createdAt": _now(),
+                "issues": [issue],
             }
         )
-    elif not stored.get("approvedBy"):
-        await proposals().update_one({"_id": stored["_id"]}, {"$set": approval})
+    else:
+        changes: dict = {}
+        if not stored.get("approvedBy") or revised:
+            changes.update(approval)
+        if not issues or revised:
+            # The whole list in one write: Mongo will not set into an array and
+            # push onto it in the same update.
+            changes["issues"] = [*issues[:-1], {**issues[-1], "supersededAt": _now()}, issue] if issues else [issue]
+        if changes:
+            await proposals().update_one({"_id": stored["_id"]}, {"$set": changes})
 
     await proposals().update_one(
         {"projectId": project["_id"]},

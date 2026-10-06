@@ -796,6 +796,11 @@ export interface VersionSummary {
   reconciled: boolean;
   lineItemCount: number;
   quoteLineCount: number;
+  /** What the frozen take-off and quote were read from (FR-14). Absent on older versions. */
+  basis?: {
+    documents: { id: string; filename: string | null; kind: string | null }[];
+    addenda: number[];
+  };
 }
 
 export interface VersionDiff {

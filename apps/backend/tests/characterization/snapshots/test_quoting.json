@@ -97,11 +97,13 @@
     ],
     "markup": "number",
     "proposalNo": "str",
+    "revision": "number",
     "salesRep": {
      "name": "str"
     },
     "sentAt": "null",
     "signoff": [],
+    "supersedes": "null",
     "validityDays": "number"
    },
    "qualifications": [],
@@ -397,11 +399,13 @@
     ],
     "markup": "number",
     "proposalNo": "str",
+    "revision": "number",
     "salesRep": {
      "name": "str"
     },
     "sentAt": "null",
     "signoff": [],
+    "supersedes": "null",
     "validityDays": "number"
    },
    "qualifications": [],

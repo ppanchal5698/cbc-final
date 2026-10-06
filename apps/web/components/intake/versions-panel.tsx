@@ -109,6 +109,17 @@ export function VersionsPanel({ code }: { code: string }) {
                   {entry.lineItemCount} line items · {entry.quoteLineCount} quote lines · by{" "}
                   {entry.createdBy}
                 </p>
+                {entry.basis && (
+                  <p
+                    className="mt-0.5 text-[11.5px] font-medium text-tx-muted"
+                    title={entry.basis.documents.map((d) => d.filename).filter(Boolean).join(", ") || undefined}
+                  >
+                    From {entry.basis.documents.length} document{entry.basis.documents.length === 1 ? "" : "s"}
+                    {entry.basis.addenda.length
+                      ? ` · addend${entry.basis.addenda.length === 1 ? "um" : "a"} ${entry.basis.addenda.join(", ")}`
+                      : " · no addenda"}
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => loadDiff(entry.version)}

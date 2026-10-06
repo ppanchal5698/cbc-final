@@ -90,6 +90,7 @@
   </div>
   <table class="meta">
     <tr><td>Proposal No.</td><td>{{ quote_number }}</td></tr>
+    {% if supersedes %}<tr><td>Supersedes</td><td>{{ supersedes.proposalNo }}{% if supersedes.issuedOn %} issued {{ supersedes.issuedOn }}{% endif %}</td></tr>{% endif %}
     <tr><td>Date</td><td>{{ quote_date }}</td></tr>
     <tr><td>Valid</td><td>{{ validity_days }} days</td></tr>
     <tr><td>Order #</td><td>{{ project.order_number or "&mdash;" | safe }}</td></tr>
@@ -102,7 +103,7 @@
   <div><span>Customer</span><b>{{ customer.gc or "General contractor - to be confirmed" }}</b></div>
   <div><span>Requested by</span><b>{{ customer.initiator or "&mdash;" | safe }}</b></div>
   <div><span>Estimator</span><b>{{ estimator.name or "CBC Estimating" }}</b></div>
-  <div class="wide"><span>Job name</span><b>{{ project.name }}</b>{% if project.version %} <span style="display:inline">&middot; revision {{ project.version }}</span>{% endif %}</div>
+  <div class="wide"><span>Job name</span><b>{{ project.name }}</b>{% if project.version and project.version > 1 %} <span style="display:inline">&middot; bid set version {{ project.version }}</span>{% endif %}</div>
   <div><span>Location</span><b>{{ project.location or "&mdash;" | safe }}</b></div>
   {% if project.architect %}<div class="wide"><span>Architect</span><b>{{ project.architect }}</b></div>{% endif %}
 </div>
