@@ -41,7 +41,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from cbc.modules.catalog.domain import partquery
+from cbc.modules.catalog.api import products as catalog_products
 
 ROOT = Path(__file__).resolve().parents[3]
 GROUND_TRUTH = ROOT / "ground_truth"
@@ -149,7 +149,7 @@ def _key(part: Any) -> str:
 def _forms(part: Any) -> set[str]:
     """The part and its shorter forms - never one as short as ASI's leading `10`,
     which every ASI part shares."""
-    return {_key(form) for form in partquery.normalize(str(part or "")) if partquery.prefix_safe(form)} - {""}
+    return {_key(form) for form in catalog_products.part_candidates(str(part or "")) if len(form) >= 3} - {""}
 
 
 def _totals(lines: list[dict[str, Any]], part: str, qty: str, cost: str) -> dict[str, dict[str, Any]]:
@@ -212,20 +212,19 @@ def compare(expected: list[dict[str, Any]], ours: list[dict[str, Any]],
 
 async def _project(folder: Path, code: str | None) -> dict[str, Any] | None:
     from cbc.modules.projects.api.lookup import ProjectNotFound, load
-    from cbc.modules.projects.infrastructure.collections import bid_requests
     from cbc.shared import storage
 
     named = (folder / "project.txt").read_text(encoding="utf-8").strip() if (folder / "project.txt").exists() else None
     for candidate in filter(None, (code, named, storage.slugify(folder.name))):
         try:
-            return await load(candidate)
+            return dict(await load(candidate))
         except ProjectNotFound:
             continue
-    return await bid_requests().find_one({"name": {"$regex": f"^{re.escape(folder.name)}$", "$options": "i"}})
+    return None
 
 
 async def evaluate(folder: Path, code: str | None = None) -> dict[str, Any]:
-    from cbc.modules.quoting.features import MatchAndPrice
+    from cbc.modules.quoting.api import evaluation
 
     sheets = [p for p in sorted(folder.iterdir()) if p.suffix.lower() in (".xlsx", ".xlsm", ".csv")]
     if not sheets:
@@ -244,9 +243,9 @@ async def evaluate(folder: Path, code: str | None = None) -> dict[str, Any]:
         expected += estimator_lines(rows, *found)
     project = await _project(folder, code)
     if project is None:
-        return {"error": "no bid in the app by this folder's name - put its code in project.txt"}
+        return {"error": "no bid in the app by this folder's name - put its code in project.txt, or pass --project"}
     try:
-        priced = await MatchAndPrice.price_bid(project, choose=False)
+        priced = await evaluation.priced_take_off(project)
     except Exception as exc:  # the gate counts these: a job failure is a fail
         return {"error": f"pricing failed: {type(exc).__name__}: {exc}", "job_failure": True}
     return {"bid": project.get("code"), **compare(expected, priced["lines"])}
