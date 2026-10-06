@@ -77,6 +77,9 @@ async def carry_from_prior(project: dict[str, Any], prior: dict[str, Any]) -> No
             "projectId": project["_id"],
             "carriedFrom": prior.get("code"),
             "flags": [*(flag for flag in line.get("flags") or [] if flag != CARRIED), CARRIED],
+            # A cost typed onto a line the prior job added by hand is as old as that
+            # line, not this copy of it (FR-6a).
+            "pricedAt": line.get("pricedAt") or line.get("createdAt"),
             "createdAt": now,
             "updatedAt": now,
         }

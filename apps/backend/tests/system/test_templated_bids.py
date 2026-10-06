@@ -113,3 +113,29 @@ def test_a_templated_bid_starts_from_the_newest_matching_job(client):
     lines = _lines(client, bid["code"])
     assert [line["description"] for line in lines] == ["From the newer job"]
     assert all(_carried(line) and line["carriedFrom"] == newer["code"] for line in lines)
+
+
+def test_a_carried_cost_is_as_old_as_the_prior_jobs(client, priors):
+    """FR-6a: a cost typed on the prior job two years ago is two years old on this
+    one too - the copy made today does not make it fresh."""
+    from datetime import datetime, timedelta, timezone
+
+    from bson import ObjectId
+
+    from cbc.shared.persistence import names
+    from tests.shared import mongo_client
+
+    old = _bid(client, "Wendy's 2024 refresh", brand="Wendy's")
+    _line(client, old["code"], "Gamco grab bar", 31.0)
+    raw = mongo_client()
+    try:
+        two_years = datetime.now(timezone.utc) - timedelta(days=730)
+        raw[TEST_DB][names.ESTIMATE_LINES].update_many({"projectId": ObjectId(old["id"])},
+                                                       {"$set": {"createdAt": two_years}})
+    finally:
+        raw.close()
+    bid = _bid(client, "Wendy's 2026 refresh", brand="Wendy's")
+    client.post(f"/api/projects/{bid['code']}/reuse/{old['code']}")
+    [line] = _lines(client, bid["code"])
+    assert line["freshness"]["asOf"] == two_years.date().isoformat()
+    assert line["freshness"]["status"] not in ("fresh", "aging")
