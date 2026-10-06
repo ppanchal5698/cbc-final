@@ -398,3 +398,30 @@ def test_an_excluded_vendor_is_caught_however_its_name_is_punctuated(project, mo
     ]})
     [flag] = [f for f in review.derive_flags(slug) if f["field"] == "out_of_scope"]
     assert flag["note"].startswith("J.L. Industries is not quoted by CBC")
+
+
+def test_a_field_no_door_on_the_schedule_gives_is_said_once(project) -> None:
+    """Shakopee: no rating, handing or finish column - 32 HIGH flags across 8 doors
+    said three things. A field some doors give stays a question for the others."""
+    slug, directory = project
+    door = {"bbox": [1, 2, 3, 4], "size": "3070", "source_page": 4, "in_scope": True}
+    _write(directory, "extracted/line_items.json", {"openings": [
+        {"door_number": "1", **door, "handing": "LH"}, {"door_number": "2", **door}, {"door_number": "3", **door},
+    ]})
+    flags = review.derive_flags(slug)
+    once = [(f["opening"], f["field"], f["severity"]) for f in flags if f["opening"] == "All doors"]
+    assert sorted(once) == [("All doors", "finish", "medium"), ("All doors", "fire_rating", "high")]
+    per_door = [(f["opening"], f["field"]) for f in flags if f["field"] in ("handing", "finish", "fire_rating")
+                and f["opening"] != "All doors"]
+    assert per_door == [("Door 2", "handing"), ("Door 3", "handing")]
+
+
+def test_no_rated_door_is_said_once_whoever_noticed(project) -> None:
+    """The scope summary and the doors themselves both notice: one finding."""
+    slug, directory = project
+    _write(directory, "extracted/scope_summary.json", {"fire_ratings_present": False})
+    door = {"bbox": [1, 2, 3, 4], "size": "3070", "handing": "LH", "source_page": 4}
+    _write(directory, "extracted/line_items.json", {"openings": [
+        {"door_number": "1", **door}, {"door_number": "2", **door}]})
+    rated = [f for f in review.derive_flags(slug) if f["field"] == "fire_rating"]
+    assert [(f["opening"], f["blocking"]) for f in rated] == [("All doors", False)]

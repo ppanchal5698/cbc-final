@@ -52,6 +52,16 @@ REQUIRED_OPENING_FIELDS = {
     "size": "Missing size",
 }
 
+# What to say once, for the bid, when no door on the schedule gives the field: the
+# schedule does not carry it, and eight copies of "missing handing" at HIGH hid the
+# one flag that mattered.
+ABSENT_FROM_SCHEDULE = {
+    "fire_rating": ("high", "No door on the schedule gives a fire rating - confirm the set has no rated openings"),
+    "handing": ("medium", "The schedule gives no handing for any door - read it off the floor plan swings"),
+    "finish": ("medium", "The door schedule gives no finish - each hardware item's finish is on its set"),
+    "size": ("high", "No door on the schedule gives a size"),
+}
+
 # Ohio and Kentucky are taxed; the other 48 states and Canada are not. An unknown
 # state is not "untaxed", it is unresolved.
 TAXED_STATES = {"OH", "KY"}
@@ -126,6 +136,15 @@ def reconcile_flags(opening: dict[str, Any]) -> list[str]:
 
 def _opening_flags(openings: list[dict], fire_ratings_present: bool = False) -> list[dict]:
     flags: list[dict] = []
+    doors = [o for o in openings if not o.get("specialty")]
+    # A field no door has is the schedule's silence, said once - unless rule 1 makes
+    # each door's missing rating a stop of its own.
+    absent = {field for field in REQUIRED_OPENING_FIELDS
+              if len(doors) > 1 and all(o.get(field) in (None, "", []) for o in doors)
+              and not (field == "fire_rating" and fire_ratings_present)}
+    for field in sorted(absent):
+        severity, note = ABSENT_FROM_SCHEDULE[field]
+        flags.append(_flag("All doors", field, severity, note, doors[0].get("source_page")))
     for opening in openings:
         if opening.get("specialty"):
             continue  # Division 10 / FRP rows an export wrote here: not doors
@@ -133,6 +152,8 @@ def _opening_flags(openings: list[dict], fire_ratings_present: bool = False) -> 
         page = opening.get("source_page")
 
         for field, note in REQUIRED_OPENING_FIELDS.items():
+            if field in absent:
+                continue
             if opening.get(field) in (None, "", []):
                 # In a set that rates its doors, an unrated opening may be a
                 # rated door priced as an unrated one - a code problem, not a
@@ -166,7 +187,8 @@ def _opening_flags(openings: list[dict], fire_ratings_present: bool = False) -> 
 
         confidence = opening.get("confidence")
         if isinstance(confidence, (int, float)) and confidence < CONFIDENCE_FLOOR:
-            note = "Match confidence {:.2f} is below {}".format(confidence, CONFIDENCE_FLOOR)
+            note = "Read at confidence {:.2f}, under {} - check the row against the sheet".format(
+                confidence, CONFIDENCE_FLOOR)
             flags.append(_flag(label, "confidence", "high", note, page))
 
         # NFR-3: a record the estimator cannot find on the drawing is not traceable.
@@ -323,11 +345,8 @@ def _scope_flags(scope: Any, metadata: Any) -> list[dict]:
                       note, item.get("source_page"))
             )
         if scope.get("fire_ratings_present") is False:
-            flags.append(
-                _flag("bid set", "fire_rating", "high",
-                      "No fire ratings found in the set - fire rating is mandatory "
-                      "to extract; leave null with a review flag, never invent", None)
-            )
+            # The estimator's words, the same as the doors' own note - said once.
+            flags.append(_flag("All doors", "fire_rating", *ABSENT_FROM_SCHEDULE["fire_rating"], None))
 
     state = metadata.get("state") if isinstance(metadata, dict) else None
     if not state:
@@ -394,7 +413,7 @@ def derive_flags(slug: str) -> list[dict]:
         fire_rating.is_rated(o.get("fire_rating")) for o in openings
         if o.get("in_scope") is not False and not o.get("specialty"))
 
-    return [
+    flags = [
         *_no_scope_flags(schedule, openings),
         *_opening_flags(openings, rated),
         *_line_flags([line for line in lines if isinstance(line, dict)], _excluded_vendors() if lines else []),
@@ -403,6 +422,11 @@ def derive_flags(slug: str) -> list[dict]:
         *_document_not_parsed_flags(project),
         *_ocr_unavailable_flags(project),
     ]
+    # The schedule's silence and the scope summary can both say "no door is rated":
+    # one bid-level finding, said once. Two lines flagged alike are two findings.
+    seen: set[tuple] = set()
+    return [f for f in flags if f["opening"] != "All doors"
+            or not ((key := (f["field"], f["note"])) in seen or seen.add(key))]
 
 
 def _frp_constants_flags(project: Path) -> list[dict]:
