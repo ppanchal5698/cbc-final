@@ -155,6 +155,7 @@ def test_a_take_off_is_priced_in_code_and_rolled_up_without_its_alternates(bid) 
     assert (hinges["qty"], hinges["qtyPerOpening"], hinges["openings"]) == (6.0, 3.0, ["101", "102"])
     assert (hinges["cost"], hinges["costSource"], hinges["multiplierTier"]) == (4.99, "LIST_X_MULTIPLIER", "architectural_hinges")
     assert hinges["division"] == "08 71 00" and hinges["sell"] is not None  # rolled up by persist
+    assert hinges["stock"] is True and "non_stock" not in hinges["flags"]  # BB1279 is on Hager's stock list
     assert (lines["1:02"]["cost"], lines["1:02"]["costSource"]) == (43.33, "SPECIAL_NET")
     assert lines["1:03"]["manufacturer"] == "Hager" and lines["1:03"]["cost"] is None
     assert lines["1:03:allegion"]["alternateGroup"] == "Allegion as specified"
@@ -216,3 +217,18 @@ def test_a_door_moved_into_an_alternate_is_priced_as_its_own_lines(bid) -> None:
     assert lines["1:03"]["deductedBy"] == ["Allegion as specified"]
     quote = db[names.QUOTES].find_one({"projectId": project["_id"]})
     assert quote["subtotal"] == round(sum(l.get("extended") or 0 for l in lines.values() if not l.get("alternateGroup")), 2)
+
+
+def test_a_part_off_its_makers_stock_list_says_so() -> None:
+    """NR-6: off the list is usually a lead time. A maker with no list says nothing."""
+    from cbc.modules.quoting.features import MatchAndPrice
+
+    lists = {"hager": {"BB1279", "5100"}}
+    rows = [{"manufacturer": "Hager", "part_number": "BB1279-4.5X4.5", "division": "08 71 00", "flags": []},
+            {"manufacturer": "Hager", "part_number": "2700", "division": "08 71 00", "flags": []},
+            {"manufacturer": "Rockwood", "part_number": "K1050", "division": "08 71 00", "flags": []},
+            {"manufacturer": "Hager", "part_number": "B-212", "division": "10 28 13", "flags": []}]
+    for row in rows:
+        MatchAndPrice._mark_stock(row, lists)
+    assert [(row.get("stock"), row["flags"]) for row in rows] == [
+        (True, []), (False, ["non_stock"]), (None, []), (None, [])]

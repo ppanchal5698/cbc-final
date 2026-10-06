@@ -861,6 +861,14 @@ export function QuoteClient({
                               ))}
                             </select>
                           )}
+                          {line.stock === false && (
+                            <span
+                              className="inline-block mt-1 mr-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-tx-secondary border border-subtle bg-panel-muted shadow-sm"
+                              title="Not on the maker's stock list (a draft until CBC confirms it, NR-6) - check the lead time"
+                            >
+                              non-stock
+                            </span>
+                          )}
                           {isCarried(line) && (
                             <span
                               className="inline-block mt-1 mr-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-status-warning border border-status-warning/30 bg-status-warning-soft shadow-sm"

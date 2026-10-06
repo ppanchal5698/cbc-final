@@ -325,6 +325,8 @@ export interface QuoteLine {
   costSourceDetail?: string | null;
   /** The NOTE a substitution prints on the quote (FR-17). */
   substitutionNote?: string | null;
+  /** On its maker's stock list (NR-6); null when the maker has none on file. */
+  stock?: boolean | null;
   /** Why its margin is not the band's, as a code (requirements 5.1). */
   overrideCode?: string | null;
   /** Substitution alternates that take this base line out when accepted (FR-14). */

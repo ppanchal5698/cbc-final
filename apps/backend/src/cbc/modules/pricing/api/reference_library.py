@@ -606,6 +606,23 @@ def update_stock_list(vendor_key: str, payload: dict[str, Any]) -> dict[str, Any
     return payload
 
 
+def stock_parts(payload: dict[str, Any] | None) -> set[str]:
+    """The part numbers a stock list names, upper-cased."""
+    return {
+        str(item.get("part_number", "")).strip().upper()
+        for item in (payload or {}).get("items", [])
+        if item.get("part_number")
+    }
+
+
+def in_stock(parts: set[str], part_number: str) -> bool:
+    """A part is stock when the list names it, or names the part it is a size or
+    finish of (`BB1279-4.5x4.5` is `BB1279`) - the one rule for NR-6."""
+    needle = part_number.strip().upper()
+    base = (needle.split("-")[0].split() or [""])[0]
+    return needle in parts or base in parts
+
+
 def is_stock_part(vendor_key: str, part_number: str) -> dict[str, Any]:
     """NR-6 stock-list lookup. Returns None for stock when no list is on file."""
     payload = load_stock_list(vendor_key)
@@ -617,14 +634,7 @@ def is_stock_part(vendor_key: str, part_number: str) -> dict[str, Any]:
             "note": "No top-10 stock list on file for this vendor (NR-6 pending).",
         }
 
-    needle = part_number.strip().upper()
-    base = needle.split("-")[0].split()[0]
-    parts = {
-        str(item.get("part_number", "")).strip().upper()
-        for item in payload.get("items", [])
-        if item.get("part_number")
-    }
-    matched = needle in parts or base in parts
+    matched = in_stock(stock_parts(payload), part_number)
     return {
         "vendor": vendor_key,
         "part_number": part_number,

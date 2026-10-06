@@ -197,6 +197,8 @@ async def import_quote_lines(
             "substitutionNote": line.get("substitution_note"),
             # The rows it could as well be, priced, for an estimator to choose (FR-8).
             "closeMatches": [_close_match(m) for m in line.get("close_matches") or []],
+            # On its maker's stock list (NR-6): None when the maker has no list on file.
+            "stock": line.get("stock"),
             # The alternates that take this base line out when accepted (FR-14).
             "deductedBy": list(line.get("deducted_by") or []),
             # List adders the legend names (NR-4), for the estimator to add.

@@ -245,6 +245,26 @@ async def _choose(rows: list[dict[str, Any]], sources: ladder.Sources, *, budget
     return chosen
 
 
+def _stock_lists(rows: list[dict[str, Any]]) -> dict[str, set[str]]:
+    """The stock list of each door-hardware vendor on the bid that has one (NR-6)."""
+    vendors = {ladder.vendor_key(row.get("manufacturer")) for row in rows
+               if str(row.get("division") or "").startswith("08 7") and row.get("manufacturer")}
+    found = {vendor: reference_library.load_stock_list(vendor) for vendor in vendors if vendor}
+    return {vendor: reference_library.stock_parts(payload) for vendor, payload in found.items() if payload}
+
+
+def _mark_stock(row: dict[str, Any], lists: dict[str, set[str]]) -> None:
+    """Whether a hardware part is on its maker's stock list - a part that is not
+    is usually a lead time, which the estimator should know before quoting it."""
+    parts = lists.get(ladder.vendor_key(row.get("manufacturer")))
+    part = str(row.get("part_number") or "").strip()
+    if parts is None or not part or not str(row.get("division") or "").startswith("08 7"):
+        return
+    row["stock"] = reference_library.in_stock(parts, part)
+    if not row["stock"]:
+        row["flags"].append("non_stock")
+
+
 async def price_bid(project: dict[str, Any], *, choose: bool = True) -> dict[str, Any]:
     """The priced file for a bid, as v2 would write it. Writes nothing - the
     job writes it; an evaluation compares it with the estimators' own quote."""
@@ -255,7 +275,9 @@ async def price_bid(project: dict[str, Any], *, choose: bool = True) -> dict[str
     rows = await asyncio.to_thread(lambda: [row for line in lines for row in ladder.price(line, sources)])
     if choose:
         await _choose(rows, sources, budget=CHOICE_BUDGET)
+    stock = await asyncio.to_thread(_stock_lists, rows)
     for row in rows:
+        _mark_stock(row, stock)
         if ladder.UNDECIDED in row:
             row["close_matches"] = ladder.close_matches(row, sources)
         row.pop(ladder.UNDECIDED, None)
