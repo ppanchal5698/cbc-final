@@ -19,7 +19,7 @@ import type { ReviewFlag } from "@/lib/types";
 const UNREAD_FIELDS = new Set(["document_not_parsed", "ocr_unavailable", "no_scope"]);
 
 const WHAT: Record<string, string> = {
-  document_not_parsed: "A document was not fully read",
+  document_not_parsed: "A document was read from its text only",
   ocr_unavailable: "A scanned page could not be OCR'd",
   no_scope: "No Division 08 openings were found",
 };
@@ -52,8 +52,8 @@ export function UnreadPanel({
         <div className="min-w-0 flex-1">
           <h2 id="unread-title" className="text-[13.5px] font-bold text-status-warning">
             {unread.length === 1
-              ? "1 thing on the plans was not read"
-              : `${unread.length} things on the plans were not read`}
+              ? "1 thing to check before pricing"
+              : `${unread.length} things to check before pricing`}
           </h2>
           <p className="mt-0.5 text-[12px] font-medium leading-relaxed text-tx-secondary">
             The pass flags what it could not resolve so nothing quietly falls off the quote.
@@ -96,14 +96,17 @@ export function UnreadPanel({
               </button>
             ) : null}
 
-            <button
-              type="button"
-              onClick={onAddByHand}
-              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-status-error/30 bg-status-error-soft px-2.5 py-1.5 text-[12px] font-semibold text-status-error transition-colors hover:brightness-125"
-            >
-              <PencilLine size={14} weight="duotone" />
-              Add it by hand
-            </button>
+            {/* A document read from its text instead has nothing to add by hand. */}
+            {flag.field !== "document_not_parsed" ? (
+              <button
+                type="button"
+                onClick={onAddByHand}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-status-error/30 bg-status-error-soft px-2.5 py-1.5 text-[12px] font-semibold text-status-error transition-colors hover:brightness-125"
+              >
+                <PencilLine size={14} weight="duotone" />
+                Add it by hand
+              </button>
+            ) : null}
           </li>
         ))}
       </ul>

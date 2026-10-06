@@ -498,8 +498,8 @@ def _document_not_parsed_flags(project: Path) -> list[dict]:
         if state in (None, "parsed", "off"):
             continue
         note = (
-            f"{name} was not GPU-parsed (state={state}); "
-            "extraction read it with pdf-tools directly"
+            f"{name} was not read by the cloud parser ({state}); "
+            "its pages were read from the PDF's own text instead"
         )
         if doc.get("error"):
             note = f"{note}. {doc['error']}"
