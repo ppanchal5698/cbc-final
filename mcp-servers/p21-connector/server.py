@@ -21,7 +21,7 @@ from typing import Any
 from _runtime import serve
 from tools import TOOLS
 from client import lookup_last_po as _http_lookup, search_item as _http_search
-from cbc.modules.ops.api.freshness_rules import classify
+from cbc.modules.ops.api.freshness_rules import USABLE_DAYS, classify
 from cbc.modules.ops.api.freshness import load_sync
 
 BASE_URL = os.environ.get("P21_BASE_URL", "").strip()
@@ -220,9 +220,13 @@ def _demo() -> None:
         po_date = (date.today() - timedelta(days=age_days)).isoformat()
         return check_freshness(po_date)["freshness_status"]
 
+    usable = max(USABLE_DAYS, bands.fresh_days)
     assert status_at(0) == "fresh"
     assert status_at(bands.fresh_days) == "fresh", "the fresh band includes its own edge"
-    assert status_at(bands.fresh_days + 1) == "unreliable"
+    if usable > bands.fresh_days:
+        # Requirements 5.2: "use if sold within a year" - past fresh, still priced, flagged.
+        assert status_at(bands.fresh_days + 1) == "aging"
+    assert status_at(usable + 1) == "unreliable", "past the year it was sold in"
     assert status_at(bands.discard_after_days) == "unreliable", "still inside discard"
     assert status_at(bands.discard_after_days + 1) == "stale"
 
