@@ -353,7 +353,8 @@ async def proposal_payload(project: dict[str, Any], *, internal: bool = False) -
             "salesRep": stored.get("salesRep") or {"name": project.get("initiator")},
             "estimator": stored.get("estimator") or {},
             "markup": stored.get("markup", 0.0),
-            "exclusions": stored.get("exclusions") or DEFAULT_EXCLUSIONS,
+            # An estimator who removed every exclusion meant none, not the defaults.
+            "exclusions": stored["exclusions"] if stored.get("exclusions") is not None else DEFAULT_EXCLUSIONS,
             "signoff": stored.get("signoff") or [],
             "sentAt": stored.get("sentAt"),
             # Until an estimator approves it (MarkComplete), it prints as a draft -

@@ -10,6 +10,7 @@ import {
   Circle,
   SealCheck,
   Copy,
+  Trash,
 } from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
 
@@ -112,6 +113,16 @@ export function ProposalClient({
       mutate();
     } catch (problem) {
       toast.error("Could not change the markup", { description: errorMessage(problem) });
+    }
+  }
+
+  /** The exclusions printed on the proposal (FR-10): the estimator's, line by line. */
+  async function setExclusions(exclusions: string[]) {
+    try {
+      await proxyMutate(`/api/proxy/projects/${code}/proposal`, { method: "PATCH", body: { exclusions } });
+      mutate();
+    } catch (problem) {
+      toast.error("Could not change the exclusions", { description: errorMessage(problem) });
     }
   }
 
@@ -345,13 +356,55 @@ ${draft.body}`;
             <span className="block text-[11px] font-bold uppercase tracking-widest text-tx-muted">
               Exclusions on the sheet
             </span>
-            <ul className="mt-4 flex flex-col gap-2.5">
-              {proposal.exclusions.map((exclusion) => (
-                <li key={exclusion} className="text-[12.5px] font-medium text-tx-secondary pl-3 relative before:absolute before:left-0 before:top-2 before:h-1.5 before:w-1.5 before:rounded-full before:bg-brand-primary/40">
-                  {exclusion}
+            <ul className="mt-4 flex flex-col gap-2">
+              {proposal.exclusions.map((exclusion, index) => (
+                <li key={`${index}-${exclusion}`} className="flex items-start gap-2">
+                  <textarea
+                    aria-label={`Exclusion ${index + 1}`}
+                    defaultValue={exclusion}
+                    rows={2}
+                    onBlur={(event) => {
+                      const next = event.target.value.trim();
+                      if (next === exclusion) return;
+                      setExclusions(
+                        next
+                          ? proposal.exclusions.map((item, at) => (at === index ? next : item))
+                          : proposal.exclusions.filter((_, at) => at !== index),
+                      );
+                    }}
+                    className="min-w-0 flex-1 resize-y rounded-md border border-subtle bg-background px-2 py-1 text-[12.5px] font-medium text-tx-secondary"
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Remove exclusion ${index + 1}`}
+                    onClick={() => setExclusions(proposal.exclusions.filter((_, at) => at !== index))}
+                    className="mt-1 rounded p-1 text-tx-muted hover:bg-status-error-soft hover:text-status-error"
+                  >
+                    <Trash size={14} weight="bold" />
+                  </button>
                 </li>
               ))}
             </ul>
+            <form
+              className="mt-3 flex gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = event.currentTarget;
+                const added = String(new FormData(form).get("exclusion") ?? "").trim();
+                if (!added) return;
+                setExclusions([...proposal.exclusions, added]);
+                form.reset();
+              }}
+            >
+              <input
+                name="exclusion"
+                placeholder="Add an exclusion"
+                className="min-w-0 flex-1 rounded-md border border-subtle bg-background px-2 py-1 text-[12.5px]"
+              />
+              <button type="submit" className="rounded-md border border-subtle px-2.5 py-1 text-[12px] font-bold text-tx-secondary hover:text-tx-primary">
+                Add
+              </button>
+            </form>
           </div>
 
           <LapsedGate code={code} readiness={readiness} onAcknowledged={() => mutate()} />

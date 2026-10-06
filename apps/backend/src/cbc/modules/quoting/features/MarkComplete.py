@@ -62,7 +62,8 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
             "validityDays": VALIDITY_DAYS,
             "poRequired": True,
             "supplyOnly": True,
-            "exclusions": (stored or {}).get("exclusions") or DEFAULT_EXCLUSIONS,
+            "exclusions": (stored or {})["exclusions"] if (stored or {}).get("exclusions") is not None
+            else DEFAULT_EXCLUSIONS,
         },
     )
 
