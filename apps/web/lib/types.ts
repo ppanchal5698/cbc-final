@@ -542,9 +542,15 @@ export interface ProposalResponse {
     exclusions: string[];
     signoff: { role: string; by: string; at: string; state: string }[];
     sentAt: string | null;
+    /** True until an estimator approves it; the document prints as a draft. */
+    draft?: boolean;
   };
   project: Project;
   sections: ProposalSection[];
+  /** Offered beside the bid, each with its own total - never in the bid's. */
+  alternates?: { name: string; total: number; withBase: number; lines: ProposalSection["lines"] }[];
+  /** What this bid's quote assumes and leaves out, generated from its lines. */
+  qualifications?: string[];
   totals: QuoteTotals & { markup: number };
   readiness: {
     flaggedLineItems: number;
@@ -1017,6 +1023,8 @@ export interface PipelineSettings {
   autopilotDefault: boolean;
   pricingEngine: PricingEngine;
   extractionEngine: ExtractionEngine;
+  /** `v2` builds the proposal in code; `legacy` runs the Claude proposal pass. */
+  proposalEngine: ExtractionEngine;
   note?: string;
   updatedAt?: string | null;
   updatedBy?: string | null;

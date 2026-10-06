@@ -185,3 +185,31 @@ def render_artifacts(job_type: str, slug: str) -> list[str]:
         else:
             pass_log.info("%s: quotation.pdf is current; skipping PDF render", job_type)
     return failed
+
+
+def render_in_code(job_type: str, slug: str, quotation_html: str, email_document: str) -> list[str]:
+    """The proposal built in code: the review flags, the email draft, the quotation
+    as the proposal screen renders it, the review sheet, and the quotation's PDF.
+
+    What failed comes back as details, as `render_artifacts` reports them - and a
+    PDF that will not render is one of them rather than a failed job: the HTML is
+    still the deliverable, and the email draft says so.
+    """
+    pass_log = logging.getLogger("cbc.worker")
+    try:
+        count = review_flags.write_flags(slug)
+        pass_log.info("%s: %d review flag(s) derived", job_type, count)
+    except Exception:
+        pass_log.exception("%s: could not derive review flags for %s", job_type, slug)
+    root = storage_root() / slug
+    storage.atomic_write_text(root / "review" / "quotation_email_draft.md", email_document)
+    storage.atomic_write_text(root / "quotation.html", quotation_html)
+    failed: list[str] = []
+    summary = render.render_review_summary(slug)
+    if not summary.ok:
+        failed.append(summary.detail)
+    try:
+        _render_delivery(slug)
+    except ArtifactValidationError as exc:
+        failed.append(str(exc))
+    return failed

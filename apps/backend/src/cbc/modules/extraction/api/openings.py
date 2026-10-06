@@ -30,6 +30,9 @@ class OpeningRef(TypedDict, total=False):
     fire_rating: str
     status: str
     alternateGroup: str
+    inScope: bool | None
+    scopeReason: str
+    specialty: dict[str, Any]  # a Division 10 or FRP row
 
 
 async def list_for_project(

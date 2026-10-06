@@ -1,16 +1,16 @@
+{% if not body_only %}
 # Quotation Email - DRAFT
 
 > **This is a draft. It is not sent by the copilot.**
 > An estimator reviews the quote, approves it, and sends it themselves (NFR-1).
 
-**To:** {{ initiator_name }} <{{ initiator_email }}>
-*(the specific person who initiated the request in the queue - Kellan, Matt,
-Rebecca or Tina. Never a group email. They deal with the customer.)*
+**To:** {{ initiator_name or "no initiator recorded on this bid" }}{% if initiator_email %} <{{ initiator_email }}>{% endif %}
 
 **Subject:** CBC Quotation {{ quote_number }} - {{ project_name }}{% if bid_due_date %} (bid due {{ bid_due_date }}){% endif %}
 
 ---
 
+{% endif %}
 Hi {{ initiator_first_name }},
 
 Quotation **{{ quote_number }}** for **{{ project_name }}**{% if project_location %}, {{ project_location }}{% endif %} is attached.
@@ -57,7 +57,9 @@ Worth telling the GC what CBC is not covering.
 Thanks,
 {{ estimator_name }}
 CBC Estimating - The Hamilton Parker Company
+{% if not body_only %}
 
 ---
 
 **Attachments:** `quotation.pdf`{% if include_review %}, `review_summary.html`{% endif %}
+{% endif %}

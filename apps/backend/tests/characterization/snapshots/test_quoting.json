@@ -61,6 +61,8 @@
  },
  "GET /api/projects/{code}/proposal": {
   "body": {
+   "alternates": [],
+   "doorRatings": {},
    "project": {
     "autopilot": "bool",
     "bidAlternates": [],
@@ -85,6 +87,7 @@
      "name": "str"
     },
     "date": "str",
+    "draft": "bool",
     "estimator": {},
     "exclusions": [
      "str"
@@ -98,6 +101,7 @@
     "signoff": [],
     "validityDays": "number"
    },
+   "qualifications": [],
    "readiness": {
     "blocking": "bool",
     "blockingFlags": [],
@@ -119,9 +123,12 @@
        "division": "str",
        "extPrice": "number",
        "group": "null",
+       "manufacturer": "null",
+       "openings": [],
        "part": "null",
        "priceStatus": "null",
        "qty": "number",
+       "qtyPerOpening": "null",
        "substitutionNote": "null",
        "unitPrice": "number",
        "uom": "str"
@@ -342,6 +349,8 @@
  },
  "PATCH /api/projects/{code}/proposal": {
   "body": {
+   "alternates": [],
+   "doorRatings": {},
    "project": {
     "autopilot": "bool",
     "bidAlternates": [],
@@ -366,6 +375,7 @@
      "name": "str"
     },
     "date": "str",
+    "draft": "bool",
     "estimator": {},
     "exclusions": [
      "str"
@@ -379,6 +389,7 @@
     "signoff": [],
     "validityDays": "number"
    },
+   "qualifications": [],
    "readiness": {
     "blocking": "bool",
     "blockingFlags": [],
@@ -400,9 +411,12 @@
        "division": "str",
        "extPrice": "number",
        "group": "null",
+       "manufacturer": "null",
+       "openings": [],
        "part": "null",
        "priceStatus": "null",
        "qty": "number",
+       "qtyPerOpening": "null",
        "substitutionNote": "null",
        "unitPrice": "number",
        "uom": "str"

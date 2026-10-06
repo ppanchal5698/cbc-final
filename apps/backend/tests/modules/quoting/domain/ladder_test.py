@@ -148,7 +148,10 @@ def test_a_division_10_part_cbc_cannot_price_is_the_equal_it_buys_for_least() ->
     [row] = ladder.price(accessory("B-212", "Bobrick"), sources(equals=EQUALS, equal_rows=EQUAL_ROWS))
     # Bobrick is what was specified and unpriceable; of its equals, Bradley costs CBC least.
     assert (row["cost"], row["part_number"], row["manufacturer"]) == (19.0, "915", "Bradley")
-    assert "Bobrick B-212 is specified" in row["substitution_note"] and "GC approves" in row["substitution_note"]
+    # The NOTE the quote prints says what is offered for what; why is CBC's own business.
+    assert row["substitution_note"] == ("Bradley 915 is offered as a direct equal to the specified Bobrick B-212, "
+                                        "subject to approval before ordering.")
+    assert "Bobrick B-212 specified and unpriced" in row["cost_source_detail"]
     assert "direct_equal" in row["flags"] and row["cost_source"] == "CATALOG_BASELINE"
     assert row["flags"].count("direct_equal") == 1, "the brands not chosen leave nothing on the line"
 

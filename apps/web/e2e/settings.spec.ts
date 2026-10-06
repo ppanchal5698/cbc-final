@@ -49,9 +49,9 @@ test.describe("Admin settings", () => {
     });
     await expect(page.getByRole("heading", { name: "Price book freshness" })).toBeVisible();
     await expect(page.getByText(/autopilot default/i)).toBeVisible();
-    // Which engine reads a bid and which prices it: each one choice of two, and
+    // Which engine reads a bid, prices it and builds its proposal: each one choice of two, and
     // exactly one on.
-    for (const name of ["Extraction engine", "Pricing engine"]) {
+    for (const name of ["Extraction engine", "Pricing engine", "Proposal engine"]) {
       const engine = page.getByRole("radiogroup", { name });
       await expect(engine.getByRole("radio")).toHaveCount(2);
       await expect(engine.getByRole("radio", { checked: true })).toHaveCount(1);

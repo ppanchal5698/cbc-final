@@ -1,5 +1,5 @@
 """The pipeline policy other modules read: whether a new bid starts on autopilot,
-and which engine reads it and which prices it."""
+and which engine reads it, prices it and builds its proposal."""
 from __future__ import annotations
 
 from cbc.modules.ops.infrastructure.collections import settings_collection
@@ -32,3 +32,9 @@ async def extraction_engine() -> str:
     """`v2` reads a bid set in code, asking the model only what the parsers cannot
     read; `legacy` runs the Claude extraction wave."""
     return engine_from(await settings_collection().find_one({"_id": "pipeline"}) or {}, "extraction")
+
+
+async def proposal_engine() -> str:
+    """`v2` builds the proposal in code - the document the screen shows, filed with
+    its review sheet, email draft and PDF; `legacy` runs the Claude proposal pass."""
+    return engine_from(await settings_collection().find_one({"_id": "pipeline"}) or {}, "proposal")

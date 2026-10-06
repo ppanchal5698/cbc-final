@@ -44,6 +44,9 @@ class ProjectRef(TypedDict, total=False):
     producedBy: str
     hasTrustDialogAccepted: bool
     removedOpenings: list[str]  # take-off keys of openings the estimator deleted
+    bidDue: Any
+    jobName: str
+    p21OrderNo: str  # the P21 order raised against the bid
 
 
 async def load(code_or_id: str) -> ProjectRef:

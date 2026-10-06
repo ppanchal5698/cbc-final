@@ -603,6 +603,7 @@
    "extractionEngine": "str",
    "note": "str",
    "pricingEngine": "str",
+   "proposalEngine": "str",
    "updatedAt": "null",
    "updatedBy": "null"
   },
@@ -1282,6 +1283,7 @@
    "extractionEngine": "str",
    "note": "str",
    "pricingEngine": "str",
+   "proposalEngine": "str",
    "updatedAt": "datetime",
    "updatedBy": "str"
   },

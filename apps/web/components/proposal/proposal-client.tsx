@@ -19,9 +19,8 @@ import { RfisPanel } from "@/components/proposal/rfis-panel";
 import { LapsedGate } from "@/components/proposal/lapsed-gate";
 import { PriorBidCompare } from "@/components/proposal/prior-bid-compare";
 import { P21OrderField } from "@/components/proposal/p21-order-field";
+import { ProposalDocument } from "@/components/proposal/proposal-document";
 import { useUiState } from "@/components/shell/ui-state";
-import { formatMoney } from "@/lib/format";
-import { taxSummary } from "@/lib/tax-display";
 import type { EmailDraft, HandOffResult, Job, ProposalResponse } from "@/lib/types";
 
 import { endpoints } from "@/lib/endpoints";
@@ -103,7 +102,6 @@ export function ProposalClient({
   }
 
   const { proposal, project, sections, totals, readiness } = data;
-  const tax = taxSummary(totals);
 
   async function setMarkup(markup: number) {
     try {
@@ -281,214 +279,10 @@ ${draft.body}`;
             </div>
           )}
 
-          <article className="mx-auto max-w-[820px] overflow-x-auto rounded-xl px-6 py-8 sm:px-12 sm:py-10 bg-white text-[#15151f] shadow-lg border border-subtle/50">
-            <header className="flex items-start justify-between">
-              <div>
-                <h1 className="text-[26px] font-semibold">Proposal</h1>
-                <p className="mt-2.5 text-[11.5px] leading-relaxed" style={{ color: "#55556b" }}>
-                  CBC Construction Building Components — A Division of The Hamilton Parker Company
-                  <br />
-                  1865 Leonard Ave. Columbus, OH 43219 · Phone (614) 358-7800
-                </p>
-              </div>
-              <table className="text-[11.5px]">
-                <tbody>
-                  <tr>
-                    <td className="pr-4 text-right" style={{ color: "#55556b" }}>
-                      Proposal No.
-                    </td>
-                    <td className="tnum font-semibold">{proposal.proposalNo}</td>
-                  </tr>
-                  <tr>
-                    <td className="pr-4 text-right" style={{ color: "#55556b" }}>
-                      Date
-                    </td>
-                    <td className="tnum font-semibold">{proposal.date}</td>
-                  </tr>
-                  <tr>
-                    <td className="pr-4 text-right" style={{ color: "#55556b" }}>
-                      Valid
-                    </td>
-                    <td className="tnum font-semibold">{proposal.validityDays} days</td>
-                  </tr>
-                  <tr>
-                    <td className="pr-4 text-right" style={{ color: "#55556b" }}>
-                      Order #
-                    </td>
-                    <td className="tnum font-semibold">—</td>
-                  </tr>
-                </tbody>
-              </table>
-            </header>
-
-            <div
-              className="mt-6 grid grid-cols-3 gap-4 rounded border p-3.5 text-[11.5px]"
-              style={{ borderColor: "#d6d9de" }}
-            >
-              <div>
-                <span className="block" style={{ color: "#55556b" }}>
-                  Customer
-                </span>
-                <span className="font-semibold">{project.gc ?? "—"}</span>
-              </div>
-              <div>
-                <span className="block" style={{ color: "#55556b" }}>
-                  Requested by
-                </span>
-                <span className="font-semibold">{project.initiator ?? "—"}</span>
-              </div>
-              <div>
-                <span className="block" style={{ color: "#55556b" }}>
-                  Estimator
-                </span>
-                <span className="font-semibold">
-                  {proposal.estimator?.name ?? "CBC Estimating"}
-                </span>
-              </div>
-              <div className="col-span-2">
-                <span className="block" style={{ color: "#55556b" }}>
-                  Job name
-                </span>
-                <span className="font-semibold">{project.jobName ?? project.name}</span>
-              </div>
-              <div>
-                <span className="block" style={{ color: "#55556b" }}>
-                  Location
-                </span>
-                <span className="font-semibold">{project.location ?? "—"}</span>
-              </div>
-            </div>
-
-            {/* The banner CBC prints across every proposal: the confirmation is
-                the customer's, and it is asked for before anything is ordered. */}
-            <div
-              className="mt-5 border-y py-1.5 text-center text-[10.5px] font-bold uppercase tracking-[0.08em]"
-              style={{ borderColor: "#15151f" }}
-            >
-              All bidders — confirm all doors, frames and hardware are correct before ordering
-            </div>
-
-            <p className="mt-5 text-[10px] leading-relaxed" style={{ color: "#55556b" }}>
-              This quote is conditioned upon the use of HAMILTON PARKER CO. purchase order as the
-              parties contract. This quote is only good for {proposal.validityDays} days from the
-              date of this quote. All special order materials not picked up within 30 days are
-              subject to invoicing unless other arrangements have been made.
-            </p>
-
-            {sections.map((section) => (
-              <section key={section.key} className="mt-6">
-                <div
-                  className="flex items-baseline justify-between border-b pb-1.5"
-                  style={{ borderColor: "#15151f" }}
-                >
-                  <h2 className="text-[12px] font-bold uppercase tracking-[0.05em]">
-                    {section.title}
-                  </h2>
-                  <span className="tnum text-[12.5px] font-bold">
-                    ${formatMoney(section.subtotal)}
-                  </span>
-                </div>
-
-                <table className="mt-2 w-full text-[10.5px]">
-                  <thead>
-                    <tr style={{ color: "#55556b" }}>
-                      <th className="w-[140px] py-1 text-left font-medium">PART</th>
-                      <th className="w-[44px] py-1 text-left font-medium">QTY</th>
-                      <th className="w-[40px] py-1 text-left font-medium">UOM</th>
-                      <th className="py-1 text-left font-medium">DESCRIPTION</th>
-                      <th className="w-[80px] py-1 text-right font-medium">UNIT PRICE</th>
-                      <th className="w-[86px] py-1 text-right font-medium">EXT. PRICE</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {section.lines.map((line, index) => (
-                      <tr key={`${line.part}-${index}`} className="border-t" style={{ borderColor: "#eceef1" }}>
-                        <td className="py-1 font-medium">{line.part ?? "—"}</td>
-                        <td className="tnum py-1" style={{ color: "#5b5bd6" }}>
-                          {line.qty}
-                        </td>
-                        <td className="py-1">{line.uom}</td>
-                        <td className="py-1" style={{ color: "#5b5bd6" }}>
-                          {line.description}
-                        </td>
-                        <td className="tnum py-1 text-right">
-                          {line.unitPrice === null ? (
-                            <span style={{ color: "#b45309" }}>{line.priceStatus ?? "MANUAL"}</span>
-                          ) : (
-                            `$${formatMoney(line.unitPrice)}`
-                          )}
-                        </td>
-                        <td className="tnum py-1 text-right font-medium">
-                          {line.extPrice === null ? "—" : `$${formatMoney(line.extPrice)}`}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </section>
-            ))}
-
-            <div className="mt-8 flex justify-end pb-12">
-              <table className="w-[300px] text-[11.5px]">
-                <tbody>
-                  <tr>
-                    <td className="py-1" style={{ color: "#55556b" }}>
-                      Subtotal
-                    </td>
-                    <td className="tnum py-1 text-right">${formatMoney(totals.subtotal)}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1" style={{ color: "#55556b" }}>
-                      Freight
-                    </td>
-                    <td className="tnum py-1 text-right">
-                      {totals.freight ? `$${formatMoney(totals.freight)}` : "TBD"}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-1" style={{ color: "#55556b" }}>
-                      {tax.label}
-                      {totals.taxJurisdiction ? ` (${totals.taxJurisdiction})` : ""}
-                    </td>
-                    <td
-                      className="tnum py-1 text-right"
-                      style={{ color: tax.muted ? "#6e6e88" : undefined }}
-                    >
-                      {tax.value}
-                    </td>
-                  </tr>
-                  <tr className="border-t-2" style={{ borderColor: "#0f3d2e" }}>
-                    <td className="pt-2 text-[14px] font-bold" style={{ color: "#0f3d2e" }}>
-                      Grand total
-                    </td>
-                    <td
-                      className="tnum pt-2 text-right text-[17px] font-bold"
-                      style={{ color: "#0f3d2e" }}
-                    >
-                      ${formatMoney(totals.grandTotal)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-              {tax.hint && (
-                <p className="mt-1 text-right text-[10px]" style={{ color: "#6e6e88" }}>
-                  {tax.hint}
-                </p>
-              )}
-            </div>
-
-            <footer className="mt-8 border-t pt-4 text-[10.5px]" style={{ borderColor: "#d6d9de", color: "#55556b" }}>
-              <p className="font-semibold" style={{ color: "#15151f" }}>
-                Terms
-              </p>
-              <ul className="mt-1 list-disc pl-4">
-                <li>Hamilton Parker purchase order required.</li>
-                <li>Supply-only material. Installation labor is not included.</li>
-                <li>Freight is handled when a quote becomes a job.</li>
-                <li>Sales tax is charged for Ohio and Kentucky only.</li>
-              </ul>
-            </footer>
-          </article>
+          <ProposalDocument
+            code={code}
+            stamp={JSON.stringify([proposal.markup, proposal.draft, totals, sections, data.alternates])}
+          />
         </section>
 
         <aside className="z-10 flex shrink-0 flex-col gap-4 xl:sticky xl:top-4 xl:w-[340px] xl:self-start bg-background">

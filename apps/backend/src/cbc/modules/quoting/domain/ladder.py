@@ -320,10 +320,14 @@ def _direct_equal(row: dict[str, Any], line: Line, spec: matcher.Spec, src: Sour
         return None
     priced, chosen = best
     specified_as = " ".join(v for v in (line.manufacturer, line.part) if v)
+    # The NOTE the quote prints (FR-17): what is offered for what was specified.
+    # Why this equal - no price for the specified part, the lowest cost of those
+    # CBC carries - is CBC's own business, and stays in the cost detail.
     priced["substitution_note"] = (
-        f"{specified_as} is specified and CBC has no price for it; {chosen.get('manufacturer')} "
-        f"{chosen.get('part')} is its direct equal (CBC cross-reference) at the lowest cost of those CBC "
-        "carries. The GC approves a direct equal before it is ordered.")
+        f"{chosen.get('manufacturer')} {chosen.get('part')} is offered as a direct equal to the specified "
+        f"{specified_as}, subject to approval before ordering.")
+    priced["cost_source_detail"] += (
+        f"; {specified_as} specified and unpriced - the cross-reference's equal CBC buys for least")
     priced["flags"].append("direct_equal")
     return priced
 
@@ -337,6 +341,8 @@ def _allegion_rows(line: Line, src: Sources) -> list[dict[str, Any]]:
         description=f"Hager equal to {specified}",
         cost_source_detail=(f"Allegion specified ({specified}): price the Hager equal - no equal is on "
                             "file for this part yet, so an estimator names it"),
+        substitution_note=(f"Hager equal offered for the specified {specified}; the product as specified "
+                           "is priced as an alternate."),
     )
     base["flags"].append("allegion_equal_needed")
     alternate = _row(line, src)

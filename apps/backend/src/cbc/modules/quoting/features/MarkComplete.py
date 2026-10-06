@@ -96,7 +96,7 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
     )
     await bids.record_hand_off(project["_id"], recipient)
 
-    draft_path = write_email_draft(project, recipient, actor)
+    draft_path = await write_email_draft(project, recipient, actor)
 
     await audit.record(
         "proposal.hand_off",

@@ -3,57 +3,73 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CBC Quotation {{ quote_number }} - {{ project.name }}</title>
+<title>CBC Proposal {{ quote_number }} - {{ project.name }}</title>
 <style>
-  :root {
-    --ink: #1a1a1a; --muted: #5b6169; --rule: #d6d9de; --bg: #ffffff;
-    --band: #f4f6f8; --flag: #b4530a; --flag-bg: #fff4e6; --total: #0f3d2e;
-  }
+  /* The customer's document: what CBC quotes and on what terms. What a line
+     costs CBC, its margin and its review flags are the estimator's - they live
+     on the quote screen and the review sheet, never here. */
+  :root { --ink: #15151f; --muted: #55556b; --rule: #d6d9de; --faint: #eceef1;
+          --accent: #0f3d2e; --note: #5b5bd6; --draft: #b4530a; --draft-bg: #fff4e6; }
   * { box-sizing: border-box; }
-  body { margin: 0; padding: 32px; background: var(--bg); color: var(--ink);
-         font: 14px/1.5 "Segoe UI", Arial, Helvetica, sans-serif; }
-  .sheet { max-width: 1000px; margin: 0 auto; }
-  header { display: flex; justify-content: space-between; align-items: flex-start;
-           border-bottom: 3px solid var(--total); padding-bottom: 16px; }
-  .brand h1 { margin: 0; font-size: 22px; letter-spacing: .02em; }
-  .brand p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
-  .meta { text-align: right; font-size: 13px; }
-  .meta dt { display: inline; color: var(--muted); }
-  .meta dd { display: inline; margin: 0 0 0 6px; font-weight: 600; }
-  .meta div { margin-bottom: 3px; }
-  .parties { display: flex; gap: 40px; margin: 24px 0; }
-  .parties section { flex: 1; }
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
-       color: var(--muted); margin: 0 0 6px; }
-  h3 { font-size: 15px; margin: 28px 0 8px; }
-  table { width: 100%; border-collapse: collapse; }
-  .lines th { text-align: left; font-size: 11px; text-transform: uppercase;
-              letter-spacing: .06em; color: var(--muted);
-              border-bottom: 1px solid var(--rule); padding: 6px 8px; }
-  .lines td { padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
-  .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .group-head td { background: var(--band); font-weight: 600; }
-  .subtotal td { font-weight: 600; border-bottom: 2px solid var(--rule); }
-  .flag { color: var(--flag); background: var(--flag-bg); padding: 1px 6px;
-          border-radius: 3px; font-size: 11px; white-space: nowrap; }
-  .src { color: var(--muted); font-size: 11px; }
-  .totals { margin: 24px 0 0 auto; width: 340px; }
-  .totals td { padding: 5px 8px; }
-  .totals tr.grand td { border-top: 2px solid var(--total); font-size: 17px;
-                        font-weight: 700; color: var(--total); padding-top: 10px; }
-  .terms { margin-top: 32px; border-top: 1px solid var(--rule); padding-top: 16px;
-           font-size: 12px; color: var(--muted); }
-  .terms li { margin-bottom: 4px; }
-  .draft { margin-top: 24px; padding: 12px 16px; border: 2px dashed var(--flag);
-           background: var(--flag-bg); color: var(--flag); font-weight: 600; }
-  @page { size: A4; margin: 15mm; }
+  body { margin: 0; padding: 32px; background: #fff; color: var(--ink);
+         font: 12px/1.45 "Segoe UI", Arial, Helvetica, sans-serif; }
+  .sheet { max-width: 820px; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+  h1 { margin: 0; font-size: 26px; font-weight: 600; }
+  .firm { margin: 8px 0 0; color: var(--muted); font-size: 11.5px; }
+  .meta td { padding: 1px 0; font-size: 11.5px; }
+  .meta td:first-child { padding-right: 14px; text-align: right; color: var(--muted); }
+  .meta td:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 16px; margin-top: 20px;
+          padding: 12px 14px; border: 1px solid var(--rule); border-radius: 4px; font-size: 11.5px; }
+  .info .wide { grid-column: span 2; }
+  .info span { display: block; color: var(--muted); }
+  .info b { font-weight: 600; }
+  .banner { margin-top: 18px; padding: 5px 0; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink);
+            text-align: center; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .conditions { margin-top: 14px; font-size: 10px; color: var(--muted); }
+  section.block { margin-top: 22px; break-inside: auto; }
+  .block-head { display: flex; justify-content: space-between; align-items: baseline;
+                border-bottom: 1px solid var(--ink); padding-bottom: 5px; }
+  .block-head h2 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+  .block-head .sum { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  table.lines { width: 100%; margin-top: 6px; border-collapse: collapse; font-size: 10.5px; }
+  .lines th { padding: 4px 4px; text-align: left; font-weight: 500; color: var(--muted); }
+  .lines td { padding: 4px 4px; border-top: 1px solid var(--faint); vertical-align: top; }
+  .lines .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .lines .part { width: 130px; font-weight: 500; }
+  .lines .qty { width: 44px; color: var(--note); }
+  .lines .uom { width: 38px; }
+  .lines .unit { width: 78px; }
+  .lines .ext { width: 84px; font-weight: 500; }
+  .group td { padding-top: 9px; border-top: 1px solid var(--rule); font-weight: 600; }
+  .group .doors { font-weight: 400; color: var(--muted); }
+  .group-sum td { border-top: none; color: var(--muted); }
+  .sub { display: block; color: var(--muted); font-size: 9.5px; }
+  .note { display: block; margin-top: 2px; color: var(--note); font-size: 9.5px; }
+  .tbd { color: var(--draft); }
+  .alts { margin-top: 26px; }
+  .alts h2 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+             border-bottom: 1px solid var(--ink); padding-bottom: 5px; }
+  .alt { margin-top: 12px; }
+  .alt h3 { margin: 0 0 2px; font-size: 11.5px; }
+  .alt .with { margin-top: 3px; text-align: right; font-size: 10.5px; color: var(--muted); }
+  .totals { margin: 22px 0 0 auto; width: 300px; border-collapse: collapse; font-size: 11.5px; }
+  .totals td { padding: 3px 0; }
+  .totals td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  .totals .label { color: var(--muted); }
+  .totals .grand td { padding-top: 8px; border-top: 2px solid var(--accent); color: var(--accent);
+                      font-size: 14px; font-weight: 700; }
+  .totals .grand td:last-child { font-size: 17px; }
+  .terms { margin-top: 26px; padding-top: 12px; border-top: 1px solid var(--rule); font-size: 10.5px; color: var(--muted); }
+  .terms h2 { margin: 0 0 4px; font-size: 11px; color: var(--ink); }
+  .terms ul { margin: 0 0 10px; padding-left: 16px; }
+  .terms li { margin-bottom: 2px; }
+  .draft { margin-top: 22px; padding: 10px 14px; border: 2px dashed var(--draft); background: var(--draft-bg);
+           color: var(--draft); font-weight: 600; font-size: 11px; }
+  @page { size: Letter; margin: 0.5in; }
   @media print {
-    body { padding: 0; font-size: 11px; }
-    .lines { table-layout: fixed; }
-    .lines th { font-size: 8px; letter-spacing: 0; }
-    .lines th, .lines td { padding: 5px 3px; overflow-wrap: anywhere; }
-    .lines .num, .lines .flag { white-space: normal; }
-    .lines .flag, .lines .src { font-size: 9px; }
+    body { padding: 0; }
     .lines tr { break-inside: avoid; }
     .draft { border-style: solid; }
   }
@@ -61,97 +77,112 @@
 </head>
 <body>
 <div class="sheet">
-
 <header>
-  <div class="brand">
-    <h1>Construction Building Components</h1>
-    <p>A division of The Hamilton Parker Company</p>
-    <p>1865 Leonard Ave, Columbus OH</p>
+  <div>
+    <h1>Proposal</h1>
+    <p class="firm">CBC Construction Building Components &mdash; A Division of The Hamilton Parker Company<br>
+      1865 Leonard Ave. Columbus, OH 43219 &middot; Phone (614) 358-7800</p>
   </div>
-  <dl class="meta">
-    <div><dt>Quote</dt><dd>{{ quote_number }}</dd></div>
-    <div><dt>Date</dt><dd>{{ quote_date }}</dd></div>
-    <div><dt>Valid</dt><dd>{{ validity_days }} days</dd></div>
-    {% if project.bid_due_date %}<div><dt>Bid due</dt><dd>{{ project.bid_due_date }}</dd></div>{% endif %}
-  </dl>
+  <table class="meta">
+    <tr><td>Proposal No.</td><td>{{ quote_number }}</td></tr>
+    <tr><td>Date</td><td>{{ quote_date }}</td></tr>
+    <tr><td>Valid</td><td>{{ validity_days }} days</td></tr>
+    <tr><td>Order #</td><td>{{ project.order_number or "&mdash;" | safe }}</td></tr>
+    {% if project.bid_due_date %}<tr><td>Bid due</td><td>{{ project.bid_due_date }}</td></tr>{% endif %}
+  </table>
 </header>
 
-<div class="parties">
-  <section>
-    <h2>Quoted to</h2>
-    <div>{{ customer.gc or "General Contractor - TBD" }}</div>
-    {% if customer.initiator %}<div class="src">Requested by {{ customer.initiator }}</div>{% endif %}
-  </section>
-  <section>
-    <h2>Project</h2>
-    <div>{{ project.name }}</div>
-    <div class="src">{{ project.location or "" }}</div>
-    {% if project.architect %}<div class="src">Architect: {{ project.architect }}</div>{% endif %}
-  </section>
+<div class="info">
+  <div><span>Customer</span><b>{{ customer.gc or "General contractor - to be confirmed" }}</b></div>
+  <div><span>Requested by</span><b>{{ customer.initiator or "&mdash;" | safe }}</b></div>
+  <div><span>Estimator</span><b>{{ estimator.name or "CBC Estimating" }}</b></div>
+  <div class="wide"><span>Job name</span><b>{{ project.name }}</b>{% if project.version %} <span style="display:inline">&middot; revision {{ project.version }}</span>{% endif %}</div>
+  <div><span>Location</span><b>{{ project.location or "&mdash;" | safe }}</b></div>
+  {% if project.architect %}<div class="wide"><span>Architect</span><b>{{ project.architect }}</b></div>{% endif %}
 </div>
+
+<div class="banner">All bidders &mdash; confirm all doors, frames and hardware are correct before ordering</div>
+<p class="conditions">This quote is conditioned upon the use of HAMILTON PARKER CO. purchase order as the
+  parties' contract. This quote is only good for {{ validity_days }} days from the date of this quote. All
+  special order materials not picked up within 30 days are subject to invoicing unless other arrangements
+  have been made.</p>
+
+{% macro rows(group_lines) %}
+  {% for line in group_lines %}
+  <tr>
+    <td class="part">{{ line.part_number or "&mdash;" | safe }}</td>
+    <td class="qty num">{% if line.quantity is number %}{{ "%g" | format(line.quantity) }}{% elif line.quantity %}{{ line.quantity }}{% else %}&mdash;{% endif %}</td>
+    <td class="uom">{{ line.uom or "EA" }}</td>
+    <td>{{ line.description }}{% if line.manufacturer %} &middot; {{ line.manufacturer }}{% endif %}
+      {% if line.qty_per_opening and (line.openings | length) > 1 %}<span class="sub">{{ "%g" | format(line.qty_per_opening) }} per opening &times; {{ line.openings | length }} openings</span>{% endif %}
+      {% if line.substitution_note %}<span class="note">NOTE: {{ line.substitution_note }}</span>{% endif %}
+    </td>
+    <td class="unit num">{% if line.sale_ea is not none %}${{ "{:,.2f}".format(line.sale_ea) }}{% else %}<span class="tbd">TBD</span>{% endif %}</td>
+    <td class="ext num">{% if line.ext_price is not none %}${{ "{:,.2f}".format(line.ext_price) }}{% else %}&mdash;{% endif %}</td>
+  </tr>
+  {% endfor %}
+{% endmacro %}
 
 {% for block in blocks %}
   {% if block.lines %}
-  <h3>{{ block.title }}</h3>
-  <table class="lines">
-    <thead>
-      <tr>
-        <th style="width:30%">Item</th>
-        <th style="width:14%">Part number</th>
-        <th style="width:10%">Vendor</th>
-        <th class="num" style="width:6%">Qty</th>
-        <th class="num" style="width:10%">Cost EA</th>
-        <th class="num" style="width:8%">Margin</th>
-        <th class="num" style="width:10%">Sale EA</th>
-        <th class="num" style="width:12%">Extended</th>
-      </tr>
-    </thead>
-    <tbody>
+  <section class="block">
+    <div class="block-head"><h2>{{ block.title }}</h2><span class="sum">{% if block.complete is defined and not block.complete %}TBD{% else %}${{ "{:,.2f}".format(block.subtotal) }}{% endif %}</span></div>
+    <table class="lines">
+      <thead><tr><th>PART</th><th>QTY</th><th>UOM</th><th>DESCRIPTION</th><th class="num">UNIT PRICE</th><th class="num">EXT. PRICE</th></tr></thead>
+      <tbody>
       {% for group in block.groups %}
-      <tr class="group-head">
-        <td colspan="8">{{ group.name }}{% if group.opening_size %} &mdash; {{ group.opening_size }}{% endif %}</td>
-      </tr>
-        {% for line in group.lines %}
-        <tr>
-          <td>
-            {{ line.description }}
-            {% if line.substitution_note %}<div class="src">Substitution: {{ line.substitution_note }}</div>{% endif %}
-            {% if line.source_page %}<div class="src">Drawing p.{{ line.source_page }}{% if line.price_book_version %} &middot; {{ line.price_book_version }}{% endif %}</div>{% endif %}
-            {% for flag in line.flags or [] %}<span class="flag">{{ flag }}</span> {% endfor %}
-          </td>
-          <td>{{ line.part_number or "&mdash;" | safe }}</td>
-          <td>{{ line.vendor or "&mdash;" | safe }}</td>
-          <td class="num">{{ line.quantity }}</td>
-          <td class="num">{% if line.cost is not none %}{{ "%.2f"|format(line.cost) }}{% else %}<span class="flag">{{ line.price_status or "MANUAL" }}</span>{% endif %}</td>
-          <td class="num">{% if line.margin is not none %}{{ "%.0f%%"|format(line.margin * 100) }}{% else %}&mdash;{% endif %}</td>
-          <td class="num">{% if line.sale_ea is not none %}{{ "%.2f"|format(line.sale_ea) }}{% else %}&mdash;{% endif %}</td>
-          <td class="num">{% if line.ext_price is not none %}{{ "%.2f"|format(line.ext_price) }}{% else %}&mdash;{% endif %}</td>
-        </tr>
-        {% endfor %}
-      <tr class="subtotal">
-        <td colspan="7">Subtotal &mdash; {{ group.name }}</td>
-        <td class="num">{{ "%.2f"|format(group.subtotal) }}</td>
-      </tr>
+        {% if block.groups | length > 1 or group.doors %}
+        <tr class="group"><td colspan="6">
+          {% if group.doors and " " not in group.name %}Hardware set {% endif %}{{ group.name }}
+          {% if group.doors %}<span class="doors"> &middot; door{{ "s" if group.doors | length > 1 }} {{ (group.door_labels or group.doors) | join(", ") }}{% if group.ratings | length == 1 %} &middot; {{ group.ratings[0] }} fire rated{% endif %}</span>{% endif %}
+        </td></tr>
+        {% endif %}
+        {{ rows(group.lines) }}
+        {% if block.groups | length > 1 %}
+        <tr class="group-sum"><td colspan="5">Subtotal &mdash; {{ group.name }}</td><td class="num">{% if group.complete is defined and not group.complete %}TBD{% else %}${{ "{:,.2f}".format(group.subtotal) }}{% endif %}</td></tr>
+        {% endif %}
       {% endfor %}
-    </tbody>
-  </table>
+      </tbody>
+    </table>
+  </section>
   {% endif %}
 {% endfor %}
 
+{% if alternates %}
+<div class="alts">
+  <h2>Alternates &mdash; not included in the base bid</h2>
+  {% for alt in alternates %}
+  <div class="alt">
+    <h3>{{ alt.name }}</h3>
+    <table class="lines">
+      <thead><tr><th>PART</th><th>QTY</th><th>UOM</th><th>DESCRIPTION</th><th class="num">UNIT PRICE</th><th class="num">EXT. PRICE</th></tr></thead>
+      <tbody>{{ rows(alt.lines) }}</tbody>
+    </table>
+    <div class="with">{% if alt.complete is defined and not alt.complete %}Alternate total TBD &mdash; priced on request{% else %}Alternate total ${{ "{:,.2f}".format(alt.total) }}{% if alt.with_base is not none %} &middot; base bid with this alternate ${{ "{:,.2f}".format(alt.with_base) }} before tax and freight{% endif %}{% endif %}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <table class="totals">
-  <tr><td>Subtotal</td><td class="num">{{ "%.2f"|format(totals.subtotal) }}</td></tr>
+  <tr><td class="label">Subtotal</td><td>${{ "{:,.2f}".format(totals.subtotal) }}</td></tr>
+  <tr><td class="label">Freight</td><td>{% if totals.freight %}${{ "{:,.2f}".format(totals.freight) }}{% else %}TBD{% endif %}</td></tr>
   <tr>
-    <td>Freight</td>
-    <td class="num">{{ totals.freight if totals.freight else "TBD" }}</td>
+    <td class="label">{% if totals.tax_exempt %}Sales tax (exempt){% elif totals.project_state and totals.tax_rate %}Sales tax ({{ totals.project_state }} {{ "%.2f%%" | format(totals.tax_rate * 100) }}){% else %}Sales tax{% endif %}</td>
+    <td>{% if totals.tax_rate and not totals.tax_exempt %}${{ "{:,.2f}".format(totals.tax) }}{% else %}None{% endif %}</td>
   </tr>
-  <tr>
-    <td>Sales tax{% if totals.project_state %} ({{ totals.project_state }}{% if totals.tax_rate %} @ {{ "%.2f%%"|format(totals.tax_rate * 100) }}{% endif %}){% endif %}</td>
-    <td class="num">{% if totals.project_state %}{{ "%.2f"|format(totals.tax) }}{% else %}<span class="flag">UNRESOLVED</span>{% endif %}</td>
-  </tr>
-  <tr class="grand"><td>Grand total</td><td class="num">{{ "%.2f"|format(totals.grand_total) }}</td></tr>
+  <tr class="grand"><td>Grand total</td><td>${{ "{:,.2f}".format(totals.grand_total) }}</td></tr>
+  {% if unpriced %}<tr><td colspan="2" class="label" style="text-align:right;font-size:10px">{{ unpriced }} line{{ "s" if unpriced > 1 }} still to be priced &mdash; not in these totals</td></tr>{% endif %}
 </table>
 
 <div class="terms">
+  {% if qualifications or notes %}
+  <h2>Qualifications and exclusions</h2>
+  <ul>
+    {% for item in qualifications or [] %}<li>{{ item }}</li>{% endfor %}
+    {% for note in notes or [] %}<li>{{ note }}</li>{% endfor %}
+  </ul>
+  {% endif %}
   <h2>Terms</h2>
   <ul>
     <li>Hamilton Parker purchase order required.</li>
@@ -159,17 +190,17 @@
     <li><strong>Supply-only material.</strong> Installation labor is not included.</li>
     <li>Freight is not quoted at estimate stage; it is handled when a quote becomes a job.</li>
     <li>Sales tax is charged for Ohio and Kentucky only. All other states and Canada are untaxed.</li>
-    {% if notes %}{% for note in notes %}<li>{{ note }}</li>{% endfor %}{% endif %}
   </ul>
   <p>Estimator: {{ estimator.name or "CBC Estimating" }}{% if estimator.email %} &middot; {{ estimator.email }}{% endif %}</p>
 </div>
 
+{% if draft is not defined or draft %}
 <div class="draft">
-  DRAFT &mdash; generated by the CBC Estimating Copilot and not yet reviewed.
-  {% if flag_count %}{{ flag_count }} line(s) need estimator attention.{% endif %}
+  DRAFT &mdash; prepared by the CBC Estimating Copilot and not yet approved by an estimator.
+  {% if flag_count %}{{ flag_count }} line(s) still need estimator attention.{% endif %}
   Nothing is sent until an estimator approves it.
 </div>
-
+{% endif %}
 </div>
 </body>
 </html>

@@ -258,7 +258,10 @@ export function PipelineSettingsPanel() {
   );
   const [busy, setBusy] = useState(false);
 
-  async function setEngine(phase: "pricingEngine" | "extractionEngine", engine: PricingEngine | ExtractionEngine) {
+  async function setEngine(
+    phase: "pricingEngine" | "extractionEngine" | "proposalEngine",
+    engine: PricingEngine | ExtractionEngine,
+  ) {
     if (!data || data[phase] === engine) return;
     setBusy(true);
     try {
@@ -266,8 +269,8 @@ export function PipelineSettingsPanel() {
         method: "PUT",
         body: { autopilotDefault: data.autopilotDefault, [phase]: engine },
       });
-      const verb = phase === "pricingEngine" ? "priced" : "read";
-      toast.success(engine === "v2" ? `Bids are now ${verb} in code` : `Bids are now ${verb} by the Claude pass`);
+      const what = { pricingEngine: "priced", extractionEngine: "read", proposalEngine: "proposed" }[phase];
+      toast.success(engine === "v2" ? `Bids are now ${what} in code` : `Bids are now ${what} by the Claude pass`);
       mutate();
     } catch (problem) {
       toast.error("Could not save pipeline settings", { description: errorMessage(problem) });
@@ -386,6 +389,24 @@ export function PipelineSettingsPanel() {
             value={data.pricingEngine}
             busy={busy}
             onChange={(engine) => setEngine("pricingEngine", engine)}
+          />
+        </div>
+      )}
+      {data && (
+        <div className="flex flex-wrap items-start justify-between gap-4 border-t border-subtle px-5 py-5">
+          <div className="max-w-[520px]">
+            <p className="text-[14px] font-semibold text-tx-primary">Proposal engine</p>
+            <p className="mt-1.5 text-[13px] font-medium text-tx-secondary">
+              In code, the proposal job files exactly the document the proposal screen shows - grouped by
+              hardware set and door, with alternates, qualifications and terms - plus its review sheet, email
+              draft and PDF. The Claude pass is the agent proposal it replaces. Nothing is ever sent either way.
+            </p>
+          </div>
+          <EngineSwitch
+            label="Proposal engine"
+            value={data.proposalEngine}
+            busy={busy}
+            onChange={(engine) => setEngine("proposalEngine", engine)}
           />
         </div>
       )}

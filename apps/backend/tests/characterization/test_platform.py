@@ -222,7 +222,9 @@ def test_pipeline_settings(client, snapshots) -> None:
     both = client.put("/api/settings/pipeline", json={"autopilotDefault": True, "extractionEngine": "v2"}).json()
     assert (both["extractionEngine"], both["pricingEngine"]) == ("v2", "v2")
     assert client.put("/api/settings/pipeline", json={"extractionEngine": "ocr"}).status_code == 422
-    client.put("/api/settings/pipeline", json={"autopilotDefault": False, "pricingEngine": "legacy", "extractionEngine": "legacy"})
+    assert client.put("/api/settings/pipeline", json={"proposalEngine": "v2"}).json()["proposalEngine"] == "v2"
+    client.put("/api/settings/pipeline", json={"autopilotDefault": False, "pricingEngine": "legacy",
+                                               "extractionEngine": "legacy", "proposalEngine": "legacy"})
 
 
 def test_freshness_settings(client, snapshots) -> None:

@@ -175,6 +175,9 @@ async def import_quote_lines(
             "openings": line.get("openings") or [],
             "qtyPerOpening": line.get("qty_per_opening"),
             "substitutionNote": line.get("substitution_note"),
+            # Why a line sits outside the bid - "supplied by the landlord per the
+            # legend" - which the proposal's qualifications say to the customer.
+            "notes": line.get("notes"),
             "pricedAt": line.get("priced_at"),
             "flags": flags,
             "updatedAt": _now(),
