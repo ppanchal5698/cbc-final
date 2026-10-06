@@ -237,3 +237,67 @@ def test_an_existing_scope_summary_still_reports_what_is_in_scope(tmp_path, monk
     assert result["written"] is False
     assert result["frp_in_scope"] is True
     assert result["div10_in_scope"] is False
+
+
+# ── the count: the schedule's, never the line's ──────────────────────────────
+
+
+def _blank(tmp_path):
+    import fitz
+
+    doc = fitz.open()
+    doc.new_page(width=2592, height=1728)
+    path = tmp_path / "sheet.pdf"
+    doc.save(path)
+    doc.close()
+    return path
+
+
+def _row(y: float, *cells: tuple[str, float, float]) -> dict:
+    return {
+        "cells": [text for text, _, _ in cells],
+        "cell_boxes": [[x0, y, x1, y + 8] for _, x0, x1 in cells],
+        "bbox": [cells[0][1], y, cells[-1][2], y + 8],
+    }
+
+
+def test_a_count_is_the_schedules_and_never_a_number_elsewhere_on_the_line(monkeypatch, tmp_path) -> None:
+    """A sheet line runs through every drawing on it. The Dairy Queen accessory
+    schedule states no count, and its grab bars were quoted at four - a dimension
+    two drawings to the left. Baldwin's writes the count in the item's own cell,
+    with the maker's column 180 points along."""
+    rows = [
+        _row(463, ("4", 432, 437), ("GRAB BARS", 1862, 1910), ("BOBRICK", 2057, 2090),
+             ("[A] [B]", 2126, 2150), ("B-6806", 2163, 2195), ("106", 2461, 2475)),
+        _row(1315, ("C-079H 1 X DUAL FRYER", 94, 180), ("B-265 2 X MIRROR 18 [ 36", 1161, 1270),
+             ("BOBRICK B-165-1836", 1453, 1530)),
+    ]
+    monkeypatch.setattr(sp, "_rows", lambda doc, page: rows)
+
+    items = sp.div10_items_on_page(_blank(tmp_path), 1)
+
+    assert [(i["product_type"], i["specified_model"], i["qty"]) for i in items] == [
+        ("grab_bar", "B-6806", None), ("mirror", "B-165-1836", 2.0),
+    ]
+    assert "qty_not_stated" in items[0]["flags"]
+    # The row's own table, not the line: no stray 4, no keynote 106, no fryer.
+    assert items[0]["notes"] == "GRAB BARS | BOBRICK | [A] [B] | B-6806"
+    assert items[1]["notes"] == "B-265 2 X MIRROR 18 [ 36 | BOBRICK B-165-1836"
+
+
+def test_a_count_column_is_read_under_its_header(monkeypatch, tmp_path) -> None:
+    rows = [
+        _row(100, ("QTY", 100, 120), ("DESCRIPTION", 160, 230), ("MANUFACTURER", 400, 480), ("MODEL", 520, 560)),
+        _row(120, ("3", 102, 107), ('GRAB BAR 36"', 160, 220), ("BOBRICK", 400, 440), ("B-6806x36", 520, 570)),
+    ]
+    monkeypatch.setattr(sp, "_rows", lambda doc, page: rows)
+
+    [item] = sp.div10_items_on_page(_blank(tmp_path), 1)
+
+    assert (item["qty"], item["specified_model"]) == (3.0, "B-6806x36")
+
+
+def test_the_accessory_is_the_one_its_own_row_names() -> None:
+    """A note beside the Wendy's schedule - "ALL GRAB BARS MUST BE PURCHASED FROM
+    HJC" - made its jumbo-roll tissue dispenser a grab bar."""
+    assert sp._product_type("SURFACE MOUNTED JUMBO ROLL TOILET") == "toilet_tissue_dispenser"
