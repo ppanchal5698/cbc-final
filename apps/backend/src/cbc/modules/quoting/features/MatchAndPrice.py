@@ -214,6 +214,28 @@ async def _sources(project: dict[str, Any], lines: list[takeoff.Line]) -> ladder
     )
 
 
+async def price_named_part(project: dict[str, Any], doc: dict[str, Any]) -> dict[str, Any] | None:
+    """What the part an estimator named on a line costs, through the same rungs as
+    the take-off's parts - in the line's own field names, as choosing a close match
+    sets them; None when no source is sure of it. Naming Hager BB1279 for
+    Evernorth's Ives hinges left the line unpriced, and a re-price keeps the part
+    the estimator named, so nothing ever looked it up."""
+    line = takeoff.Line(
+        key=str(doc.get("lineKey") or "named"), group=str(doc.get("group") or ""),
+        # The Allegion part it stands in for is no part of what the named part is.
+        division=str(doc.get("division") or ""), description=matcher.without_allegion(doc.get("description")),
+        part=doc.get("part"), manufacturer=doc.get("manufacturer"), finish=doc.get("finish"),
+        qty=doc.get("qty"), qty_per_opening=doc.get("qtyPerOpening"), unit=doc.get("unit"),
+        openings=list(doc.get("openings") or []), source_page=doc.get("sourcePage"),
+    )
+    sources = await _sources(project, [line])
+    row = next(iter(await asyncio.to_thread(ladder.price, line, sources)), None)
+    if not row or row.get("cost") is None or row.get("part_number") != line.part:
+        return None  # not priced, or priced as something else (an Allegion part's equal)
+    return {**priced_lines.price_fields(row), "priceStatus": row.get("price_status"),
+            "pricedAt": row.get("priced_at")}
+
+
 def plan(project: dict[str, Any], openings: list[dict[str, Any]],
          frp_constants: dict[str, Any] | None = None) -> tuple[list[takeoff.Line], list[str]]:
     """The bid's take-off as lines to price, and what was left out. Reads files only."""

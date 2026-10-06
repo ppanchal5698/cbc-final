@@ -61,6 +61,12 @@ def is_allegion(*texts: Any, manufacturer: Any = None) -> bool:
     return any(_ALLEGION_WORDS.search(str(t or "")) for t in (manufacturer, *texts))
 
 
+def without_allegion(text: Any) -> str:
+    """A description with the Allegion makers' names taken out: "Hager equal to IVES
+    5BB1 HINGE 4.5 X 4.5" still says the hinge's size, and no longer who makes it."""
+    return " ".join(_ALLEGION_WORDS.sub(" ", str(text or "")).split())
+
+
 def _number(whole: str, num: str | None, den: str | None) -> float:
     value = float(whole)
     if num and den and float(den):

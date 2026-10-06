@@ -84,6 +84,15 @@ async def update_line(
     update: dict[str, Any] = {**changes, "updatedAt": _now()}
     if "part" in changes:
         update["matchConfidence"] = None  # a part the estimator named is not a match to doubt
+        if changes["part"] and changes.get("cost") is None:
+            # Looked up the way the take-off's parts are, and kept with the part:
+            # a re-price leaves the estimator's line as they left it.
+            from cbc.modules.quoting.features import MatchAndPrice
+
+            priced = await MatchAndPrice.price_named_part(project, {**line, **changes})
+            if priced:
+                update.update(priced)
+                override["after"] = {**override["after"], **priced}
     if "margin" in changes:
         update["marginOverridden"] = True
         update["overrideReason"] = reason

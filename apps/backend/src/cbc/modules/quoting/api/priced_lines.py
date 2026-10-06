@@ -101,18 +101,21 @@ def _estimator_fields(line: dict[str, Any]) -> set[str]:
 def _close_match(match: dict[str, Any]) -> dict[str, Any]:
     """One of a line's close matches (FR-8), in the line's own field names - what
     choosing it sets on the line."""
+    return {"label": match.get("label"), "part": match.get("part_number"),
+            "manufacturer": match.get("manufacturer"), **price_fields(match)}
+
+
+def price_fields(row: dict[str, Any]) -> dict[str, Any]:
+    """A priced row's cost and where it came from, in the line's own field names."""
     return {
-        "label": match.get("label"),
-        "part": match.get("part_number"),
-        "manufacturer": match.get("manufacturer"),
-        "cost": match.get("cost"),
-        "costSource": match.get("cost_source"),
-        "costSourceDetail": match.get("cost_source_detail"),
-        "listPrice": match.get("list_price"),
-        "multiplier": match.get("multiplier"),
-        "multiplierTier": match.get("multiplier_tier"),
-        "multiplierEffectiveDate": match.get("multiplier_effective_date"),
-        "priceBookVersion": match.get("price_book_version"),
+        "cost": row.get("cost"),
+        "costSource": row.get("cost_source"),
+        "costSourceDetail": row.get("cost_source_detail"),
+        "listPrice": row.get("list_price"),
+        "multiplier": row.get("multiplier"),
+        "multiplierTier": row.get("multiplier_tier"),
+        "multiplierEffectiveDate": row.get("multiplier_effective_date"),
+        "priceBookVersion": row.get("price_book_version"),
     }
 
 
