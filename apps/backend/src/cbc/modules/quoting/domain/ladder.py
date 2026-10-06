@@ -172,7 +172,9 @@ def _undecided(row: dict[str, Any], label: str, choice: matcher.Choice, show) ->
                                  " - an estimator picks which")
     row["flags"].append("ambiguous_match")
     row[UNDECIDED] = {"rung": label, "candidates": choice.candidates[:MAX_CANDIDATES],
-                      "shown": [show(r) for r in choice.candidates[:MAX_CANDIDATES]]}
+                      "shown": [show(r) for r in choice.candidates[:MAX_CANDIDATES]],
+                      # the row before anyone chose, so each close match prices from it
+                      "base": {**row, "flags": list(row["flags"])}}
     return [row]
 
 
@@ -224,10 +226,9 @@ def _from_book(row: dict[str, Any], entry: dict[str, Any], src: Sources, vendor:
     )
 
 
-def price_choice(row: dict[str, Any], index: int, reason: str, src: Sources) -> dict[str, Any] | None:
-    """An undecided row priced at the candidate someone chose - through the same
-    rung, with the same checks - and saying who chose it and why. None when the
-    choice is not one of the rows, or its sheet cannot be priced from."""
+def _price_candidate(row: dict[str, Any], index: int, src: Sources) -> dict[str, Any] | None:
+    """`row` priced at one of its undecided candidates, through the rung that found
+    them. None when there is no such candidate or its sheet cannot be priced from."""
     pending = row.get(UNDECIDED) or {}
     candidates = pending.get("candidates") or []
     if not 0 <= index < len(candidates):
@@ -235,17 +236,52 @@ def price_choice(row: dict[str, Any], index: int, reason: str, src: Sources) -> 
     chosen, tried = candidates[index], []
     rung = pending.get("rung")
     if rung == "special net":
-        priced = _from_net(row, chosen, src, tried)
-    elif rung == "catalog":
-        priced = _from_catalog(row, chosen, src, row.get("manufacturer"), tried)
-    else:
-        priced = _from_book(row, chosen, src, vendor_key(row.get("manufacturer")), tried)
+        return _from_net(row, chosen, src, tried)
+    if rung == "catalog":
+        return _from_catalog(row, chosen, src, row.get("manufacturer"), tried)
+    return _from_book(row, chosen, src, vendor_key(row.get("manufacturer")), tried)
+
+
+def price_choice(row: dict[str, Any], index: int, reason: str, src: Sources) -> dict[str, Any] | None:
+    """An undecided row priced at the candidate someone chose - through the same
+    rung, with the same checks - and saying who chose it and why. None when the
+    choice is not one of the rows, or its sheet cannot be priced from."""
+    priced = _price_candidate(row, index, src)
     if priced is None:
         return None
+    priced[UNDECIDED]["chosen"] = index
     priced["flags"] = [f for f in priced["flags"] if f != "ambiguous_match"] + ["model_chose_match"]
-    priced["cost_source_detail"] += (f"; chosen among {len(candidates)} by the model ({reason.strip()})"
+    priced["cost_source_detail"] += (f"; chosen among {len(priced[UNDECIDED]['candidates'])} by the model ({reason.strip()})"
                                      " - an estimator confirms it")
     return priced
+
+
+CLOSE_MATCHES = 3  # FR-8: "offer 3 close matches"
+# What choosing one sets on the line: the part, its cost, and where that came from.
+_MATCH_FIELDS = ("part_number", "manufacturer", "cost", "cost_source", "cost_source_detail", "list_price",
+                 "multiplier", "multiplier_tier", "multiplier_effective_date", "price_book_version")
+
+
+def close_matches(row: dict[str, Any], src: Sources) -> list[dict[str, Any]]:
+    """FR-8: the rows an estimator may choose among for an undecided line, each
+    priced through the same rung and checks - the model's pick first when it made
+    one, so the line's own match is among them and can be chosen back."""
+    pending = row.get(UNDECIDED) or {}
+    base = pending.get("base")
+    if not base:
+        return []
+    order = list(range(len(pending.get("candidates") or [])))
+    if pending.get("chosen") in order:
+        order.remove(pending["chosen"])
+        order.insert(0, pending["chosen"])
+    found: list[dict[str, Any]] = []
+    for index in order:
+        trial = _price_candidate({**base, "flags": list(base["flags"]), UNDECIDED: pending}, index, src)
+        if trial is not None:
+            found.append({"label": pending["shown"][index], **{k: trial.get(k) for k in _MATCH_FIELDS}})
+        if len(found) == CLOSE_MATCHES:
+            break
+    return found
 
 
 def _from_catalog(row: dict[str, Any], catalog_row: dict[str, Any], src: Sources, manufacturer: str | None,

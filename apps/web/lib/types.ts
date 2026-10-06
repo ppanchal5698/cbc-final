@@ -307,6 +307,8 @@ export interface QuoteLine {
   costSourceDetail?: string | null;
   /** The NOTE a substitution prints on the quote (FR-17). */
   substitutionNote?: string | null;
+  /** Rows this line could as well be, each priced, for an estimator to choose (FR-8). */
+  closeMatches?: CloseMatch[];
   /** The prior bid a templated quote copied this line from (FR-1d). */
   carriedFrom?: string | null;
   manufacturer?: string | null;
@@ -709,6 +711,21 @@ export interface HandOffResult {
   message: string;
   draftPath: string;
   sent: boolean;
+}
+
+/** One of a line's close matches: what choosing it sets on the line. */
+export interface CloseMatch {
+  label: string;
+  part: string | null;
+  manufacturer: string | null;
+  cost: number | null;
+  costSource: string | null;
+  costSourceDetail: string | null;
+  listPrice?: number | null;
+  multiplier?: number | null;
+  multiplierTier?: string | null;
+  multiplierEffectiveDate?: string | null;
+  priceBookVersion?: string | null;
 }
 
 export interface EmailDraft {

@@ -32,6 +32,7 @@ def register(app) -> None:
     from cbc.modules.quoting.features import (
         AddQuoteLine,
         AssignToAlternate,
+        ChooseCloseMatch,
         ContinueToProposal,
         CreateAlternate,
         CreateRfi,
@@ -62,6 +63,7 @@ def register(app) -> None:
         UpdateQuoteSettings,
         AddQuoteLine,
         UpdateQuoteLine,
+        ChooseCloseMatch,
         DeleteQuoteLine,
         KeepCarriedLines,
         ContinueToProposal,

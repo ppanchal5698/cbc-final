@@ -181,6 +181,13 @@ def test_keep_carried_lines(client, bid, snapshots) -> None:
     snapshots.pin("POST /api/projects/{code}/quote/carried/keep", client.post(_p(bid, "/quote/carried/keep")))
 
 
+def test_choose_a_close_match(client, bid, snapshots) -> None:
+    """FR-8: a line priced at a row it could as well be. This line was matched
+    outright, so it offers none."""
+    op = "POST /api/projects/{code}/quote/lines/{line_id}/close-matches/{index}"
+    snapshots.pin(op, client.post(_p(bid, f"/quote/lines/{bid['line']}/close-matches/0")), variant="no such match")
+
+
 # Last: these change the shared bid, and every pin above is taken first.
 def test_a_typed_cost_is_the_estimators_not_the_sheets(client, bid) -> None:
     """A cost typed by hand kept the source the ladder priced the line from - "List x

@@ -183,6 +183,20 @@ def test_a_row_chosen_among_the_undecided_is_priced_through_its_rung_and_says_wh
     assert ladder.price_choice(undecided, 5, "no such row", sources()) is None
 
 
+def test_an_undecided_line_offers_its_close_matches_priced_and_the_models_pick_first() -> None:
+    """FR-8: "offer 3 close matches". Each is priced through the rung that found it,
+    so choosing one moves the part, the cost and where it came from together."""
+    [undecided] = ladder.price(line("5100", finish_="ALM"), sources())
+    offered = ladder.close_matches(undecided, sources())
+    assert [m["cost"] for m in offered] == [132.21, 153.6]  # 440.71 and 512.00 x door_controls 0.30
+    assert all(m["cost_source"] == "LIST_X_MULTIPLIER" and m["label"] for m in offered)
+
+    chosen = ladder.price_choice(undecided, 1, "parallel arm", sources())
+    reordered = ladder.close_matches(chosen, sources())
+    assert [m["cost"] for m in reordered] == [153.6, 132.21]
+    assert "chosen among" not in reordered[0]["cost_source_detail"], "a match says where it came from, not who chose"
+
+
 def test_a_door_is_priced_from_its_supplier_and_a_size_past_stock_is_a_vendor_quote() -> None:
     door = Line(key="door:hollow metal|3'-0\"|7'-0\"|A|90 MIN|", group="Doors", division="08 11 13",
                 description="HOLLOW METAL DOOR, 3'-0\" X 7'-0\"", part=None, manufacturer=None, finish=None, qty=2.0)

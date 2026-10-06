@@ -97,6 +97,24 @@ def _estimator_fields(line: dict[str, Any]) -> set[str]:
     return edited
 
 
+def _close_match(match: dict[str, Any]) -> dict[str, Any]:
+    """One of a line's close matches (FR-8), in the line's own field names - what
+    choosing it sets on the line."""
+    return {
+        "label": match.get("label"),
+        "part": match.get("part_number"),
+        "manufacturer": match.get("manufacturer"),
+        "cost": match.get("cost"),
+        "costSource": match.get("cost_source"),
+        "costSourceDetail": match.get("cost_source_detail"),
+        "listPrice": match.get("list_price"),
+        "multiplier": match.get("multiplier"),
+        "multiplierTier": match.get("multiplier_tier"),
+        "multiplierEffectiveDate": match.get("multiplier_effective_date"),
+        "priceBookVersion": match.get("price_book_version"),
+    }
+
+
 def _group_type(division: str | None) -> str:
     if not division:
         return "door"
@@ -176,6 +194,8 @@ async def import_quote_lines(
             "openings": line.get("openings") or [],
             "qtyPerOpening": line.get("qty_per_opening"),
             "substitutionNote": line.get("substitution_note"),
+            # The rows it could as well be, priced, for an estimator to choose (FR-8).
+            "closeMatches": [_close_match(m) for m in line.get("close_matches") or []],
             # Why a line sits outside the bid - "supplied by the landlord per the
             # legend" - which the proposal's qualifications say to the customer.
             "notes": line.get("notes"),

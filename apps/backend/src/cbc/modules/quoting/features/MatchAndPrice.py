@@ -246,6 +246,8 @@ async def price_bid(project: dict[str, Any], *, choose: bool = True) -> dict[str
     if choose:
         await _choose(rows, sources, budget=CHOICE_BUDGET)
     for row in rows:
+        if ladder.UNDECIDED in row:
+            row["close_matches"] = ladder.close_matches(row, sources)
         row.pop(ladder.UNDECIDED, None)
     priced = sum(1 for row in rows if row.get("cost") is not None)
     return {

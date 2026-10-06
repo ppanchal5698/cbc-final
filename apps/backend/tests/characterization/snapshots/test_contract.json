@@ -905,6 +905,12 @@
   },
   "status": 401
  },
+ "POST /api/projects/{code}/quote/lines/{line_id}/close-matches/{index} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "POST /api/projects/{code}/reuse/{prior_code} #wrong token": {
   "body": {
    "detail": "str"
@@ -1678,6 +1684,11 @@
    "admin": false,
    "op": "POST /api/projects/{code}/quote/lines",
    "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/quote/lines/{line_id}/close-matches/{index}",
+   "status": 200
   },
   {
    "admin": false,

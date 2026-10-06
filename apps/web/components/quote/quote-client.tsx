@@ -309,6 +309,17 @@ export function QuoteClient({
     }
   }
 
+  /** FR-8: price the line at one of the rows it could as well be. */
+  async function chooseMatch(line: QuoteLine, index: number) {
+    try {
+      await proxyMutate(`/api/proxy/projects/${code}/quote/lines/${line.id}/close-matches/${index}`);
+      toast.success("Close match chosen", { description: line.closeMatches?.[index]?.label ?? undefined });
+      mutate();
+    } catch (problem) {
+      toast.error("Could not use that match", { description: errorMessage(problem) });
+    }
+  }
+
   async function keepCarried() {
     const from = carried[0]?.carriedFrom ?? "the prior bid";
     if (
@@ -694,6 +705,37 @@ export function QuoteClient({
                               {line.substitutionNote ? "Edit NOTE" : "Add NOTE"}
                             </button>
                           </span>
+                          {!!line.closeMatches?.length && (
+                            <details className="mt-1 text-[11.5px]">
+                              <summary className="cursor-pointer font-semibold text-status-warning">
+                                {line.closeMatches.length} close match{line.closeMatches.length === 1 ? "" : "es"}
+                              </summary>
+                              <ul className="mt-1 flex flex-col gap-1">
+                                {line.closeMatches.map((match, index) => {
+                                  const inUse = match.part === line.part && match.cost === line.cost;
+                                  return (
+                                    <li key={`${match.label}-${index}`} className="flex items-center gap-2">
+                                      <span
+                                        className="min-w-0 flex-1 truncate font-medium text-tx-secondary"
+                                        title={match.costSourceDetail ?? undefined}
+                                      >
+                                        {match.label}
+                                        {match.cost === null ? "" : ` · $${formatMoney(match.cost)}`}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        disabled={inUse}
+                                        onClick={() => chooseMatch(line, index)}
+                                        className="shrink-0 rounded border border-subtle px-1.5 py-0.5 text-[11px] font-bold text-tx-secondary hover:text-tx-primary disabled:opacity-60"
+                                      >
+                                        {inUse ? "in use" : "Use"}
+                                      </button>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </details>
+                          )}
                           {(line.marginOverridden || line.addedByHand) && (
                             <span className="text-[11.5px] font-medium text-status-error mt-0.5 block">
                               {line.addedByHand ? "added by hand" : "margin overridden"}
