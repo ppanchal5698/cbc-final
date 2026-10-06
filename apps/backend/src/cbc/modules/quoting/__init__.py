@@ -31,6 +31,7 @@ def register(app) -> None:
 
     from cbc.modules.quoting.features import (
         AddAdder,
+        AddLiteKit,
         AddQuoteLine,
         AssignToAlternate,
         ChooseCloseMatch,
@@ -68,6 +69,7 @@ def register(app) -> None:
         UpdateQuoteLine,
         ChooseCloseMatch,
         AddAdder,
+        AddLiteKit,
         DeleteQuoteLine,
         KeepCarriedLines,
         ContinueToProposal,

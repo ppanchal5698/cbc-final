@@ -195,6 +195,14 @@ def test_add_an_adder(client, bid, snapshots) -> None:
     snapshots.pin(op, client.post(_p(bid, f"/quote/lines/{bid['line']}/adders/0")), variant="no such adder")
 
 
+def test_add_a_lite_kit(client, bid, snapshots) -> None:
+    """NR-1: a lite kit off National Guard's size tables. Asked for a table that is
+    not on file, so the shared bid keeps its lines."""
+    body = {"table": 999, "width": 10, "height": 10}
+    snapshots.pin("POST /api/projects/{code}/quote/lite-kits", client.post(_p(bid, "/quote/lite-kits"), json=body),
+                  variant="no such table")
+
+
 # Last: these change the shared bid, and every pin above is taken first.
 def test_a_typed_cost_is_the_estimators_not_the_sheets(client, bid) -> None:
     """A cost typed by hand kept the source the ladder priced the line from - "List x

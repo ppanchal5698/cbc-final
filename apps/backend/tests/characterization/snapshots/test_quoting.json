@@ -827,6 +827,12 @@
   },
   "status": 404
  },
+ "POST /api/projects/{code}/quote/lite-kits #no such table": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
  "POST /api/projects/{code}/rfis": {
   "body": {
    "bidRequestId": "id",
