@@ -376,6 +376,7 @@ def door_and_frame_lines(openings: list[dict[str, Any]]) -> list[Line]:
     frame_material, door_type, frame_type, width, height, rating, frame_depth,
     source_page, source_file, undecided, smoke, no_hose_stream, temperature_rise}."""
     grouped: dict[str, Line] = {}
+    door_notes: dict[str, dict[str, list[str]]] = {}  # line key -> the schedule's note -> its doors
     for door in openings:
         width, height = door.get("width"), door.get("height")
         rating = fire_rating.label(door.get("rating"))
@@ -428,6 +429,14 @@ def door_and_frame_lines(openings: list[dict[str, Any]]) -> list[Line]:
                     line.flags.append(flag)
             line.qty = (line.qty or 0) + count
             line.openings.append(str(door.get("mark") or "?"))
+            note = str(door.get("notes") or "").strip()
+            if note:
+                door_notes.setdefault(key, {}).setdefault(note, []).append(str(door.get("mark") or "?"))
             if door.get("undecided") and "scope_undecided" not in line.flags:
                 line.flags.append("scope_undecided")
+    # What the schedule says of these doors - "GLASS PROVIDED BY GC", "PRE-HUNG IN
+    # FRAME" - goes to whoever prices them from the supplier.
+    for key, notes in door_notes.items():
+        grouped[key].text = "; ".join(
+            f"door{'s' if len(marks) > 1 else ''} {', '.join(marks)}: {note}" for note, marks in notes.items())
     return list(grouped.values())

@@ -150,7 +150,7 @@ def _takeoff_rows(
             "door_material": row.get("doorMaterial"), "frame_material": row.get("frameMaterial"),
             "door_type": row.get("doorType"), "frame_type": row.get("frameType"),
             "width": row.get("width"), "height": row.get("height"), "frame_depth": row.get("frameDepth"),
-            "undecided": row.get("inScope") is None, **listed, **where,
+            "undecided": row.get("inScope") is None, "notes": row.get("notes"), **listed, **where,
         })
     return hardware, specialties, doors
 

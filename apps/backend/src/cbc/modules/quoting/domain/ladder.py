@@ -536,6 +536,8 @@ def _ladder(line: Line, src: Sources) -> list[dict[str, Any]]:
         else:
             row["cost_source_detail"] = (f"{line.description}: price from the door supplier - P21's last PO "
                                          "for this specification, or a quote")
+        if line.text:
+            row["cost_source_detail"] += f"; the schedule says {line.text}"
         return [row]
     # Only a door hardware legend writes the model into its description; a
     # specialty row's description is a location (`6/A2.2`), not a part.

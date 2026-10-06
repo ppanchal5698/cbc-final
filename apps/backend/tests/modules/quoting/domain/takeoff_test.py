@@ -242,3 +242,14 @@ def test_a_set_serving_rated_doors_says_so_once() -> None:
     assert [("rated_set" in line.flags) for line in rated] == [False, True, False], "on the first base line"
     unrated, _ = takeoff.hardware_lines(sets, [{"mark": "101", "set": "01", "rating": "NR"}])
     assert not any("rated_set" in line.flags for line in unrated)
+
+
+def test_what_the_schedule_says_of_a_door_goes_to_whoever_prices_it() -> None:
+    """Shakopee's door 6: "GLASS PROVIDED BY GC" - the supplier's price is for the door alone."""
+    same = {"door_material": "HPL", "frame_material": "HM", "width": "3'-0\"", "height": "7'-0\"", "door_type": "C"}
+    lines = takeoff.door_and_frame_lines([
+        {"mark": "1", **same, "notes": "DOOR PRE-HUNG IN FRAME"}, {"mark": "2", **same, "notes": "DOOR PRE-HUNG IN FRAME"},
+        {"mark": "6", **same, "notes": "GLASS PROVIDED BY GC"},
+    ])
+    door = next(line for line in lines if line.key.startswith("door:"))
+    assert door.text == "doors 1, 2: DOOR PRE-HUNG IN FRAME; door 6: GLASS PROVIDED BY GC"
