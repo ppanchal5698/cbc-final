@@ -98,7 +98,7 @@ def _estimator_fields(line: dict[str, Any]) -> set[str]:
     return edited
 
 
-def _close_match(match: dict[str, Any]) -> dict[str, Any]:
+def close_match(match: dict[str, Any]) -> dict[str, Any]:
     """One of a line's close matches (FR-8), in the line's own field names - what
     choosing it sets on the line."""
     return {"label": match.get("label"), "part": match.get("part_number"),
@@ -199,7 +199,7 @@ async def import_quote_lines(
             "qtyPerOpening": line.get("qty_per_opening"),
             "substitutionNote": line.get("substitution_note"),
             # The rows it could as well be, priced, for an estimator to choose (FR-8).
-            "closeMatches": [_close_match(m) for m in line.get("close_matches") or []],
+            "closeMatches": [close_match(m) for m in line.get("close_matches") or []],
             # How sure the match is (FR-8), by how the line was matched.
             "matchConfidence": line.get("match_confidence"),
             # On its maker's stock list (NR-6): None when the maker has no list on file.

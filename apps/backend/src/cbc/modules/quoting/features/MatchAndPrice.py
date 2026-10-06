@@ -214,12 +214,13 @@ async def _sources(project: dict[str, Any], lines: list[takeoff.Line]) -> ladder
     )
 
 
-async def price_named_part(project: dict[str, Any], doc: dict[str, Any]) -> dict[str, Any] | None:
+async def price_named_part(project: dict[str, Any], doc: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     """What the part an estimator named on a line costs, through the same rungs as
-    the take-off's parts - in the line's own field names, as choosing a close match
-    sets them; None when no source is sure of it. Naming Hager BB1279 for
-    Evernorth's Ives hinges left the line unpriced, and a re-price keeps the part
-    the estimator named, so nothing ever looked it up."""
+    the take-off's parts, in the line's own field names: the price, kept with the
+    estimator's edit as choosing a close match keeps it, and - when several rows
+    could be the part - the close matches to choose among, which are the copilot's
+    (FR-8). Naming Hager BB1279 for Evernorth's Ives hinges left the line unpriced,
+    and a re-price keeps the part the estimator named, so nothing looked it up."""
     line = takeoff.Line(
         key=str(doc.get("lineKey") or "named"), group=str(doc.get("group") or ""),
         # The Allegion part it stands in for is no part of what the named part is.
@@ -230,10 +231,17 @@ async def price_named_part(project: dict[str, Any], doc: dict[str, Any]) -> dict
     )
     sources = await _sources(project, [line])
     row = next(iter(await asyncio.to_thread(ladder.price, line, sources)), None)
-    if not row or row.get("cost") is None or row.get("part_number") != line.part:
-        return None  # not priced, or priced as something else (an Allegion part's equal)
-    return {**priced_lines.price_fields(row), "priceStatus": row.get("price_status"),
-            "pricedAt": row.get("priced_at")}
+    if not row or row.get("part_number") != line.part:
+        return {}, {}  # priced as something else: an Allegion part named by hand is its equal's
+    if row.get("cost") is not None:
+        return {**priced_lines.price_fields(row), "priceStatus": row.get("price_status"),
+                "pricedAt": row.get("priced_at")}, {}
+    # Evernorth's Hager 5100 is four special-net rows at three prices: the estimator picks.
+    matches = await asyncio.to_thread(ladder.close_matches, row, sources) if ladder.UNDECIDED in row else []
+    if not matches:
+        return {}, {}
+    return {}, {"closeMatches": [priced_lines.close_match(m) for m in matches],
+                "costSourceDetail": row.get("cost_source_detail")}
 
 
 def plan(project: dict[str, Any], openings: list[dict[str, Any]],

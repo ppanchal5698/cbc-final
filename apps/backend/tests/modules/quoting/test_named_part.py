@@ -23,10 +23,20 @@ def _priced(monkeypatch, doc):
 def test_the_equal_an_estimator_names_is_priced_off_its_book(monkeypatch) -> None:
     """Evernorth: Hager BB1279 named for Ives 5BB1 - the Ives in the description
     is what it stands in for, not what it is."""
-    priced = _priced(monkeypatch, {**HINGE, "part": "BB1279", "manufacturer": "Hager"})
-    assert priced["costSource"] == "LIST_X_MULTIPLIER"
+    priced, offered = _priced(monkeypatch, {**HINGE, "part": "BB1279", "manufacturer": "Hager"})
+    assert priced["costSource"] == "LIST_X_MULTIPLIER" and offered == {}
     assert priced["cost"] == cost_from_list(23.76, 0.21)["cost"] and priced["listPrice"] == 23.76
 
 
 def test_an_allegion_part_named_by_hand_is_not_priced_as_something_else(monkeypatch) -> None:
-    assert _priced(monkeypatch, {**HINGE, "part": "5BB1", "manufacturer": "IVES"}) is None
+    assert _priced(monkeypatch, {**HINGE, "part": "5BB1", "manufacturer": "IVES"}) == ({}, {})
+
+
+def test_a_named_part_with_several_prices_offers_them_to_choose(monkeypatch) -> None:
+    """Evernorth's Hager 5100: more than one row, so the estimator picks (FR-8)."""
+    closer = {**HINGE, "lineKey": "2:04", "part": "5100", "manufacturer": "Hager", "finish": "ALM",
+              "description": "Hager equal to LCN 4040XP SURFACE CLOSER"}
+    priced, offered = _priced(monkeypatch, closer)
+    assert priced == {} and len(offered["closeMatches"]) == 2
+    assert {m["cost"] for m in offered["closeMatches"]} == {cost_from_list(440.71, 0.30)["cost"],
+                                                           cost_from_list(512.00, 0.30)["cost"]}

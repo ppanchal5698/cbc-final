@@ -89,10 +89,9 @@ async def update_line(
             # a re-price leaves the estimator's line as they left it.
             from cbc.modules.quoting.features import MatchAndPrice
 
-            priced = await MatchAndPrice.price_named_part(project, {**line, **changes})
-            if priced:
-                update.update(priced)
-                override["after"] = {**override["after"], **priced}
+            kept, shown = await MatchAndPrice.price_named_part(project, {**line, **changes})
+            update.update({**shown, **kept})
+            override["after"] = {**override["after"], **kept}
     if "margin" in changes:
         update["marginOverridden"] = True
         update["overrideReason"] = reason
