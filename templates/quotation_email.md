@@ -4,7 +4,7 @@
 > **This is a draft. Nothing has been sent: the copilot never sends.**
 > An estimator reviews the quote, approves it, and sends it themselves (NFR-1).
 
-**To:** {{ initiator_name or "no initiator recorded on this bid" }}{% if initiator_email %} <{{ initiator_email }}>{% endif %}
+**To:** {{ initiator_name or "no initiator recorded on this bid" }}{% if initiator_email %} <{{ initiator_email }}>{% elif initiator_name %} (no address on file: add them under Users){% endif %}
 
 **Subject:** CBC Quotation {{ quote_number }} - {{ project_name }}{% if bid_due_date %} (bid due {{ bid_due_date }}){% endif %}
 

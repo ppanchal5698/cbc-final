@@ -37,6 +37,25 @@ async def directory(emails: list[str]) -> dict[str, dict]:
     }
 
 
+async def address_of(who: str | None) -> dict | None:
+    """Name and address for someone a bid records by name or by address - its
+    sales initiator. A lone first name counts when exactly one user has it."""
+    who = (who or "").strip()
+    if not who:
+        return None
+    if "@" in who:
+        row = await users().find_one({"email": who.lower()}, {"name": 1}) or {}
+        return {"name": row.get("name") or who, "email": who.lower()}
+    rows = await users().find({}, {"email": 1, "name": 1}).to_list(length=500)
+    wanted = who.lower()
+    found = [r for r in rows if (r.get("name") or "").strip().lower() == wanted]
+    if not found and " " not in wanted:
+        found = [r for r in rows if (r.get("name") or "").lower().split()[:1] == [wanted]]
+    if len(found) != 1:
+        return None
+    return {"name": found[0].get("name") or who, "email": found[0]["email"]}
+
+
 async def assignable() -> list[dict]:
     """Everyone a bid may be assigned to, for the board's estimator picker.
 

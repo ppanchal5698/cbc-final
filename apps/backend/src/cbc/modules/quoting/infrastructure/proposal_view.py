@@ -17,7 +17,7 @@ from cbc.modules.quoting.api import quote_layout
 from cbc.modules.extraction.api import line_items
 from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.extraction.api.validation import review
-from cbc.modules.ops.api import jobs
+from cbc.modules.ops.api import identity, jobs
 from cbc.modules.quoting.api import priced_lines
 from cbc.modules.quoting.api import quote as quote_service
 from cbc.modules.quoting.infrastructure.collections import estimate_lines, proposals, rfis
@@ -70,6 +70,7 @@ def _first_name(name: str | None) -> str:
 
 def email_draft(
     project: dict[str, Any], data: dict[str, Any], *, recipient: str | None = None, estimator: str | None = None,
+    address: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The quotation email, drafted from templates/quotation_email.md - one draft,
     whoever asks: the proposal screen's copy button, the sign-off, the build job.
@@ -92,7 +93,7 @@ def email_draft(
     ]
     counts = {section["key"]: len(section["lines"]) for section in data["sections"]}
     values = dict(
-        initiator_name=to, initiator_email=None, initiator_first_name=_first_name(to),
+        initiator_name=to, initiator_email=(address or {}).get("email"), initiator_first_name=_first_name(to),
         quote_number=proposal["proposalNo"], project_name=project.get("name"),
         bid_due_date=project.get("bidDue"), project_location=project.get("location"),
         opening_count=sum(1 for o in data.get("openings") or [] if o.get("inScope") is not False
@@ -106,19 +107,28 @@ def email_draft(
     )
     template = _jinja(html=False).get_template("quotation_email.md")
     return {
-        "to": to,
+        "to": f"{to} <{values['initiator_email']}>" if to and values["initiator_email"] else to,
         "subject": f"CBC Quotation {proposal['proposalNo']} - {project.get('name')}",
         "body": template.render(**values, body_only=True).strip(),
         "document": template.render(**values, body_only=False),
     }
 
 
+async def addressed_draft(
+    project: dict[str, Any], data: dict[str, Any], *, recipient: str | None = None, estimator: str | None = None,
+) -> dict[str, Any]:
+    """`email_draft`, addressed to the initiator alone (FR-1b): their address from
+    Users, where a name on the bid is all the sign-off has."""
+    address = await identity.address_of(recipient or project.get("initiator"))
+    return email_draft(project, data, recipient=recipient, estimator=estimator, address=address)
+
+
 async def write_email_draft(project: dict[str, Any], recipient: str | None, actor: str) -> str:
     """Write the drafted email to the project's review folder, as an artifact."""
     from cbc.shared import storage
 
-    draft = email_draft(project, await proposal_payload(project, internal=True),
-                        recipient=recipient, estimator=actor)
+    draft = await addressed_draft(project, await proposal_payload(project, internal=True),
+                                  recipient=recipient, estimator=actor)
     target = storage.project_dir(project["slug"]) / "review" / "quotation_email_draft.md"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(draft["document"], encoding="utf-8")

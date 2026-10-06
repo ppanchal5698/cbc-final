@@ -42,7 +42,7 @@ async def build_in_code(job: dict[str, Any], project: dict[str, Any]) -> str:
     project = await lookup.get(project["_id"]) or project
     data = await proposal_view.proposal_payload(project, internal=True)
     html = await asyncio.to_thread(proposal_view.render_html, project, data, False)
-    email = proposal_view.email_draft(project, data)
+    email = await proposal_view.addressed_draft(project, data)
     if not await ops_jobs.holds_lease(job):
         return "lease stolen; discarded output"
     failed = await asyncio.to_thread(

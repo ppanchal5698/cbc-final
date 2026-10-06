@@ -440,6 +440,20 @@ def test_hand_off_routes_to_the_initiator_and_sends_nothing(client, project):
     assert "Nothing has been sent" in draft.read_text(encoding="utf-8")
 
 
+def test_the_email_draft_finds_the_initiators_address_in_users(client):
+    """FR-1b. The bid records the initiator as the sales queue names them; Users
+    has the address. A first name is enough when only one user has it."""
+    created = client.post("/api/users", json={"email": "tina.marsh@example.com", "name": "Tina Marsh",
+                                               "initials": "TM", "role": "estimator",
+                                               "password": "correct horse battery staple"})
+    assert created.status_code in (200, 201), created.text
+    bid = client.post("/api/projects", json={"name": "Addressed bid", "initiator": "Tina"}).json()
+
+    draft = client.get(f"/api/projects/{bid['code']}/proposal/email-draft").json()
+
+    assert draft["to"] == "Tina <tina.marsh@example.com>" and draft["sent"] is False
+
+
 def test_hand_off_without_an_initiator_says_so(client):
     """Silently routing to nobody would be worse than saying it plainly."""
     orphan = client.post("/api/projects", json={"name": "No initiator bid"}).json()

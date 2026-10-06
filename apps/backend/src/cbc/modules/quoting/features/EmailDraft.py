@@ -6,7 +6,7 @@ from fastapi import APIRouter
 
 from cbc.modules.projects.api.lookup import load
 from cbc.modules.quoting.infrastructure.collections import proposals
-from cbc.modules.quoting.infrastructure.proposal_view import email_draft, proposal_payload
+from cbc.modules.quoting.infrastructure.proposal_view import addressed_draft, proposal_payload
 
 router = APIRouter(prefix="/api/projects/{code}/proposal", tags=["proposal"])
 
@@ -17,8 +17,8 @@ async def get_email_draft(code: str) -> dict:
     the same draft the sign-off files and the build job writes."""
     project = await load(code)
     stored = await proposals().find_one({"projectId": project["_id"]}) or {}
-    draft = email_draft(project, await proposal_payload(project, internal=True),
-                        recipient=stored.get("handedOffTo"), estimator=stored.get("completedBy"))
+    draft = await addressed_draft(project, await proposal_payload(project, internal=True),
+                                  recipient=stored.get("handedOffTo"), estimator=stored.get("completedBy"))
     return {
         "to": draft["to"],
         "subject": draft["subject"],

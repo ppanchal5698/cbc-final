@@ -104,6 +104,17 @@ def test_one_email_draft_with_nothing_meant_for_a_model_in_it() -> None:
         assert expected in draft["body"]
 
 
+def test_the_draft_goes_to_the_initiator_by_address_or_says_it_has_none() -> None:
+    """FR-1b: the PDF returns to the person who asked for it - one address, theirs."""
+    bid = {"name": "Wendy's", "initiator": "Kellan"}
+    addressed = proposal_view.email_draft(bid, _payload(), address={"name": "Kellan Smith", "email": "kellan@cbc.test"})
+    assert addressed["to"] == "Kellan <kellan@cbc.test>"
+    assert "**To:** Kellan <kellan@cbc.test>" in addressed["document"]
+
+    unknown = proposal_view.email_draft(bid, _payload())
+    assert unknown["to"] == "Kellan" and "no address on file" in unknown["document"]
+
+
 def test_a_bare_set_name_reads_as_a_hardware_set_and_doors_print_as_they_are() -> None:
     blocks = quote_layout.blocks([_line(), _line(group="Doors", description="HOLLOW METAL DOOR")])
     titles = {group["name"]: group["title"] for group in blocks[0]["groups"]}
