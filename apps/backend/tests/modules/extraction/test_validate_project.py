@@ -693,3 +693,33 @@ def test_pipeline_prompt_skips_passed_extraction_unless_forced():
     assert "forced clean run" in forced
 
 
+
+
+def test_an_exported_accessory_is_not_checked_as_a_door(validate_project):
+    """An export writes the confirmed Division 10 rows into the door file. They
+    have no size and no row to re-find by mark, and checked as doors one of them
+    failed every re-run of the bid."""
+    _write(
+        validate_project,
+        "extracted/line_items.json",
+        {"openings": [
+            _good_opening(),
+            {"door_number": "B-5806", "specialty": {"kind": "div10"}, "status": "clear",
+             "confirmed_by": "kevin@cbc.com", "source_page": 21, "bbox": None},
+        ]},
+    )
+    problems, _ = check_extraction(validate_project)
+    assert not problems, problems
+
+
+def test_a_row_the_sheet_could_not_be_measured_for_keeps_its_page_and_warns(validate_project):
+    """The bbox is evidence, not a gate: a scanned sheet's row says why it has no
+    box, and the take-off is not failed - with every other row - over it."""
+    _write(
+        validate_project,
+        "extracted/line_items.json",
+        {"openings": [_good_opening(bbox=None, page_size=None, flags=["bbox_row_not_found"])]},
+    )
+    problems, warnings = check_extraction(validate_project)
+    assert not problems, problems
+    assert any("bbox" in w for w in warnings), warnings

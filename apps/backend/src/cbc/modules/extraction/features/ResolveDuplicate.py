@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body, HTTPException
 
+from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.extraction.api.openings import LINES_CONFIRMED
 from cbc.modules.extraction.infrastructure.collections import openings
 from cbc.modules.ops.api import audit
@@ -34,7 +35,7 @@ async def resolve_duplicate(
         raise HTTPException(400, "keep must be 'one' or 'both'")
 
     if keep == "one" and item.get("duplicateOf"):
-        await openings().delete_one({"_id": item["_id"]})
+        await extraction_openings.remove(project["_id"], [item["_id"]])
         await audit.record(
             "line_item.duplicate_dropped",
             actor,

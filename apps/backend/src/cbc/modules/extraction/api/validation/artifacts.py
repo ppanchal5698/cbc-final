@@ -65,6 +65,10 @@ def _added_by_hand(row: dict) -> bool:
     The UI writes both markers when someone adds a line; either one is enough.
     """
     return bool(row.get("added_by_hand")) or str(row.get("status") or "").lower() == "by_hand"
+# Why a row has no bbox, as the re-measure records it (cbc.shared.pdfrows, geometry).
+_UNMEASURED = frozenset({"bbox_row_not_found", "bbox_row_ambiguous", "bbox_unavailable"})
+
+
 def _valid_bbox(box: Any) -> bool:
     return (
         isinstance(box, list)
@@ -503,6 +507,11 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
             )
 
     for opening in openings:
+        # Division 10 and FRP rows reach this file only by an export. They are not
+        # doors - no size, no row to re-find by mark - and checked as doors, a
+        # confirmed one failed every re-run of the bid.
+        if isinstance(opening, dict) and opening.get("specialty"):
+            continue
         opening = _normalize_opening(opening)
         label = opening.get("door_number") or opening.get("description") or "?"
         if opening.get("hw_set") and not opening.get("hardware_set"):
@@ -535,10 +544,21 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
             problems.append(f"{project}: opening {label} has no resolvable size")
         if opening.get("confidence") is None:
             problems.append(f"{project}: opening {label} has no confidence score (NFR-2)")
+        # The bbox is evidence, not a gate. A row the re-measure could not find on
+        # its page - a scanned sheet, a mark the text layer splits - keeps its page
+        # and says why (`bbox_row_not_found`), and the estimator finds it by the
+        # page; failing the whole take-off over it lost every other row with it.
+        unmeasured = isinstance(opening.get("source_page"), int) and bool(
+            set(opening.get("flags") or []) & _UNMEASURED
+        )
         if not _valid_bbox(opening.get("bbox")):
-            problems.append(f"{project}: opening {label} has no valid bbox (NFR-3)")
+            (warnings if unmeasured else problems).append(
+                f"{project}: opening {label} has no valid bbox (NFR-3)"
+            )
         if not _valid_page_size(opening.get("page_size")):
-            problems.append(f"{project}: opening {label} has no valid page_size (NFR-3)")
+            (warnings if unmeasured else problems).append(
+                f"{project}: opening {label} has no valid page_size (NFR-3)"
+            )
         for field in SOFT_FIELDS:
             if opening.get(field) is None:
                 warnings.append(f"{project}: opening {label} is missing {field}")
@@ -1022,8 +1042,8 @@ def check_delivery_readiness(project: str) -> tuple[list[str], list[str]]:
         if not isinstance(opening, dict):
             problems.append(f"{project}: opening {index} is not an object")
             continue
-        if _added_by_hand(opening) and not opening.get("door_number"):
-            continue  # A hand-added accessory has no door handing or fire rating.
+        if (_added_by_hand(opening) and not opening.get("door_number")) or opening.get("specialty"):
+            continue  # An accessory or FRP has no door handing or fire rating.
         label = opening.get("door_number") or opening.get("mark") or index
         for field in ("fire_rating", "handing"):
             value = opening.get(field)

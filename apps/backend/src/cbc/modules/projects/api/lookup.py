@@ -43,6 +43,7 @@ class ProjectRef(TypedDict, total=False):
     degraded: bool
     producedBy: str
     hasTrustDialogAccepted: bool
+    removedOpenings: list[str]  # take-off keys of openings the estimator deleted
 
 
 async def load(code_or_id: str) -> ProjectRef:

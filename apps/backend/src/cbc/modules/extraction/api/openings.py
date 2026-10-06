@@ -6,7 +6,9 @@ from typing import Any, TypedDict
 
 from pymongo import UpdateOne
 
+from cbc.modules.extraction.domain.schedule import _identity
 from cbc.modules.extraction.infrastructure.collections import failed_extractions, openings
+from cbc.modules.projects.api import bids
 
 # An estimator confirmed openings on a bid: project_id, count.
 LINES_CONFIRMED = "extraction.lines_confirmed"
@@ -127,10 +129,37 @@ async def count_in_group(project_id: Any, group: str | None) -> int:
     return await openings().count_documents({"projectId": project_id, "alternateGroup": group})
 
 
-async def assign_group(project_id: Any, ids: list[Any], group: str | None, *, at: Any) -> int:
-    """Move these openings into a group; returns how many actually moved."""
+async def assign_group(
+    project_id: Any, ids: list[Any], group: str | None, *, at: Any, by: Any = None
+) -> int:
+    """Move these openings into a group; returns how many actually moved. The move
+    is an edit, so a re-run of the take-off leaves the group as the estimator set it."""
     result = await openings().update_many(
         {"_id": {"$in": ids}, "projectId": project_id, "alternateGroup": {"$ne": group}},
-        {"$set": {"alternateGroup": group, "updatedAt": at}},
+        {
+            "$set": {"alternateGroup": group, "updatedAt": at},
+            "$push": {"edits": {"at": at, "by": by, "after": {"alternateGroup": group}}},
+        },
     )
     return result.modified_count
+
+
+def removed_key(doc: dict[str, Any]) -> str:
+    """The key a take-off reaches this row by - the one its importer matches on."""
+    return doc.get("specialtyKey") or _identity(
+        {"mark": doc.get("mark"), "description": doc.get("description")}
+    )
+
+
+async def remove(project_id: Any, ids: list[Any]) -> int:
+    """Delete openings an estimator removed, and remember each on the bid: a re-run
+    reads the same sheets and would otherwise put them straight back."""
+    docs = await openings().find(
+        {"_id": {"$in": ids}, "projectId": project_id},
+        {"mark": 1, "description": 1, "specialtyKey": 1},
+    ).to_list(None)
+    if not docs:
+        return 0
+    await bids.remember_removed(project_id, [removed_key(doc) for doc in docs])
+    result = await openings().delete_many({"_id": {"$in": [doc["_id"] for doc in docs]}})
+    return result.deleted_count

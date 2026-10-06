@@ -18,7 +18,7 @@ from cbc.shared.pass_files import read_json, write_json
 log = logging.getLogger("cbc.services.sync")
 
 
-def measure_bboxes(project: dict[str, Any]) -> tuple[int, int]:
+def measure_bboxes(project: dict[str, Any], *, overwrite: bool = True) -> tuple[int, int]:
     """Give every opening the bbox of the row it was actually read from.
 
     Runs before validation, on what the extracting pass just wrote. The pass
@@ -29,6 +29,9 @@ def measure_bboxes(project: dict[str, Any]) -> tuple[int, int]:
     The rows are still on the page and the values are still in the opening, so
     the row can be found again and measured. Nothing here invents: an opening
     that does not match exactly one row keeps a null bbox and a flag.
+
+    `overwrite=False` only fills rows with no box: in code every box was measured
+    off the text layer already, and only an agent ever invented one.
 
     Returns (attached, unmatched).
     """
@@ -54,6 +57,10 @@ def measure_bboxes(project: dict[str, Any]) -> tuple[int, int]:
 
     by_page: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for opening in openings:
+        if opening.get("specialty"):
+            continue  # Division 10 / FRP: measured from their own files
+        if not overwrite and opening.get("bbox"):
+            continue
         page_number = opening.get("source_page")
         # Always remasure. Agent-written boxes have been arithmetic inventions
         # (identical width, exact vertical steps); keeping any existing bbox
@@ -127,7 +134,7 @@ def measure_bboxes(project: dict[str, Any]) -> tuple[int, int]:
                 group,
                 document[page_number - 1],
                 shift=shift,
-                overwrite=True,
+                overwrite=overwrite,
             )
             attached += got
             unmatched += missed

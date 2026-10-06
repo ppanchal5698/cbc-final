@@ -12,7 +12,7 @@ from typing import Any
 
 from cbc.modules.extraction.api import documents, line_items, openings, passes
 from cbc.modules.ops.api import jobs as ops_jobs
-from cbc.modules.projects.api import bids, pipeline, saga
+from cbc.modules.projects.api import bids, lookup, pipeline, saga
 from cbc.modules.extraction.api.validation.contracts import extraction_review_verdict
 
 JOB_TYPES = ("extract_bid_set", "rerun_extraction")
@@ -35,6 +35,9 @@ async def sync_results(job: dict[str, Any], project: dict[str, Any] | None) -> s
     note = await passes.check_output(job, project)
     if note is not None:
         return note
+    # The bid as it is now: an estimator may have filled a field or deleted a row
+    # while the pass ran, and the import must not undo either.
+    project = await lookup.get(project["_id"]) or project
     counts = await line_items.import_extraction(project, job=job)
     if counts.get("aborted"):
         return "lease stolen; discarded output"

@@ -24,6 +24,15 @@ async def add_alternate(project_id: Any, name: str) -> None:
     )
 
 
+async def remember_removed(project_id: Any, keys: list[str]) -> None:
+    """Openings the estimator deleted, by the key a take-off reaches them by, so
+    the next take-off of the same sheets leaves them out rather than back in."""
+    if keys:
+        await bid_requests().update_one(
+            {"_id": project_id}, {"$addToSet": {"removedOpenings": {"$each": keys}}}
+        )
+
+
 async def record_hand_off(project_id: Any, recipient: str | None) -> None:
     """The estimator signed the proposal off and routed it to `recipient`."""
     now = datetime.now(timezone.utc)

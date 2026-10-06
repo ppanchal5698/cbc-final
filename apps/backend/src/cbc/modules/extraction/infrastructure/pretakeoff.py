@@ -26,6 +26,7 @@ by hand are decisions; a reseed carries them across untouched.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 from cbc.shared.paths import repo_root
@@ -47,7 +48,7 @@ def _schedule_candidates(sheets: dict[str, Any]) -> list[dict[str, Any]]:
     secondary = sheetmap.pages_for_roles(sheets, "door_schedule_candidate")
     seen: set[tuple[str, int]] = set()
     ordered: list[dict[str, Any]] = []
-    for hit in [*primary, *secondary]:
+    for hit in [*primary, *[{**h, "candidate_only": True} for h in secondary]]:
         path = str(hit.get("path") or "")
         try:
             page = int(hit["source_page"])
@@ -59,6 +60,46 @@ def _schedule_candidates(sheets: dict[str, Any]) -> list[dict[str, Any]]:
         seen.add(key)
         ordered.append(hit)
     return ordered[:MAX_PAGES_TRIED]
+
+
+# A further schedule sheet reads as a table. Each corpus bid's other candidate
+# pages gave up one stray "row" or two off a plan or an elevation (`W1`, `A-302`,
+# `ETR-29`) - never a door - and a union of every page would have priced them.
+MIN_CONTINUATION_ROWS = 3
+
+
+def _schedule_rows(read: list[tuple[dict[str, Any], list[dict[str, Any]]]]) -> list[dict[str, Any]]:
+    """The fullest page's rows, and every other page that is a schedule too.
+
+    A large bid runs its door schedule over two or three sheets, and only the
+    fullest was kept. A further page counts when the sheet map found a schedule
+    heading on it and it reads as a table. A door read twice in one file is the
+    first page's row; a door that is also in another file is kept and set aside
+    as a duplicate for the estimator - an addendum's re-issued sheet and a second
+    building's schedule look alike.
+    """
+    best = max(read, key=lambda pair: len(pair[1]))
+    pages = [best] + [
+        pair for pair in read
+        if pair is not best and not pair[0].get("candidate_only") and len(pair[1]) >= MIN_CONTINUATION_ROWS
+    ]
+    rows: list[dict[str, Any]] = []
+    where: dict[str, tuple[str, int]] = {}
+    for candidate, openings in pages:
+        for opening in openings:
+            key = _key(opening)
+            path = candidate["path"]
+            opening.setdefault("source_file", path)
+            if key and key in where:
+                if where[key][0] == path:
+                    continue  # the same door on a second sheet of this file
+                other, page = where[key]
+                opening["duplicate_of"] = key
+                opening["duplicate_reason"] = f"door {key} is also on {Path(other).name} p{page}"
+            elif key:
+                where[key] = (path, int(candidate["source_page"]))
+            rows.append(opening)
+    return rows
 
 
 def _schedule_path(slug: str):
@@ -101,7 +142,13 @@ def _blend(parsed: dict[str, Any], prior: dict[str, Any]) -> dict[str, Any]:
 
 
 def _merge(parsed: list[dict[str, Any]], existing: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Parsed rows, with every human decision - and every earlier finding - kept."""
+    """Parsed rows, with every human decision - and every earlier finding - kept.
+
+    Division 10 and FRP rows reach this file only by an export, and they are not
+    the door schedule: the specialty seeds and importer keep them. Carried across
+    here, a confirmed one was checked as a door and failed every re-run.
+    """
+    existing = [o for o in existing if not o.get("specialty")]
     prior = {_key(o): o for o in existing if _key(o)}
     decisions = {key: o for key, o in prior.items() if _is_a_decision(o)}
     merged = []
@@ -160,12 +207,13 @@ def seed_door_schedule(slug: str) -> dict[str, Any]:
 
     parser = sheetmap._load_parse_schedule()
 
-    # Read every candidate and keep the best, rather than the first that yields a
-    # row. Taking the first meant one bad page decided the whole take-off: on a
-    # real set the schedule sheet raised inside the parser, the error was noted
-    # and skipped, and the next candidate's single stray row became the take-off -
-    # one junk opening where the sheet had four.
-    best: tuple[dict[str, Any], list[dict[str, Any]]] | None = None
+    # Read every candidate, then take the fullest page and any other schedule
+    # sheet (`_schedule_rows`), rather than the first that yields a row. Taking
+    # the first meant one bad page decided the whole take-off: on a real set the
+    # schedule sheet raised inside the parser, the error was noted and skipped,
+    # and the next candidate's single stray row became the take-off - one junk
+    # opening where the sheet had four.
+    read: list[tuple[dict[str, Any], list[dict[str, Any]]]] = []
     errors: list[str] = []
     for candidate in candidates:
         pdf = _resolve(slug, candidate["path"])
@@ -179,11 +227,12 @@ def seed_door_schedule(slug: str) -> dict[str, Any]:
             errors.append(f"{candidate['path']} p{candidate['source_page']}: {exc}")
             continue
         found = envelope.get("openings") or []
-        if found and (best is None or len(found) > len(best[1])):
-            best = (candidate, found)
+        if found:
+            read.append((candidate, found))
 
-    if best is not None:
-        candidate, openings = best
+    if read:
+        candidate = max(read, key=lambda pair: len(pair[1]))[0]
+        openings = _schedule_rows(read)
 
         previous = _existing(slug)
         prior = previous.get("openings") or previous.get("lines") or []

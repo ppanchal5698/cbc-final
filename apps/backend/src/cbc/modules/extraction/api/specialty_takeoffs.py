@@ -236,12 +236,16 @@ async def import_specialty_takeoffs(
         if doc.get("specialtyKey")
     }
 
+    removed = set(project.get("removedOpenings") or [])  # deleted by the estimator
+
     bulk: list[InsertOne | UpdateOne] = []
     counts = {"div10": 0, "frp": 0}
     for key, fields in keyed:
         kind = (fields.get("specialty") or {}).get("kind")
         counts[kind] = counts.get(kind, 0) + 1
         current = existing.pop(key, None)
+        if current is None and key in removed:
+            continue  # the estimator deleted it; the take-off still reads it
         if current is None:
             bulk.append(
                 InsertOne({

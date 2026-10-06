@@ -97,7 +97,7 @@ async def assign_to_alternate(
 
     now = _now()
     if scope == "line-items":
-        moved = await extraction_openings.assign_group(project["_id"], object_ids, alternate, at=now)
+        moved = await extraction_openings.assign_group(project["_id"], object_ids, alternate, at=now, by=actor)
     else:
         result = await estimate_lines().update_many(
             {

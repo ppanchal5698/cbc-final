@@ -523,3 +523,143 @@ def test_a_reimport_over_a_confirmed_row_refreshes_its_evidence(project) -> None
     stored = database[names.OPENINGS].find_one({"projectId": record["_id"]})
     assert stored["finish"] == "US10B", "a confirmed value is the estimator's"
     assert stored["evidence"]["sourcePage"] == 44, "but its provenance follows the re-read"
+
+
+# ── re-runs keep what the estimator did ─────────────────────────────────────
+
+
+def _edit(database, record, mark, before, after):
+    database[names.OPENINGS].update_one(
+        {"projectId": record["_id"], "mark": mark},
+        {"$set": after, "$push": {"edits": {
+            "at": datetime.now(timezone.utc), "by": "kevin@cbc.com", "before": before, "after": after,
+        }}},
+    )
+
+
+def test_a_reimport_keeps_the_field_the_estimator_corrected(project) -> None:
+    """An edit nobody confirmed yet is still the estimator's - a re-read of the
+    sheet overwrote it, and the next run read LH where they had written RH."""
+    from cbc.modules.extraction.api import line_items
+
+    record, database, directory = project
+    _write(directory, "extracted/line_items.json", {"openings": [_opening("101")]})
+    run(line_items.import_extraction(record))
+    _edit(database, record, "101", {"handing": "LH"}, {"handing": "RH"})
+
+    _write(directory, "extracted/line_items.json", {"openings": [_opening("101", fire_rating="45")]})
+    run(line_items.import_extraction(record))
+
+    stored = database[names.OPENINGS].find_one({"projectId": record["_id"]})
+    assert stored["handing"] == "RH", "the estimator corrected it"
+    assert stored["fireRating"] == "45", "what nobody corrected follows the sheet"
+
+
+def test_a_corrected_mark_is_reached_by_the_mark_the_sheet_prints(project) -> None:
+    """101 misread as 1O1 and corrected: the sheet still prints 1O1, and a re-run
+    must find the corrected row by it rather than add the misreading back."""
+    from cbc.modules.extraction.api import line_items
+
+    record, database, directory = project
+    _write(directory, "extracted/line_items.json", {"openings": [_opening("1O1")]})
+    run(line_items.import_extraction(record))
+    _edit(database, record, "1O1", {"mark": "1O1"}, {"mark": "101"})
+
+    run(line_items.import_extraction(record))
+
+    assert [d["mark"] for d in database[names.OPENINGS].find({"projectId": record["_id"]})] == ["101"]
+
+
+def test_a_deleted_opening_is_not_brought_back(project) -> None:
+    """The estimator threw 102 out; the next take-off reads the same sheet."""
+    from cbc.modules.extraction.api import line_items, openings
+
+    record, database, directory = project
+    _write(directory, "extracted/line_items.json", {"openings": [_opening("101"), _opening("102")]})
+    run(line_items.import_extraction(record))
+    doomed = database[names.OPENINGS].find_one({"projectId": record["_id"], "mark": "102"})
+    assert run(openings.remove(record["_id"], [doomed["_id"]])) == 1
+
+    bid = database[names.BID_REQUESTS].find_one({"_id": record["_id"]})
+    assert bid["removedOpenings"] == ["mark:102"]
+    counts = run(line_items.import_extraction(bid))
+
+    assert counts["inserted"] == 0
+    assert [d["mark"] for d in database[names.OPENINGS].find({"projectId": record["_id"]})] == ["101"]
+
+
+def test_a_row_the_take_off_no_longer_reads_is_set_aside(project) -> None:
+    """A revised sheet drops a door, or the parser stops reading a stray line as
+    one. Nobody touched the old row, so it leaves the bid - set aside where the
+    estimator can still keep it - and a confirmed row stays whatever the sheet says."""
+    from cbc.modules.extraction.api import line_items
+
+    record, database, directory = project
+    rows = [_opening("101"), _opening("102"), _opening("103")]
+    _write(directory, "extracted/line_items.json", {"openings": rows})
+    run(line_items.import_extraction(record))
+    database[names.OPENINGS].update_one(
+        {"projectId": record["_id"], "mark": "103"},
+        {"$set": {"confirmedAt": datetime.now(timezone.utc), "confirmedBy": "kevin@cbc.com"}},
+    )
+
+    _write(directory, "extracted/line_items.json", {"openings": [_opening("101")]})
+    run(line_items.import_extraction(record))
+
+    status = {d["mark"]: d for d in database[names.OPENINGS].find({"projectId": record["_id"]})}
+    assert status["102"]["status"] == "duplicate"
+    assert status["102"]["duplicateReason"] == "not in the latest take-off"
+    assert status["103"]["status"] != "duplicate" and status["101"]["status"] != "duplicate"
+
+
+def test_an_exported_accessory_is_left_to_its_own_importer(project) -> None:
+    """An export writes Division 10 rows into the door file. Matched there as a
+    door, a confirmed accessory had its evidence re-measured away."""
+    from cbc.modules.extraction.api import line_items
+
+    record, database, directory = project
+    database[names.OPENINGS].insert_one({
+        "projectId": record["_id"], "specialtyKey": "specialty|div10|21|B-5806|1", "mark": "B-5806",
+        "status": "clear", "confirmedAt": datetime.now(timezone.utc), "specialty": {"kind": "div10"},
+        "evidence": {"sourcePage": 21, "bbox": [1, 2, 3, 4]},
+    })
+    exported = {"door_number": "B-5806", "specialty": {"kind": "div10"}, "source_page": 21, "bbox": None}
+    _write(directory, "extracted/line_items.json", {"openings": [_opening("101"), exported]})
+
+    counts = run(line_items.import_extraction(record))
+
+    assert counts["inserted"] == 1
+    kept = database[names.OPENINGS].find_one({"specialtyKey": "specialty|div10|21|B-5806|1"})
+    assert kept["evidence"]["bbox"] == [1, 2, 3, 4] and kept["status"] == "clear"
+
+
+def test_a_deleted_accessory_is_not_brought_back(project) -> None:
+    from cbc.modules.extraction.api import openings, specialty_takeoffs
+
+    record, database, directory = project
+    _write(directory, "extracted/div10_takeoff.json", {"div10_in_scope": True, "status": "EXTRACTED", "items": [
+        {"product_type": "grab bar", "manufacturer": "Bobrick", "specified_model": "B-5806", "qty": 2,
+         "source_page": 21},
+    ]})
+    run(specialty_takeoffs.import_specialty_takeoffs(record))
+    row = database[names.OPENINGS].find_one({"projectId": record["_id"]})
+    run(openings.remove(record["_id"], [row["_id"]]))
+
+    bid = database[names.BID_REQUESTS].find_one({"_id": record["_id"]})
+    run(specialty_takeoffs.import_specialty_takeoffs(bid))
+
+    assert database[names.OPENINGS].count_documents({"projectId": record["_id"]}) == 0
+
+
+def test_an_alternate_the_estimator_assigned_survives_a_reimport(project) -> None:
+    from cbc.modules.extraction.api import line_items, openings
+
+    record, database, directory = project
+    _write(directory, "extracted/line_items.json", {"openings": [_opening("101")]})
+    run(line_items.import_extraction(record))
+    door = database[names.OPENINGS].find_one({"projectId": record["_id"]})
+    run(openings.assign_group(record["_id"], [door["_id"]], "ALT 1", at=datetime.now(timezone.utc), by="kevin"))
+
+    run(line_items.import_extraction(record))
+
+    assert database[names.OPENINGS].find_one({"_id": door["_id"]})["alternateGroup"] == "ALT 1"
