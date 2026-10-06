@@ -16,6 +16,7 @@ def register(app) -> None:
         Finishes,
         FrameDepths,
         FrpConstants,
+        HardwareEquals,
         Stewardship,
         LiteKit,
         Margins,
@@ -41,6 +42,7 @@ def register(app) -> None:
         LiteKit,
         Stock,
         CustomOtherMatrix,
+        HardwareEquals,
         DeleteEntry,
     ):
         app.include_router(feature.router)

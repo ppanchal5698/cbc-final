@@ -61,6 +61,7 @@ class Sources:
     equals: dict[str, Any] = field(default_factory=dict)  # the Division 10 direct-equal matrix
     equal_rows: list[dict[str, Any]] = field(default_factory=list)  # catalog rows of the brands it names
     adders: list[dict[str, Any]] = field(default_factory=list)  # Hager list adders: {name, list_adder}
+    hardware_equals: dict[str, dict[str, Any]] = field(default_factory=dict)  # part key -> the equal named for it
 
 
 # How a legend says each Hager list adder (NR-4). One added in Settings without an
@@ -320,7 +321,7 @@ def _as_matched(priced: dict[str, Any], choice: matcher.Choice, base: dict[str, 
 _SOURCE_CONFIDENCE = {"P21_LAST_PO": 0.95, "SPECIAL_NET": 0.95, "CATALOG_BASELINE": 0.92,
                       "LIST_X_MULTIPLIER": 0.90}
 _FLAG_CONFIDENCE = (("ambiguous_match", 0.60), ("model_chose_match", 0.75), ("direct_equal", 0.80),
-                    ("series_match", 0.80), ("price_read_by_model", 0.80))
+                    ("series_match", 0.80), ("price_read_by_model", 0.80), ("hardware_equal", 0.80))
 
 
 def match_confidence(row: dict[str, Any]) -> float | None:
@@ -447,19 +448,42 @@ def _direct_equal(row: dict[str, Any], line: Line, spec: matcher.Spec, src: Sour
     return priced
 
 
+def _equal_on_file(line: Line, src: Sources) -> dict[str, Any] | None:
+    """The equal an estimator named for this part before, by its most specific form:
+    `4040XP-RW/PA` finds the one named for `4040XP`."""
+    for form in src.models(line.part or "") if line.part else ():
+        found = src.hardware_equals.get(re.sub(r"[^A-Z0-9]", "", form.upper()))
+        if found and found.get("equal_part"):
+            return found
+    return None
+
+
 def _allegion_rows(line: Line, src: Sources) -> list[dict[str, Any]]:
     """The Hager equal as the base line, and the Allegion part as specified beside it."""
     specified = " ".join(v for v in (line.manufacturer, line.part, line.description) if v)
-    base = _row(line, src)
-    base.update(
-        part_number=None, manufacturer="Hager",
-        description=f"Hager equal to {specified}",
-        cost_source_detail=(f"Allegion specified ({specified}): price the Hager equal - no equal is on "
-                            "file for this part yet, so an estimator names it"),
-        substitution_note=(f"Hager equal offered for the specified {specified}; the product as specified "
-                           "is priced as an alternate."),
-    )
-    base["flags"].append("allegion_equal_needed")
+    equal = _equal_on_file(line, src)
+    if equal is not None:
+        # The equal an estimator named on an earlier quote, priced like any part.
+        maker = equal.get("equal_manufacturer") or "Hager"
+        offered = replace(line, part=equal["equal_part"], manufacturer=maker,
+                          description=f"{maker} {equal['equal_part']} - equal to {specified}")
+        [base] = _ladder(offered, src)
+        base["cost_source_detail"] += (f"; the equal on file for the specified {line.manufacturer or 'Allegion'} "
+                                       f"{line.part}" + (f", named by {equal['named_by']}" if equal.get("named_by") else ""))
+        base["substitution_note"] = (f"{maker} {equal['equal_part']} offered for the specified {specified}; the "
+                                     "product as specified is priced as an alternate.")
+        base["flags"].append("hardware_equal")
+    else:
+        base = _row(line, src)
+        base.update(
+            part_number=None, manufacturer="Hager",
+            description=f"Hager equal to {specified}",
+            cost_source_detail=(f"Allegion specified ({specified}): price the Hager equal - no equal is on "
+                                "file for this part yet, so an estimator names it"),
+            substitution_note=(f"Hager equal offered for the specified {specified}; the product as specified "
+                               "is priced as an alternate."),
+        )
+        base["flags"].append("allegion_equal_needed")
     # The Allegion part as specified is offered instead of the equal: a substitution,
     # which takes this line out of the bid it is accepted with.
     base["deducted_by"] = [ALLEGION_ALTERNATE]
@@ -491,7 +515,11 @@ def _price_rows(line: Line, src: Sources) -> list[dict[str, Any]]:
                        cost_source_detail="Allegion, supplied by others per the schedule - not CBC's to price")
             return [row]
         return _allegion_rows(line, src)
+    return _ladder(line, src)
 
+
+def _ladder(line: Line, src: Sources) -> list[dict[str, Any]]:
+    """Rungs 1 to 6 for a part CBC can price: always one row."""
     row = _row(line, src)
     if line.unit == "SET" and not line.part:
         # A whole set to price by hand: the take-off already says why.

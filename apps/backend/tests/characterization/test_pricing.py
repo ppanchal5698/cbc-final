@@ -102,6 +102,12 @@ def test_vendor_tiers(client, snapshots) -> None:
     snapshots.pin("PATCH /api/reference/vendor-tiers", _ok(client.patch(f"{REF}/vendor-tiers", json=body)))
 
 
+def test_hardware_equals(client, snapshots) -> None:
+    snapshots.pin("GET /api/reference/hardware-equals", _ok(client.get(f"{REF}/hardware-equals")))
+    body = {"items": [{"brand": "Schlage", "part": "L9080", "equal_part": "3580"}]}
+    snapshots.pin("PATCH /api/reference/hardware-equals", _ok(client.patch(f"{REF}/hardware-equals", json=body)))
+
+
 def test_special_nets(client, snapshots) -> None:
     snapshots.pin("GET /api/reference/special-nets", _ok(client.get(f"{REF}/special-nets")))
     body = {"items": [{"part_number": "1256", "net_price": 31.8}]}

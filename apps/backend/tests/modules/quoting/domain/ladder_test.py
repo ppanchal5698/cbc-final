@@ -292,3 +292,24 @@ def test_a_size_of_its_series_offers_the_series_other_sizes_beside_it() -> None:
     assert [m["part_number"] for m in ladder.close_matches(row, src)] == ["B-5806.99x36", "B-5806.99x42", "B-5806.99x48"]
     [exact] = ladder.price(line("BB1279", finish_="626", text='HINGE 4-1/2" x 4-1/2"'), src)
     assert exact["cost"] == 4.99 and ladder.UNDECIDED not in exact, "a part matched outright has nothing to choose among"
+
+
+def test_an_allegion_part_with_an_equal_on_file_prices_the_equal() -> None:
+    """FR-17: the equal an estimator named on an earlier quote is the base line,
+    priced like any part; the Allegion part as specified stays the alternate."""
+    from cbc.modules.pricing.api import confidence
+
+    equal = {"brand": "Ives", "part": "5BB1", "equal_manufacturer": "Hager", "equal_part": "BB1279",
+             "named_by": "kevin"}
+    src = sources(hardware_equals={"5BB1": equal})
+    base, alternate = ladder.price(line("5BB1", manufacturer="Ives", finish_="626",
+                                        text='HINGE 4-1/2" x 4-1/2"'), src)
+    assert (base["part_number"], base["cost"], base["cost_source"]) == ("BB1279", 4.99, "LIST_X_MULTIPLIER")
+    assert "hardware_equal" in base["flags"] and "allegion_equal_needed" not in base["flags"]
+    assert base["cost_source_detail"].endswith("the equal on file for the specified Ives 5BB1, named by kevin")
+    assert base["substitution_note"].startswith("Hager BB1279 offered for the specified Ives 5BB1")
+    assert base["deducted_by"] == [ladder.ALLEGION_ALTERNATE] and base["line_id"] == "1:01"
+    assert (alternate["cost_source"], alternate["line_id"]) == ("DISTRIBUTOR_MANUAL", "1:01:allegion")
+    assert confidence.band(ladder.match_confidence(base)) == "review"
+    [needed, _] = ladder.price(line("5BB2", manufacturer="Ives"), src)
+    assert "allegion_equal_needed" in needed["flags"] and needed["cost"] is None

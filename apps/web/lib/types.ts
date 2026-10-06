@@ -1045,6 +1045,22 @@ export interface VendorTierDoc {
   rule?: string;
 }
 
+/** The equal CBC quotes for a part it buys only through a distributor (FR-17). */
+export interface HardwareEqualRow {
+  brand?: string | null;
+  part: string;
+  equal_manufacturer?: string | null;
+  equal_part: string;
+  note?: string | null;
+  named_by?: string | null;
+  named_at?: string | null;
+}
+
+export interface HardwareEqualsDoc {
+  description?: string;
+  rows: HardwareEqualRow[];
+}
+
 export interface SpecialNetsDoc {
   vendor?: string;
   items: Array<{

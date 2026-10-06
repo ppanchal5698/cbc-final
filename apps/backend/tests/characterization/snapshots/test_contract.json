@@ -389,6 +389,12 @@
   },
   "status": 401
  },
+ "GET /api/reference/hardware-equals #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "GET /api/reference/lite-kit #wrong token": {
   "body": {
    "detail": "str"
@@ -636,6 +642,18 @@
   "status": 403
  },
  "PATCH /api/reference/frp-constants #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/reference/hardware-equals #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/reference/hardware-equals #wrong token": {
   "body": {
    "detail": "str"
   },
@@ -1409,6 +1427,11 @@
   },
   {
    "admin": false,
+   "op": "GET /api/reference/hardware-equals",
+   "status": 200
+  },
+  {
+   "admin": false,
    "op": "GET /api/reference/lite-kit",
    "status": 200
   },
@@ -1555,6 +1578,11 @@
   {
    "admin": true,
    "op": "PATCH /api/reference/frp-constants",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/reference/hardware-equals",
    "status": 200
   },
   {

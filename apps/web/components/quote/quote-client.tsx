@@ -758,7 +758,15 @@ export function QuoteClient({
 
                         <button
                           type="button"
-                          onClick={() => editText(line, "part", "Part number")}
+                          onClick={() =>
+                            editText(
+                              line,
+                              "part",
+                              line.flags?.includes("allegion_equal_needed")
+                                ? "Hager equal's part number - kept, so the next bid that specifies this part prices it"
+                                : "Part number",
+                            )
+                          }
                           aria-label={`Part number for ${line.description}`}
                           className="truncate text-left text-[13px] font-medium text-tx-secondary hover:text-tx-primary hover:underline"
                           title={line.part ?? "Name the part"}

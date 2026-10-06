@@ -166,11 +166,15 @@ async def _sources(project: dict[str, Any], lines: list[takeoff.Line]) -> ladder
     def models(part: str) -> list[str]:
         return catalog_products.part_candidates(part, vendors)
 
+    # The equals estimators named for Allegion parts: each is priced like any part,
+    # so its rows are fetched with the bid's own.
+    named = await asyncio.to_thread(reference_library.load_hardware_equals)
+    hardware_equals = {reference_library.equal_key(row.get("part")): row
+                       for row in named.get("rows") or [] if row.get("equal_part")}
     wanted: set[str] = set()
-    for line in lines:
-        for part in (line.part, ladder.guess_part(line)):
-            if part:
-                wanted.update(m for model in models(part) for m in (model, model.upper()))
+    parts = [part for line in lines for part in (line.part, ladder.guess_part(line)) if part]
+    for part in [*parts, *(row["equal_part"] for row in hardware_equals.values())]:
+        wanted.update(m for model in models(part) for m in (model, model.upper()))
     exact = [row for rows in (await catalog_products.by_parts(wanted, quotable=True)).values() for row in rows]
     catalog = list({row["_id"]: row for row in [*exact, *await catalog_products.by_series(wanted)]}.values())
     book = [row for rows in (await catalog_products.list_prices(wanted)).values() for row in rows]
@@ -206,6 +210,7 @@ async def _sources(project: dict[str, Any], lines: list[takeoff.Line]) -> ladder
         equals=equals,
         equal_rows=equal_rows,
         adders=[a for a in (adders.get("hager_list_adders") or {}).get("items") or [] if isinstance(a, dict)],
+        hardware_equals=hardware_equals,
     )
 
 

@@ -441,6 +441,38 @@ def update_stock_items(
     return update_stock_list(vendor_key, payload)
 
 
+def equal_key(part: Any) -> str:
+    """A part as the equals list keys it: `4040XP-RW/PA` and `4040xp rw pa` agree."""
+    return re.sub(r"[^A-Z0-9]", "", str(part or "").upper())
+
+
+def load_hardware_equals() -> dict[str, Any]:
+    return reference_store.get_family_sync("hardware_equals")
+
+
+def update_hardware_equals(
+    items: list[dict[str, Any]] | None = None,
+    remove: list[str] | None = None,
+    *,
+    actor: str | None = None,
+) -> dict[str, Any]:
+    """Upsert equals by the part specified; remove by it. An equal names the part
+    it is offered for and the part offered, nothing less."""
+    payload = load_hardware_equals()
+    rows = {equal_key(r.get("part")): r for r in payload.get("rows") or [] if equal_key(r.get("part"))}
+    for item in items or []:
+        key = equal_key(item.get("part"))
+        if not key or not str(item.get("equal_part") or "").strip():
+            raise ValueError("an equal needs the part specified and the part offered for it")
+        rows[key] = {**rows.get(key, {}), **{k: v.strip() if isinstance(v, str) else v
+                                              for k, v in item.items() if v not in (None, "")}}
+    for part in remove or []:
+        rows.pop(equal_key(part), None)
+    payload["rows"] = sorted(rows.values(), key=lambda r: (str(r.get("brand") or ""), equal_key(r.get("part"))))
+    reference_store.put_family_sync("hardware_equals", payload, actor=actor)
+    return payload
+
+
 def load_div10_equals() -> dict[str, Any]:
     """The Division 10 direct-equal matrix, or nothing when it has not been placed."""
     try:

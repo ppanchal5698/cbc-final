@@ -8,6 +8,7 @@ import type { StewardshipResponse } from "@/lib/types";
 
 const LABELS: Record<string, string> = {
   vendor_tiers: "Vendor multipliers and tiers",
+  hardware_equals: "Allegion equals",
   hager_special_nets: "Hager special nets",
   margins: "Margin sheet",
   hager_top10_stock: "Hager stock list",

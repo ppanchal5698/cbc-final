@@ -178,6 +178,21 @@ class SpecialNetsUpdate(BaseModel):
     remove: list[str] | None = None
 
 
+class HardwareEqualItem(BaseModel):
+    """One equal: the part specified, by its brand, and the part CBC offers for it."""
+
+    brand: str | None = None
+    part: str = Field(min_length=1)
+    equal_manufacturer: str = "Hager"
+    equal_part: str = Field(min_length=1)
+    note: str | None = None
+
+
+class HardwareEqualsUpdate(BaseModel):
+    items: list[HardwareEqualItem] | None = None
+    remove: list[str] | None = None
+
+
 class StockItem(BaseModel):
     part_number: str = Field(min_length=1)
     description: str | None = None

@@ -77,8 +77,21 @@ def _div10_equals() -> dict[str, Any]:
     }
 
 
-# Families seeded by reading a file CBC keeps in its own form, not a JSON seed.
-SEED_BUILDERS = {"div10_equals": _div10_equals}
+def _hardware_equals() -> dict[str, Any]:
+    """Allegion parts and the equal CBC quotes for each. It starts empty: every
+    equal an estimator names on a quote is kept here, and the next bid prices it."""
+    return {
+        "description": ("Equals for parts CBC buys only through a distributor (Allegion: Von Duprin, "
+                        "LCN, Schlage, Ives). A bid that specifies one prices the equal as its base "
+                        "line, with the part as specified as an alternate (requirements 5.2, FR-17)."),
+        "source": "named by estimators on quotes, and in Settings",
+        "rows": [],
+    }
+
+
+# Families seeded by reading a file CBC keeps in its own form, not a JSON seed -
+# or by code, for a family that starts empty and is filled in the app.
+SEED_BUILDERS = {"div10_equals": _div10_equals, "hardware_equals": _hardware_equals}
 
 FAMILIES: frozenset[str] = frozenset(SEED_FILES) | frozenset(SEED_BUILDERS)
 

@@ -41,6 +41,7 @@ def _request(client, op: str, **kwargs):
 
 
 def test_the_route_table(snapshots) -> None:
+    # 148: FR-17 added GET and PATCH /api/reference/hardware-equals - the equal quoted for an Allegion part.
     # 146: NR-1 added POST /api/projects/{code}/quote/lite-kits - a lite kit off NGP's size tables.
     # 145: NFR-10 added GET /api/reference/stewardship - who keeps each data set current.
     # 144: FR-14's reconciliation added POST /api/projects/{code}/versions/{version}/decisions.
@@ -58,7 +59,7 @@ def test_the_route_table(snapshots) -> None:
     # assigned to, names only and readable without the admin role.
     # 131: FR-13 added POST /api/learning/apply, which drains the estimator
     # corrections into what the matcher knows.
-    assert len(ROUTES) == 146
+    assert len(ROUTES) == 148
     snapshots.pin_value("routes", ROUTES)
 
 

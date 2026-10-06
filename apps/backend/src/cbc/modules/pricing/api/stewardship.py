@@ -21,6 +21,7 @@ STEWARDS: dict[str, tuple[str, str, int | None]] = {
     "margins": ("Estimating Lead", "annually, and on change", 12),
     "hager_top10_stock": ("Estimating Lead", "quarterly", 3),
     "allegion_stock": ("Estimating Lead", "quarterly", 3),
+    "hardware_equals": ("Estimating Lead", "as estimators name equals, reviewed quarterly", 3),
     "special_customer_margins": ("Sales Mgmt / Estimating Lead", "on account change", None),
     "tax": ("Finance / IT", "on change", None),
 }

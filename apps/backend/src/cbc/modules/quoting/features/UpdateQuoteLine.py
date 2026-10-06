@@ -2,6 +2,8 @@
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -9,6 +11,7 @@ from fastapi import APIRouter, HTTPException
 
 from cbc.modules.extraction.api import feedback
 from cbc.modules.ops.api import audit
+from cbc.modules.pricing.api import reference_library
 from cbc.modules.projects.api.lookup import load
 from cbc.modules.quoting.api import lines as lines_api
 from cbc.modules.quoting.api import quote as quote_service
@@ -18,6 +21,7 @@ from cbc.shared.auth import Actor
 from cbc.shared.mongo import oid, serialise
 
 router = APIRouter(prefix="/api/projects/{code}/quote", tags=["quote"])
+log = logging.getLogger("cbc.quote")
 
 
 def _now() -> datetime:
@@ -97,5 +101,25 @@ async def update_line(
         note=reason,
     )
 
+    if changes.get("part") and "allegion_equal_needed" in (line.get("flags") or []):
+        await _keep_equal(project, line, changes, actor)
+
     totals = await quote_service.persist(project)
     return {"line": serialise(await estimate_lines().find_one({"_id": line["_id"]})), "totals": totals}
+
+
+async def _keep_equal(project: dict[str, Any], line: dict[str, Any], changes: dict[str, Any], actor: str) -> None:
+    """FR-13: the equal an estimator names for an Allegion part is kept, so the next
+    bid that specifies the part prices it. The line keeps the edit either way."""
+    specified = await estimate_lines().find_one({"projectId": project["_id"], "lineKey": f"{line.get('lineKey')}:allegion"})
+    if not specified or not specified.get("part"):
+        return
+    item = {"brand": specified.get("manufacturer"), "part": specified["part"],
+            "equal_manufacturer": changes.get("manufacturer") or line.get("manufacturer") or "Hager",
+            "equal_part": changes["part"], "named_by": actor, "named_at": _now().isoformat()}
+    try:
+        await asyncio.to_thread(reference_library.update_hardware_equals, items=[item], actor=actor)
+    except Exception as exc:  # the edit stands; the equal waits for the next one
+        log.warning("equal for %s not kept: %s", specified["part"], exc)
+        return
+    await estimate_lines().update_one({"_id": line["_id"]}, {"$pull": {"flags": "allegion_equal_needed"}})

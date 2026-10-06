@@ -450,3 +450,14 @@ def test_admin_can_name_a_vendors_distributors(admin_client) -> None:
     assert response.status_code == 200
     assert any(v.get("key") == "wilsonart" for v in response.json()["vendors"])
     assert admin_client.patch("/api/reference/vendor-tiers", json={"vendor": "hager"}).status_code == 422
+
+
+def test_an_equal_is_kept_by_the_part_specified() -> None:
+    reflib.update_hardware_equals(items=[{"brand": "Schlage", "part": "L9080", "equal_part": "3580",
+                                          "equal_manufacturer": "Hager", "named_by": "kevin"}])
+    after = reflib.update_hardware_equals(items=[{"part": "l-9080", "equal_part": "3590", "named_by": "rick"}])
+    [row] = after["rows"]
+    assert (row["brand"], row["part"], row["equal_part"], row["named_by"]) == ("Schlage", "l-9080", "3590", "rick")
+    assert reflib.update_hardware_equals(remove=["L9080"])["rows"] == []
+    with pytest.raises(ValueError):
+        reflib.update_hardware_equals(items=[{"part": "L9080", "equal_part": " "}])
