@@ -41,6 +41,14 @@ def test_update_margins_round_trip() -> None:
 def test_update_margins_accessories() -> None:
     updated = reflib.update_margins(accessories=0.5)
     assert updated["accessories_derived"] == 0.5
+    assert calc.bands()["accessories"] == 0.5
+
+
+def test_the_restroom_accessories_band_is_the_one_pricing_reads() -> None:
+    """Settings edits the band; pricing read a derived note beside it, so an
+    edit to the band changed no quote."""
+    reflib.update_margins(bands={"restroom_accessories": 0.52})
+    assert calc.bands()["accessories"] == 0.52
 
 
 def test_update_margins_preserves_other_fields() -> None:

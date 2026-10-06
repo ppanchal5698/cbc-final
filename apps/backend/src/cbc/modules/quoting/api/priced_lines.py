@@ -90,6 +90,8 @@ def _estimator_fields(line: dict[str, Any]) -> set[str]:
     edited = {key for override in line.get("overrides") or [] for key in (override.get("after") or {})}
     if line.get("marginOverridden"):
         edited.add("margin")
+    if "margin" in edited:
+        edited.add("overrideReason")  # a margin and why are one fact, like a cost and its source
     if edited & {"cost", "costSource", "costSourceDetail"}:
         edited.update(_COST_FIELDS)
     return edited
@@ -151,6 +153,9 @@ async def import_quote_lines(
             "qty": line.get("quantity", 1),
             "cost": cost,
             "margin": line.get("margin"),
+            # Why the margin is not the band's: a special customer or brand margin
+            # (NR-9) says so on the line, as an estimator's override does.
+            "overrideReason": line.get("margin_override_reason"),
             "sell": line.get("sale_ea"),
             "extended": line.get("ext_price"),
             "basis": line.get("basis") or "Book price",

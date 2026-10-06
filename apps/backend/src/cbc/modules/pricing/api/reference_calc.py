@@ -43,7 +43,12 @@ def bands() -> dict[str, float]:
     if _bands_cache and _bands_cache[0] == stamp:
         return dict(_bands_cache[1])
     bands_map = {b["key"]: float(b["margin"]) for b in data.get("bands", []) if "key" in b}
-    if "accessories_derived" in data and data["accessories_derived"] is not None:
+    # Pricing's `accessories` is the restroom-accessories band an admin edits in
+    # Settings; `accessories_derived` only records where its 56% came from. Read
+    # the other way round, an edit to the band changed nothing on a quote.
+    if "restroom_accessories" in bands_map:
+        bands_map["accessories"] = bands_map["restroom_accessories"]
+    elif data.get("accessories_derived") is not None:
         bands_map["accessories"] = float(data["accessories_derived"])
     result = bands_map or dict(DEFAULT_BANDS)
     _bands_cache = (stamp, result)

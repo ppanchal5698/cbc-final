@@ -261,3 +261,19 @@ async def test_an_empty_pricing_file_removes_nothing(reconciling_store) -> None:
     result = await priced_lines.import_quote_lines(project)
     assert result.get("removed", 0) == 0
     assert len(docs) == 2
+
+
+@pytest.mark.asyncio
+async def test_a_special_margin_lands_with_its_reason(quote_store):
+    """The ladder applies Wendy's own margin and says so; the reason was dropped on
+    import, and the quote showed a margin under band with nothing saying why."""
+    project, path, docs, _ = quote_store
+    path.write_text(json.dumps({"lines": [{
+        "line_id": "L1", "description": "ENTRY LOCK", "part_number": "3553", "quantity": 2,
+        "cost": 74.0, "cost_source": "LIST_X_MULTIPLIER", "margin": 0.20,
+        "margin_override_reason": "special customer margin: Wendys",
+    }]}), encoding="utf-8")
+
+    await priced_lines.import_quote_lines(project)
+
+    assert docs[0]["margin"] == 0.20 and docs[0]["overrideReason"] == "special customer margin: Wendys"

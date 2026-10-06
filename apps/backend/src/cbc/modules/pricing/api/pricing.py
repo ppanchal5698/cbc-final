@@ -29,9 +29,10 @@ DIVISION_BANDS = {
     "10 28": "accessories",
     # FRP. MasterFormat files it under 06 64 (plastic paneling), and that is where
     # the take-off puts it; a spec book that files it under 09 77 (special wall
-    # surfacing) is the same panel, at the same band.
-    "06 64": "specialty",
-    "09 77": "specialty",
+    # surfacing) is the same panel. CBC's margin sheet prices FRP panels as
+    # commodity (margin_framework.json) - it was at specialty's 40%.
+    "06 64": "commodity",
+    "09 77": "commodity",
 }
 DEFAULT_BAND = "commodity"
 

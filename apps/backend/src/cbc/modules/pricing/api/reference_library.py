@@ -53,6 +53,10 @@ def update_margins(
         if not 0 <= accessories < 1:
             raise ValueError(f"accessories margin must be in [0, 1), got {accessories}")
         payload["accessories_derived"] = accessories
+        # The restroom-accessories band is the one pricing reads; this is its value.
+        for record in payload.get("bands", []):
+            if record.get("key") == "restroom_accessories":
+                record["margin"], record["divisor"] = accessories, round(1 - accessories, 4)
 
     reference_store.put_family_sync("margins", payload)
     from cbc.modules.pricing.api.calc import invalidate_reference_caches

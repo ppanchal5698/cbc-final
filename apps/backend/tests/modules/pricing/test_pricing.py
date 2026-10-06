@@ -376,3 +376,11 @@ def test_the_extension_is_rounded_once_not_twice():
     single = calculate_line(cost=74.33, margin=0.27, quantity=1)
     assert single["sale_ea"] == 101.82
     assert single["ext_price"] == 101.82
+
+
+def test_frp_is_priced_at_the_commodity_band_wherever_a_spec_book_files_it():
+    """CBC's margin sheet lists FRP panels as commodity (27%); it was at specialty's 40%."""
+    from cbc.modules.pricing.api import pricing
+
+    assert pricing.band_for_division("06 64 00") == "commodity"
+    assert pricing.band_for_division("09 77 13") == "commodity"
