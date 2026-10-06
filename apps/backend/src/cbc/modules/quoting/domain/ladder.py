@@ -297,10 +297,18 @@ def price_choice(row: dict[str, Any], index: int, reason: str, src: Sources) -> 
     return priced
 
 
-def _as_matched(priced: dict[str, Any], choice: matcher.Choice) -> dict[str, Any]:
-    """Say when the row is a size of the series the legend named, not the part itself."""
+def _as_matched(priced: dict[str, Any], choice: matcher.Choice, base: dict[str, Any], rung: str,
+                show: Callable[[dict[str, Any]], str]) -> dict[str, Any]:
+    """Say when the row is a size of the series the legend named, not the part
+    itself - and keep the series' other rows beside it, so the estimator has the
+    close matches FR-8 offers on a line in the review band."""
     if choice.series:
         priced["flags"].append("series_match")
+        rows = (choice.nearby or choice.candidates)[:MAX_CANDIDATES]
+        at = next((i for i, candidate in enumerate(rows) if candidate is choice.row), None)
+        if len(rows) > 1 and at is not None:
+            priced[UNDECIDED] = {"rung": rung, "candidates": rows, "shown": [show(r) for r in rows],
+                                 "base": base, "chosen": at}
     return priced
 
 
@@ -536,9 +544,10 @@ def _price_rows(line: Line, src: Sources) -> list[dict[str, Any]]:
         if choice.candidates and choice.row is None:
             tried.append(f"special net: {choice.reason}")
         if choice.row is not None:
+            base = {**row, "flags": list(row["flags"])}  # before pricing writes into it
             priced = _from_net(row, choice.row, src, tried)
             if priced is not None:
-                return [_as_matched(priced, choice)]
+                return [_as_matched(priced, choice, base, "special net", _show_net)]
 
     # 3. Catalog row.
     choice = _rung_catalog(spec, models, vendor, src)
@@ -548,9 +557,10 @@ def _price_rows(line: Line, src: Sources) -> list[dict[str, Any]]:
     if choice.candidates and catalog_row is None:
         tried.append(f"catalog: {choice.reason}")
     if catalog_row is not None:
+        base = {**row, "flags": list(row["flags"])}  # before pricing writes into it
         priced = _from_catalog(row, catalog_row, src, line.manufacturer, tried)
         if priced is not None:
-            return [_as_matched(priced, choice)]
+            return [_as_matched(priced, choice, base, "catalog", _show_catalog)]
 
     # 4. Price book list x the multiplier for its section.
     choice = _rung_book(spec, models, vendor, src)
@@ -559,9 +569,10 @@ def _price_rows(line: Line, src: Sources) -> list[dict[str, Any]]:
     if choice.candidates and choice.row is None:
         tried.append(f"price book: {choice.reason}")
     if choice.row is not None:
+        base = {**row, "flags": list(row["flags"])}  # before pricing writes into it
         priced = _from_book(row, choice.row, src, vendor, tried)
         if priced is not None:
-            return [_as_matched(priced, choice)]
+            return [_as_matched(priced, choice, base, "price book", _show_book)]
 
     # 5. Division 10: the direct equal CBC can price.
     if line.division.startswith("10") and src.equals:

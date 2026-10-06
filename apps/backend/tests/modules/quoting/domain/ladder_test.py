@@ -278,3 +278,17 @@ def test_a_vendor_bought_through_a_distributor_is_priced_by_hand() -> None:
     assert row["cost_source_detail"].endswith("bought through Laminate Distributor: enter the distributor's price")
     [row] = ladder.price(line("AT100", manufacturer="Formica"), sources(tiers=tiers))
     assert row["cost_source"] == "MANUAL"
+
+
+def test_a_size_of_its_series_offers_the_series_other_sizes_beside_it() -> None:
+    """FR-8 / requirements 7.1: a match in the review band is proposed with close
+    matches - for a series, its other sizes in the finish, nearest in price first."""
+    bars = [{"part": f"B-5806.99x{size}", "manufacturer": "Bobrick", "vendorKey": "bobrick", "cost": cost,
+             "description": f'Grab Bar {size}" Length', "seedSource": "catalog"}
+            for size, cost in ((48, 30.0), (36, 26.0), (42, 28.0), (18, 19.0))]
+    src = sources(catalog=bars)
+    [row] = ladder.price(line("B-5806", manufacturer="Bobrick", text='GRAB BAR 36"'), src)
+    assert (row["part_number"], row["cost"]) == ("B-5806.99x36", 26.0) and "series_match" in row["flags"]
+    assert [m["part_number"] for m in ladder.close_matches(row, src)] == ["B-5806.99x36", "B-5806.99x42", "B-5806.99x48"]
+    [exact] = ladder.price(line("BB1279", finish_="626", text='HINGE 4-1/2" x 4-1/2"'), src)
+    assert exact["cost"] == 4.99 and ladder.UNDECIDED not in exact, "a part matched outright has nothing to choose among"

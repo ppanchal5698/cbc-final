@@ -245,7 +245,7 @@ async def _choose(rows: list[dict[str, Any]], sources: ladder.Sources, *, budget
     chosen = asked = 0
     for index, row in enumerate(rows):
         pending = row.get(ladder.UNDECIDED)
-        if not pending or asked >= budget:
+        if not pending or "chosen" in pending or asked >= budget:  # a series match is decided
             continue
         asked += 1
         try:

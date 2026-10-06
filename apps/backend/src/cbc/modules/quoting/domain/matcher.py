@@ -45,6 +45,16 @@ _LARGEST = 240.0  # inches; anything bigger is a part number's digits, not a siz
 _FINISH_TOKEN = re.compile(r"^(?:US\d{1,3}[A-Z]?|[67]\d{2}|\d{1,2}[BD])$", re.I)
 
 
+def _nearby(rows: list[dict[str, Any]], chosen: dict[str, Any],
+            price_of: Callable[[dict[str, Any]], Any]) -> list[dict[str, Any]]:
+    """The chosen row, then the others nearest it in price."""
+    if len(rows) < 2:
+        return []
+    at = float(price_of(chosen) or 0)
+    others = [r for r in rows if r is not chosen and price_of(r) is not None]
+    return [chosen, *sorted(others, key=lambda r: abs(float(price_of(r)) - at))]
+
+
 def is_allegion(*texts: Any, manufacturer: Any = None) -> bool:
     if str(manufacturer or "").strip().lower() in _ALLEGION_MAKERS:
         return True
@@ -110,6 +120,9 @@ class Choice:
     ambiguous: bool = False
     # Matched as a size of the series the legend named, not the part itself.
     series: bool = False
+    # A series match's other sizes in the legend's finish, nearest in price first,
+    # the match itself leading: the close matches an estimator may choose (FR-8).
+    nearby: list[dict[str, Any]] = field(default_factory=list)
 
 
 FinishKey = Callable[[str | None], str | None]
@@ -207,6 +220,7 @@ def choose(
             return Choice(candidates=matched, reason=f"not listed in finish {wanted_finish} (listed: {', '.join(offered)})")
         matched = same
 
+    series_rows = matched if series else []
     wanted_size = dimensions(f"{spec.part or ''} {spec.text}")
     sized = [r for r in matched if _sizes_agree(wanted_size, dimensions(size_of(r)))]
     if not sized:
@@ -217,7 +231,8 @@ def choose(
     if not prices:
         return Choice(candidates=matched, reason="the row carries no price")
     if len(prices) == 1:
-        return Choice(row=matched[0], candidates=matched, series=series)
+        return Choice(row=matched[0], candidates=matched, series=series,
+                      nearby=_nearby(series_rows, matched[0], price_of))
     if describe is not None:
         said = _words(f"{spec.part or ''} {spec.text}")
         worded = [(row, _words(describe(row))) for row in matched]
@@ -225,7 +240,8 @@ def choose(
         telling = said & (set.union(*(words for _, words in worded)) - shared)
         kept = [row for row, words in worded if telling and telling <= words]
         if kept and len({round(float(price_of(r)), 2) for r in kept if price_of(r) is not None}) == 1:
-            return Choice(row=kept[0], candidates=kept, series=series)
+            return Choice(row=kept[0], candidates=kept, series=series,
+                          nearby=_nearby(series_rows, kept[0], price_of))
     what = "sizes of the series" if series else "rows"
     return Choice(candidates=matched, ambiguous=True,
                   reason=f"{len(matched)} {what} at {len(prices)} prices - the legend does not say which")
