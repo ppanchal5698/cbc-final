@@ -21,10 +21,9 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT / ".claude" / "skills" / "extract-door-schedule" / "scripts"))
 sys.path.insert(0, str(ROOT / "apps" / "backend" / "src"))
 
-import parse_schedule  # noqa: E402
+from cbc.modules.extraction.api import schedule_reader as parse_schedule  # noqa: E402
 
 REASON_NO_MARKER = "no_marker"
 REASON_REMODEL = "remodel_no_schedule"

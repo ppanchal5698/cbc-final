@@ -15,6 +15,7 @@ from pymongo import InsertOne, UpdateOne
 
 from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.extraction.domain.schedule import (
+    alternate_designation,
     _identity,
     _normalize_schedule_payload,
     _status_for,
@@ -40,6 +41,21 @@ def _merge_flags(*groups: list[str] | None) -> list[str]:
                 seen.add(flag)
                 out.append(flag)
     return out
+
+
+def _edited(doc: dict[str, Any]) -> set[str]:
+    """The fields an estimator corrected on this row."""
+    return {field for edit in doc.get("edits") or [] for field in (edit.get("after") or {})}
+
+
+def _as_on_the_form(name: str, form: list[str] | None) -> str:
+    """A schedule's "ALT 1" is the bid form's "Alternate #1" when both name the
+    same alternate (FR-2, FR-14): one group, under the form's name."""
+    wanted = alternate_designation(name)
+    for named in form or []:
+        if wanted and alternate_designation(named) == wanted:
+            return named
+    return name
 
 
 def _opening_finish(item: dict[str, Any]) -> tuple[str | None, list[str]]:
@@ -158,11 +174,15 @@ async def import_extraction(
 
     payload = _normalize_schedule_payload(raw)
 
+    # Division 10 and FRP rows are the specialty importer's: an export carries
+    # them down into this file, and matched here as doors they were re-measured
+    # as door rows and lost their evidence.
     existing_docs = [
         doc
         for doc in await extraction_openings.list_for_project(
             project_id, sort=[("mark", 1), ("createdAt", 1)]
         )
+        if not doc.get("specialtyKey")
     ]
     existing_keys = distinct_keys(
         [
@@ -176,16 +196,32 @@ async def import_extraction(
         _identity,
     )
     existing = {key: doc for key, doc in zip(existing_keys, existing_docs)}
+    # A mark the estimator corrected (a misread 1O1 made 101) is still the mark the
+    # sheet prints, so the next take-off reaches the corrected row by the old one.
+    for doc in existing_docs:
+        for edit in doc.get("edits") or []:
+            before = (edit.get("before") or {}).get("mark")
+            if "mark" in (edit.get("after") or {}) and before:
+                existing.setdefault(f"mark:{str(before).strip()}", doc)
+    # What the estimator deleted (`openings.remove`); the job's sync re-reads the
+    # bid first, so a row deleted while the pass ran stays deleted too.
+    removed = set(project.get("removedOpenings") or [])
 
-    openings = payload.get("openings", [])
+    openings = [o for o in payload.get("openings", []) if not o.get("specialty")]
     inserted = updated = skipped = 0
+    reached: set[Any] = set()
     bulk: list[InsertOne | UpdateOne] = []
     for key, item in zip(distinct_keys(openings, _identity), openings):
         fields = _mongo_fields(
             item, key=key, project_id=project_id, payload=payload
         )
+        if fields.get("alternateGroup"):
+            fields["alternateGroup"] = _as_on_the_form(fields["alternateGroup"], project.get("bidAlternates"))
 
         current = existing.get(key)
+        if current is None and key.split("#", 1)[0] in removed:
+            skipped += 1  # the estimator deleted it; the sheet still prints it
+            continue
         if current is None:
             bulk.append(
                 InsertOne(
@@ -199,7 +235,9 @@ async def import_extraction(
                 )
             )
             inserted += 1
-        elif current.get("confirmedAt") or current.get("addedByHand"):
+            continue
+        reached.add(current["_id"])
+        if current.get("confirmedAt") or current.get("addedByHand"):
             bulk.append(
                 UpdateOne(
                     {"_id": current["_id"]},
@@ -207,14 +245,28 @@ async def import_extraction(
                 )
             )
             skipped += 1
-        else:
-            bulk.append(
-                UpdateOne(
-                    {"_id": current["_id"]},
-                    {"$set": {"status": _status_for(item), **fields}},
-                )
-            )
-            updated += 1
+            continue
+        # A field the estimator corrected is theirs; the rest is the take-off's.
+        # Flags are left as they stand on a corrected row - the take-off's would
+        # still say what the estimator already fixed.
+        edited = _edited(current)
+        changes = {"status": _status_for(item), **fields}
+        if edited:
+            changes = {k: v for k, v in changes.items() if k not in edited and k != "flags"}
+        bulk.append(UpdateOne({"_id": current["_id"]}, {"$set": changes}))
+        updated += 1
+
+    # Rows an earlier take-off wrote that this one no longer reads - a revised
+    # sheet, or a parser that stopped reading a stray line as a door. Nobody
+    # touched them, so they leave the bid the way the specialty importer's do:
+    # set aside as `duplicate`, where the estimator can still keep one.
+    for doc in existing_docs:
+        if (doc["_id"] in reached or doc.get("confirmedAt") or doc.get("addedByHand")
+                or doc.get("edits") or doc.get("status") == "duplicate"):
+            continue
+        bulk.append(UpdateOne({"_id": doc["_id"]}, {"$set": {
+            "status": "duplicate", "duplicateReason": "not in the latest take-off", "updatedAt": _now(),
+        }}))
 
     if bulk:
         if job is not None:

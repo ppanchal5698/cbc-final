@@ -140,16 +140,24 @@ class FrpConstantsUpdate(BaseModel):
         return value
 
 
-class VendorCategoriesUpdate(BaseModel):
-    """PATCH category multipliers for one vendor in vendor_tiers."""
+class ExcludedVendor(BaseModel):
+    name: str = Field(min_length=1)
+    reason: str | None = None
 
-    vendor: str = Field(min_length=1)
-    categories: dict[str, float]
+
+class VendorCategoriesUpdate(BaseModel):
+    """PATCH vendor_tiers: one vendor's category multipliers, or the distributors
+    CBC buys it through (NR-2) - or the vendors CBC does not quote at all."""
+
+    vendor: str | None = None
+    categories: dict[str, float] | None = None
+    distributors: list[str] | None = None
+    excluded: list[ExcludedVendor] | None = None
 
     @field_validator("categories")
     @classmethod
-    def _non_negative(cls, value: dict[str, float]) -> dict[str, float]:
-        for key, amount in value.items():
+    def _non_negative(cls, value: dict[str, float] | None) -> dict[str, float] | None:
+        for key, amount in (value or {}).items():
             if amount < 0:
                 raise ValueError(f"multiplier for {key!r} must not be negative")
         return value
@@ -173,6 +181,21 @@ class SpecialNetItem(BaseModel):
 
 class SpecialNetsUpdate(BaseModel):
     items: list[SpecialNetItem] | None = None
+    remove: list[str] | None = None
+
+
+class HardwareEqualItem(BaseModel):
+    """One equal: the part specified, by its brand, and the part CBC offers for it."""
+
+    brand: str | None = None
+    part: str = Field(min_length=1)
+    equal_manufacturer: str = "Hager"
+    equal_part: str = Field(min_length=1)
+    note: str | None = None
+
+
+class HardwareEqualsUpdate(BaseModel):
+    items: list[HardwareEqualItem] | None = None
     remove: list[str] | None = None
 
 

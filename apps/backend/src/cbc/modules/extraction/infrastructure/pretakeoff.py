@@ -26,6 +26,7 @@ by hand are decisions; a reseed carries them across untouched.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 from cbc.shared.paths import repo_root
@@ -47,7 +48,7 @@ def _schedule_candidates(sheets: dict[str, Any]) -> list[dict[str, Any]]:
     secondary = sheetmap.pages_for_roles(sheets, "door_schedule_candidate")
     seen: set[tuple[str, int]] = set()
     ordered: list[dict[str, Any]] = []
-    for hit in [*primary, *secondary]:
+    for hit in [*primary, *[{**h, "candidate_only": True} for h in secondary]]:
         path = str(hit.get("path") or "")
         try:
             page = int(hit["source_page"])
@@ -59,6 +60,46 @@ def _schedule_candidates(sheets: dict[str, Any]) -> list[dict[str, Any]]:
         seen.add(key)
         ordered.append(hit)
     return ordered[:MAX_PAGES_TRIED]
+
+
+# A further schedule sheet reads as a table. Each corpus bid's other candidate
+# pages gave up one stray "row" or two off a plan or an elevation (`W1`, `A-302`,
+# `ETR-29`) - never a door - and a union of every page would have priced them.
+MIN_CONTINUATION_ROWS = 3
+
+
+def _schedule_rows(read: list[tuple[dict[str, Any], list[dict[str, Any]]]]) -> list[dict[str, Any]]:
+    """The fullest page's rows, and every other page that is a schedule too.
+
+    A large bid runs its door schedule over two or three sheets, and only the
+    fullest was kept. A further page counts when the sheet map found a schedule
+    heading on it and it reads as a table. A door read twice in one file is the
+    first page's row; a door that is also in another file is kept and set aside
+    as a duplicate for the estimator - an addendum's re-issued sheet and a second
+    building's schedule look alike.
+    """
+    best = max(read, key=lambda pair: len(pair[1]))
+    pages = [best] + [
+        pair for pair in read
+        if pair is not best and not pair[0].get("candidate_only") and len(pair[1]) >= MIN_CONTINUATION_ROWS
+    ]
+    rows: list[dict[str, Any]] = []
+    where: dict[str, tuple[str, int]] = {}
+    for candidate, openings in pages:
+        for opening in openings:
+            key = _key(opening)
+            path = candidate["path"]
+            opening.setdefault("source_file", path)
+            if key and key in where:
+                if where[key][0] == path:
+                    continue  # the same door on a second sheet of this file
+                other, page = where[key]
+                opening["duplicate_of"] = key
+                opening["duplicate_reason"] = f"door {key} is also on {Path(other).name} p{page}"
+            elif key:
+                where[key] = (path, int(candidate["source_page"]))
+            rows.append(opening)
+    return rows
 
 
 def _schedule_path(slug: str):
@@ -94,14 +135,42 @@ def _blend(parsed: dict[str, Any], prior: dict[str, Any]) -> dict[str, Any]:
     A parser null means "this column was unreadable", which is no information at
     all - so it must not erase a handing or fire rating that a previous pass read
     off the sheet. Where the parser *did* read a value it wins, because it is the
-    one reading the drawing this time round.
+    one reading the drawing this time round - and so does a blank in a column it
+    found (`columns_read`), which is the sheet saying nothing. Evernorth's door 101
+    kept GL, the glazing type an older parser read as its material, through every
+    re-run after the parser learned better.
     """
-    kept = {key: value for key, value in parsed.items() if value not in (None, "", [])}
-    return {**prior, **kept}
+    found = set(parsed.get("columns_read") or ())
+    kept = {key: value for key, value in parsed.items() if value not in (None, "", []) or key in found}
+    kept.update({key: parsed.get(key) for key in _THE_READINGS_OWN})
+    merged = {**prior, **kept}
+    # A value kept from an earlier pass keeps the flag that says where it came from.
+    # The parse's flags replaced it, and 11 of Evernorth's 13 handings read off the
+    # plan lost their provenance while the handings stayed.
+    for field, flag in _FOUND_ELSEWHERE.items():
+        if field not in kept and flag in (prior.get("flags") or []) and flag not in (merged.get("flags") or []):
+            merged["flags"] = [*(merged.get("flags") or []), flag]
+    return merged
+
+
+# The flag a pass sets on a field it filled from outside the schedule.
+_FOUND_ELSEWHERE = {"handing": "handing_read_from_plan"}
+
+
+# What a reading says of itself rather than of the door - the new parse's, even
+# blank. The parser's notes were once an agent's instructions; it stopped writing
+# them, and a merge that keeps what a parse leaves out kept them on every door.
+_THE_READINGS_OWN = ("evidence_note", "columns_read")
 
 
 def _merge(parsed: list[dict[str, Any]], existing: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Parsed rows, with every human decision - and every earlier finding - kept."""
+    """Parsed rows, with every human decision - and every earlier finding - kept.
+
+    Division 10 and FRP rows reach this file only by an export, and they are not
+    the door schedule: the specialty seeds and importer keep them. Carried across
+    here, a confirmed one was checked as a door and failed every re-run.
+    """
+    existing = [o for o in existing if not o.get("specialty")]
     prior = {_key(o): o for o in existing if _key(o)}
     decisions = {key: o for key, o in prior.items() if _is_a_decision(o)}
     merged = []
@@ -160,12 +229,13 @@ def seed_door_schedule(slug: str) -> dict[str, Any]:
 
     parser = sheetmap._load_parse_schedule()
 
-    # Read every candidate and keep the best, rather than the first that yields a
-    # row. Taking the first meant one bad page decided the whole take-off: on a
-    # real set the schedule sheet raised inside the parser, the error was noted
-    # and skipped, and the next candidate's single stray row became the take-off -
-    # one junk opening where the sheet had four.
-    best: tuple[dict[str, Any], list[dict[str, Any]]] | None = None
+    # Read every candidate, then take the fullest page and any other schedule
+    # sheet (`_schedule_rows`), rather than the first that yields a row. Taking
+    # the first meant one bad page decided the whole take-off: on a real set the
+    # schedule sheet raised inside the parser, the error was noted and skipped,
+    # and the next candidate's single stray row became the take-off - one junk
+    # opening where the sheet had four.
+    read: list[tuple[dict[str, Any], list[dict[str, Any]]]] = []
     errors: list[str] = []
     for candidate in candidates:
         pdf = _resolve(slug, candidate["path"])
@@ -179,11 +249,12 @@ def seed_door_schedule(slug: str) -> dict[str, Any]:
             errors.append(f"{candidate['path']} p{candidate['source_page']}: {exc}")
             continue
         found = envelope.get("openings") or []
-        if found and (best is None or len(found) > len(best[1])):
-            best = (candidate, found)
+        if found:
+            read.append((candidate, found))
 
-    if best is not None:
-        candidate, openings = best
+    if read:
+        candidate = max(read, key=lambda pair: len(pair[1]))[0]
+        openings = _schedule_rows(read)
 
         previous = _existing(slug)
         prior = previous.get("openings") or previous.get("lines") or []
@@ -254,6 +325,36 @@ def seed_door_schedule(slug: str) -> dict[str, Any]:
     return summary
 
 
+# A spec book's hardware schedule runs to a page a few sets; this bounds a bid
+# whose every page somehow carries a heading.
+MAX_LEGEND_PAGES = 60
+
+
+def _legend_pages_first(slug: str, candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Every candidate that holds a set heading - the legend itself - then the
+    map's other hardware pages, as many as MAX_PAGES_TRIED.
+
+    The map tags a page "hardware" when it mentions hardware, and an 859-page
+    project manual has dozens of those ahead of the schedule: the eight it ranked
+    first were steel-door sections, and the sets on pages 249-250 were never read.
+    """
+    by_file: dict[str, list[dict[str, Any]]] = {}
+    for candidate in candidates:
+        by_file.setdefault(candidate["path"], []).append(candidate)
+    headed: list[dict[str, Any]] = []
+    for path, rows in by_file.items():
+        pdf = _resolve(slug, path)
+        if pdf is None:
+            continue
+        try:
+            counts = hardware_groups.heading_counts(pdf, [int(row["source_page"]) for row in rows])
+        except Exception:  # an unreadable file is the readers' to report, below
+            continue
+        headed += [row for row in rows if counts.get(int(row["source_page"]), 0)]
+    rest = [c for c in candidates if c not in headed]
+    return headed[:MAX_LEGEND_PAGES] + rest[:MAX_PAGES_TRIED]
+
+
 def seed_hardware_groups(slug: str) -> dict[str, Any]:
     """Write `extracted/hardware_sets.json` from the legend, in code.
 
@@ -282,7 +383,7 @@ def seed_hardware_groups(slug: str) -> dict[str, Any]:
 
     collected: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for candidate in candidates[:MAX_PAGES_TRIED]:
+    for candidate in _legend_pages_first(slug, candidates):
         pdf = _resolve(slug, candidate["path"])
         if pdf is None:
             continue
@@ -325,7 +426,7 @@ def seed_hardware_groups(slug: str) -> dict[str, Any]:
 # scope_summary.json. A model that writes neither leaves the estimator with
 # nothing at all, so the worker writes a truthful floor for both and lets the
 # model improve on it. Truthful means: what is actually known goes in, what is
-# not is null with a flag saying so - never a guess (.claude/rules/accuracy-trust.md).
+# not is null with a flag saying so - never a guess (.claude/guides/extraction.md).
 
 
 def seed_scope_summary(slug: str) -> dict[str, Any]:
@@ -384,7 +485,7 @@ def seed_scope_summary(slug: str) -> dict[str, Any]:
         ],
         "divisions": [],
         # What CBC is not covering, decided by the rules rather than by a pass
-        # re-reading `scope-boundaries.md` and agreeing with itself.
+        # re-reading `.claude/guides/takeoff.md` and agreeing with itself.
         "out_of_scope_items": scope_rules.out_of_scope_items(
             (_existing(slug).get("openings") or [])
         ),

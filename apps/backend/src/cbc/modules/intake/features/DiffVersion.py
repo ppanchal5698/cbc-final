@@ -6,10 +6,11 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.intake.domain.versions import PENDING_NOTE
+from cbc.modules.intake.infrastructure import reconcile
 from cbc.modules.intake.infrastructure.collections import versions
 from cbc.modules.projects.api.lookup import load
+from cbc.shared.mongo import serialise
 
 router = APIRouter(prefix="/api/projects/{code}", tags=["versions"])
 
@@ -21,35 +22,19 @@ async def diff_version(code: str, version: int) -> dict[str, Any]:
     if not stored:
         raise HTTPException(404, f"version {version} not found")
 
-    def key(item: dict[str, Any]) -> str:
-        return str(item.get("mark") or item.get("description", ""))[:60]
-
-    before = {key(i): i for i in stored["snapshot"]["lineItems"]}
-    current = {
-        key(i): i for i in await extraction_openings.list_for_project(project["_id"], limit=5000)
-    }
-
-    watched = ("description", "size", "qty", "hwSet", "finish", "fireRating", "handing")
-    changed = []
-    for mark, now in current.items():
-        was = before.get(mark)
-        if not was:
-            continue
-        fields = [f for f in watched if str(was.get(f)) != str(now.get(f))]
-        if fields:
-            changed.append(
-                {
-                    "mark": mark,
-                    "fields": fields,
-                    "before": {f: was.get(f) for f in fields},
-                    "after": {f: now.get(f) for f in fields},
-                }
-            )
-
+    found = await reconcile.rows(project, stored)
+    doors = [row for row in found if row["kind"] == "opening"]
     return {
         "version": version,
-        "added": sorted(set(current) - set(before)),
-        "removed": sorted(set(before) - set(current)),
-        "changed": changed,
+        # The doors, as this read always gave them.
+        "added": [row["key"] for row in doors if row["change"] == "added"],
+        "removed": [row["key"] for row in doors if row["change"] == "removed"],
+        "changed": [
+            {"mark": row["key"], "fields": row["fields"], "before": row["before"], "after": row["after"]}
+            for row in doors if row["change"] == "changed"
+        ],
+        # Every difference, doors and quote lines, each for the estimator to keep or revert.
+        "rows": serialise(found),
+        "undecided": len(reconcile.undecided(found)),
         "pending": PENDING_NOTE,
     }

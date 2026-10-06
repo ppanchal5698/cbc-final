@@ -49,7 +49,7 @@ def test_a_price_past_the_review_window_is_unreliable() -> None:
     """A year-old cost used to come back `fresh` and go straight onto a quote."""
     from datetime import date, timedelta
 
-    mid = (date.today() - timedelta(days=365)).isoformat()
+    mid = (date.today() - timedelta(days=400)).isoformat()  # past "sold within the year"
     result = check_freshness(mid)
     assert result["freshness_status"] == "unreliable"
     assert result["usable"] is False
@@ -88,6 +88,8 @@ def test_lookup_with_base_url_uses_fresh_po(monkeypatch) -> None:
 
 
 def test_lookup_with_base_url_stale_po_requires_manual(monkeypatch) -> None:
+    """A stale PO withholds the cost, as pricing/api/p21._classify does: the
+    price stays visible as context, but nothing hands the agent a quotable cost."""
     from datetime import date, timedelta
 
     monkeypatch.setattr(_server, "BASE_URL", "https://p21.example.test")
@@ -101,9 +103,12 @@ def test_lookup_with_base_url_stale_po_requires_manual(monkeypatch) -> None:
 
     monkeypatch.setattr(_server, "_http_lookup", fake_lookup)
     result = lookup_last_po("BB1279", vendor="Hager")
-    assert result["cost_source"] == "P21_LAST_PO"
+    assert result["cost"] is None
+    assert result["cost_source"] == "MANUAL"
+    assert result["last_po_price"] == 9.99
     assert result["freshness_status"] == "stale"
     assert result["action_required"] == "manual_price_entry"
+    assert result["connected"] is True
 
 
 def test_freshness_respects_a_narrower_admin_window(monkeypatch) -> None:
@@ -114,13 +119,13 @@ def test_freshness_respects_a_narrower_admin_window(monkeypatch) -> None:
 
     bands = Bands(
         catalog_stale_months=6,
-        discard_after_months=12,
+        discard_after_months=24,
         catalog_stale_days=core.days_from_months(6),
-        discard_after_days=core.days_from_months(12),
-        rule=core.rule_text(6, 12),
+        discard_after_days=core.days_from_months(24),
+        rule=core.rule_text(6, 24),
     )
     monkeypatch.setattr(_server, "load_sync", lambda: bands)
-    mid = (date.today() - timedelta(days=250)).isoformat()
+    mid = (date.today() - timedelta(days=500)).isoformat()
     result = check_freshness(mid)
     assert result["freshness_status"] == "unreliable"
     assert result["usable"] is False

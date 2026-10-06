@@ -57,13 +57,15 @@ def test_days_from_months_rounds_half_up() -> None:
 def test_classify_default_bands() -> None:
     """A cost is usable for months, questionable for years, then not at all."""
     assert core.classify(30)["status"] == "fresh"
-    assert core.classify(200)["status"] == "unreliable"
+    assert core.classify(200)["status"] == "aging"
+    assert core.classify(400)["status"] == "unreliable"
     assert core.classify(1200)["status"] == "stale"
     assert core.classify(-1)["status"] == "future_dated"
 
-    # Only `fresh` may be quoted from without re-verification.
-    assert core.classify(30)["usable"] is True
-    for age in (200, 1200, -1):
+    # Sold within the year prices (CBC requirements 5.2 [C]) - fresh, or aging
+    # and flagged; older than a year does not.
+    assert core.classify(30)["usable"] is True and core.classify(200)["usable"] is True
+    for age in (400, 1200, -1):
         assert core.classify(age)["usable"] is False
 
 
@@ -75,9 +77,11 @@ def test_a_year_old_cost_is_no_longer_treated_as_fresh() -> None:
     increase."` - and quoted.
     """
     verdict = core.classify(365)
-    assert verdict["status"] == "unreliable"
-    assert verdict["usable"] is False
-    assert "re-verify" in verdict["guidance"]
+    assert verdict["status"] == "aging", "sold within the year: usable, never silently fresh"
+    assert "price increase" in verdict["guidance"]
+    older = core.classify(400)
+    assert older["status"] == "unreliable" and older["usable"] is False
+    assert "re-verify" in older["guidance"]
 
 
 def test_the_rule_text_reads_as_the_workbook_does() -> None:
@@ -109,7 +113,7 @@ def test_from_document_accepts_admin_months() -> None:
 
 
 def test_the_two_windows_move_independently() -> None:
-    """data-stewardship.md: the ~24-month sheet window and the P21 bands are separate rules.
+    """The ~24-month sheet window and the P21 bands are separate rules.
 
     The stored row carried no fresh band, a review window at or past the discard
     band was refused, and the rule text read the review window as the fresh band -

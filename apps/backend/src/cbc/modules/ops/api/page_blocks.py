@@ -15,8 +15,8 @@ what lets the parser change without every stored bbox moving. 72 of the 87 pages
 in the first real bid set are rotated 270, so this is the common path, not an
 edge case.
 
-**Orientation.** MinerU reported against the unrotated mediabox and needed
-`page.rotation_matrix`. LlamaParse reports display space already - measured on a
+**Orientation.** A parser may report against the unrotated mediabox, which
+needs `page.rotation_matrix`. LlamaParse reports display space already - measured on a
 270-rotated sheet it returned 2448x1584 with every box inside that frame - so
 mapping its boxes would push them off the page. `_oriented` settles it by size
 where size is decisive and by coverage where it is not, and `reports_unrotated`
@@ -30,10 +30,25 @@ from typing import Any
 
 import fitz
 
-from cbc.shared.pdfrows import rows_from_words
+import re
+
+from cbc.shared.pdfrows import (
+    detect_shift,
+    has_text_layer,
+    ocr_words,
+    rows_from_words,
+    to_display_space,
+)
 
 # Same threshold as extraction bbox verification: half the claim on real text.
 BBOX_COVERAGE = 0.5
+
+# What a page read by `local_window` is stored under, so bid-docs and the review
+# flags can tell a local read from a LlamaParse one.
+LOCAL_PARSER = {"name": "local", "version": "pymupdf", "tier": None}
+# A page read from the PDF's own text by choice, not because the reader failed: a
+# spec book's pages outside the divisions CBC quotes. Not a fallback.
+TEXT_LAYER_PARSER = {"name": "text-layer", "version": "pymupdf", "tier": None}
 
 # Types that legitimately carry no text to anchor, so they keep their place in
 # the page without being scored or dropped.
@@ -164,6 +179,40 @@ def verify_page(
     return round(hits / len(text_blocks), 4)
 
 
+_TOKEN = re.compile(r"[A-Z0-9]+(?:[./-][A-Z0-9]+)*")
+
+
+def _tokens(text: str) -> set[str]:
+    """What a reader could get wrong: words and numbers, markdown and LaTeX stripped."""
+    plain = re.sub(r"\\[A-Z]+|[{}|*#_`$&]", " ", text.upper())
+    return {t for t in _TOKEN.findall(plain) if len(t) >= 2 or t.isdigit()}
+
+
+def agreement(words: list[tuple], block: dict[str, Any]) -> float | None:
+    """Share of a block's words and numbers that the PDF's own text layer has
+    inside its box. None when there is nothing to check it against.
+
+    A box on real text (`verify_page`) says where; this says what. A model that
+    read "BB1279" off the image where the sheet says "BB1191" lands on text and
+    still disagrees with it.
+    """
+    claim = _tokens(block.get("text") or "")
+    if not claim or not block.get("bbox") or not words:
+        return None
+    x0, y0, x1, y1 = block["bbox"]
+    pad = 3.0
+    inside: set[str] = set()
+    for word in words:
+        cx, cy = (word[0] + word[2]) / 2, (word[1] + word[3]) / 2
+        if x0 - pad <= cx <= x1 + pad and y0 - pad <= cy <= y1 + pad:
+            inside |= _tokens(str(word[4]))
+    if not inside:
+        return 0.0
+    joined = " ".join(sorted(inside))
+    found = sum(1 for t in claim if t in inside or t in joined)
+    return round(found / len(claim), 3)
+
+
 def _oriented(
     blocks: list[dict[str, Any]],
     page: fitz.Page,
@@ -227,6 +276,43 @@ def _require_bbox(
     return kept, dropped
 
 
+def local_window(pdf_path: str | Path, page: int) -> dict[str, Any]:
+    """One page read locally, in the same window shape LlamaParse hands over.
+
+    The fallback when LlamaParse failed or the parse deadline passed, so a bid
+    always moves on. Each clustered row becomes one text item; the rows are
+    already in display space, which `normalise_window` accepts as it is.
+
+    A page with no text layer is read through OCR. Where Tesseract is not
+    installed that yields no words, and the page is stored empty rather than
+    failing the parse - `verified` then comes out None and the page is routed
+    to a visual read, the same as an image-only page from LlamaParse.
+    """
+    document = fitz.open(pdf_path)
+    try:
+        sheet = document[page - 1]
+        words = None if has_text_layer(sheet) else ocr_words(sheet)
+        rows = rows_from_words(
+            sheet, shift=detect_shift(document, str(pdf_path)), words=words
+        )
+        return {
+            "page": page,
+            "width": sheet.rect.width,
+            "height": sheet.rect.height,
+            "items": [
+                {
+                    "type": "text",
+                    "text": " ".join(row["cells"]),
+                    "bbox": row["bbox"],
+                    "cells": row["cell_boxes"],
+                }
+                for row in rows
+            ],
+        }
+    finally:
+        document.close()
+
+
 def normalise_window(
     pages: list[dict[str, Any]],
     *,
@@ -270,6 +356,9 @@ def normalise_window(
             )
             blocks, dropped_no_bbox = _require_bbox(blocks)
             numbered = [{"n": n, **block} for n, block in enumerate(blocks, start=1)]
+            words = to_display_space(page, page.get_text("words")) if has_text_layer(page) else []
+            for block in numbered:
+                block["agrees"] = agreement(words, block)
 
             results.append(
                 {

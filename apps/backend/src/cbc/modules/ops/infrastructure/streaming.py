@@ -149,9 +149,17 @@ class Recorder:
 
     Whole lines are held until their newline arrives, so a credential split across
     two reads is scrubbed as one string and each event can be compacted as JSON.
+
+    `on_event` is handed each whole `assistant` event as it arrives - the only live
+    view of what a run is spending, which is what a token budget needs.
     """
 
-    def __init__(self, path: Path, extra_secrets: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        path: Path,
+        extra_secrets: list[str] | None = None,
+        on_event: Callable[[dict], None] | None = None,
+    ) -> None:
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._handle = self.path.open("wb")
@@ -159,6 +167,19 @@ class Recorder:
         self._written = 0
         self._trimmed = False
         self._extra = [s.encode("utf-8") for s in (extra_secrets or []) if len(s) >= 8]
+        self._on_event = on_event
+
+    def _notify(self, line: bytes) -> None:
+        """Hand an assistant event to `on_event`. Never raises into the stream."""
+        if self._on_event is None or b'"assistant"' not in line:
+            return
+        start, end = line.find(b"{"), line.rfind(b"}")
+        try:
+            event = json.loads(line[start : end + 1]) if 0 <= start < end else None
+            if isinstance(event, dict) and event.get("type") == "assistant":
+                self._on_event(event)
+        except Exception:  # noqa: BLE001 - a bad line or callback must not stop the recording
+            pass
 
     def _scrub(self, data: bytes) -> bytes:
         for secret in self._extra:
@@ -173,6 +194,7 @@ class Recorder:
         self._line += chunk
         while (newline := self._line.find(b"\n")) >= 0:
             line, self._line = self._line[: newline + 1], self._line[newline + 1 :]
+            self._notify(line)
             kept += self._write(self._scrub(compact_line(line)))
         if len(self._line) > _MAX_LINE:
             line, self._line = self._line, b""
@@ -219,12 +241,14 @@ def run_on_pty(
     redact_values: list[str] | None = None,
     columns: int = 120,
     rows: int = 40,
-    cancel_check: Callable[[], bool] | None = None,
+    cancel_check: Callable[[], str | bool | None] | None = None,
+    on_event: Callable[[dict], None] | None = None,
 ) -> tuple[int, str]:
     """Run a command on a pty, recording it live. Returns (exit code, plain text).
 
     The plain text is what the existing job log and the auth-marker checks read;
-    the recording is what the browser renders.
+    the recording is what the browser renders. Any truthy `cancel_check` - a
+    reason string or True - stops the run with exit code 130.
     """
     import pty
 
@@ -256,7 +280,7 @@ def run_on_pty(
     )
     os.close(follower)
 
-    recorder = Recorder(recording, redact_values)
+    recorder = Recorder(recording, redact_values, on_event=on_event)
     collected = bytearray()
     deadline = time.time() + timeout
     timed_out = False

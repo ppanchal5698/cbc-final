@@ -1,6 +1,6 @@
 """What CBC quotes, as data rather than prose.
 
-`.claude/rules/scope-boundaries.md` is the human-readable owner of this list and
+`.claude/guides/takeoff.md` is the human-readable owner of this list and
 stays authoritative. This is the same list in a form the take-off can apply, so
 the decision does not depend on a model reading the rule and agreeing with itself.
 
@@ -41,7 +41,7 @@ OUT_OF_SCOPE: tuple[Rule, ...] = (
         "coiling_door",
         "Coiling / overhead / oversized door - separate HP division (garage doors)",
         _any_of(r"COILING", r"OVERHEAD\s+DOOR", r"ROLL(?:ING|-?UP)", r"SECTIONAL\s+DOOR",
-                r"GRILLE\s+DOOR"),
+                r"GRILLE\s+DOOR", r"GARAGE\s+DOOR", r"OVERSIZED?\s+DOOR"),
     ),
     Rule(
         "engineered_wood",
@@ -61,12 +61,14 @@ OUT_OF_SCOPE: tuple[Rule, ...] = (
     Rule(
         "tile_masonry",
         "Tile / thin brick / masonry - another HP department",
-        _any_of(r"THIN\s+BRICK", r"MASONRY", r"CERAMIC\s+TILE", r"QUARRY\s+TILE"),
+        # Not a bare MASONRY: a door schedule names the wall a hollow metal frame is
+        # set in, and a frame in a masonry wall is CBC's (5-3/4" depth).
+        _any_of(r"THIN\s+BRICK", r"MASONRY\s+(?:VENEER|UNITS?|WORK)", r"CERAMIC\s+TILE", r"QUARRY\s+TILE"),
     ),
     Rule(
         "jl_industries",
         "JL Industries access doors and specialties - not CBC estimating",
-        _any_of(r"JL\s+INDUSTRIES"),
+        _any_of(r"J\.?\s*L\.?\s+INDUSTRIES", r"FIRE\s+EXTINGUISHER\s+CABINETS?"),
     ),
     Rule(
         "scranton",
@@ -94,13 +96,20 @@ IN_SCOPE_MATERIALS = {
     "FRP": "FRP",
     "ST": "steel",
     "STL": "steel",
+    "STEEL": "steel",
+    "MTL": "steel",
+    "METAL": "steel",
     "HC": "hollow core wood",
+    "SC": "solid core wood",
+    "WOOD": "wood",
+    "HPL": "plastic laminate",  # what the schedule reader makes of PLAM
 }
 
 # Aluminium is the storefront signal when it is the *door*. An aluminium frame
 # around a wood or laminate door is ordinary - the Wendy's restroom doors are
 # exactly that - so the frame alone never puts an opening out of scope.
 _ALUMINIUM = {"AL", "ALUM", "ALUMINUM", "ALUMINIUM"}
+_EXISTING = {"EXISTING", "EXIST", "EXG", "(E)"}
 
 
 class Verdict(NamedTuple):
@@ -140,6 +149,16 @@ def classify(opening: dict[str, Any]) -> Verdict:
 
     if door in IN_SCOPE_MATERIALS:
         return Verdict(True, f"material_{IN_SCOPE_MATERIALS[door].replace(' ', '_')}", None)
+
+    # Hardware sets and hollow metal frames are CBC's on their own (takeoff.md). An
+    # existing door the schedule gives a hardware set is having that set fitted, and
+    # a door whose material cell is blank inside a hollow metal frame still has the
+    # frame. Evernorth left 32 of its 34 doors undecided on these two alone.
+    if door.rstrip(".") in _EXISTING and opening.get("hardware_set"):
+        return Verdict(True, "existing_door_new_hardware", None)
+    frame = str(opening.get("frame_material") or "").strip().upper()
+    if not door and IN_SCOPE_MATERIALS.get(frame) in ("hollow metal", "steel"):
+        return Verdict(True, "hollow_metal_frame", None)
 
     # A door with no material column is not evidence of anything. Say so.
     if not door:

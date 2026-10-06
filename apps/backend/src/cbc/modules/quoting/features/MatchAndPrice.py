@@ -1,29 +1,418 @@
-"""The match_and_price job: a Claude pass matches the openings to catalog parts and prices them.
+"""The match_and_price job: match a bid's take-off to priced rows and price it.
 
-The pass reads the catalog through its MCP server, so it is refused when there is
-no read-only credential to hand that server. What it priced is synced into
-`estimateLines`, the quote is rolled up, and the matching gate (FR-4) records each opening's
-rating conflicts and catalog candidates.
-It lives in quoting rather than pricing: it writes quoting's lines and quote, and
-pricing may not import quoting.
+Two engines, chosen in Settings > Pipeline:
+
+- **v2** prices in code. The take-off - openings in Mongo, the legend's sets on
+  disk - becomes lines (`domain/takeoff`), and each line is matched and priced by
+  the ladder (`domain/ladder`). Where the ladder found one model at several
+  prices and the legend's words do not say which, the model is asked to choose
+  (`CHOOSE_CATALOG_MATCH`, within a budget); its choice carries its reason and a
+  flag to confirm. Before that, an item whose words name another party without
+  saying who supplies it is read the same way (`CLASSIFY_SUPPLY`). The result is
+  written to `priced/line_items.json`, which
+  review, delivery and the proposal still read, then imported into
+  `estimateLines` and rolled up. A line nobody could price is MANUAL with the
+  reason - never a failed job.
+- **legacy** is the Claude pass: seeded by `preprice`, matched and priced by the
+  agents through the catalog MCP server, checked, then synced the same way.
+
+Either way the matching gate (FR-4) then records each opening's rating conflicts
+and catalog candidates. It lives in quoting rather than pricing: it writes
+quoting's lines and quote, and pricing may not import quoting.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
-from cbc.modules.quoting.domain import matching
 from cbc.modules.catalog.api import products as catalog_products
 from cbc.modules.extraction.api import openings as extraction_openings, passes
+from cbc.modules.ops.api import ai as ops_ai, jobs as ops_jobs, pipeline as ops_pipeline
+from cbc.modules.pricing.api import calc, p21, pricing, reference_library
 from cbc.modules.projects.api import bids, pipeline
 from cbc.modules.quoting.api import lines as quoting_lines, priced_lines, quote
+from cbc.modules.quoting.domain import ladder, matcher, matching, request_scope, takeoff
+from cbc.modules.quoting.domain.questions import CHOOSE_CATALOG_MATCH, CLASSIFY_SUPPLY
+from cbc.shared import storage
+from cbc.shared.hardware_sets import SET_KEYS
+from cbc.shared.pass_files import read_json, write_json
 
 log = logging.getLogger("cbc.worker")
 
+SOURCE = "match_and_price v2 (priced in code)"
+CHOICE_BUDGET = 25  # model choices per bid; the rest are the estimator's
+SUPPLY_BUDGET = 20  # distinct supply wordings read per bid
+# A legend's "supplied by": every party but the GC (whom CBC sells to) furnishes the
+# item itself - the landlord, the owner, the storefront supplier, a security vendor.
+_IN_SCOPE = {"", "GC", "WIB", "CBC"}
+_PARTY_NAMES = {"LL": "landlord", "STOREFRONT": "the storefront supplier"}
+
 
 async def run(job: dict[str, Any]) -> None:
+    if await ops_pipeline.pricing_engine() == "v2":
+        await pipeline.run_pass(job, sync=sync_results, work=price_in_code)
+        return
     await pipeline.run_pass(job, sync=sync_results, prepare=_prepare, needs_catalog=True)
+
+
+# ── v2: priced in code ───────────────────────────────────────────────────────
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _item(item: dict[str, Any]) -> dict[str, Any]:
+    """A legend item in the take-off's terms, whichever reader wrote it."""
+    qty = item.get("qty") if item.get("qty") is not None else item.get("quantity")
+    if not isinstance(qty, (int, float)) or isinstance(qty, bool):
+        # The column reader keeps the count and its unit apart: `1 1/2` and `PR.`.
+        qty = " ".join(str(v) for v in (qty, item.get("unit")) if v not in (None, ""))
+    specified = item.get("specified") if isinstance(item.get("specified"), dict) else {}
+    party = str(item.get("supplied_by") or "").strip().upper()
+    others = None if party in _IN_SCOPE else _PARTY_NAMES.get(party, party.lower())
+    return {
+        "qty": qty,
+        "part": item.get("part") or item.get("part_number") or specified.get("part_number"),
+        "manufacturer": item.get("manufacturer") or specified.get("manufacturer"),
+        "finish": item.get("finish") or specified.get("finish"),
+        "description": item.get("description"),
+        "notes": item.get("notes"),
+        "by_others": others,
+        "size": item.get("size") or specified.get("size"),
+        "source_page": item.get("source_page"),
+    }
+
+
+def _hardware_sets(slug: str) -> list[dict[str, Any]]:
+    payload = read_json(storage.project_dir(slug) / "extracted" / "hardware_sets.json")
+    rows = next((payload[k] for k in SET_KEYS if isinstance(payload, dict) and isinstance(payload.get(k), list)), [])
+    return [
+        {
+            "name": row.get("set_id") or row.get("hardware_set") or row.get("name"),
+            "items": [_item(item) for item in row.get("items") or [] if isinstance(item, dict)],
+            "source_page": row.get("source_page"),
+            "source_file": row.get("source_file"),
+        }
+        for row in rows
+        if isinstance(row, dict)
+    ]
+
+
+def _takeoff_rows(
+    openings: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """The in-scope openings that cite a hardware set, the specialty rows, and every
+    in-scope door with what its door and frame lines are priced from."""
+    hardware: list[dict[str, Any]] = []
+    specialties: list[dict[str, Any]] = []
+    doors: list[dict[str, Any]] = []
+    for row in openings:
+        # A row superseded by a later pass is kept as `duplicate`; it is not the bid.
+        if row.get("inScope") is False or row.get("status") == "duplicate":
+            continue
+        evidence = row.get("evidence") if isinstance(row.get("evidence"), dict) else {}
+        # The bid alternate the estimator put the row in: priced as its own lines (FR-14).
+        where = {"source_page": evidence.get("sourcePage"), "source_file": evidence.get("sourceFile"),
+                 "alternate_group": row.get("alternateGroup") or None}
+        specialty = row.get("specialty") if isinstance(row.get("specialty"), dict) else None
+        if specialty:
+            frp = specialty.get("kind") == "frp"
+            specialties.append({
+                "division": row.get("division") or ("06 64" if frp else "10 28"),
+                "qty": row.get("qty"),
+                "part": specialty.get("specifiedModel") or (None if frp else row.get("mark")),
+                "manufacturer": row.get("manufacturer"),
+                "finish": row.get("finish"),
+                "description": row.get("description") or specialty.get("productType"),
+                "notes": row.get("notes"),
+                "room": specialty.get("room") or row.get("location"),
+                "unit": specialty.get("unit"),
+                "mark": row.get("mark"),
+                # What an FRP area measured: perimeter, wall height, corners (FR-12).
+                "geometry": {key: specialty.get(key) for key in
+                             ("perimeterLf", "wallHeightFt", "insideCorners", "outsideCorners")} if frp else None,
+                **where,
+            })
+            continue
+        mark = row.get("mark") or row.get("doorNumber")
+        flags = row.get("flags") or []
+        # What the rating cell said beside the minutes (requirements 6.1).
+        listed = {"smoke": "smoke_label" in flags, "no_hose_stream": "no_hose_stream" in flags,
+                  "temperature_rise": "temperature_rise" in flags}
+        if row.get("hwSet"):
+            hardware.append({"mark": mark, "set": row["hwSet"], "count": row.get("qty"),
+                             "rating": row.get("fireRating"), "notes": row.get("notes"), **listed, **where})
+        doors.append({
+            "mark": mark, "count": row.get("qty"), "rating": row.get("fireRating"),
+            "door_material": row.get("doorMaterial"), "frame_material": row.get("frameMaterial"),
+            "door_type": row.get("doorType"), "frame_type": row.get("frameType"),
+            "width": row.get("width"), "height": row.get("height"), "frame_depth": row.get("frameDepth"),
+            "undecided": row.get("inScope") is None, "notes": row.get("notes"), **listed, **where,
+        })
+    return hardware, specialties, doors
+
+
+def _tiers(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {ladder.vendor_key(v.get("key") or v.get("name")): v for v in payload.get("vendors") or []}
+
+
+async def _sources(project: dict[str, Any], lines: list[takeoff.Line]) -> ladder.Sources:
+    """Every row the ladder may price from, fetched once for the bid."""
+    vendors = await catalog_products.vendor_names()
+
+    def models(part: str) -> list[str]:
+        return catalog_products.part_candidates(part, vendors)
+
+    # The equals estimators named for Allegion parts: each is priced like any part,
+    # so its rows are fetched with the bid's own.
+    named = await asyncio.to_thread(reference_library.load_hardware_equals)
+    hardware_equals = {reference_library.equal_key(row.get("part")): row
+                       for row in named.get("rows") or [] if row.get("equal_part")}
+    wanted: set[str] = set()
+    parts = [part for line in lines for part in (line.part, ladder.guess_part(line)) if part]
+    for part in [*parts, *(row["equal_part"] for row in hardware_equals.values())]:
+        wanted.update(m for model in models(part) for m in (model, model.upper()))
+    exact = [row for rows in (await catalog_products.by_parts(wanted, quotable=True)).values() for row in rows]
+    catalog = list({row["_id"]: row for row in [*exact, *await catalog_products.by_series(wanted)]}.values())
+    book = [row for rows in (await catalog_products.list_prices(wanted)).values() for row in rows]
+    books = {
+        str(b["_id"]): {"name": b.get("program") or b.get("filename"), "effective": b.get("effective")}
+        for b in await catalog_products.price_book_summaries()
+    }
+    nets, tiers, adders = await asyncio.to_thread(
+        lambda: (reference_library.load_special_nets(), reference_library.load_vendor_tiers(),
+                 reference_library.load_adders()))
+    special = await asyncio.to_thread(pricing.special_margin, project.get("gc"), project.get("brand"))
+    # A Division 10 part CBC cannot price may have a direct equal it can.
+    equals = (await asyncio.to_thread(reference_library.load_div10_equals)
+              if any(line.division.startswith("10") for line in lines) else {})
+    equal_rows = (await catalog_products.by_vendors(ladder.vendor_key(b) for b in equals.get("preferred_brands") or [])
+                  if equals else [])
+    client = p21.P21Client()
+    return ladder.Sources(
+        models=models,
+        finish=lambda text: matcher.finish_key(text, reference_library.resolve_finish),
+        lapsed=reference_library.sheet_lapsed,
+        cost_from_list=lambda price, multiplier: calc.cost_from_list(price, multiplier)["cost"],
+        multiplier_category=pricing.multiplier_category,
+        special_nets=[row for row in nets.get("items") or [] if isinstance(row, dict)],
+        special_net_effective=nets.get("effective_date"),
+        catalog=catalog,
+        book=book,
+        books=books,
+        tiers=_tiers(tiers),
+        last_po=client.last_po,
+        special_margin=special,
+        priced_at=_now(),
+        equals=equals,
+        equal_rows=equal_rows,
+        adders=[a for a in (adders.get("hager_list_adders") or {}).get("items") or [] if isinstance(a, dict)],
+        hardware_equals=hardware_equals,
+    )
+
+
+async def price_named_part(project: dict[str, Any], doc: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """What the part an estimator named on a line costs, through the same rungs as
+    the take-off's parts, in the line's own field names: the price, kept with the
+    estimator's edit as choosing a close match keeps it, and - when several rows
+    could be the part - the close matches to choose among, which are the copilot's
+    (FR-8). Naming Hager BB1279 for Evernorth's Ives hinges left the line unpriced,
+    and a re-price keeps the part the estimator named, so nothing looked it up."""
+    line = takeoff.Line(
+        key=str(doc.get("lineKey") or "named"), group=str(doc.get("group") or ""),
+        # The Allegion part it stands in for is no part of what the named part is.
+        division=str(doc.get("division") or ""), description=matcher.without_allegion(doc.get("description")),
+        part=doc.get("part"), manufacturer=doc.get("manufacturer"), finish=doc.get("finish"),
+        qty=doc.get("qty"), qty_per_opening=doc.get("qtyPerOpening"), unit=doc.get("unit"),
+        openings=list(doc.get("openings") or []), source_page=doc.get("sourcePage"),
+    )
+    sources = await _sources(project, [line])
+    row = next(iter(await asyncio.to_thread(ladder.price, line, sources)), None)
+    if not row or row.get("part_number") != line.part:
+        return {}, {}  # priced as something else: an Allegion part named by hand is its equal's
+    if row.get("cost") is not None:
+        return {**priced_lines.price_fields(row), "priceStatus": row.get("price_status"),
+                "pricedAt": row.get("priced_at")}, {}
+    # Evernorth's Hager 5100 is four special-net rows at three prices: the estimator picks.
+    matches = await asyncio.to_thread(ladder.close_matches, row, sources) if ladder.UNDECIDED in row else []
+    if not matches:
+        return {}, {}
+    return {}, {"closeMatches": [priced_lines.close_match(m) for m in matches],
+                "costSourceDetail": row.get("cost_source_detail")}
+
+
+def plan(project: dict[str, Any], openings: list[dict[str, Any]],
+         frp_constants: dict[str, Any] | None = None) -> tuple[list[takeoff.Line], list[str]]:
+    """The bid's take-off as lines to price, and what was left out. Reads files only."""
+    hardware, specialties, doors = _takeoff_rows(openings)
+    lines, notes = takeoff.hardware_lines(_hardware_sets(project["slug"]), hardware)
+    lines = takeoff.door_and_frame_lines(doors) + lines + takeoff.specialty_lines(specialties, frp_constants)
+    return lines, notes + _requested_scope(lines, project.get("rfpText"))
+
+
+def _requested_scope(lines: list[takeoff.Line], notes: Any) -> list[str]:
+    """What the bid request gives to someone else (FR-1): those lines stay on the
+    quote as supplied by others - out of the total, in the qualifications, and the
+    estimator's to move back."""
+    given = request_scope.excluded(notes)
+    for line in lines:
+        category = request_scope.category_of(line.key, line.division)
+        if category in given and not line.alternate:
+            line.alternate = f"the bid request says {given[category]!r} - another party supplies it"
+            line.flags.append("excluded_by_request")
+    return [f"{category} not quoted: the bid request says {words!r}" for category, words in given.items()]
+
+
+def _choice_prompt(row: dict[str, Any], pending: dict[str, Any]) -> str:
+    said = " ".join(str(row.get(k)) for k in ("manufacturer", "part_number", "description", "finish") if row.get(k))
+    listed = "\n".join(f"{n}. {shown}" for n, shown in enumerate(pending["shown"], start=1))
+    return f"Specified: {said}\nRows ({pending['rung']}):\n{listed}"
+
+
+async def _choose(rows: list[dict[str, Any]], sources: ladder.Sources, *, budget: int) -> int:
+    """Ask the model to settle the lines the ladder could not, within the budget.
+
+    The first question that goes unanswered ends the asking: the provider is down
+    or will not answer, and the rest stay the estimator's to pick.
+    """
+    chosen = asked = 0
+    for index, row in enumerate(rows):
+        pending = row.get(ladder.UNDECIDED)
+        if not pending or "chosen" in pending or asked >= budget:  # a series match is decided
+            continue
+        asked += 1
+        try:
+            reply = await ops_ai.ask(CHOOSE_CATALOG_MATCH, _choice_prompt(row, pending))
+        except Exception as exc:  # no provider is not a failed bid: the lines stay MANUAL
+            log.warning("choose_catalog_match not asked: %s", exc)
+            break
+        if reply.answer is None:
+            break
+        if reply.answer.choice is None:
+            continue
+        priced = await asyncio.to_thread(ladder.price_choice, row, reply.answer.choice - 1, reply.answer.reason, sources)
+        if priced is not None:
+            rows[index] = priced
+            chosen += 1
+    return chosen
+
+
+async def _read_supply(lines: list[takeoff.Line], *, budget: int) -> int:
+    """Ask who supplies the items whose words name another party without saying
+    (classify_supply), once per distinct wording. One the model reads as someone
+    else's goes to "Supplied by others", flagged to confirm; the first question
+    that goes unanswered ends the asking, and the rest stay the estimator's."""
+    unclear: dict[str, list[takeoff.Line]] = {}
+    for line in lines:
+        if "supply_unclear" in line.flags:
+            unclear.setdefault(line.text, []).append(line)
+    moved = 0
+    for text, same in list(unclear.items())[:budget]:
+        try:
+            reply = await ops_ai.ask(CLASSIFY_SUPPLY, text)
+        except Exception as exc:  # no provider: the flags stay for the estimator
+            log.warning("classify_supply not asked: %s", exc)
+            break
+        if reply.answer is None:
+            break
+        if reply.answer.supplier == "UNCLEAR":
+            continue
+        for line in same:
+            line.flags.remove("supply_unclear")
+            if reply.answer.supplier != "CFCI":
+                who = "the owner" if reply.answer.supplier == "OFCI" else "another party"
+                line.alternate = f"read as supplied by {who} ({reply.answer.reason}) - confirm"
+                line.flags += ["supplied_by_others", "supply_read_by_model"]
+                moved += 1
+    return moved
+
+
+def _stock_lists(rows: list[dict[str, Any]]) -> dict[str, set[str]]:
+    """The stock list of each door-hardware vendor on the bid that has one (NR-6)."""
+    vendors = {ladder.vendor_key(row.get("manufacturer")) for row in rows
+               if str(row.get("division") or "").startswith("08 7") and row.get("manufacturer")}
+    found = {vendor: reference_library.load_stock_list(vendor) for vendor in vendors if vendor}
+    return {vendor: reference_library.stock_parts(payload) for vendor, payload in found.items() if payload}
+
+
+def _mark_stock(row: dict[str, Any], lists: dict[str, set[str]]) -> None:
+    """Whether a hardware part is on its maker's stock list - a part that is not
+    is usually a lead time, which the estimator should know before quoting it."""
+    parts = lists.get(ladder.vendor_key(row.get("manufacturer")))
+    part = str(row.get("part_number") or "").strip()
+    if parts is None or not part or not str(row.get("division") or "").startswith("08 7"):
+        return
+    row["stock"] = reference_library.in_stock(parts, part)
+    if not row["stock"]:
+        row["flags"].append("non_stock")
+
+
+async def price_bid(project: dict[str, Any], *, choose: bool = True) -> dict[str, Any]:
+    """The priced file for a bid, as v2 would write it. Writes nothing - the
+    job writes it; an evaluation compares it with the estimators' own quote."""
+    openings = await extraction_openings.list_for_project(project["_id"], limit=5000)
+    frp_constants = await asyncio.to_thread(reference_library.load_frp_constants)
+    lines, notes = plan(project, openings, frp_constants)
+    if choose:
+        await _read_supply(lines, budget=SUPPLY_BUDGET)
+    sources = await _sources(project, lines)
+    rows = await asyncio.to_thread(lambda: [row for line in lines for row in ladder.price(line, sources)])
+    if choose:
+        await _choose(rows, sources, budget=CHOICE_BUDGET)
+    stock = await asyncio.to_thread(_stock_lists, rows)
+    for row in rows:
+        _mark_stock(row, stock)
+        if ladder.UNDECIDED in row:
+            row["close_matches"] = ladder.close_matches(row, sources)
+        row.pop(ladder.UNDECIDED, None)
+        row["match_confidence"] = ladder.match_confidence(row)  # FR-8
+    priced = sum(1 for row in rows if row.get("cost") is not None)
+    return {
+        "source": SOURCE,
+        "generated_at": sources.priced_at,
+        "lines": rows,
+        "flags": notes,
+        "summary": {"total_lines": len(rows), "lines_with_cost": priced,
+                    "manual_cutoff_applied": priced < len(rows)},
+    }
+
+
+async def price_in_code(job: dict[str, Any], project: dict[str, Any]) -> str:
+    """The v2 pass: price the take-off, write it where the pass's output goes, sync it."""
+    payload = await price_bid(project)
+    if not payload["lines"]:
+        return "nothing to price: no in-scope opening cites a hardware set and no specialty row was read"
+    if not await ops_jobs.holds_lease(job):
+        return "lease stolen; discarded output"
+    path = storage.project_dir(project["slug"]) / "priced" / "line_items.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(write_json, path, payload)
+    return await _sync(job, project, payload)
+
+
+async def _sync(job: dict[str, Any], project: dict[str, Any], payload: dict[str, Any]) -> str:
+    counts = await priced_lines.import_quote_lines(project, job=job)
+    if counts.get("aborted"):
+        return "lease stolen; discarded output"
+    await quote.persist(project)
+    await apply_to_project(project)
+    await bids.set_stage(project["_id"], "quote", 67)
+    summary = payload["summary"]
+    note = (f"priced in code: {summary['lines_with_cost']}/{summary['total_lines']} lines have a cost; "
+            f"{counts['inserted']} new, {counts['updated']} updated, {counts['skipped']} kept as the estimator left them")
+    if summary["total_lines"] and summary["lines_with_cost"] == 0:
+        from cbc.modules.projects.api import saga as chain
+
+        await chain.set_state(project["_id"], "pricing",
+                              detail="pricing incomplete — all manual; estimator must enter distributor costs")
+        note += " (all manual cutoff)"
+    return note
+
+
+# ── legacy: the Claude pass ──────────────────────────────────────────────────
 
 
 async def _prepare(job: dict[str, Any], project: dict[str, Any], payload: dict[str, Any]) -> bool:
@@ -74,30 +463,34 @@ async def sync_results(job: dict[str, Any], project: dict[str, Any] | None) -> s
     return pricing_note
 
 
-async def apply_to_project(project: dict[str, Any], *, limit: int = 5000) -> dict[str, int]:
-    """Judge each opening against catalog rows that share a part family.
+# ── the matching gate (FR-4) ─────────────────────────────────────────────────
 
-    When an opening already carries a matched part on a quote line, that part is
-    the only candidate. Otherwise the opening is flagged ratingMissing when it
-    has no fire rating to enforce.
+
+async def apply_to_project(project: dict[str, Any], *, limit: int = 5000) -> dict[str, int]:
+    """Judge each opening against the catalog rows of the parts its lines name.
+
+    A line names the doors it is for (`openings`); an opening's candidates are
+    the catalog rows for the parts on its lines. An opening with no fire rating to
+    enforce is flagged ratingMissing.
     """
     project_id = project["_id"]
     openings = await extraction_openings.list_for_project(project_id, limit=limit)
-    lines: dict[Any, dict[str, Any]] = {}
+    parts_for: dict[str, list[str]] = {}
     for line in await quoting_lines.list_for_project(project_id):
-        lines[line.get("mark") or line.get("doorNumber")] = line
+        part = line.get("part") or line.get("partNumber")
+        for mark in line.get("openings") or []:
+            if part:
+                parts_for.setdefault(str(mark), []).append(part)
 
-    def part_of(opening: dict[str, Any]) -> str | None:
-        line = lines.get(opening.get("mark") or opening.get("doorNumber")) or {}
-        return line.get("part") or line.get("partNumber")
+    def mark_of(opening: dict[str, Any]) -> str:
+        return str(opening.get("mark") or opening.get("doorNumber") or "")
 
     # One catalog query and one bulk write for the bid. This was a query and an
     # update per opening - two round trips a door, a thousand on a 500-door bid.
-    catalog = await catalog_products.by_parts(part_of(opening) for opening in openings)
+    catalog = await catalog_products.by_parts(p for o in openings for p in parts_for.get(mark_of(o), []))
     flagged = 0
     updates: list[tuple[Any, dict[str, Any]]] = []
     for opening in openings:
-        part = part_of(opening)
         candidates = [
             {
                 "id": str(product.get("_id")),
@@ -107,7 +500,8 @@ async def apply_to_project(project: dict[str, Any], *, limit: int = 5000) -> dic
                 "finish": product.get("finish"),
                 "description": product.get("description"),
             }
-            for product in (catalog.get(part, []) if part else [])
+            for part in parts_for.get(mark_of(opening), [])
+            for product in catalog.get(part, [])
         ]
         opening_view = {
             **opening,

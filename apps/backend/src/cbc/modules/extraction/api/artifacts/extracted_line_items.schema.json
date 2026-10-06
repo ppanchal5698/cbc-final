@@ -434,6 +434,15 @@
             }
           }
         },
+        "columns_read": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
         "confirmed_by": {
           "type": [
             "string",

@@ -6,6 +6,7 @@ import { DeleteBidButton } from "@/components/bids/delete-bid-button";
 import { EditBidButton } from "@/components/bids/edit-bid-button";
 import { UploadPanel } from "@/components/intake/upload-panel";
 import { VersionsPanel } from "@/components/intake/versions-panel";
+import { AddendaPanel } from "@/components/intake/addenda-panel";
 import { StartFromPrior } from "@/components/intake/start-from-prior";
 import { PageHeader } from "@/components/shell/page-header";
 import { runPillFor } from "@/lib/run-pill";
@@ -63,6 +64,7 @@ export default async function IntakePage({ params }: { params: Promise<{ code: s
             : null,
       sourceKey: "mode",
     },
+    { label: "Started from", value: project.templateSourceCode ?? null },
     {
       label: "Bid due",
       value: project.bidDue ? new Date(project.bidDue).toLocaleDateString() : null,
@@ -72,6 +74,11 @@ export default async function IntakePage({ params }: { params: Promise<{ code: s
       label: "Alternates noted",
       value: project.bidAlternates?.length ? project.bidAlternates.join(", ") : null,
       sourceKey: "bidAlternates",
+    },
+    {
+      label: "Scope notes",
+      value: project.rfpText ?? null,
+      sourceKey: "rfpText",
     },
   ];
 
@@ -92,7 +99,12 @@ export default async function IntakePage({ params }: { params: Promise<{ code: s
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_340px]">
           <div className="flex flex-col gap-4">
             <UploadPanel code={project.code} initialDocuments={documents} />
-            <StartFromPrior code={project.code} documentCount={documents.length} />
+            <StartFromPrior
+              code={project.code}
+              documentCount={documents.length}
+              startedFrom={project.templateSourceCode}
+            />
+            <AddendaPanel code={project.code} addenda={project.addenda ?? []} />
             <VersionsPanel code={project.code} />
           </div>
 
@@ -167,7 +179,7 @@ export default async function IntakePage({ params }: { params: Promise<{ code: s
       <footer className="flex shrink-0 items-center gap-3 border-t border-subtle bg-background px-5 py-3">
         <span className="flex-1 text-[12.5px] text-tx-secondary">
           {documents.length === 0
-            ? "Phone-in or waiting on files: add the plan set when ready. Claude reads it as soon as it lands."
+            ? "Phone-in or waiting on files: add the plan set when ready. It is read as soon as it lands."
             : `${documents.length} document${documents.length === 1 ? "" : "s"} on file.`}
         </span>
         <Link

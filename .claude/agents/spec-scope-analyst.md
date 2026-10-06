@@ -32,9 +32,11 @@ searched, and cite those pages in `fire_rating_note` / `unparsed_sections` /
 `out_of_scope_items`.
 
 ## Your responsibilities
-1. Parse the specification PDFs in `projects/{project}/uploads/raw/` using the
-   `pdf-tools` MCP server. Search for `DIVISION 08`, `DIVISION 10`, `DOORS AND
-   FRAMES`, `FINISH HARDWARE`, `TOILET PARTITIONS`, `TOILET ACCESSORIES`, `FRP`.
+1. Read the specification PDFs in `projects/{project}/uploads/raw/` through
+   their parse - `search_blocks` across the document for `DIVISION 08`,
+   `DIVISION 10`, `DOORS AND FRAMES`, `FINISH HARDWARE`, `TOILET PARTITIONS`,
+   `TOILET ACCESSORIES`, `FRP`, then `get_page_blocks` on the hits. Use
+   `pdf-tools` only where the parse cannot answer (above).
 2. Identify every **Division 08** section: hollow metal doors and frames, wood
    doors, finish hardware, glazing in doors, lites and louvers.
 3. Identify every **Division 10** section that is **in scope**: toilet

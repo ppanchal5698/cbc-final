@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """p21-connector MCP server - READ-ONLY last-PO cost lookup.
 
-Cost path 1 of three (.claude/memory/cost_sourcing_rules.md).
+The first priced rung of the cost ladder (.claude/memory/cost_sourcing_rules.md).
 
 There are no write tools in this module. That is the guardrail, not an oversight
-(NFR-5, .claude/rules/p21-read-only.md).
+(NFR-5, .claude/guides/pricing.md).
 
 P21 is not integrated yet (NR-10 - feasibility under investigation). Until
 P21_BASE_URL is set, every lookup returns a structured "manual entry required"
@@ -21,7 +21,7 @@ from typing import Any
 from _runtime import serve
 from tools import TOOLS
 from client import lookup_last_po as _http_lookup, search_item as _http_search
-from cbc.modules.ops.api.freshness_rules import classify
+from cbc.modules.ops.api.freshness_rules import USABLE_DAYS, classify
 from cbc.modules.ops.api.freshness import load_sync
 
 BASE_URL = os.environ.get("P21_BASE_URL", "").strip()
@@ -114,20 +114,23 @@ def lookup_last_po(part_number: str, vendor: str | None = None) -> dict[str, Any
         }
 
     freshness = check_freshness(str(po_date))
-    return {
+    found = {
         "part_number": part_number,
         "vendor": vendor,
         "connected": True,
         "item_id": item_id,
         "last_po_price": price,
         "po_date": po_date,
-        "cost": price,
-        "cost_source": "P21_LAST_PO",
         "freshness_status": freshness["freshness_status"],
         "freshness": freshness,
-        "action_required": None if freshness["usable"] else "manual_price_entry",
-        "prompt": None if freshness["usable"] else "price may be out of date - refresh",
     }
+    if not freshness["usable"]:
+        # Same rule as pricing/api/p21._classify: an unreliable or stale PO is
+        # context for the estimator, never a cost. Handing back `cost` with a
+        # P21_LAST_PO source beside an action_required left the agent one copy
+        # away from quoting a price the bands had already discarded.
+        return {**found, **MANUAL_ENTRY, "connected": True, "reason": freshness["guidance"]}
+    return {**found, "cost": price, "cost_source": "P21_LAST_PO", "action_required": None, "prompt": None}
 
 
 def search_item(query: str, limit: int = 10) -> dict[str, Any]:
@@ -217,9 +220,13 @@ def _demo() -> None:
         po_date = (date.today() - timedelta(days=age_days)).isoformat()
         return check_freshness(po_date)["freshness_status"]
 
+    usable = max(USABLE_DAYS, bands.fresh_days)
     assert status_at(0) == "fresh"
     assert status_at(bands.fresh_days) == "fresh", "the fresh band includes its own edge"
-    assert status_at(bands.fresh_days + 1) == "unreliable"
+    if usable > bands.fresh_days:
+        # Requirements 5.2: "use if sold within a year" - past fresh, still priced, flagged.
+        assert status_at(bands.fresh_days + 1) == "aging"
+    assert status_at(usable + 1) == "unreliable", "past the year it was sold in"
     assert status_at(bands.discard_after_days) == "unreliable", "still inside discard"
     assert status_at(bands.discard_after_days + 1) == "stale"
 

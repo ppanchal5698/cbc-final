@@ -19,7 +19,8 @@ door fabrication.
 ## Who requests a bid
 Requests come from the **internal initiator in the sales queue** — Kellan, Matt, Rebecca,
 or Tina — shown far-right in the queue view. The finished quote goes back to *that specific
-person*, never to a group email. See [process_flow](process_flow.md) Phase 6.
+person*, never to a group email. Phase 6 is owned by
+[delivery-agent](../agents/delivery-agent.md).
 
 ## Intake channels
 Mostly **email** (job workbook + plans/RFP attached). Sometimes **phone-in**, which is why

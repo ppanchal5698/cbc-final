@@ -4,15 +4,16 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from cbc.modules.pricing.api import hager_list_price
+from cbc.modules.pricing.api import hager_list_price, reference_library
+from cbc.modules.pricing.api.catalog_baseline_backfill import SUPPLIED_BY_OTHERS
 from cbc.modules.pricing.domain import calc as quote_calc
 from cbc.shared import storage
+from cbc.shared.hardware_sets import SET_KEYS
 from cbc.shared.pass_files import read_json, write_json
 
 _PART = re.compile(r"[A-Z0-9]+", re.I)
 _BLOCK_SOURCES = frozenset({"DISTRIBUTOR_MANUAL", "VENDOR_RFQ"})
 _ALLEGIION = ("von duprin", "lcn", "schlage", "ives", "allegion")
-_THRESH_WEATHER_MULT = 0.4
 
 
 def _norm_part(value: str | None) -> str:
@@ -27,7 +28,7 @@ def _collect_items(node: Any, out: list[dict[str, Any]]) -> None:
                 if isinstance(item, dict):
                     out.append(item)
                     _collect_items(item, out)
-        for key in ("hardware_sets", "openings", "groups"):
+        for key in (*SET_KEYS, "openings"):
             child = node.get(key)
             if isinstance(child, list):
                 for row in child:
@@ -116,7 +117,7 @@ def _is_allegion(line: dict[str, Any], hw: dict[str, Any] | None) -> bool:
 
 
 def _should_backfill(line: dict[str, Any], hw: dict[str, Any] | None) -> bool:
-    if line.get("cost") is not None:
+    if line.get("cost") is not None or SUPPLIED_BY_OTHERS in (line.get("flags") or []):
         return False
     line_source = str(line.get("cost_source") or "").upper()
     hw_source = str((hw or {}).get("cost_source") or "").upper()
@@ -150,7 +151,7 @@ def _apply_list_x(
     line: dict[str, Any],
     *,
     hw: dict[str, Any] | None,
-    multiplier: float,
+    multiplier: float | None,
 ) -> bool:
     matched = (hw or {}).get("matched") if isinstance((hw or {}).get("matched"), dict) else {}
     specified = (hw or {}).get("specified")
@@ -176,6 +177,28 @@ def _apply_list_x(
     quote = hager_list_price.lookup_ngp_list_price(ngp_code, width_in=width_in)
     if not quote:
         return False
+    # The version and date come from the vendor-tier record the multiplier is
+    # read against, not a literal: a hardcoded book name never lapses, so the
+    # proposal gate could not fire on a list× line.
+    tier_key = line.get("multiplier_tier") or "thresholds_weatherstrip"
+    try:
+        tier = reference_library.get_vendor_tier("hager", tier_key)
+    except Exception:
+        tier = {}
+    effective = tier.get("effective_date")
+    if reference_library.sheet_lapsed(effective):
+        note = f"list× {ngp_code} skipped — Hager {tier_key} multiplier effective {effective} is past review"
+        line["cost_source_detail"] = "; ".join(filter(None, [line.get("cost_source_detail"), note]))
+        return False
+    # The multiplier is the tier record's own. A typed-in 0.4 used to stand in,
+    # so a changed tier sheet priced at the old rate under the new sheet's date.
+    if multiplier is None:
+        multiplier = tier.get("multiplier")
+    if multiplier is None:
+        return False
+    multiplier = float(multiplier)
+
+    from cbc.modules.pricing.api import pricing
 
     list_price = float(quote["list_price"])
     cost = round(list_price * multiplier, 2)
@@ -183,9 +206,9 @@ def _apply_list_x(
     page = quote["source_page"]
     margin = line.get("margin")
     try:
-        margin_f = float(margin) if margin is not None else 0.27
+        margin_f = float(margin) if margin is not None else pricing.default_margin(line.get("division"))
     except (TypeError, ValueError):
-        margin_f = 0.27
+        margin_f = pricing.default_margin(line.get("division"))
     priced = quote_calc.calculate_line(cost=cost, margin=margin_f, quantity=qty)
     drawing_page = line.get("source_page")
     line["cost"] = priced["cost"]
@@ -201,9 +224,15 @@ def _apply_list_x(
     if drawing_page in (None, ""):
         line["source_page"] = page
     line["multiplier"] = multiplier
-    if not line.get("multiplier_tier"):
-        line["multiplier_tier"] = "thresholds_weatherstrip"
-    line["price_book_version"] = line.get("price_book_version") or "Hager Price Book #18"
+    line["multiplier_tier"] = tier_key
+    if effective:
+        line["multiplier_effective_date"] = effective
+    if not line.get("price_book_version"):
+        line["price_book_version"] = (
+            f"{tier.get('vendor') or 'Hager'} {tier['price_book']}"
+            if tier.get("price_book")
+            else hager_list_price.HAGER_BOOK
+        )
     line["basis"] = f"Hager #18 × {multiplier:g}"
     line["price_status"] = "LIST_X_MULTIPLIER"
     flags = [str(f) for f in (line.get("flags") or []) if f]
@@ -270,12 +299,8 @@ def backfill_priced_lines(slug: str) -> dict[str, int]:
         if not _should_backfill(line, hw):
             continue
         attempted += 1
-        multiplier = float(
-            line.get("multiplier")
-            or (hw or {}).get("multiplier")
-            or _THRESH_WEATHER_MULT
-        )
-        if _apply_list_x(line, hw=hw, multiplier=multiplier):
+        known = line.get("multiplier") or (hw or {}).get("multiplier")
+        if _apply_list_x(line, hw=hw, multiplier=float(known) if known else None):
             filled += 1
         else:
             skipped += 1

@@ -9,8 +9,10 @@ import re
 from collections.abc import Callable
 from typing import Any
 
+from cbc.modules.pricing.api import reference_library
 from cbc.modules.pricing.domain import calc as quote_calc
 from cbc.shared import storage
+from cbc.shared.hardware_sets import SET_KEYS
 from cbc.shared.pass_files import read_json, write_json
 
 # The catalog lookup is a *port*, not an import.
@@ -50,6 +52,9 @@ _SKIP_SOURCES = {
     "CATALOG_BASELINE",
     "LIST_X_MULTIPLIER",
 }
+# A line the schedule says someone else supplies. Pricing it would put an
+# owner-furnished item on CBC's quote; the estimator confirms scope first.
+SUPPLIED_BY_OTHERS = "supplied_by_others_noted"
 
 
 def _norm_part(value: str | None) -> str:
@@ -64,7 +69,7 @@ def _collect_items(node: Any, out: list[dict[str, Any]]) -> None:
                 if isinstance(item, dict):
                     out.append(item)
                     _collect_items(item, out)
-        for key in ("hardware_sets", "openings", "groups"):
+        for key in (*SET_KEYS, "openings"):
             child = node.get(key)
             if isinstance(child, list):
                 for row in child:
@@ -139,7 +144,7 @@ def _is_allegion(line: dict[str, Any], hw: dict[str, Any] | None) -> bool:
 
 
 def _should_backfill(line: dict[str, Any], hw: dict[str, Any] | None) -> bool:
-    if line.get("cost") is not None:
+    if line.get("cost") is not None or SUPPLIED_BY_OTHERS in (line.get("flags") or []):
         return False
     source = str(line.get("cost_source") or "").upper()
     if source in _SKIP_SOURCES:
@@ -175,8 +180,12 @@ def _default_margin(row: dict[str, Any], line: dict[str, Any]) -> float:
             return float(dm)
         except (TypeError, ValueError):
             pass
+    from cbc.modules.pricing.api import pricing
+
     division = str(row.get("division") or line.get("division") or "")
     vendor = str(row.get("vendorKey") or "").lower()
+    # The bands come from their owner. These were 0.56 and 0.27 typed in, which
+    # stay put when the estimators change the bands in /settings.
     if division.startswith("10 28") or vendor in {
         "bobrick",
         "gamco",
@@ -184,8 +193,8 @@ def _default_margin(row: dict[str, Any], line: dict[str, Any]) -> float:
         "bradley",
         "world_dryer",
     }:
-        return 0.56
-    return 0.27
+        return pricing.default_margin("10 28")
+    return pricing.default_margin(division or None)
 
 
 def _apply_catalog(line: dict[str, Any], row: dict[str, Any]) -> bool:
@@ -206,6 +215,13 @@ def _apply_catalog(line: dict[str, Any], row: dict[str, Any]) -> bool:
         return False
     if cost_f < 0:
         return False
+    effective = row.get("priceBookEffective")
+    if reference_library.sheet_lapsed(effective):
+        # Same skip as the special-net rung: a row off a lapsed book is noted and
+        # left for list× rather than seeded as a price the proposal gate holds.
+        note = f"catalog row {row.get('part') or ''} skipped — {row.get('priceBook') or 'price book'} effective {effective} is past review"
+        line["cost_source_detail"] = "; ".join(filter(None, [line.get("cost_source_detail"), note]))
+        return False
 
     qty = float(line.get("quantity") or 1)
     margin = _default_margin(row, line)
@@ -218,6 +234,9 @@ def _apply_catalog(line: dict[str, Any], row: dict[str, Any]) -> bool:
     line["margin"] = margin
     line["cost_source"] = "CATALOG_BASELINE"
     line["cost_source_detail"] = f"product catalog / {seed} part {part}"
+    if effective:
+        line["multiplier_effective_date"] = effective
+        line["price_book_version"] = f"{row.get('priceBook') or 'price book'}, effective {effective}"
     if row.get("listPrice") is not None and line.get("list_price") in (None, ""):
         line["list_price"] = row.get("listPrice")
     if row.get("multiplier") is not None and line.get("multiplier") in (None, ""):

@@ -20,6 +20,7 @@ from typing import Any
 
 from pymongo import UpdateOne
 
+from cbc.modules.quoting.domain import alternates
 from cbc.modules.quoting.infrastructure.collections import estimate_lines, quotes
 from cbc.modules.pricing.api import pricing
 
@@ -71,8 +72,8 @@ def tax_state(project: dict[str, Any], quote: dict[str, Any]) -> str | None:
     pricing pass must not freeze a model-written jurisdiction into the quote.
     """
     stored = quote.get("taxJurisdiction")
-    if stored == "NONE":
-        return "NONE"
+    if stored in ("NONE", "EXEMPT"):
+        return stored  # the estimator's ruling: no nexus, or an exempt buyer
     # Honor an explicit settings override (e.g. OH nexus on a NY ship-to bid).
     # Auto-persisted jurisdiction always matches project.state and must not
     # block ship-to from staying authoritative on every reprice.
@@ -181,7 +182,8 @@ def _multiplier_tier_snapshot(line: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def reprice(lines: list[dict[str, Any]], state: str | None, freight: float | None) -> dict:
+def reprice(lines: list[dict[str, Any]], state: str | None, freight: float | None,
+            deductive: set[str] | frozenset[str] = frozenset()) -> dict:
     """Price every line in memory and roll them up. Writes nothing.
 
     Mutates the dicts it is given so the caller can render them, and reports which
@@ -221,7 +223,13 @@ def reprice(lines: list[dict[str, Any]], state: str | None, freight: float | Non
         if stale or differs or line.get("priceError") != priced.get("error"):
             changed.append(line)
 
-    return {"totals": pricing.totals(lines, state, freight), "changed": changed}
+    # An alternate is priced but is not the bid: it is offered beside it, with
+    # its own total (ListAlternates). Counted in, an owner-furnished accessory or
+    # an Allegion part priced as specified would inflate the number on the quote.
+    # A deductive alternate's lines are the exception: they are base scope the
+    # alternate offers to delete (FR-14).
+    base = [line for line in lines if alternates.counts_in_base(line, deductive)]
+    return {"totals": pricing.totals(base, state, freight), "changed": changed}
 
 
 async def totals_for(
@@ -236,7 +244,8 @@ async def totals_for(
 
     quote = await quotes().find_one({"projectId": project["_id"]}) or {}
     lines = await lines_for(project["_id"])
-    result = reprice(lines, tax_state(project, quote), quote.get("freight"))
+    result = reprice(lines, tax_state(project, quote), quote.get("freight"),
+                     alternates.in_base(project.get("alternateSpecs")))
     totals = result["totals"]
     if use_cache:
         _totals_cache[key] = (time.monotonic(), totals, lines)
@@ -255,7 +264,7 @@ async def persist(project: dict[str, Any]) -> pricing.QuoteTotals:
     state = tax_state(project, quote)
 
     lines = await lines_for(project_id)
-    result = reprice(lines, state, quote.get("freight"))
+    result = reprice(lines, state, quote.get("freight"), alternates.in_base(project.get("alternateSpecs")))
 
     if result["changed"]:
         operations = [

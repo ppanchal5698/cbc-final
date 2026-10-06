@@ -188,7 +188,7 @@ def test_write_flags_is_idempotent(project) -> None:
 
 
 def test_a_line_priced_from_an_excluded_vendor_is_flagged_out_of_scope(project) -> None:
-    """scope-boundaries: an excluded vendor is flagged whatever price the line carries."""
+    """.claude/guides/takeoff.md: an excluded vendor is flagged whatever price the line carries."""
     reference_store.use_memory({"vendor_tiers": {"data": {"vendors": [], "excluded": [
         {"name": "American Dryer", "reason": "No longer used"},
     ]}}})
@@ -202,9 +202,252 @@ def test_a_line_priced_from_an_excluded_vendor_is_flagged_out_of_scope(project) 
     assert "American Dryer" in flags[0]["note"]
 
 
+def _blocking(flags):
+    return {(f["opening"], f["field"]): f["blocking"] for f in flags}
+
+
+def test_blocking_is_set_per_kind(project) -> None:
+    """Severity is display; blocking is what holds the approval."""
+    slug, directory = project
+    _write(directory, "extracted/scope_summary.json", {"fire_ratings_present": True})
+    _write(directory, "extracted/scope_metadata.json", {"brand_mismatch_warning": "Wendys vs Arbys"})
+    _write(directory, "extracted/line_items.json", {"openings": [
+        {"door_number": "101", "source_page": 4, "bbox": [1, 2, 3, 4],
+         "fire_rating": None, "handing": None, "size": "3070"},
+    ]})
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "L1", "group": "Door 101", "cost_source": "MANUAL", "cost": None},
+    ]})
+    blocking = _blocking(review.derive_flags(slug))
+    assert blocking[("Door 101", "fire_rating")] is True
+    assert blocking[("Door 101", "handing")] is False
+    assert blocking[("Door 101", "cost")] is True
+    assert blocking[("bid set", "project_identity")] is True
+    assert blocking[("quote", "sales_tax")] is False
+
+
+def test_an_unpriced_alternate_is_shown_but_holds_nothing(project) -> None:
+    """An alternate is not in the bid's total, so a price it still lacks does not hold the bid."""
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "L1", "group": "Door 101", "cost_source": "MANUAL", "cost": None},
+        {"line_id": "L2", "group": "Door 102", "cost_source": "DISTRIBUTOR_MANUAL", "cost": None,
+         "alternate_group": "Allegion as specified"},
+    ]})
+    blocking = _blocking(review.derive_flags(slug))
+    assert blocking[("Door 101", "cost")] is True
+    assert blocking[("Door 102", "cost")] is False
+
+
+def test_a_missing_rating_does_not_block_in_a_set_with_no_ratings(project) -> None:
+    slug, directory = project
+    _write(directory, "extracted/line_items.json", {"openings": [
+        {"door_number": "101", "bbox": [1, 2, 3, 4], "handing": "LH", "size": "3070"},
+    ]})
+    assert _blocking(review.derive_flags(slug))[("Door 101", "fire_rating")] is False
+
+
+def test_a_below_band_margin_with_a_reason_is_advisory(project) -> None:
+    from cbc.modules.pricing.api import calc, pricing
+
+    floor = calc.bands()[pricing.band_for_division("08 11")]
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "L1", "group": "Door 1", "division": "08 11", "margin": floor - 0.05,
+         "cost_source": "LIST_X_MULTIPLIER", "cost": 10},
+        {"line_id": "L2", "group": "Door 2", "division": "08 11", "margin": floor - 0.05,
+         "cost_source": "LIST_X_MULTIPLIER", "cost": 10,
+         "margin_overridden": True, "margin_override_reason": "matching the GC's number"},
+    ]})
+    blocking = _blocking(review.derive_flags(slug))
+    assert blocking[("Door 1", "margin")] is True
+    assert blocking[("Door 2", "margin")] is False
+
+
+def test_frp_with_pending_constants_blocks(project) -> None:
+    """The seed constants are PENDING (Open Item 5), so FRP rows cannot be quoted yet."""
+    slug, directory = project
+    assert ("bid set", "frp_constants_pending") not in _fields(review.derive_flags(slug))
+
+    _write(directory, "extracted/frp_takeoff.json", {"areas": [{"location": "Kitchen"}]})
+    flag = next(f for f in review.derive_flags(slug) if f["field"] == "frp_constants_pending")
+    assert flag["blocking"] is True
+    assert flag["severity"] == "high"
+
+
+def test_locally_parsed_pages_are_flagged_as_advisory(project) -> None:
+    slug, directory = project
+    _write(directory, "extracted/_parse_status.json", {"documents": [
+        {"documentId": "d1", "filename": "A.pdf", "state": "parsed", "error": None,
+         "fallbackPages": [9, 10]},
+    ]})
+    flag = next(f for f in review.derive_flags(slug) if f["field"] == "parse_fallback")
+    assert flag["blocking"] is False
+    assert flag["severity"] == "medium"
+    assert "9, 10" in flag["note"]
+    assert not [f for f in review.derive_flags(slug) if f["field"] == "document_not_parsed"]
+
+
+def test_a_cleared_derived_flag_does_not_survive_in_the_saved_file(project) -> None:
+    """Otherwise the approval gate stays shut after the estimator enters the cost."""
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "L1", "group": "Door 101", "cost_source": "MANUAL", "cost": None},
+    ]})
+    review.write_flags(slug)
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "L1", "group": "Door 101", "cost_source": "MANUAL", "cost": 120.0},
+    ]})
+    assert ("Door 101", "cost") not in _fields(review.read_flags(slug))
+
+
+def test_an_agent_flag_never_blocks(project) -> None:
+    merged = review.merge([], [{"opening": "bid set", "field": "rfi", "severity": "high",
+                                "note": "RFI", "blocking": True}])
+    assert merged[0]["blocking"] is False
+
+
 def test_the_seed_tier_sheet_excludes_the_vendors_the_scope_rule_names(project) -> None:
     slug, directory = project
     _write(directory, "priced/line_items.json", {"lines": [
         {"line_id": "P1", "vendor": "Scranton Products"},
     ]})
     assert ("P1", "out_of_scope") in _fields(review.derive_flags(slug))
+
+
+def test_a_door_with_no_rating_blocks_when_its_schedule_rates_the_others(project) -> None:
+    """Rule 1 (requirements 6.1), read off the doors themselves: the summary flag it
+    waited for was written by no code path, so it never held anything."""
+    slug, directory = project
+    _write(directory, "extracted/line_items.json", {"openings": [
+        {"door_number": "101", "bbox": [1, 2, 3, 4], "handing": "LH", "size": "3070", "fire_rating": "1-1/2 HR"},
+        {"door_number": "102", "bbox": [1, 2, 3, 4], "handing": "LH", "size": "3070", "fire_rating": None},
+        {"door_number": "100A", "bbox": [1, 2, 3, 4], "handing": "LH", "size": "6070", "fire_rating": None,
+         "in_scope": False},
+    ]})
+    blocking = _blocking(review.derive_flags(slug))
+    assert blocking[("Door 102", "fire_rating")] is True
+    assert blocking[("Door 100A", "fire_rating")] is False, "a door CBC is not quoting holds nothing"
+
+
+def test_an_exit_device_on_a_rated_door_asks_for_listed_fire_exit_hardware(project) -> None:
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "1:01", "group": "01", "cost_source": "CATALOG_BASELINE", "cost": 412.0,
+         "flags": ["fire_exit_hardware_required"]},
+    ]})
+    [flag] = [f for f in review.derive_flags(slug) if f["field"] == "fire_rating"]
+    assert flag["severity"] == "high" and "fire exit hardware" in flag["note"]
+
+
+def test_a_line_whose_supply_is_unclear_or_read_by_the_model_asks_for_a_look(project) -> None:
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "1:01", "group": "01", "cost_source": "CATALOG_BASELINE", "cost": 80.0,
+         "flags": ["supply_unclear"]},
+        {"line_id": "1:02", "group": "01", "cost_source": "CATALOG_BASELINE", "cost": 12.0,
+         "alternate_group": "Supplied by others", "flags": ["supplied_by_others", "supply_read_by_model"]},
+    ]})
+    notes = [f["note"] for f in review.derive_flags(slug) if f["field"] == "supply"]
+    assert len(notes) == 2 and "confirm it is CBC's to quote" in notes[0] and "move it back" in notes[1]
+
+
+def test_a_temperature_rise_door_asks_for_its_core(project) -> None:
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "door:hollow metal|3'-0\"|7'-0\"||90 MIN||TEMP RISE", "group": "Doors", "cost_source": "MANUAL",
+         "cost": 900.0, "flags": ["fire_rated", "temperature_rise"]},
+    ]})
+    [flag] = [f for f in review.derive_flags(slug) if "Temperature-rise" in f["note"]]
+    assert flag["field"] == "fire_rating" and flag["severity"] == "medium"
+
+
+def test_a_set_serving_rated_doors_asks_for_listed_hardware(project) -> None:
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "1:01", "group": "01", "cost_source": "LIST_X_MULTIPLIER", "cost": 4.99, "flags": ["rated_set"]},
+    ]})
+    [flag] = [f for f in review.derive_flags(slug) if "fire-rated doors" in f["note"]]
+    assert flag["field"] == "fire_rating" and flag["severity"] == "medium" and not flag.get("blocking")
+
+
+def test_a_match_under_the_auto_propose_line_says_why(project) -> None:
+    """Requirements 7.1: 0.70-0.89 is proposed with an amber flag - and NFR-2 wants
+    every one of them flagged, saying what keeps it from certain."""
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "1:01", "group": "01", "cost_source": "CATALOG_BASELINE", "cost": 26.0,
+         "match_confidence": 0.8, "flags": ["series_match"]},
+        {"line_id": "1:02", "group": "01", "cost_source": "LIST_X_MULTIPLIER", "cost": 4.99,
+         "match_confidence": 0.9, "flags": []},
+        {"line_id": "1:03", "group": "01", "cost_source": "LIST_X_MULTIPLIER", "cost": 61.0,
+         "match_confidence": 0.75, "flags": ["model_chose_match"]},
+    ]})
+    notes = [f["note"] for f in review.derive_flags(slug) if f["field"] == "match"]
+    assert notes == ["Matched at 0.80: it is a size of the series the legend names, not the part itself - confirm the part",
+                     "Matched at 0.75: the model chose it among rows at different prices - confirm the part"]
+
+
+def test_an_excluded_vendor_is_caught_however_its_name_is_punctuated(project, monkeypatch) -> None:
+    slug, directory = project
+    monkeypatch.setattr(review, "_excluded_vendors",
+                        lambda: [{"name": "J.L. Industries", "reason": "another department"}])
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "10:FEC1", "group": "Division 10", "manufacturer": "JL Industries", "cost_source": "MANUAL",
+         "cost": 180.0, "flags": []},
+    ]})
+    [flag] = [f for f in review.derive_flags(slug) if f["field"] == "out_of_scope"]
+    assert flag["note"].startswith("J.L. Industries is not quoted by CBC")
+
+
+def test_a_field_no_door_on_the_schedule_gives_is_said_once(project) -> None:
+    """Shakopee: no rating, handing or finish column - 32 HIGH flags across 8 doors
+    said three things. A field some doors give stays a question for the others."""
+    slug, directory = project
+    door = {"bbox": [1, 2, 3, 4], "size": "3070", "source_page": 4, "in_scope": True}
+    _write(directory, "extracted/line_items.json", {"openings": [
+        {"door_number": "1", **door, "handing": "LH"}, {"door_number": "2", **door}, {"door_number": "3", **door},
+    ]})
+    flags = review.derive_flags(slug)
+    once = [(f["opening"], f["field"], f["severity"]) for f in flags if f["opening"] == "All doors"]
+    assert sorted(once) == [("All doors", "finish", "medium"), ("All doors", "fire_rating", "high")]
+    per_door = [(f["opening"], f["field"]) for f in flags if f["field"] in ("handing", "finish", "fire_rating")
+                and f["opening"] != "All doors"]
+    assert per_door == [("Door 2", "handing"), ("Door 3", "handing")]
+
+
+def test_a_handing_read_off_the_plan_is_not_the_schedules(project) -> None:
+    """Evernorth: no handing column, the plan gave some doors theirs, and each
+    of the rest came back a HIGH flag of its own. One note, naming who is left."""
+    slug, directory = project
+    door = {"bbox": [1, 2, 3, 4], "size": "3070", "source_page": 21, "in_scope": True}
+    _write(directory, "extracted/line_items.json", {"openings": [
+        {"door_number": "110", **door, "handing": "LH", "flags": ["handing_read_from_plan"]},
+        {"door_number": "100", **door}, {"door_number": "101", **door},
+    ]})
+    flags = [f for f in review.derive_flags(slug) if f["field"] == "handing"]
+    assert [(f["opening"], f["severity"]) for f in flags] == [("All doors", "medium")]
+    assert flags[0]["note"].endswith("1 read off the plan - confirm them; still to read: doors 100, 101")
+
+
+def test_a_set_the_legend_never_lists_is_a_question_for_the_estimator(project) -> None:
+    """Evernorth's schedule cites GROUP 05; its manual lists 01 to 04."""
+    slug, directory = project
+    _write(directory, "priced/line_items.json", {"lines": [
+        {"line_id": "05:set", "group": "GROUP 05", "openings": ["123", "131"], "cost": None, "source_page": 21,
+         "cost_source": "MANUAL", "flags": ["hardware_set_not_in_legend"]},
+    ]})
+    [flag] = [f for f in review.derive_flags(slug) if f["field"] == "hardware_set"]
+    assert flag["severity"] == "high"
+    assert flag["note"].startswith("GROUP 05 is cited by doors 123, 131 but is not in the hardware legend")
+
+
+def test_no_rated_door_is_said_once_whoever_noticed(project) -> None:
+    """The scope summary and the doors themselves both notice: one finding."""
+    slug, directory = project
+    _write(directory, "extracted/scope_summary.json", {"fire_ratings_present": False})
+    door = {"bbox": [1, 2, 3, 4], "size": "3070", "handing": "LH", "source_page": 4}
+    _write(directory, "extracted/line_items.json", {"openings": [
+        {"door_number": "1", **door}, {"door_number": "2", **door}]})
+    rated = [f for f in review.derive_flags(slug) if f["field"] == "fire_rating"]
+    assert [(f["opening"], f["blocking"]) for f in rated] == [("All doors", False)]

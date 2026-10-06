@@ -50,9 +50,8 @@ BOOKS: list[dict] = [
         "kind": "price_book",
         "divisions": ["08"],
         "index": True,
-        "parse": True,
         "categories": None,
-        "note": "List-price book. Indexed for find_pages; parsed when PARSER_URL is set.",
+        "note": "List-price book. Indexed for find_pages and read into priceBookEntries.",
     },
     {
         "patterns": [
@@ -66,7 +65,6 @@ BOOKS: list[dict] = [
         "kind": "multiplier_sheet",
         "divisions": ["08"],
         "index": False,
-        "parse": True,
         "categories": HAGER_CATEGORIES,
         "account": "HGR 17907",
         "note": "Hager Advantage Program tiers. Special nets seeded from multipliers.md.",
@@ -155,7 +153,7 @@ def upsert_mongo(uri: str, db_name: str, target: Path) -> dict[str, str]:
     return ids
 
 
-async def enqueue_jobs(ids: dict[str, str], *, do_index: bool, do_parse: bool) -> None:
+async def enqueue_jobs(ids: dict[str, str]) -> None:
     from cbc.shared import mongo as db_module
     from cbc.shared.config import settings
     from cbc.modules.ops.api.jobs import enqueue
@@ -166,24 +164,18 @@ async def enqueue_jobs(ids: dict[str, str], *, do_index: bool, do_parse: bool) -
     for entry in BOOKS:
         book_id = ids[entry["file"]]
         filename = entry["file"]
-        if do_index and entry.get("index"):
+        if entry.get("index"):
             job = await enqueue(
                 "index_catalog",
                 payload={"priceBookId": book_id, "filename": filename},
                 actor="admin@cbc.com",
             )
             print(f"queued  index_catalog {job['_id']} for {filename}")
-        if do_parse and entry.get("parse"):
-            # `parse_catalog` / `parse_multiplier` went with MinerU, and enqueuing
-            # a type no worker registers leaves the job queued forever. Catalog
-            # search runs off the page index built by `index_catalog` above.
-            print(f"skip    block parse for {filename} (catalog parsing is page-index only)")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--no-index", action="store_true", help="Mongo + files only")
-    parser.add_argument("--no-parse", action="store_true", help="Skip block parse jobs")
     parser.add_argument("--uri", default=None)
     args = parser.parse_args()
 
@@ -195,14 +187,8 @@ def main() -> int:
     db_name = os.environ.get("MONGODB_DB", "cbc_opshub")
     ids = upsert_mongo(uri, db_name, target)
 
-    if not args.no_index or not args.no_parse:
-        asyncio.run(
-            enqueue_jobs(
-                ids,
-                do_index=not args.no_index,
-                do_parse=not args.no_parse,
-            )
-        )
+    if not args.no_index:
+        asyncio.run(enqueue_jobs(ids))
     print("done")
     return 0
 

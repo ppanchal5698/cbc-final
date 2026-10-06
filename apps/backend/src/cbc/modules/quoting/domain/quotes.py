@@ -17,6 +17,9 @@ CostSource = Literal[
     "DISTRIBUTOR_MANUAL",
     "MANUAL",
     "BOOK_PRICE",
+    # Requirements 5.2 [C] path 3: a part never sold direct, priced off the maker's site.
+    "MANUFACTURER_WEBSITE",
+    "CATALOG_BASELINE",
 ]
 
 
@@ -37,6 +40,20 @@ class QuoteLineCreate(QuoteLineBase):
     alternateGroup: str | None = None
 
 
+# Why a margin is not the band's (requirements 5.1: "store a reason code for each
+# override"; 7.4: the override reason is part of every line's audit trail).
+OVERRIDE_REASONS: dict[str, str] = {
+    "special_customer": "Special customer or brand margin",
+    "distributor_buy": "Distributor buy",
+    "competitive": "Competitive bid",
+    "volume": "Volume or repeat work",
+    "estimator_judgment": "Estimator judgment",
+    "other": "Other",
+}
+OverrideCode = Literal["special_customer", "distributor_buy", "competitive", "volume",
+                       "estimator_judgment", "other"]
+
+
 class QuoteLineUpdate(BaseModel):
     description: str | None = None
     # Bounded because calc-engine rejects a negative cost, and `_recompute` walks
@@ -47,6 +64,7 @@ class QuoteLineUpdate(BaseModel):
     margin: float | None = Field(default=None, ge=0.0, lt=1.0)
     basis: str | None = None
     overrideReason: str | None = None
+    overrideCode: OverrideCode | None = None
     # FR-16. `VENDOR_RFQ` has been in the CostSource enum since the beginning
     # with no way for an estimator to set it: this model exposed qty, cost,
     # margin, basis and overrideReason and nothing else, so a line "awaiting
@@ -55,6 +73,11 @@ class QuoteLineUpdate(BaseModel):
     # bid, which it cannot do if nothing records that one is outstanding.
     costSource: CostSource | None = None
     costSourceDetail: str | None = None
+    # FR-9: the estimator names the part, its maker and the NOTE a substitution
+    # prints - a hand-added line had none of them to set.
+    part: str | None = None
+    manufacturer: str | None = None
+    substitutionNote: str | None = None
 
 
 class QuoteSettings(BaseModel):

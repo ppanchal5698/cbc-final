@@ -44,6 +44,13 @@ def _eval_clause(row: dict[str, Any], clause: dict[str, Any]) -> bool:
     if "$or" in clause:
         return any(_eval_clause(row, c) for c in clause["$or"])
     for key, cond in clause.items():
+        if key == "$text":
+            # Word match, roughly as the product_search text index would.
+            words = str(cond.get("$search", "")).lower().split()
+            text = " ".join(str(row.get(f) or "") for f in ("part", "model", "description")).lower()
+            if not any(w in text.split() for w in words):
+                return False
+            continue
         val = row.get(key)
         if isinstance(cond, dict):
             if "$ne" in cond and val == cond["$ne"]:
@@ -151,3 +158,21 @@ def test_search_ranks_exact_first(catalog_rows: list[dict[str, Any]]) -> None:
     assert items
     assert items[0]["part"] in {"010108", "3510-LONG"}
     assert all(i["part"] != "BAD-OCR" for i in items)
+
+
+def test_search_returns_whole_rows_where_a_meta_projection_means_only_the_score(
+    catalog_rows: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """DocumentDB reads `{"score": {"$meta": ...}}` alone as "only the score"; MongoDB
+    reads it as "everything plus the score". A projection like that blanked every hit."""
+
+    class _DocumentDbItems(_FakeItems):
+        def find(self, query: dict[str, Any], projection: dict[str, Any] | None = None) -> _FakeCursor:
+            rows = [row for row in self.rows if _matches(row, query)]
+            if projection and all(isinstance(v, dict) and "$meta" in v for v in projection.values()):
+                rows = [{"_id": row.get("_id"), "score": 1.0} for row in rows]
+            return _FakeCursor(rows)
+
+    monkeypatch.setattr(reader, "_items_collection", lambda: _DocumentDbItems(catalog_rows))
+    hits = reader.search_catalog_items("3510", limit=5)
+    assert hits and all(hit["part"] for hit in hits)

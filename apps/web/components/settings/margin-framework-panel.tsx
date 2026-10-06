@@ -49,28 +49,19 @@ export function MarginFrameworkPanel() {
     }
     const rounded = Math.round(next * 10000) / 10000;
     if (rounded === current) return;
-    const payload = key === "accessories" ? { accessories: rounded } : { bands: { [key]: rounded } };
-    save(payload, `${label} set to ${asPercent(rounded)}`);
+    save({ bands: { [key]: rounded } }, `${label} set to ${asPercent(rounded)}`);
   }
 
-  const rows: { key: string; name: string; margin: number; examples?: string[] }[] = [
-    ...(data?.bands ?? []).map((band) => ({
+  // One row per band. Restroom accessories is a band like the others, and the one
+  // pricing reads; a second row for its derived figure edited a number no quote used.
+  const rows: { key: string; name: string; margin: number; examples?: string[] }[] = (data?.bands ?? []).map(
+    (band) => ({
       key: band.key,
       name: band.name,
       margin: band.margin,
       examples: band.examples,
-    })),
-    ...(data && data.accessoriesDerived != null
-      ? [
-          {
-            key: "accessories",
-            name: "Restroom accessories",
-            margin: data.accessoriesDerived,
-            examples: ["derived to ~56% from the data"],
-          },
-        ]
-      : []),
-  ];
+    }),
+  );
 
   return (
     <section className="rounded-xl bg-panel border border-subtle shadow-sm flex flex-col h-full">

@@ -12,6 +12,7 @@ from cbc.modules.pricing.domain.calc import (
     DEFAULT_TAX_RATES,
     calculate_line,
     cost_from_list,
+    lookup_lite_kit_list_price_from_data,
     normalise_state,
 )
 from cbc.modules.pricing.api.reference_calc import (
@@ -34,6 +35,7 @@ __all__ = [
     "cost_from_list",
     "invalidate_reference_caches",
     "lookup_lite_kit_list_price",
+    "lookup_lite_kit_list_price_from_data",
     "normalise_state",
     "tax_rates",
     "validate_margin",

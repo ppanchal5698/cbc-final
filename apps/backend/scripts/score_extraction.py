@@ -34,23 +34,10 @@ GOLDEN_DIR = ROOT / "tests" / "fixtures" / "golden"
 
 
 def _load_parse_schedule():
-    import importlib.util
+    """The backend's door-schedule reader - the one the take-off in code runs."""
+    from cbc.modules.extraction.api import schedule_reader
 
-    # `.claude` sits at the repository root, not under apps/backend. Resolving it
-    # against ROOT meant `--generate` raised FileNotFoundError from any working
-    # directory, so the one command that drafts a golden could not be run.
-    from cbc.shared.paths import repo_root
-
-    path = (
-        repo_root() / ".claude" / "skills" / "extract-door-schedule" / "scripts"
-        / "parse_schedule.py"
-    )
-    spec = importlib.util.spec_from_file_location("parse_schedule", path)
-    if spec is None or spec.loader is None:  # pragma: no cover
-        raise ImportError(f"cannot load {path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return schedule_reader
 
 # The fields a golden file pins. `door_number` and `source_page` are the identity
 # and the provenance; the rest are what an estimator reads off the schedule.

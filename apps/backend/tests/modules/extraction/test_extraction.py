@@ -7,7 +7,7 @@ than 4-digit shorthand, and a door schedule with no fire-rating column at all.
 from __future__ import annotations
 
 import pytest
-import parse_schedule
+from cbc.modules.extraction.infrastructure import schedule_parser as parse_schedule
 from tests.shared import SCHEDULE_PAGE
 
 

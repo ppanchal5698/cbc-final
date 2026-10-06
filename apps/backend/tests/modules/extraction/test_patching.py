@@ -307,20 +307,68 @@ def test_a_cost_needs_pricing_evidence_not_a_drawing_page() -> None:
     assert "cost_source" in results[0]["reason"]
 
 
-def test_a_quantity_still_takes_the_drawing_form() -> None:
-    """A quantity is drawing-derived: it takes source_page + excerpt, not a cost source."""
-    _, wrong = patching.apply_patches(
+@pytest.mark.parametrize("field", ["quantity", "sale_ea", "ext_price", "line_id"])
+def test_a_priced_line_refuses_what_pricing_does_not_own(field) -> None:
+    """Quantity is the take-off's and the sell price is arithmetic: a pricing patch
+    to either is refused whatever evidence it cites, and the row is flagged."""
+    out, results = patching.apply_patches(
         {"lines": [_priced_line()]},
-        [{"op": "set", "path": "lines/HW-1-00/quantity", "value": 3, "evidence": PRICE_CITE}],
-    )
-    assert wrong[0]["applied"] is False
-    out, right = patching.apply_patches(
-        {"lines": [_priced_line()]},
-        [{"op": "set", "path": "lines/HW-1-00/quantity", "value": 3,
+        [{"op": "set", "path": f"lines/HW-1-00/{field}", "value": 3,
           "evidence": {"source_page": 4, "excerpt": "3 EA"}}],
     )
-    assert right[0]["applied"] is True
-    assert out["lines"][0]["quantity"] == 3
+    assert results[0]["applied"] is False
+    assert out["lines"][0]["quantity"] == 1
+    assert f"patch_rejected_{field}" in out["lines"][0]["flags"]
+
+
+def test_a_cost_patch_prices_a_manual_line_that_passes_check_pricing(tmp_path, monkeypatch) -> None:
+    """The evidence becomes the line's provenance and sale_ea / ext_price are
+    recomputed (rounded once at the extension), so the patched MANUAL line is a
+    priced line check_pricing accepts."""
+    import json
+
+    from cbc.modules.extraction.api.validation import artifacts
+
+    manual = _priced_line(
+        quantity=3, cost=None, cost_source_detail="no automatic cost path matched", description="hinge"
+    )
+    cite = {"cost_source": "SPECIAL_NET", "cost_source_detail": "special-net sheet item 000091"}
+    out, results = patching.apply_patches(
+        {"lines": [manual]},
+        [{"op": "set", "path": "lines/HW-1-00/cost", "value": 74.33, "evidence": cite},
+         {"op": "set", "path": "lines/HW-1-00/margin", "value": 0.27, "evidence": cite}],
+    )
+    assert [r["applied"] for r in results] == [True, True], results
+    line = out["lines"][0]
+    assert line["cost_source"] == "SPECIAL_NET"
+    assert line["cost_source_detail"] == cite["cost_source_detail"]
+    assert (line["sale_ea"], line["ext_price"]) == (101.82, 305.47)
+
+    root = tmp_path / "bid"
+    (root / "priced").mkdir(parents=True)
+    (root / "priced" / "line_items.json").write_text(json.dumps(out), encoding="utf-8")
+    monkeypatch.setattr(artifacts, "storage_root", lambda: tmp_path)
+    problems, _ = artifacts.check_pricing("bid")
+    assert not problems, problems
+
+
+def test_a_margin_patch_keeps_the_cost_provenance_and_records_its_reason() -> None:
+    """A margin change says nothing about where the cost came from; its evidence is
+    the override reason the below-band flag asks for."""
+    priced = _priced_line(
+        quantity=3, cost=74.33, margin=0.27, cost_source="P21_LAST_PO",
+        cost_source_detail="PO 2026-08-01", description="hinge",
+    )
+    why = {"cost_source": "P21_LAST_PO", "cost_source_detail": "repeat customer, agreed 20%"}
+    out, results = patching.apply_patches(
+        {"lines": [priced]},
+        [{"op": "set", "path": "lines/HW-1-00/margin", "value": 0.20, "evidence": why}],
+    )
+    assert [r["applied"] for r in results] == [True], results
+    line = out["lines"][0]
+    assert line["cost_source_detail"] == "PO 2026-08-01"
+    assert line["margin_overridden"] is True
+    assert line["margin_override_reason"] == "repeat customer, agreed 20%"
 
 
 def test_a_lines_payload_via_openings_root_does_not_land_on_lines() -> None:
@@ -342,3 +390,37 @@ def test_a_div10_item_is_validated_against_div10_not_opening() -> None:
     )
     assert results[0]["applied"] is True
     assert out["items"][0]["manufacturer"] == "Bobrick"
+
+
+# ── Patch scope: the job decides which artifact a pass may patch ─────────────
+
+def test_each_job_hands_artifact_storage_its_patch_scope() -> None:
+    import json
+
+    from cbc.modules.ops.api import toolsets
+
+    def scope(job_type):
+        server = json.loads(toolsets.config_for(job_type))["mcpServers"]["artifact-storage"]
+        return server.get("env", {}).get("CBC_PATCH_SCOPE")
+
+    assert scope("extract_bid_set") == scope("rerun_extraction") == scope("ingest_addendum") == "extracted/"
+    assert scope("match_and_price") == "priced/"
+    assert scope("build_proposal") == "", "the proposal job patches nothing"
+    assert scope("run_full_pipeline") is None, "unset is no limit, not an empty scope"
+
+
+def test_artifact_storage_refuses_a_patch_outside_the_job_scope(tmp_path, monkeypatch) -> None:
+    from _runtime import load_server
+
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
+    monkeypatch.setenv("CBC_PROJECTS_ROOT", str(tmp_path / "projects"))
+    art = load_server("artifact-storage")
+    patch = [{"op": "set", "path": "lines/HW-1-00/notes", "value": "x"}]
+
+    monkeypatch.setenv("CBC_PATCH_SCOPE", "priced/")
+    with pytest.raises(ValueError, match="refusing to patch"):
+        art.propose_patch("demo", "extracted/line_items.json", patch)
+
+    monkeypatch.setenv("CBC_PATCH_SCOPE", "")
+    with pytest.raises(ValueError, match="nothing"):
+        art.propose_patch("demo", "priced/line_items.json", patch)

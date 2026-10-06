@@ -40,9 +40,16 @@ class JobRef(TypedDict, total=False):
     payload: dict[str, Any]
     phaseState: dict[str, Any]
     claimGeneration: int
+    # Read by parse_document: on the last attempt a transient parser error is
+    # read locally instead of retried.
+    attempts: int
     createdAt: datetime
     createdBy: str
     startedAt: datetime
+    # How a job ended, for the workflow the memory graph records.
+    finishedAt: datetime
+    errorCode: str
+    provider: dict[str, Any]
     stragglerPending: bool
     traceId: str
     # Per-leg wave outcome, written by claude_pass; read by extraction_wave so a
@@ -130,7 +137,7 @@ def coalesce_note(job: dict[str, Any] | None) -> str | None:
             cap = f" (hard cap {COALESCE_MAX_SECONDS}s — starts by {ceiling.strftime('%H:%M:%S')} UTC at latest)"
         return (
             f"Waiting ~{secs}s for more files (quiet window {DEFAULT_COALESCE_SECONDS}s)"
-            f" before Claude starts reading{cap}."
+            f" before reading starts{cap}."
         )
     return None
 
@@ -141,6 +148,11 @@ def coalesce_note(job: dict[str, Any] | None) -> str | None:
 # fallback for jobs enqueued before fileSha existed.
 COALESCE_BY_PAYLOAD = {
     "index_catalog": "fileSha",
+    # One graph sync queued at a time, however many triggers fire; one learning
+    # pass per approved bid; one review of the graph.
+    "memory_sync": "scope",
+    "memory_learn": "projectId",
+    "memory_review": "scope",
 }
 COALESCE_FALLBACK = {
     "index_catalog": "filename",
@@ -654,6 +666,13 @@ async def delete_for_project(project_id: Any) -> None:
 
 
 # ── what a running job reads and records on itself ────────────────────────────
+
+
+async def history_for_project(project_id: Any, *, limit: int = 200) -> list[JobRef]:
+    """Every job a bid has had, oldest first - what ran, how it ended, how long it took."""
+    fields = {"type": 1, "status": 1, "attempts": 1, "createdAt": 1, "startedAt": 1,
+              "finishedAt": 1, "errorCode": 1, "error": 1, "note": 1, "provider": 1}
+    return await jobs_collection().find({"projectId": project_id}, fields).sort("createdAt", 1).limit(limit).to_list(limit)
 
 
 async def get(job_id: Any, projection: dict[str, Any] | None = None) -> JobRef | None:

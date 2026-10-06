@@ -182,10 +182,7 @@ def main() -> int:
 
     # 12. P21 connectivity knobs.
     #
-    # CATALOG_PARSE_WAIT is no longer checked: it gated `match_and_price` behind
-    # `parse_catalog` / `parse_multiplier`, and both went with MinerU. There is
-    # nothing left for pricing to wait on, so requiring the flag would fail a
-    # readiness check over a job type that no longer exists.
+    # Pricing waits on no price-book parse: `index_catalog` reads a book in full.
 
     p21 = (os.environ.get("P21_BASE_URL") or "").strip()
     if p21:

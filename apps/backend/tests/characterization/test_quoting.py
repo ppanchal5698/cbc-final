@@ -173,3 +173,50 @@ def test_apply_learning(client, snapshots) -> None:
     drained, so an operator can tell "nothing to learn" from "it did not run".
     """
     snapshots.pin("POST /api/learning/apply", client.post("/api/learning/apply"))
+
+
+def test_keep_carried_lines(client, bid, snapshots) -> None:
+    """FR-1d: the lines a templated bid copied from a prior one apply to this job.
+    This bid was not started from one, so there is nothing to keep."""
+    snapshots.pin("POST /api/projects/{code}/quote/carried/keep", client.post(_p(bid, "/quote/carried/keep")))
+
+
+def test_choose_a_close_match(client, bid, snapshots) -> None:
+    """FR-8: a line priced at a row it could as well be. This line was matched
+    outright, so it offers none."""
+    op = "POST /api/projects/{code}/quote/lines/{line_id}/close-matches/{index}"
+    snapshots.pin(op, client.post(_p(bid, f"/quote/lines/{bid['line']}/close-matches/0")), variant="no such match")
+
+
+def test_add_an_adder(client, bid, snapshots) -> None:
+    """NR-4: a list adder the legend names, added by the estimator. This line's
+    legend names none."""
+    op = "POST /api/projects/{code}/quote/lines/{line_id}/adders/{index}"
+    snapshots.pin(op, client.post(_p(bid, f"/quote/lines/{bid['line']}/adders/0")), variant="no such adder")
+
+
+def test_add_a_lite_kit(client, bid, snapshots) -> None:
+    """NR-1: a lite kit off National Guard's size tables. Asked for a table that is
+    not on file, so the shared bid keeps its lines."""
+    body = {"table": 999, "width": 10, "height": 10}
+    snapshots.pin("POST /api/projects/{code}/quote/lite-kits", client.post(_p(bid, "/quote/lite-kits"), json=body),
+                  variant="no such table")
+
+
+# Last: these change the shared bid, and every pin above is taken first.
+def test_a_typed_cost_is_the_estimators_not_the_sheets(client, bid) -> None:
+    """A cost typed by hand kept the source the ladder priced the line from - "List x
+    multiplier, Hager #18" over a number nobody read off that book (NFR-3)."""
+    line = client.patch(_p(bid, f"/quote/lines/{bid['line']}"), json={"cost": 61.25}).json()["line"]
+    assert line["costSource"] == "MANUAL" and line["costSourceDetail"].startswith("entered by")
+    named = client.patch(_p(bid, f"/quote/lines/{bid['line']}"),
+                         json={"cost": 58.0, "costSource": "MANUFACTURER_WEBSITE", "substitutionNote": "Equal to X"})
+    assert named.json()["line"]["costSource"] == "MANUFACTURER_WEBSITE"
+    assert named.json()["line"]["substitutionNote"] == "Equal to X"
+
+
+def test_a_tax_exempt_buyer_pays_no_tax(client, bid) -> None:
+    """FR-18: an exempt flag, beside the ship-to state's ruling."""
+    totals = client.patch(_p(bid, "/quote/settings"), json={"taxJurisdiction": "EXEMPT"}).json()["totals"]
+    assert totals["tax"] == 0 and totals["taxExempt"] is True and "exempt" in totals["taxNote"].lower()
+    client.patch(_p(bid, "/quote/settings"), json={"taxJurisdiction": None})

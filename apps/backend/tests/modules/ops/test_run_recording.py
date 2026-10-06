@@ -227,3 +227,97 @@ def test_the_run_still_ends_in_the_recording_past_the_cap(tmp_path, monkeypatch)
     parsed = runmetrics.parse_recording(recording)
     assert parsed["totalCostUsd"] == 0.42
     assert parsed["sessionId"] == "s-1"
+
+
+# ── stopping a run, and saying why ───────────────────────────────────────────
+
+
+@posix_only
+def test_a_stop_reason_mid_run_kills_the_process(tmp_path):
+    """A reaped worker's pass is stopped within a tick, not left to its timeout."""
+    started = time.time()
+
+    def check() -> str | None:
+        return "lease lost" if time.time() - started > 1 else None
+
+    code, _ = streaming.run_on_pty(
+        ["bash", "-c", "while true; do echo tick; sleep 0.2; done"],
+        cwd=ROOT,
+        env=None,
+        timeout=60,
+        recording=tmp_path / "run.log",
+        cancel_check=check,
+    )
+
+    assert code == 130
+    assert time.time() - started < 15
+
+
+def test_the_pipe_path_stops_for_a_reason_too():
+    """The pipe fallback used to run to its timeout whatever cancel said."""
+    import subprocess
+    import sys
+
+    from cbc.modules.ops.api import claude_cli
+
+    started = time.time()
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    code, out, err, reason = claude_cli._wait(
+        process, 60, lambda: "lease lost" if time.time() - started > 1 else None
+    )
+
+    assert (code, reason) == (130, "lease lost")
+    assert time.time() - started < 15
+    result = claude_cli._interpret(out, err, code, 60, None, reason)
+    assert result.error == "lease lost"
+    assert not result.permanent, "a lost lease is the next owner's to finish, not a defect"
+
+
+def test_a_budget_stop_is_final(monkeypatch, tmp_path):
+    """A retry would spend the same again."""
+    from cbc.modules.ops.api import claude_cli
+
+    monkeypatch.setattr(claude_cli, "resolve_binary", lambda: "claude")
+    monkeypatch.setattr(streaming, "run_on_pty", lambda command, **kw: (130, ""))
+
+    result = claude_cli.run_claude(
+        "do the thing",
+        recording=tmp_path / "r.log",
+        cwd=tmp_path,
+        cancel_check=lambda: "token budget exceeded (12 > 10)",
+    )
+
+    assert result.error == "token budget exceeded (12 > 10)"
+    assert result.error_code == "budget_exceeded"
+    assert result.permanent
+
+
+def test_assistant_events_reach_on_event_and_count_once_per_message(tmp_path):
+    """The budget's live counter: whole assistant lines only, and a re-emitted
+    message counted once - cache reads not at all."""
+    from cbc.modules.ops.api import claude_pass
+
+    seen: list[dict] = []
+
+    def on_event(event: dict) -> None:
+        seen.append(event)
+        raise RuntimeError("a broken callback must not stop the recording")
+
+    usage = {"input_tokens": 10, "cache_creation_input_tokens": 5, "output_tokens": 3,
+             "cache_read_input_tokens": 1000}
+    line = _event_line({"type": "assistant", "message": {"id": "m1", "usage": usage}})
+    recorder = streaming.Recorder(tmp_path / "run.log", on_event=on_event)
+    recorder.feed(line[:20])
+    assert not seen, "half a line is not an event"
+    recorder.feed(line[20:] + line)  # the same message, streamed twice
+    recorder.feed(_event_line({"type": "user", "message": {"content": "assistant"}}))
+    recorder.feed(b"not json but mentions \"assistant\"\r\n")
+    recorder.close()
+
+    assert len(seen) == 2
+    spent = dict(claude_pass._spent(event) for event in seen)
+    assert spent == {"m1": 18}
+    assert (tmp_path / "run.log").read_bytes().count(b'"m1"') == 2

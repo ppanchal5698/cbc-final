@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { Table } from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
@@ -32,15 +32,14 @@ function sizes(record: Record<string, unknown> | undefined): number[] {
  */
 export function LiteKitPanel() {
   const { data, error, isLoading, mutate } = useSWR<LiteKitResponse>(URL, proxyFetcher);
-  const [index, setIndex] = useState(0);
+  const [picked, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
 
   const doc: LiteKitDoc = useMemo(() => data?.data ?? {}, [data]);
   const tables = useMemo(() => doc.tables ?? [], [doc]);
-
-  useEffect(() => {
-    if (index >= tables.length) setIndex(0);
-  }, [tables.length, index]);
+  // Derived, not reset in an effect: a reload with fewer tables falls back to
+  // the first without a second render.
+  const index = picked < tables.length ? picked : 0;
 
   const table: LiteKitTable | undefined = tables[index];
   const heights = sizes(table?.prices);

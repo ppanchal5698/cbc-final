@@ -18,7 +18,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from cbc.modules.ops.api import llamaparse, page_blocks, parsing_config
+from cbc.modules.ops.api import llamaparse, nim_parse, page_blocks, parsing_config
 from cbc.modules.ops.features.ParsingSettings import load_config
 from cbc.shared.auth import require_admin
 
@@ -30,6 +30,10 @@ router = APIRouter(
 class ParsingTestBody(BaseModel):
     """Optional on-screen values; when omitted, saved settings are tested."""
 
+    provider: str | None = None
+    nimApiKey: str | None = None
+    nimModel: str | None = None
+    nimRpm: int | None = Field(default=None, ge=1, le=1000)
     apiKey: str | None = None
     tier: str | None = None
     lang: str | None = None
@@ -54,6 +58,10 @@ def _sample_pdf(path: Path) -> None:
 def _classify_failure(exc: Exception) -> str:
     """Turn the client's error split into something an operator can act on."""
     text = str(exc)
+    if isinstance(exc, nim_parse.NimError):
+        if "401" in text or "403" in text:
+            return "NVIDIA rejected the key. Check NVIDIA_NIM_API_KEY."
+        return f"NIM: {text}"
     if isinstance(exc, llamaparse.ParsePermanent):
         lowered = text.lower()
         if "401" in text or "403" in text or "not authenticated" in lowered:
@@ -76,27 +84,39 @@ async def test_parsing_settings(body: ParsingTestBody | None = None) -> dict[str
     if problems:
         raise HTTPException(400, "; ".join(problems))
 
-    api_key = str(resolved.get("apiKey") or "").strip()
+    use_nim = resolved.get("provider") == "nim"
+    api_key = parsing_config.api_key(resolved)
     if not api_key:
-        return {"ok": False, "error": "PARSER_API_KEY is empty - parsing is off"}
+        missing = "NVIDIA_NIM_API_KEY" if use_nim else "PARSER_API_KEY"
+        return {"ok": False, "error": f"{missing} is empty - parsing is off"}
 
-    tier = str(resolved.get("tier") or parsing_config.DEFAULT_TIER)
+    tier = (
+        str(resolved.get("nimModel") or parsing_config.DEFAULTS["nimModel"])
+        if use_nim
+        else str(resolved.get("tier") or parsing_config.DEFAULT_TIER)
+    )
     started = time.monotonic()
     with tempfile.TemporaryDirectory() as tmp:
         sample = Path(tmp) / "cbc_parser_test.pdf"
         _sample_pdf(sample)
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, read=300.0)) as client:
-                file_id = await llamaparse.upload(client, api_key=api_key, path=sample)
-                pages = await llamaparse.parse_window(
-                    client,
-                    api_key=api_key,
-                    file_id=file_id,
-                    start_page=1,
-                    end_page=1,
-                    tier=tier,
-                    timeout=300.0,
-                )
+                if use_nim:
+                    pages = [await nim_parse.parse_page(
+                        client, api_key=api_key, pdf_path=sample, page_number=1, model=tier,
+                        rpm=int(resolved.get("nimRpm") or parsing_config.DEFAULTS["nimRpm"]),
+                    )]
+                else:
+                    file_id = await llamaparse.upload(client, api_key=api_key, path=sample)
+                    pages = await llamaparse.parse_window(
+                        client,
+                        api_key=api_key,
+                        file_id=file_id,
+                        start_page=1,
+                        end_page=1,
+                        tier=tier,
+                        timeout=300.0,
+                    )
         except Exception as exc:  # reported, never raised at the operator
             return {
                 "ok": False,
@@ -111,7 +131,7 @@ async def test_parsing_settings(body: ParsingTestBody | None = None) -> dict[str
             project_id=None,
             document_id=None,
             content_sha="",
-            parser={"name": "llamaparse", "tier": tier},
+            parser=nim_parse.PARSER if use_nim else {"name": "llamaparse", "tier": tier},
         )
 
     blocks = sum(len(r.get("blocks") or []) for r in rows)

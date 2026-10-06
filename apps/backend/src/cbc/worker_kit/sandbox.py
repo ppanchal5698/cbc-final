@@ -133,15 +133,22 @@ def ensure_workspace_trusted(workspace: Path, *, home: Path | None = None) -> bo
     return True
 
 
-# Directories that live inside the agent config but are not agent config. A
+# Things that live inside the agent config but are not agent config. A
 # graph-indexer run left 62 cache files in `.claude/`; they are gitignored, which
 # keeps them out of the repository and does nothing about this copy - which
 # happens once per leg, of every job, of every bid.
-AGENT_CONFIG_SKIP = frozenset({"graphify-out", "__pycache__", ".pytest_cache", "node_modules"})
+#
+# `settings.local.json` is a developer's own settings for working on this repo.
+# Compose bind-mounts the host's `.claude/`, so without this a local blanket
+# allow, or `disableAllHooks`, reached every pipeline run and could switch the
+# product's guards off. The image already leaves it out (.dockerignore).
+AGENT_CONFIG_SKIP = frozenset(
+    {"graphify-out", "__pycache__", ".pytest_cache", "node_modules", "settings.local.json"}
+)
 
 
 def agent_config_ignore():
-    """`shutil.copytree` ignore callback: build output never reaches a sandbox."""
+    """`shutil.copytree` ignore callback: build output and local settings never reach a sandbox."""
 
     def ignore(_directory: str, names: list[str]) -> set[str]:
         return {name for name in names if name in AGENT_CONFIG_SKIP}
@@ -427,11 +434,16 @@ def run_claude_docker(
     heartbeat_seconds: float = 30,
     cwd: Path | None = None,
     resume_session_id: str | None = None,
+    container_name: str | None = None,
     **_ignored,
 ):
     """Run Claude in a one-shot read-only container bound only to the scratch dir.
 
     Skipped-at-runtime: pytest and Windows-without-socket use CLAUDE_SANDBOX=process.
+
+    A cancel, a lost lease or the timeout `docker kill`s the container by name.
+    Killing the `docker run` client alone leaves the container - and its Claude
+    process - running on the daemon.
     """
     from cbc.modules.ops.api.claude_cli import HeartbeatWatchdog, RunResult
 
@@ -456,6 +468,8 @@ def run_claude_docker(
 
     import json
     import subprocess
+    import time
+    import uuid
 
     workspace = Path(cwd)
     prompt_path = workspace / "_prompt.txt"
@@ -489,10 +503,13 @@ def run_claude_docker(
     inner_env["PYTHONPATH"] = "/app:/app/packages"
     inner_env.pop("MONGODB_URI", None)
 
+    name = re.sub(r"[^a-zA-Z0-9_.-]", "-", container_name or f"cbc-{uuid.uuid4().hex}")
     argv = [
         "docker",
         "run",
         "--rm",
+        "--name",
+        name,
         "--read-only",
         "--cap-drop",
         "ALL",
@@ -517,41 +534,65 @@ def run_claude_docker(
         argv.extend(["-e", f"{key}={value}"])
     argv.extend([sandbox_image(), "python", "-m", "cbc.worker_kit.sandbox_entry"])
 
+    # ponytail: the token budget is not enforced here - the container's stream
+    # goes to _recording.log inside it, not to this process. Tail that file with
+    # streaming.Recorder's on_event if docker mode becomes the production path.
     watchdog = HeartbeatWatchdog(on_heartbeat, heartbeat_seconds)
     watchdog.start()
     try:
-        completed = subprocess.run(
-            argv,
-            capture_output=True,
-            text=True,
-            timeout=timeout + 60,
-            encoding="utf-8",
-            errors="replace",
-        )
-    except subprocess.TimeoutExpired:
-        return RunResult(
-            ok=False,
-            output="",
-            error=f"sandbox docker timed out after {timeout}s",
-            returncode=124,
-        )
-    except FileNotFoundError:
-        return RunResult(
-            ok=False,
-            output="",
-            error="docker CLI not found",
-            returncode=127,
-            permanent=True,
-            error_code="sandbox_unavailable",
-        )
+        try:
+            process = subprocess.Popen(
+                argv,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+        except FileNotFoundError:
+            return RunResult(
+                ok=False,
+                output="",
+                error="docker CLI not found",
+                returncode=127,
+                permanent=True,
+                error_code="sandbox_unavailable",
+            )
+        deadline = time.monotonic() + timeout + 60
+        stop: str | None = None
+        while stop is None:
+            try:
+                stdout, stderr = process.communicate(timeout=1)
+                break
+            except subprocess.TimeoutExpired:
+                pass
+            if cancel_check and cancel_check():
+                stop = "cancel"
+            elif time.monotonic() > deadline:
+                stop = "timeout"
+        if stop:
+            try:
+                subprocess.run(["docker", "kill", name], capture_output=True, timeout=30)
+            except (OSError, subprocess.SubprocessError):
+                pass  # already gone, or the daemon is; the client is killed either way
+            process.kill()
+            stdout, stderr = process.communicate()
+            if stop == "timeout":
+                return RunResult(
+                    ok=False,
+                    output="",
+                    error=f"sandbox docker timed out after {timeout}s",
+                    returncode=124,
+                )
+        completed = subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
     finally:
         watchdog.stop()
 
-    if cancel_check and cancel_check():
+    if cancel_check and (reason := cancel_check()):
         return RunResult(
             ok=False,
             output="",
-            error="cancelled by estimator",
+            error=reason if isinstance(reason, str) else "cancelled by estimator",
             returncode=130,
         )
 

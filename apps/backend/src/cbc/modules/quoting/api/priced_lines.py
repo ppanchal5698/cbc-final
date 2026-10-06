@@ -14,6 +14,7 @@ from typing import Any
 from pymongo import DeleteOne, InsertOne, UpdateOne
 
 from cbc.modules.quoting.infrastructure.collections import estimate_lines, quotes
+from cbc.modules.quoting.domain import alternates
 from cbc.shared import storage
 from cbc.shared.pass_files import distinct_keys, read_json, write_json
 
@@ -78,6 +79,50 @@ def _content_key(line: dict[str, Any]) -> str:
     return "auto:" + hashlib.sha1(material.encode("utf-8")).hexdigest()[:16]
 
 
+# A cost and where it came from are one fact: an estimator who typed the cost
+# owns its source and date too, and a re-price must not put a book's under it.
+_COST_FIELDS = ("cost", "costSource", "costSourceDetail", "multiplier", "multiplierTier",
+                "multiplierEffectiveDate", "priceBookVersion", "listPrice", "pricedAt", "priceStatus")
+
+
+def _estimator_fields(line: dict[str, Any]) -> set[str]:
+    """The fields an estimator set on a line - a typed edit, an applied vendor
+    quote, a margin - which a re-price leaves exactly as they are."""
+    edited = {key for override in line.get("overrides") or [] for key in (override.get("after") or {})}
+    if line.get("marginOverridden"):
+        edited.add("margin")
+    if "margin" in edited:
+        edited.add("overrideReason")  # a margin and why are one fact, like a cost and its source
+    if edited & {"cost", "costSource", "costSourceDetail"}:
+        edited.update(_COST_FIELDS)
+    if "part" in edited:
+        # A part the estimator named or chose is not a match to doubt: a re-price put
+        # the pass's 0.80 back on Evernorth's named hinge, and review asked to confirm it.
+        edited.add("matchConfidence")
+    return edited
+
+
+def close_match(match: dict[str, Any]) -> dict[str, Any]:
+    """One of a line's close matches (FR-8), in the line's own field names - what
+    choosing it sets on the line."""
+    return {"label": match.get("label"), "part": match.get("part_number"),
+            "manufacturer": match.get("manufacturer"), **price_fields(match)}
+
+
+def price_fields(row: dict[str, Any]) -> dict[str, Any]:
+    """A priced row's cost and where it came from, in the line's own field names."""
+    return {
+        "cost": row.get("cost"),
+        "costSource": row.get("cost_source"),
+        "costSourceDetail": row.get("cost_source_detail"),
+        "listPrice": row.get("list_price"),
+        "multiplier": row.get("multiplier"),
+        "multiplierTier": row.get("multiplier_tier"),
+        "multiplierEffectiveDate": row.get("multiplier_effective_date"),
+        "priceBookVersion": row.get("price_book_version"),
+    }
+
+
 def _group_type(division: str | None) -> str:
     if not division:
         return "door"
@@ -109,6 +154,7 @@ async def import_quote_lines(
         doc.get("lineKey"): doc
         async for doc in estimate_lines().find({"projectId": project_id})
     }
+    removed = set(project.get("removedQuoteLines") or [])
 
     # `line_id` when Claude supplied one, otherwise derived from the line's own
     # content. The previous fallback keyed on list position, so re-ordering a
@@ -127,12 +173,16 @@ async def import_quote_lines(
         fields = {
             "lineKey": key,
             "part": line.get("part_number") or line.get("part"),
+            "manufacturer": line.get("manufacturer"),
             "description": line.get("description", ""),
             "division": line.get("division") or line.get("group_type"),
             "group": line.get("group"),
             "qty": line.get("quantity", 1),
             "cost": cost,
             "margin": line.get("margin"),
+            # Why the margin is not the band's: a special customer or brand margin
+            # (NR-9) says so on the line, as an estimator's override does.
+            "overrideReason": line.get("margin_override_reason"),
             "sell": line.get("sale_ea"),
             "extended": line.get("ext_price"),
             "basis": line.get("basis") or "Book price",
@@ -142,13 +192,40 @@ async def import_quote_lines(
             "multiplierTier": line.get("multiplier_tier"),
             "multiplierEffectiveDate": line.get("multiplier_effective_date"),
             "priceBookVersion": line.get("price_book_version"),
+            "lastPoDate": line.get("last_po_date"),  # NFR-3: the PO a P21 cost came from
             "sourcePage": line.get("source_page"),
             "priceStatus": line.get("price_status"),
+            "listPrice": line.get("list_price"),
+            "finish": line.get("finish"),
+            "unit": line.get("unit"),
+            # The doors a set's line is for, and how many each takes: the qty is
+            # the one times the other, and the gate (FR-4) judges each door.
+            "openings": line.get("openings") or [],
+            "qtyPerOpening": line.get("qty_per_opening"),
+            "substitutionNote": line.get("substitution_note"),
+            # The rows it could as well be, priced, for an estimator to choose (FR-8).
+            "closeMatches": [close_match(m) for m in line.get("close_matches") or []],
+            # How sure the match is (FR-8), by how the line was matched.
+            "matchConfidence": line.get("match_confidence"),
+            # On its maker's stock list (NR-6): None when the maker has no list on file.
+            "stock": line.get("stock"),
+            # The alternates that take this base line out when accepted (FR-14).
+            "deductedBy": list(line.get("deducted_by") or []),
+            # List adders the legend names (NR-4), for the estimator to add.
+            "adderCandidates": [{"name": a.get("name"), "listAdder": a.get("list_adder")}
+                                for a in line.get("adder_candidates") or []],
+            # Why a line sits outside the bid - "supplied by the landlord per the
+            # legend" - which the proposal's qualifications say to the customer.
+            "notes": line.get("notes"),
+            "pricedAt": line.get("priced_at"),
             "flags": flags,
             "updatedAt": _now(),
         }
 
         current = existing.get(key)
+        if current is None and key in removed:
+            skipped += 1  # the estimator deleted it; the take-off still makes it
+            continue
         if current is None:
             bulk.append(
                 InsertOne(
@@ -157,36 +234,24 @@ async def import_quote_lines(
                         "addedByHand": False,
                         "marginOverridden": False,
                         "createdAt": _now(),
+                        # Set once, when the line is new: an estimator who moves it
+                        # in or out of an alternate has the last word after that.
+                        "alternateGroup": line.get("alternate_group"),
                         **fields,
                     }
                 )
             )
             inserted += 1
-        elif current.get("marginOverridden") or current.get("addedByHand"):
-            bulk.append(
-                UpdateOne(
-                    {"_id": current["_id"]},
-                    {
-                        "$set": {
-                            key_: fields[key_]
-                            for key_ in (
-                                "costSource",
-                                "costSourceDetail",
-                                "multiplier",
-                                "multiplierTier",
-                                "multiplierEffectiveDate",
-                                "priceBookVersion",
-                                "sourcePage",
-                                "updatedAt",
-                            )
-                        }
-                    },
-                )
-            )
-            skipped += 1
+        elif current.get("addedByHand"):
+            skipped += 1  # the estimator's own line; there is no priced row to refresh it from
         else:
-            bulk.append(UpdateOne({"_id": current["_id"]}, {"$set": fields}))
-            updated += 1
+            kept = _estimator_fields(current)
+            bulk.append(UpdateOne({"_id": current["_id"]},
+                                  {"$set": {k: v for k, v in fields.items() if k not in kept}}))
+            if kept:
+                skipped += 1
+            else:
+                updated += 1
 
     # Lines the new pricing pass no longer produces. Without this the collection
     # only ever grew: re-pricing a bid that dropped a line left the old row in
@@ -195,10 +260,14 @@ async def import_quote_lines(
     #
     # A hand-added line is the estimator's own and is never removed - there is no
     # priced row to regenerate it from, so deleting it would destroy their work.
+    # Nor is one an estimator has edited: it is flagged for them to decide.
     # Everything else is derived, and derived rows follow their source.
     removed = 0
     for key, current in existing.items():
         if key in seen_keys or current.get("addedByHand"):
+            continue
+        if _estimator_fields(current):
+            bulk.append(UpdateOne({"_id": current["_id"]}, {"$addToSet": {"flags": "no_longer_in_takeoff"}}))
             continue
         bulk.append(DeleteOne({"_id": current["_id"]}))
         removed += 1
@@ -233,6 +302,7 @@ async def export_quote_lines(project: dict[str, Any], *, allow_empty: bool = Fal
     existing_rows = _lines_in(existing or {}, "priced/line_items.json", "lines")
     previous = dict(zip(distinct_keys(existing_rows, _content_key), existing_rows))
     lines = []
+    deductive = alternates.in_base(project.get("alternateSpecs"))
     async for doc in estimate_lines().find({"projectId": project_id}):
         lines.append(
             {
@@ -257,8 +327,28 @@ async def export_quote_lines(project: dict[str, Any], *, allow_empty: bool = Fal
                 "price_book_version": doc.get("priceBookVersion"),
                 "source_page": doc.get("sourcePage"),
                 "price_status": doc.get("priceStatus"),
+                "alternate_group": doc.get("alternateGroup"),
                 "added_by_hand": doc.get("addedByHand", False),
                 "flags": doc.get("flags", []),
+                # The stored line's, not the pricing pass's: a match an estimator
+                # chose or named is no longer the copilot's to be unsure of.
+                "match_confidence": doc.get("matchConfidence"),
+                "carried_from": doc.get("carriedFrom"),  # the prior bid a templated line came from
+                "deducted_by": doc.get("deductedBy") or [],  # the alternates that replace it
+                # Whether the base bid counts it - a deductive alternate's lines it does (FR-14).
+                "in_base": alternates.counts_in_base(doc, deductive),
+                # The review's margin rule reads these. Dropping them made every
+                # margin typed on the quote grid look like an unexplained one,
+                # and a below-band margin with a reason is the estimator's call.
+                # Only an edit sets them, so a pass's own reason survives above.
+                **(
+                    {
+                        "margin_overridden": True,
+                        "margin_override_reason": doc.get("overrideReason"),
+                    }
+                    if doc.get("marginOverridden")
+                    else {}
+                ),
             }
         )
 

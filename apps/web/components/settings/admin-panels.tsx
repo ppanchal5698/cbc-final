@@ -11,7 +11,15 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { endpoints } from "@/lib/endpoints";
 import { isAdminRole } from "@/lib/job-error";
 import { errorMessage, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
-import type { AuditEntry, FreshnessSettings, IntegrationsResponse, PipelineSettings, UserRow } from "@/lib/types";
+import type {
+  AuditEntry,
+  ExtractionEngine,
+  FreshnessSettings,
+  IntegrationsResponse,
+  PipelineSettings,
+  PricingEngine,
+  UserRow,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export function AuditLogPanel() {
@@ -250,6 +258,27 @@ export function PipelineSettingsPanel() {
   );
   const [busy, setBusy] = useState(false);
 
+  async function setEngine(
+    phase: "pricingEngine" | "extractionEngine" | "proposalEngine",
+    engine: PricingEngine | ExtractionEngine,
+  ) {
+    if (!data || data[phase] === engine) return;
+    setBusy(true);
+    try {
+      await proxyMutate<PipelineSettings>(endpoints.pipelineSettings(), {
+        method: "PUT",
+        body: { autopilotDefault: data.autopilotDefault, [phase]: engine },
+      });
+      const what = { pricingEngine: "priced", extractionEngine: "read", proposalEngine: "proposed" }[phase];
+      toast.success(engine === "v2" ? `Bids are now ${what} in code` : `Bids are now ${what} by the Claude pass`);
+      mutate();
+    } catch (problem) {
+      toast.error("Could not save pipeline settings", { description: errorMessage(problem) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function toggleAutopilot() {
     if (!data) return;
     setBusy(true);
@@ -326,7 +355,100 @@ export function PipelineSettingsPanel() {
           </button>
         </div>
       )}
+      {data && (
+        <div className="flex flex-wrap items-start justify-between gap-4 border-t border-subtle px-5 py-5">
+          <div className="max-w-[520px]">
+            <p className="text-[14px] font-semibold text-tx-primary">Extraction engine</p>
+            <p className="mt-1.5 text-[13px] font-medium text-tx-secondary">
+              In code, the door schedule, the hardware legend and the Division 10 and FRP take-offs are read by the
+              parsers; what a drawing does not say is flagged on its row for an estimator, and the job never fails
+              over it. The Claude pass is the agent extraction it replaces, kept until code extraction is checked
+              against the estimators&apos; own take-offs.
+            </p>
+          </div>
+          <EngineSwitch
+            label="Extraction engine"
+            value={data.extractionEngine}
+            busy={busy}
+            onChange={(engine) => setEngine("extractionEngine", engine)}
+          />
+        </div>
+      )}
+      {data && (
+        <div className="flex flex-wrap items-start justify-between gap-4 border-t border-subtle px-5 py-5">
+          <div className="max-w-[520px]">
+            <p className="text-[14px] font-semibold text-tx-primary">Pricing engine</p>
+            <p className="mt-1.5 text-[13px] font-medium text-tx-secondary">
+              In code, every line is priced by the ladder - special net, catalog, price book times its multiplier -
+              or left for an estimator with the reason; no model is asked. The Claude pass is the agent pricing it
+              replaces, kept until code pricing is checked against the estimators&apos; own quotes.
+            </p>
+          </div>
+          <EngineSwitch
+            label="Pricing engine"
+            value={data.pricingEngine}
+            busy={busy}
+            onChange={(engine) => setEngine("pricingEngine", engine)}
+          />
+        </div>
+      )}
+      {data && (
+        <div className="flex flex-wrap items-start justify-between gap-4 border-t border-subtle px-5 py-5">
+          <div className="max-w-[520px]">
+            <p className="text-[14px] font-semibold text-tx-primary">Proposal engine</p>
+            <p className="mt-1.5 text-[13px] font-medium text-tx-secondary">
+              In code, the proposal job files exactly the document the proposal screen shows - grouped by
+              hardware set and door, with alternates, qualifications and terms - plus its review sheet, email
+              draft and PDF. The Claude pass is the agent proposal it replaces. Nothing is ever sent either way.
+            </p>
+          </div>
+          <EngineSwitch
+            label="Proposal engine"
+            value={data.proposalEngine}
+            busy={busy}
+            onChange={(engine) => setEngine("proposalEngine", engine)}
+          />
+        </div>
+      )}
     </section>
+  );
+}
+
+function EngineSwitch({
+  label,
+  value,
+  busy,
+  onChange,
+}: {
+  label: string;
+  value: PricingEngine | ExtractionEngine;
+  busy: boolean;
+  onChange: (engine: "legacy" | "v2") => void;
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className="flex rounded-md border border-subtle shadow-sm">
+      {(
+        [
+          ["v2", "In code"],
+          ["legacy", "Claude pass"],
+        ] as const
+      ).map(([engine, text]) => (
+        <button
+          key={engine}
+          type="button"
+          role="radio"
+          aria-checked={value === engine}
+          onClick={() => onChange(engine)}
+          disabled={busy}
+          className={cn(
+            "px-4 py-2.5 text-[13px] font-semibold first:rounded-l-md last:rounded-r-md disabled:opacity-50 transition-colors",
+            value === engine ? "bg-brand-primary text-white" : "bg-panel text-tx-secondary hover:bg-panel-muted",
+          )}
+        >
+          {text}
+        </button>
+      ))}
+    </div>
   );
 }
 

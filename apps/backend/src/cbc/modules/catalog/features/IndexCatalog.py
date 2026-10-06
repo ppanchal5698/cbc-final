@@ -15,12 +15,20 @@ because an unchanged file is not re-read at all.
 """
 from __future__ import annotations
 
+import asyncio
+import logging
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from cbc.modules.catalog.infrastructure.collections import price_books
+from cbc.modules.catalog.domain.questions import READ_PRICE_TABLE
+from cbc.modules.catalog.infrastructure import pricebook_reader
+from cbc.modules.ops.api import ai as ops_ai
+from cbc.shared import pdfpages
+from cbc.modules.catalog.infrastructure.collections import price_book_entries, price_books
 from cbc.modules.catalog.api.pageindex import build as pageindex_build
+from cbc.modules.catalog.api.pageindex import store as catalog_store
 from cbc.shared.config import settings
 from cbc.shared.mongo import oid
 
@@ -34,8 +42,53 @@ class IndexingError(RuntimeError):
     """
 
 
+log = logging.getLogger("cbc.worker")
+
+# Table pages a model may read for one book in one indexing run. Hager's book
+# leaves 19 of its 744 pages to it.
+MODEL_PAGE_BUDGET = 40
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+async def read_by_model(book: dict[str, Any], path: Path, vendor: str, file_sha: str,
+                        pages: list[int]) -> list[int]:
+    """The table pages the reader could not parse, read off their picture. Each row
+    is marked as the model's for the estimator to confirm; the pages still unread
+    come back. The first question that goes unanswered ends the asking: the
+    provider is down or will not answer, and those pages wait for the next run."""
+    unread = list(pages)
+    with tempfile.TemporaryDirectory(prefix="pricebook-pages-") as scratch:
+        for number in pages[:MODEL_PAGE_BUDGET]:
+            try:
+                image = await asyncio.to_thread(pdfpages.page_image, path, number, 200, scratch)
+                text = (await asyncio.to_thread(pdfpages.page_text, path, number)).strip()[:6000]
+                prompt = f"{vendor.title()} price book, page {number}."
+                if text:
+                    prompt += "\n\nThe page's text layer, which may be out of reading order:\n" + text
+                reply = await ops_ai.ask(READ_PRICE_TABLE, prompt, images=[Path(image["image_path"])])
+            except Exception as exc:  # no provider, no picture: the page stays unread
+                log.warning("read_price_table not asked for %s page %s: %s", path.name, number, exc)
+                break
+            if reply.answer is None:
+                break
+            now = _now()
+            documents = [
+                {
+                    "priceBookId": book["_id"], "fileSha": file_sha, "file": path.name, "vendor": vendor,
+                    "page": number, "printedPage": None, "effective": book.get("effective"),
+                    "section": reply.answer.section, "table": None, "model": row.model.strip().upper(),
+                    "size": row.size, "finish": row.finish, "description": row.description,
+                    "listPrice": row.list_price, "bbox": None, "readBy": "model", "createdAt": now,
+                }
+                for row in reply.answer.rows
+            ]
+            if documents:
+                await price_book_entries().insert_many(documents, ordered=False)
+                unread.remove(number)
+    return unread
 
 
 def _vendor_for(book: dict[str, Any] | None, filename: str) -> str:
@@ -54,6 +107,56 @@ def _resolve(filename: str) -> Path:
     if not path.is_relative_to(settings.pricebook_dir.resolve()):
         raise ValueError(f"catalog file must be inside {settings.pricebook_dir}: {filename!r}")
     return path
+
+
+async def read_entries(book: dict[str, Any], path: Path, vendor: str) -> str:
+    """Read the book's price tables into priceBookEntries, once per file version.
+
+    Rows are keyed to the file's SHA and never overwritten: a new sheet adds a
+    version and the book points at it, so a quote priced off the old one can
+    still say which file and page its number came from (NFR-3).
+    """
+    file_sha = catalog_store.file_hash(path)
+    entries = price_book_entries()
+    if await entries.find_one({"priceBookId": book["_id"], "fileSha": file_sha}, {"_id": 1}) is None:
+        read = await asyncio.to_thread(pricebook_reader.read_book, path)
+        now = _now()
+        documents = [
+            {
+                "priceBookId": book["_id"],
+                "fileSha": file_sha,
+                "file": path.name,
+                "vendor": vendor,
+                "page": page.page,
+                "printedPage": page.printed_page,
+                "effective": page.effective or book.get("effective"),
+                "section": page.title,
+                "table": row.table,
+                "model": row.model,
+                "size": row.size,
+                "finish": row.finish,
+                "description": row.description,
+                "listPrice": row.list_price,
+                "bbox": row.bbox,
+                "createdAt": now,
+            }
+            for page in read["pages"]
+            for row in page.rows
+        ]
+        for start in range(0, len(documents), 1000):
+            await entries.insert_many(documents[start : start + 1000], ordered=False)
+        unread = read["unread_pages"]
+    else:
+        unread = (book.get("entries") or {}).get("unreadPages", [])
+    if unread:
+        unread = await read_by_model(book, path, vendor, file_sha, unread)
+    count = await entries.count_documents({"priceBookId": book["_id"], "fileSha": file_sha})
+    await price_books().update_one(
+        {"_id": book["_id"]},
+        {"$set": {"entries": {"fileSha": file_sha, "count": count, "unreadPages": unread, "readAt": _now()},
+                  "updatedAt": _now()}},
+    )
+    return f"{count} list price(s) read" + (f"; {len(unread)} table page(s) not read" if unread else "")
 
 
 async def index_catalog(job: dict[str, Any]) -> str:
@@ -83,12 +186,19 @@ async def index_catalog(job: dict[str, Any]) -> str:
         force=bool(payload.get("force")),
     )
 
+    read = ""
+    if book:
+        try:
+            read = await read_entries(book, path, vendor)
+        except Exception as exc:  # the page index above is the job; the tables are a bonus
+            read = f"price tables not read: {type(exc).__name__}: {exc}"[:300]
+
     if document is None:
         if book:
             await price_books().update_one(
                 {"_id": book["_id"]}, {"$set": {"indexStatus": "ready", "updatedAt": _now()}}
             )
-        return "unchanged since the last index - its pages are already described"
+        return "unchanged since the last index - its pages are already described" + (f"; {read}" if read else "")
 
     if book:
         await price_books().update_one(
@@ -108,4 +218,5 @@ async def index_catalog(job: dict[str, Any]) -> str:
     return (
         f"{document.page_count} page(s) described from {document.file_name}"
         + (f"; {weak} could not be read confidently" if weak else "")
+        + (f"; {read}" if read else "")
     )

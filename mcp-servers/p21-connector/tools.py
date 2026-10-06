@@ -1,7 +1,7 @@
 """Tool definitions for the p21-connector MCP server.
 
 READ-ONLY BY DESIGN. There is deliberately no create / update / delete tool here,
-and there never will be in this workstream (NFR-5, .claude/rules/p21-read-only.md).
+and there never will be in this workstream (NFR-5, .claude/guides/pricing.md).
 """
 from __future__ import annotations
 
@@ -29,9 +29,9 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "check_freshness",
         "description": (
-            "Apply the CBC freshness rule to a purchase date: under ~6 months is "
-            "fresh, more than 6 months is unreliable, more than 3 years must "
-            "be discarded."
+            "Apply the CBC freshness rule in force to a purchase date: fresh, "
+            "unreliable (re-verify) or stale (discard). The windows come from the "
+            "Freshness settings; the result states the rule it applied."
         ),
         "inputSchema": {
             "type": "object",

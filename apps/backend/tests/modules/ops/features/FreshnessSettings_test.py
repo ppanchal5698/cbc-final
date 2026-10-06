@@ -63,7 +63,7 @@ def test_saving_freshness_settings_round_trips():
 
 
 def test_the_review_window_does_not_bound_the_cost_bands():
-    """data-stewardship.md: the price-sheet window and the P21 bands move independently.
+    """The price-sheet window and the P21 bands move independently.
 
     Reviewing price sheets every 48 months says nothing about when a purchase-order
     cost is discarded. This save was a 422 while one setting drove both.

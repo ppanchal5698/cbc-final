@@ -16,7 +16,7 @@ needs are already curated:
 A price is a *list* price only when there is a multiplier to apply to it. Where
 neither signal resolves, this says UNKNOWN rather than picking one - the same rule
 the rest of the pricing path follows, where an unknown tier returns null with a
-note instead of a guess (.claude/rules/accuracy-trust.md).
+note instead of a guess (.claude/guides/extraction.md).
 
 This decides how a number is *labelled*. It does not decide how a line is priced:
 `lookup_pricing` already consults the special-net sheet first and reports

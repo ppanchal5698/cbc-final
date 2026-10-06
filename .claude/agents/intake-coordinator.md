@@ -79,10 +79,12 @@ blank (name + due date only, then PDF upload). When writing
    any other phase runs. The worker syncs this file into the Ops-Hub job record
    as soon as it lands — a partial Write would race that sync.
 7. Note whether this is a **templated** job (a repeat brand with prior quotes) or
-   a **one-off**. Prefer the project's `mode` when Ops-Hub set it. Templated jobs
-   must invoke the `reuse-prior-quote` skill after metadata is written — search
-   `reference-library/prior_quotes/` for the closest prior quote by brand,
-   architect and GC. An empty library means one-off (fine).
+   a **one-off**. Prefer the project's `mode` when Ops-Hub set it. For a
+   templated job, follow `.claude/skills/reuse-prior-quote/SKILL.md` after
+   metadata is written. No tool in a run serves prior quotes - the Ops-Hub finds
+   them by brand, architect and GC and shows them to the estimator - so record
+   the mode and move on; "no prior quotes available to this run" is a fine
+   answer.
 
 **Rick's Excel workflow** is out of scope for Ops-Hub — Kevin and Shanna modes only.
 

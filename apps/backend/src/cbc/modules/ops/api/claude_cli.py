@@ -12,6 +12,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -111,6 +112,7 @@ class RunResult:
 # while it is working perfectly well, and matching that would fail healthy runs.
 _USAGE_LIMIT_MARKERS = (
     "usage limit reached",
+    "hit your session limit",
     "reached your weekly usage limit",
     "rate limit exceeded",
     "rate_limit_error",
@@ -171,7 +173,7 @@ def run_claude(
     recording: "Path | None" = None,
     job_type: str | None = None,
     max_turns: int | None = None,
-    cancel_check: Callable[[], bool] | None = None,
+    cancel_check: Callable[[], str | bool | None] | None = None,
     settings: dict[str, Any] | None = None,
     *,
     system_prompt: str | None = None,
@@ -179,6 +181,7 @@ def run_claude(
     heartbeat_seconds: float = 30,
     cwd: Path | None = None,
     resume_session_id: str | None = None,
+    on_event: Callable[[dict], None] | None = None,
 ) -> RunResult:
     """Run one headless Claude Code pass in the repo root.
 
@@ -228,6 +231,7 @@ def run_claude(
             system_prompt=system_prompt,
             workdir=workdir,
             resume_session_id=resume_session_id,
+            on_event=on_event,
         )
     finally:
         watchdog.stop()
@@ -243,11 +247,12 @@ def _execute_claude(
     recording: Path | None,
     job_type: str | None,
     max_turns: int | None,
-    cancel_check: Callable[[], bool] | None,
+    cancel_check: Callable[[], str | bool | None] | None,
     settings: dict[str, Any] | None,
     system_prompt: str | None,
     workdir: Path,
     resume_session_id: str | None = None,
+    on_event: Callable[[dict], None] | None = None,
 ) -> RunResult:
     scope: list[str] = []
     if system_prompt:
@@ -313,6 +318,7 @@ def _execute_claude(
                 recording=recording,
                 redact_values=redact_values,
                 cancel_check=cancel_check,
+                on_event=on_event,
             )
         except (ImportError, OSError) as exc:
             # No pty on this host; fall through to pipes rather than fail the job.
@@ -322,26 +328,23 @@ def _execute_claude(
             # Carried on every outcome, including the cancelled one: a pass that
             # was stopped is the pass a retry most wants to pick up from.
             session = session_id_from_stream(raw)
-            if cancel_check and cancel_check():
-                return RunResult(
-                    ok=False,
-                    output=secrets.redact(text[-MAX_LOG_CHARS:], redact_values),
-                    error="cancelled by estimator",
-                    returncode=130,
-                    session_id=session,
-                )
+            reason = cancel_check() if cancel_check else None
+            if reason:
+                returncode = 130
             return replace(
-                _interpret(text, failure, returncode, timeout, redact_values),
+                _interpret(text, failure, returncode, timeout, redact_values, reason),
                 session_id=session,
             )
 
+    # The pipe path stops for the same reasons the pty path does. A blocking
+    # subprocess.run here let a cancelled or reaped pass run to its timeout.
     try:
-        completed = subprocess.run(
+        process = subprocess.Popen(
             command,
             cwd=workdir,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
             encoding="utf-8",
             errors="replace",
             env=env,
@@ -354,15 +357,38 @@ def _execute_claude(
             returncode=127,
             permanent=True,
         )
-    except subprocess.TimeoutExpired:
-        return RunResult(
-            ok=False, output="", error=f"timed out after {timeout}s", returncode=124
-        )
+    returncode, stdout, stderr, reason = _wait(process, timeout, cancel_check)
+    return _interpret(stdout, stderr, returncode, timeout, redact_values, reason)
 
-    return _interpret(
-        completed.stdout or "", completed.stderr or "", completed.returncode,
-        timeout, redact_values,
-    )
+
+def _wait(
+    process: subprocess.Popen,
+    timeout: int,
+    cancel_check: Callable[[], str | bool | None] | None,
+) -> tuple[int, str, str, str | bool | None]:
+    """Collect a piped process, polling `cancel_check` and the deadline every second.
+
+    Returns (exit code, stdout, stderr, stop reason). A stopped process exits 124
+    for a timeout and 130 for a cancel, the codes run_on_pty reports.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            stdout, stderr = process.communicate(timeout=1)
+            return process.returncode, stdout or "", stderr or "", None
+        except subprocess.TimeoutExpired:
+            pass
+        reason = cancel_check() if cancel_check else None
+        if reason or time.monotonic() > deadline:
+            break
+    # ponytail: kills the CLI only, not the MCP servers it spawned; the pty path
+    # kills the process group and is the one production runs.
+    process.kill()
+    try:
+        stdout, stderr = process.communicate(timeout=10)
+    except subprocess.TimeoutExpired:
+        stdout, stderr = "", ""
+    return (130 if reason else 124), stdout or "", stderr or "", reason
 
 
 # Bedrock reports these as 400/403 bodies, not as "failed to authenticate".
@@ -437,11 +463,13 @@ def _interpret(
     returncode: int,
     timeout: int,
     redact_values: list[str] | None,
+    stop_reason: str | bool | None = None,
 ) -> RunResult:
     """Turn a finished run into a verdict.
 
     Shared by the pty path and the pipe path, so "did this succeed?" has one
-    answer however the process was spawned.
+    answer however the process was spawned. `stop_reason` is what cancel_check
+    said when the run was stopped (exit 130).
     """
     # Redact before anything else touches these: the caller stores the output on
     # the job document and the UI renders it.
@@ -457,12 +485,17 @@ def _interpret(
             error_code="timeout",
         )
     if returncode == 130:
+        reason = stop_reason if isinstance(stop_reason, str) else "cancelled by estimator"
+        # A retry would spend the same again, so a budget stop is final. A lost
+        # lease or a shutdown is not: finish() or the requeue decides those.
+        over_budget = reason.startswith("token budget exceeded")
         return RunResult(
             ok=False,
             output=output,
-            error="cancelled by estimator",
+            error=reason,
             returncode=130,
-            error_code="cancelled",
+            permanent=over_budget,
+            error_code="budget_exceeded" if over_budget else "cancelled",
         )
 
     # The CLI exits 0 on an auth failure, so the exit code alone is not enough.

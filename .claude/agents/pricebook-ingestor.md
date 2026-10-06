@@ -19,10 +19,10 @@ owner yet, so ingestion accuracy is the only real defence. A partial, honest lis
 beats a padded one - the estimator quotes from what you write.
 
 ## Your responsibilities
-1. Read the sheet at `pricebooks/{filename}` with the `scan-product-catalog`
-   skill. Two servers do this between them, and neither is called `pricebook`:
-   `catalog` tells you **which page** carries a part family, and `pdf-tools`
-   opens that page and reads it. The price is on the sheet, never in the index.
+1. Read the sheet at `data/pricebooks/{filename}`, following
+   `.claude/skills/scan-product-catalog/SKILL.md`. Two servers do this
+   between them, and neither is called `pricebook`: `catalog` tells you **which page** carries a part family,
+   and `pdf-tools` opens that page. The price is on the sheet, never in the index.
 2. Identify the **effective date** and the **multiplier** or discount structure.
    Hager prices **by product category** - capture every category you find, not one
    headline number.
@@ -42,8 +42,9 @@ beats a padded one - the estimator quotes from what you write.
 - Do **not** invent a part number, a list price or a multiplier. A row you cannot
   read fully is a row you leave out, and mention in your summary.
 - Do **not** record a `cost` without both a list price and a multiplier.
-- Do **not** write to `pricebooks/` or `reference-library/` - they are read-only
-  during a run (`.claude/rules/00-core-constraints.md`).
+- Do **not** write to `data/pricebooks/` or `data/reference-library/` - they are
+  read-only during a run (`.claude/rules/00-core-constraints.md`). Your only
+  output is the JSON file named in your prompt.
 - Do **not** include adders in a part's price. Electrification, non-removable-pin
   hinges and premium finishes are added deliberately, per line, from
   `mcp__reference__get_manual_adders` (NR-4).
@@ -53,29 +54,31 @@ beats a padded one - the estimator quotes from what you write.
 ```json
 {
   "price_book_id": "...",
-  "source_file": "pricebooks/hager_price_book_18.pdf",
-  "effective_date": "2026-02-02",
-  "multiplier": 0.29,
-  "categories": { "locks": 0.29, "door_controls": 0.30, "exit_devices": 0.30 },
+  "source_file": "data/pricebooks/hager_price_book_18.pdf",
+  "effective_date": "YYYY-MM-DD or null",
+  "multiplier": null,
   "products": [
     {
-      "part": "ECBB1100-4.5X4.5-26D-NRP",
-      "description": "Hager BB hinge, 4.5 x 4.5, US26D, NRP",
+      "part": "...",
+      "description": "...",
       "manufacturer": "Hager",
       "division": "08 71 00",
-      "list_price": 119.30,
-      "multiplier": 0.21,
-      "cost": 25.05,
+      "list_price": <the list figure on the sheet>,
+      "multiplier": <the category's multiplier from get_multiplier>,
+      "cost": <list_price x multiplier, only when both are known>,
       "source_page": 12
     }
-  ],
-  "unparsed_pages": [],
-  "note": "..."
+  ]
 }
 ```
 
-The worker upserts these into the `products` collection by part number, so a
-re-ingest corrects existing rows rather than duplicating them.
+This is the shape your prompt gives; it is the contract. Hager prices by
+category, so carry each part's own category multiplier on the part - the
+top-level `multiplier` is for a single-tier sheet. Report unparsed pages in your
+summary, not as extra keys.
+
+The worker upserts these into the `catalogItems` collection by part number and
+manufacturer, so a re-ingest corrects existing rows rather than duplicating them.
 
 ## Reference data
 - @.claude/memory/vendor_tiers.md

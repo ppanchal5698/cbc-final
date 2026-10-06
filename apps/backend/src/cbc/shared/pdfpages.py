@@ -150,7 +150,7 @@ def _writable_target(file_path: Path, out_dir: str | Path | None) -> Path:
     Defaulting to the source PDF's own directory was wrong in two ways that only
     show up in a real run. Rendering a page of a bid set dropped
     `1_Architectural_p12_200dpi.png` into `projects/{slug}/uploads/raw/`, where
-    `.claude/rules/file-safety.md` says the uploads are immutable and extraction
+    `.claude/rules/00-core-constraints.md` says the uploads are immutable and extraction
     output belongs in `uploads/processed/` or `extracted/`. Rendering a page of a
     price book would try to write into `pricebooks/`, which is read-only during a
     run and mounted `:ro` on the worker.
@@ -176,7 +176,7 @@ def _writable_target(file_path: Path, out_dir: str | Path | None) -> Path:
         if target == protected or protected in target.parents:
             raise ValueError(
                 f"refusing to write a rendered page into {protected.name}/ - it is "
-                "read-only reference data (.claude/rules/file-safety.md)"
+                "read-only reference data (.claude/rules/00-core-constraints.md)"
             )
     if target.name == "raw" and target.parent.name == "uploads":
         raise ValueError(
@@ -315,6 +315,26 @@ def page_image(
         else:
             page.get_pixmap(dpi=effective_dpi).save(output)
         return hit
+    finally:
+        doc.close()
+
+
+def page_text(file_path: str | Path, page_number: int) -> str:
+    """The page's text layer as it stands - empty for a scan or outlined text."""
+    doc = _open(file_path)
+    try:
+        if not 0 < page_number <= doc.page_count:
+            return ""
+        return doc[page_number - 1].get_text()
+    finally:
+        doc.close()
+
+
+def pages_text(file_path: str | Path) -> list[str]:
+    """Every page's text layer, in one open - page 1 first."""
+    doc = _open(file_path)
+    try:
+        return [page.get_text() for page in doc]
     finally:
         doc.close()
 

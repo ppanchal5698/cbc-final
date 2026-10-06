@@ -27,9 +27,50 @@ DIVISION_BANDS = {
     "08 71": "commodity",
     "10 21": "restroom_partitions",
     "10 28": "accessories",
-    "06 64": "specialty",
+    # FRP. MasterFormat files it under 06 64 (plastic paneling), and that is where
+    # the take-off puts it; a spec book that files it under 09 77 (special wall
+    # surfacing) is the same panel. CBC's margin sheet prices FRP panels as
+    # commodity (margin_framework.json) - it was at specialty's 40%.
+    "06 64": "commodity",
+    "09 77": "commodity",
 }
 DEFAULT_BAND = "commodity"
+
+
+# Which multiplier category prices a row of a vendor's price book, by the section
+# title printed on its page. Hager prices by category (vendor_tiers) and its book
+# #18 names its sections; these are those names, longest match first. A section
+# not listed takes no multiplier, so its rows are priced by hand rather than at a
+# guessed tier. The two judgment calls: the low-energy operator *controls* are
+# sold with the operator, so they take its tier (0.40, not electrified's 0.41);
+# stainless continuous hinges take stainless_steel_hinges, whose 0.325 is the
+# Roton geared tier too - either reading prices the same.
+SECTION_CATEGORIES: dict[str, tuple[tuple[str, str], ...]] = {
+    "hager": (
+        ("Commercial Hinges", "architectural_hinges"),
+        ("Residential Hinges", "residential_hinges"),
+        ("Stainless Steel Continuous Hinges", "stainless_steel_hinges"),
+        ("Door Controls", "door_controls"),
+        ("Low Energy Automatic Door Opener", "auto_operators"),
+        ("Electrified Products - Low Energy Power Operator Controls", "auto_operators"),
+        ("Electrified Products", "electrified_products"),
+        ("Series Electrified Products", "electrified_products"),
+        ("Exit Devices", "exit_devices"),
+        ("Locks", "locks"),
+        ("Sliding Door Hardware", "sliding_door_hardware"),
+        ("Trim & Auxiliary", "trim_and_auxiliary"),
+    ),
+}
+
+
+def multiplier_category(vendor: str | None, section: str | None) -> str | None:
+    """The multiplier category that prices a price-book row, from its section title."""
+    title = str(section or "").strip().lower()
+    for prefix, category in sorted(SECTION_CATEGORIES.get(str(vendor or "").strip().lower(), ()),
+                                   key=lambda pair: -len(pair[0])):
+        if title.startswith(prefix.lower()):
+            return category
+    return None
 
 
 def band_for_division(division: str | None) -> str:
@@ -42,6 +83,26 @@ def band_for_division(division: str | None) -> str:
 def default_margin(division: str | None) -> float:
     bands = calc.bands()
     return bands.get(band_for_division(division), bands[DEFAULT_BAND])
+
+
+def special_margin(customer: str | None, brand: str | None) -> tuple[float, str] | None:
+    """The recorded special margin for this bid - the customer's before the brand's.
+
+    Returns (margin, reason) or None, in which case the product-type band applies.
+    A row whose margin is still null (CBC has not given the number) does not
+    count: a customer margin is never invented. This used to be a reference tool
+    the pricing agent was told to call and did not have, so a special margin was
+    applied only if a model remembered to look; it is applied in code now.
+    """
+    from cbc.modules.pricing.api import reference_library
+
+    for label, name in (("customer", customer), ("brand", brand)):
+        if not name:
+            continue
+        row = reference_library.get_special_customer_margin(name)
+        if row and row.get("margin") is not None:
+            return float(row["margin"]), f"special {label} margin: {row.get('name')}"
+    return None
 
 
 def price_line(
@@ -113,6 +174,7 @@ class QuoteTotals(TypedDict):
     grandTotal: float
     taxJurisdiction: str | None
     taxNote: str | None
+    taxExempt: bool  # FR-18: an exempt buyer, which prints as exempt
     groups: list[dict[str, Any]]
     unpricedLines: int
 
@@ -126,12 +188,14 @@ def totals(lines: list[dict[str, Any]], state: str | None, freight: float | None
         }
         for line in lines
     ]
-    # NONE is an explicit "no nexus" ruling, not a missing value.
-    explicit_none = state == "NONE"
+    # NONE is an explicit "no nexus" ruling, not a missing value; EXEMPT is a buyer
+    # with an exemption certificate on file (FR-18), which prints as exempt.
+    explicit_none = state in ("NONE", "EXEMPT")
     result = calc.compute_totals(payload, project_state=None if explicit_none else state)
     if explicit_none:
-        result["project_state"] = "NONE"
-        result["tax_note"] = "No nexus - the estimator has ruled this bid untaxed."
+        result["project_state"] = state
+        result["tax_note"] = ("Tax exempt - the buyer's exemption certificate is on file."
+                              if state == "EXEMPT" else "No nexus - the estimator has ruled this bid untaxed.")
 
     if freight:
         result["freight"] = round(float(freight), 2)
@@ -156,6 +220,7 @@ def totals(lines: list[dict[str, Any]], state: str | None, freight: float | None
         "grandTotal": result["grand_total"],
         "taxJurisdiction": result["project_state"],
         "taxNote": result["tax_note"],
+        "taxExempt": state == "EXEMPT",
         "groups": result["groups"],
         "unpricedLines": sum(1 for line in lines if line.get("cost") is None),
     }

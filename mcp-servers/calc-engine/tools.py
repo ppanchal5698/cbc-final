@@ -27,7 +27,7 @@ TOOLS: list[dict[str, Any]] = [
             "type": "object",
             "properties": {
                 "list_price": {"type": "number", "description": "The list figure read off the page"},
-                "multiplier": {"type": "number", "description": "The vendor tier, e.g. 0.29"},
+                "multiplier": {"type": "number", "description": "The vendor tier, from get_multiplier"},
                 "adders": {
                     "type": "array",
                     "description": "Optional. Each {name, list_adder} from reference-library.",
@@ -74,7 +74,7 @@ TOOLS: list[dict[str, Any]] = [
                 "cost": {"type": "number", "description": "Our Cost, per each"},
                 "margin": {
                     "type": "number",
-                    "description": "Margin as a fraction, e.g. 0.27 for the commodity band",
+                    "description": "Margin as a fraction - the line's band from get_margin_bands",
                 },
                 "quantity": {"type": "number", "default": 1},
             },
@@ -84,9 +84,11 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "apply_margin",
         "description": (
-            "Look up the default margin band for a product type and apply it to a cost. "
-            "The band is an editable default - pass override_margin with a reason when "
-            "sourcing changes it (Wendy's, distributor-bought lines, custom first builds)."
+            "Apply the margin for a cost: the bid's recorded special margin (customer, "
+            "then brand) when one exists, else the product type's default band. Pass "
+            "the bid's customer (GC) and brand so a special margin is never missed. "
+            "override_margin with a reason still wins when sourcing changes it "
+            "(distributor-bought lines, custom first builds)."
         ),
         "inputSchema": {
             "type": "object",
@@ -95,6 +97,8 @@ TOOLS: list[dict[str, Any]] = [
                 "product_type": {"type": "string", "enum": PRODUCT_TYPES},
                 "override_margin": {"type": "number"},
                 "override_reason": {"type": "string"},
+                "customer": {"type": "string", "description": "The bid's GC, as on the job record."},
+                "brand": {"type": "string", "description": "The bid's brand, e.g. Wendys."},
             },
             "required": ["cost", "product_type"],
         },

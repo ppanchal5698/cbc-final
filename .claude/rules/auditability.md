@@ -1,6 +1,6 @@
 # Auditability (NFR-3)
 
-**Every generated line must be traceable to a source drawing page and to a reference-library
+**Every generated line must be traceable to a source drawing page and to a reference-data
 or price-sheet version — including the vendor multiplier tier and its effective date.**
 
 ## Required provenance on every extracted record
@@ -18,8 +18,8 @@ frame the box was measured in — a transposed width and height is every number
 being real and the highlight landing nowhere near its row.
 
 ## Required provenance on every priced line
-- cost_source — one of P21_LAST_PO | LIST_X_MULTIPLIER | VENDOR_RFQ | DISTRIBUTOR_MANUAL | MANUAL
-- cost_source_detail — PO date, or price-book file + page, or the distributor name
+- cost_source — one of P21_LAST_PO | SPECIAL_NET | CATALOG_BASELINE | LIST_X_MULTIPLIER | VENDOR_RFQ | DISTRIBUTOR_MANUAL | MANUAL
+- cost_source_detail — PO date, special-net item, product-catalog row, price-book file + page, or the distributor name
 - multiplier_tier and multiplier_effective_date when Path 2 was used
 - price_book_version — e.g. "Hager Price Book #18, effective 2026-02-02"
 - priced_at — ISO 8601 timestamp

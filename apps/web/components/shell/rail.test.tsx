@@ -137,4 +137,32 @@ describe("Rail (Collapsible Sidebar)", () => {
 
     expect(localStorage.getItem("opshub-sidebar-collapsed")).toBe("0");
   });
+
+  it("shows the administration pages to an admin only", () => {
+    const { unmount } = render(
+      <UiStateProvider>
+        <Rail staleBooks={0} deadJobs={0} user={{ ...user, role: "admin" }} />
+      </UiStateProvider>
+    );
+    for (const [label, href] of [
+      ["Pricing", "/pricing"],
+      ["Reference data", "/reference-data"],
+      ["Users", "/users"],
+      ["Audit log", "/audit"],
+    ]) {
+      expect(screen.getByRole("link", { name: label })).toHaveAttribute("href", href);
+    }
+    expect(screen.getByText("Administration")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
+    unmount();
+
+    render(
+      <UiStateProvider>
+        <Rail staleBooks={0} deadJobs={0} user={{ ...user, role: "estimator" }} />
+      </UiStateProvider>
+    );
+    expect(screen.queryByRole("link", { name: "Pricing" })).toBeNull();
+    expect(screen.queryByText("Administration")).toBeNull();
+    expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
+  });
 });

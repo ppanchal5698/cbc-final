@@ -106,10 +106,7 @@ async def upload_price_book_file(
         actor=actor,
     )
 
-    # No block parse is queued for catalogs. `parse_catalog` / `parse_multiplier`
-    # went with MinerU; catalog PDFs are read by their own MCP server. Until that
-    # lands, `catalog-docs` falls back to the pageIndex path, which is what it
-    # already did whenever a book's parse_state was not `parsed`.
+    # `index_catalog` is the whole read: the page index and the list prices.
     await audit.record("price_book.upload", actor, {"priceBookId": book["_id"]}, after=target.name)
     return {
         "priceBook": await decorate(await price_books().find_one({"_id": book["_id"]})),

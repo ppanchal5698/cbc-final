@@ -55,13 +55,16 @@ def test_settings_json_is_valid() -> None:
     settings_path = ROOT / ".claude" / "settings.json"
     settings = json.loads(settings_path.read_text(encoding="utf-8"))
     assert "hooks" in settings
-    assert "permissions" in settings
-    allow = settings["permissions"]["allow"]
-    assert "mcp__bid-docs__*" in allow
-    assert "mcp__catalog-docs__*" in allow
-    deny = settings["permissions"]["deny"]
-    assert "Bash(Remove-Item *)" in deny
-    assert "Read(.env)" in deny
+    permissions = settings["permissions"]
+    # Deny rules are what keep secrets unread; the hooks block writes, sends and
+    # pushes. `**/.env.*` covers .env.nim and anything added later.
+    for tool in ("Read", "Edit", "Write"):
+        for pattern in ("**/.env", "**/.env.*"):
+            assert f"{tool}({pattern})" in permissions["deny"]
+    # A blanket allow would make the allowlist meaningless, and an `ask` for a
+    # .env file would be a hole in the deny above.
+    assert "*" not in permissions["allow"]
+    assert not any(".env" in rule for rule in permissions.get("ask", []))
 
 
 def test_settings_post_tool_use_includes_save_artifact() -> None:

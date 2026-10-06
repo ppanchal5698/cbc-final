@@ -28,13 +28,16 @@ from cbc.shared import pdfrows
 DIV10_MANUFACTURERS = {
     name: label
     for name, label in KNOWN_MANUFACTURERS.items()
-    if label in {"Bobrick", "ASI", "Bradley", "Gamco", "World Dryer", "Nudo"}
+    if label in {"Bobrick", "ASI", "Bradley", "Gamco", "World Dryer", "Dyson", "Excel Dryer", "Nudo"}
 }
+# And the FRP vendors (requirements 5.3). FRP looked its maker up in the Division 10
+# list, so a Marlite panel was never Marlite.
+FRP_MANUFACTURERS = {name: label for name, label in KNOWN_MANUFACTURERS.items() if label in {"Marlite", "Nudo"}}
 
 # What the accessory is, from how the schedule names it. Ordered: the first match
 # wins, so the more specific phrases come first.
 PRODUCT_TYPES: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("toilet_tissue_dispenser", re.compile(r"\b(?:TOILET\s+(?:PAPER|TISSUE)|JUMBO\s+ROLL)\b.*DISPENSER|\bTISSUE\s+DISPENSER\b", re.I)),
+    ("toilet_tissue_dispenser", re.compile(r"\b(?:TOILET\s+(?:PAPER|TISSUE)|JUMBO\s+ROLL)\b.*DISPENSER|\bTISSUE\s+DISPENSER\b|\bJUMBO\s+ROLL\b", re.I)),
     ("paper_towel_dispenser", re.compile(r"\b(?:PAPER\s+TOWEL|TOWEL)\s+DISPENSER\b", re.I)),
     ("soap_dispenser", re.compile(r"\bSOAP\s+DISPENSER\b", re.I)),
     ("hand_dryer", re.compile(r"\bHAND\s+DRYER\b", re.I)),
@@ -53,7 +56,19 @@ PRODUCT_TYPES: tuple[tuple[str, re.Pattern[str]], ...] = (
 
 # A model number on these sheets: B-3974, 0042, 9114-0000000, B-580616x18.
 MODEL = re.compile(r"\b([A-Z]{0,3}-?\d[\dA-Z./x-]{2,})\b")
-QTY = re.compile(r"^\s*(\d{1,3})\s*(?:EA\.?|PR\.?)?\b")
+
+# A sheet line runs through every drawing on it, so an accessory's row is only the
+# cells of its own table: out from its maker's cell to the first gap wider than
+# any column gap. The count was read off the start of the whole line - a stray
+# dimension or keynote two drawings to the left, four grab bars where the
+# schedule states none.
+TABLE_GAP = 150.0  # pt
+# The count an equipment-style schedule writes in the item's own cell: `B-275 2 X
+# TOILET PAPER DISPENSER`.
+COUNT_X = re.compile(r"(?:^|\s)(\d{1,3})\s*[X×]\s+[A-Z]")
+# Or a column of its own, under a QTY header.
+QTY_HEADER = re.compile(r"^(?:QTY\.?|QUANTITY)$", re.I)
+BARE_COUNT = re.compile(r"^(\d{1,3})\s*(?:EA\.?)?$", re.I)
 
 # FRP, and what kind.
 FRP_PRESENT = re.compile(r"\bFRP\b|FIBERGLASS\s+REINFORCED\s+POLYESTER", re.I)
@@ -91,10 +106,10 @@ def _product_type(line: str) -> str | None:
     return found[0] if found else None
 
 
-def _manufacturer_in(line: str) -> tuple[str, str] | None:
+def _manufacturer_in(line: str, makers: dict[str, str] | None = None) -> tuple[str, str] | None:
     """(canonical name, the token as written), or None."""
     upper = line.upper()
-    for token, label in DIV10_MANUFACTURERS.items():
+    for token, label in (makers if makers is not None else DIV10_MANUFACTURERS).items():
         if re.search(rf"\b{re.escape(token)}\b", upper):
             return label, token
     return None
@@ -108,6 +123,32 @@ def _model_after(line: str, vendor_token: str) -> str | None:
     tail = re.sub(r"^\s*(?:MODEL|MODEL\s+NO\.?|NO\.?|#)\s*", " ", tail, flags=re.I)
     match = MODEL.search(tail)
     return match.group(1).strip(".,;:") if match else None
+
+
+def _table_around(boxes: list[Any], first: int, last: int) -> tuple[int, int]:
+    """The item's cells - the one naming it through its maker's - and those either
+    side that are its table's: out to the first gap wider than a column gap, where
+    another drawing's text shares the line."""
+    lo, hi = first, last
+    while lo > 0 and boxes[lo][0] - boxes[lo - 1][2] < TABLE_GAP:
+        lo -= 1
+    while hi + 1 < len(boxes) and boxes[hi + 1][0] - boxes[hi][2] < TABLE_GAP:
+        hi += 1
+    return lo, hi
+
+
+def _count(cells: list[str], boxes: list[Any], named: int, lo: int, hi: int,
+           headers: list[tuple[float, float]], y: float) -> float | None:
+    """What the schedule says the count is, or None: the `2 X` in the item's own
+    cell, or the figure under a QTY header above it - nothing else on the line."""
+    written = COUNT_X.search(cells[named])
+    if written:
+        return float(written.group(1))
+    for index in range(lo, hi + 1):
+        bare = BARE_COUNT.match(cells[index])
+        if bare and any(top < y and abs(boxes[index][0] - x) <= 20 for x, top in headers):
+            return float(bare.group(1))
+    return None
 
 
 def div10_items_on_page(pdf: Path, page_number: int) -> list[dict[str, Any]]:
@@ -124,14 +165,30 @@ def div10_items_on_page(pdf: Path, page_number: int) -> list[dict[str, Any]]:
     finally:
         doc.close()
 
+    headers = [
+        (float(box[0]), float(box[1]))
+        for row in rows
+        for cell, box in zip(row.get("cells") or [], row.get("cell_boxes") or [])
+        if QTY_HEADER.match(_text(cell))
+    ]
     items: list[dict[str, Any]] = []
     for row in rows:
-        line = _text(" | ".join(row.get("cells") or []))
-        if not line:
+        cells = [_text(c) for c in row.get("cells") or []]
+        boxes = row.get("cell_boxes") or []
+        line = _text(" | ".join(cells))
+        if not line or not _product_types(line):
             continue
-        candidates = _product_types(line)
-        if not candidates:
-            continue
+        # The item's own table, around its maker's cell, and the accessory the
+        # nearest cell in it names - not the first one anywhere on the line.
+        maker = next((i for i, cell in enumerate(cells) if _manufacturer_in(cell)), None)
+        named = lo = hi = None
+        if maker is not None and len(boxes) == len(cells):
+            near = sorted((abs(i - maker), i) for i, cell in enumerate(cells) if _product_types(cell))
+            if near:
+                named = near[0][1]
+                lo, hi = _table_around(boxes, min(named, maker), max(named, maker))
+                line = _text(" | ".join(cells[lo:hi + 1]))
+        candidates = _product_types(cells[named]) if named is not None else _product_types(line)
         product_type = candidates[0]
         vendor = _manufacturer_in(line)
         manufacturer, model = (None, None)
@@ -150,8 +207,9 @@ def div10_items_on_page(pdf: Path, page_number: int) -> list[dict[str, Any]]:
             flags.append("specified_model_missing")
         # Counting accessories means reading interior elevations, not a schedule
         # row. Defaulting to 1 would quote one grab bar for a building.
-        qty_match = QTY.match(line)
-        qty = float(qty_match.group(1)) if qty_match else None
+        qty = None
+        if named is not None:
+            qty = _count(cells, boxes, named, lo, hi, headers, float(row["bbox"][1]))
         if qty is None:
             flags.append("qty_not_stated")
 
@@ -187,7 +245,8 @@ def div10_envelope(pdf: Path, pages: list[int]) -> dict[str, Any]:
 
     So `items` carries what a schedule identified, and `mentions` carries every
     other row that named an accessory - reported, because silence is not an
-    acceptable way to say "I could not read this" (accuracy-trust rule 4), but
+    acceptable way to say "I could not read this" (.claude/guides/extraction.md,
+    confidence rule 4), but
     never priced.
     """
     items: list[dict[str, Any]] = []
@@ -266,7 +325,7 @@ def frp_findings(pdf: Path, pages: list[int]) -> dict[str, Any]:
                 for candidate in text.splitlines():
                     if not FRP_PRESENT.search(candidate):
                         continue
-                    found = _manufacturer_in(candidate)
+                    found = _manufacturer_in(candidate, FRP_MANUFACTURERS)
                     if found:
                         manufacturer = found[0]
                         break

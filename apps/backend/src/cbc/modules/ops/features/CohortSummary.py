@@ -99,14 +99,18 @@ async def summary(*, job_type: str | None = None, days: int = 30, limit: int = 2
 
     pipeline = [
         {"$match": match},
-        # Drop `prompt` from the cohort key. $unsetField is Mongo 5.0+; the
-        # deployment is Mongo 7. $ifNull guards a doc with no contextHashes.
+        # Drop `prompt` from the cohort key. Spelled with $objectToArray/$filter
+        # rather than $unsetField, which Azure DocumentDB does not implement; key
+        # order survives, which the $group key depends on. $ifNull guards a doc
+        # with no contextHashes.
         {
             "$addFields": {
                 "_ctx": {
-                    "$unsetField": {
-                        "field": "prompt",
-                        "input": {"$ifNull": ["$contextHashes", {}]},
+                    "$arrayToObject": {
+                        "$filter": {
+                            "input": {"$objectToArray": {"$ifNull": ["$contextHashes", {}]}},
+                            "cond": {"$ne": ["$$this.k", "prompt"]},
+                        }
                     }
                 }
             }

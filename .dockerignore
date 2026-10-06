@@ -29,4 +29,3 @@ web/.env.local
 
 *.md
 !CLAUDE.md
-!docs/*.md

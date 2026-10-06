@@ -10,16 +10,17 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 from datetime import datetime
 from typing import Any
-from urllib.parse import quote_plus, urlsplit
+from urllib.parse import parse_qsl, quote_plus, urlsplit
 
 from bson import ObjectId
 from bson.errors import InvalidId
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo.errors import OperationFailure, PyMongoError
 
-from cbc.shared.config import settings
+from cbc.shared.config import DEV_READONLY_PASSWORD, settings
 from cbc.shared.mongo_uri import reachable_uri
 
 log = logging.getLogger("cbc.api.db")  # the name these index messages have always logged under
@@ -92,12 +93,41 @@ def serialise(document: Any) -> Any:
     return document
 
 
+def revive(document: dict[str, Any]) -> dict[str, Any]:
+    """`serialise` undone for a stored row: `id` back to `_id`, an `...Id` that is
+    an ObjectId's hex back to one, an `...At` timestamp back to a datetime - so a
+    row frozen in a snapshot can be written back as it was."""
+    out: dict[str, Any] = {}
+    for key, value in document.items():
+        name = "_id" if key == "id" else key
+        if (name == "_id" or name.endswith("Id")) and isinstance(value, str) and ObjectId.is_valid(value):
+            value = ObjectId(value)
+        elif name.endswith("At") and isinstance(value, str):
+            try:
+                value = datetime.fromisoformat(value)
+            except ValueError:
+                pass
+        out[name] = value
+    return out
+
+
 # ── index builds that survive a peer racing them ─────────────────────────────
 
 
 # Mongo aborts an in-flight build when another client drops the same index
 # name (common when every API runs ensure_indexes on compose up).
 INDEX_BUILD_ABORTED = 276
+# Azure DocumentDB's answer to a second text index on a collection; MongoDB
+# answers 85, "different name and options". The same conflict either way.
+EXACTLY_ONE_TEXT_INDEX = 17194
+# The existing index's name in either server's message: `name: "sku_text"`
+# (MongoDB) or `"name" : "sku_text"` (DocumentDB).
+_EXISTING_NAME = re.compile(r'\bname"?\s*:\s*"([^"]+)"')
+
+
+def existing_index_name(message: str) -> str | None:
+    found = _EXISTING_NAME.search(message.partition("existing index:")[2])
+    return found.group(1) if found else None
 
 
 async def create_index_resilient(collection, keys, **options) -> None:
@@ -117,15 +147,15 @@ async def create_index_resilient(collection, keys, **options) -> None:
             # OperationFailure has no `errmsg` attribute in pymongo 4; reading it as a
             # .get() default raised AttributeError on every conflict this handles.
             msg = (exc.details or {}).get("errmsg") or str(exc)
-            if exc.code == 85 and "different name" in msg:
+            if (exc.code == 85 and "different name" in msg) or exc.code == EXACTLY_ONE_TEXT_INDEX:
                 other = None
                 # "... different name: part_1"
                 if "different name:" in msg:
                     other = msg.rsplit("different name:", 1)[-1].strip().rstrip(".")
-                # A text index (a collection holds one): "... different name and options.
-                # Requested index: {...}, existing index: { ..., name: "sku_text", ... }"
-                elif 'name: "' in msg.partition("existing index:")[2]:
-                    other = msg.partition("existing index:")[2].split('name: "', 1)[1].split('"', 1)[0]
+                # A text index (a collection holds one): "... Requested index: {...},
+                # existing index: { ..., name: "sku_text", ... }"
+                else:
+                    other = existing_index_name(msg)
                 if other and options.get("name") and other != options["name"]:
                     try:
                         await collection.drop_index(other)
@@ -180,7 +210,7 @@ READONLY_USER = "cbc_catalog_ro"
 
 
 def _readonly_password() -> str:
-    return os.environ.get("MONGODB_READONLY_PASSWORD", "cbc_catalog_ro_local_dev")
+    return os.environ.get("MONGODB_READONLY_PASSWORD", DEV_READONLY_PASSWORD)
 
 
 def readonly_uri() -> str | None:
@@ -196,6 +226,14 @@ def readonly_uri() -> str | None:
 
     parsed = urlsplit(settings.mongodb_uri)
     if not parsed.hostname:
+        return None
+    # A TLS or SRV URI is a managed cluster (Azure DocumentDB, or its local
+    # emulator), where read-only users exist only at cluster level and are
+    # provisioned by the cluster's owner. A derived URI would drop the TLS options
+    # and name a user that is not there, and every pricing pass would go MANUAL
+    # without saying why. None makes claude_pass refuse the job instead.
+    options = {key.lower(): value.lower() for key, value in parse_qsl(parsed.query)}
+    if parsed.scheme == "mongodb+srv" or "true" in (options.get("tls"), options.get("ssl")):
         return None
 
     host = parsed.hostname + (f":{parsed.port}" if parsed.port else "")
@@ -224,6 +262,8 @@ async def ensure_readonly_user() -> bool:
     """
     if os.environ.get("MONGODB_READONLY_URI"):
         return True
+    if readonly_uri() is None:  # a managed cluster: its owner provisions the user
+        return False
 
     database_name = settings.mongodb_db
     roles = [{"role": "read", "db": database_name}]

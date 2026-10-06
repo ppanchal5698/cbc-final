@@ -11,17 +11,41 @@
 # having already recreated some services.
 name: cbc-final
 
+# Every Azure service runs locally as an emulator - DocumentDB Local for the
+# database, Floci-AZ for Blob Storage and Key Vault - and the app talks to each
+# exactly as it will to Azure: TLS, real SDKs, real connection strings. Going to
+# production changes these values and nothing else. Each is overridable from the
+# shell or infra/.env, which is how the Azure values arrive.
 x-app-env: &app-env
-  MONGODB_URI: mongodb://cbc:${MONGO_ROOT_PASSWORD:-cbc_local_dev}@mongo:27017/cbc_opshub?authSource=admin&replicaSet=rs0
+  # Azure DocumentDB speaks the MongoDB wire protocol. tlsAllowInvalidCertificates
+  # is for the emulator's self-signed certificate; the production guard in
+  # cbc.shared.config refuses it anywhere real.
+  MONGODB_URI: ${MONGODB_URI:-mongodb://cbc:${MONGO_ROOT_PASSWORD:-cbc_local_dev}@documentdb:10260/cbc_opshub?authSource=admin&authMechanism=SCRAM-SHA-256&tls=true&tlsAllowInvalidCertificates=true&retryWrites=false}
   MONGODB_DB: cbc_opshub
-  # The credential the read-only MCP servers connect with - catalog, bid-docs,
-  # catalog-docs. Leave it empty and it is derived from MONGODB_URI by
-  # cbc.shared.mongo.readonly_uri(), against the user ensure_readonly_user()
-  # creates at API start-up. Set it when the cluster owner provisions the user
-  # instead, which is what production does: an explicit value always wins.
-  MONGODB_READONLY_URI: ${MONGODB_READONLY_URI:-}
-  # Single-node RS in compose enables multi-doc transactions; pytest stays off.
+  # The credential the read-only MCP servers connect with - catalog, bid-docs.
+  # DocumentDB users are cluster-level, so this is not derived from
+  # MONGODB_URI; docker/documentdb-init.sh creates the user locally, and
+  # production is handed its cluster's read-only user the same way.
+  MONGODB_READONLY_URI: ${MONGODB_READONLY_URI:-mongodb://cbc_catalog_ro:${MONGODB_READONLY_PASSWORD:-cbc_catalog_ro_local_dev}@documentdb:10260/cbc_opshub?authSource=admin&authMechanism=SCRAM-SHA-256&tls=true&tlsAllowInvalidCertificates=true&retryWrites=false}
+  # DocumentDB runs multi-document transactions (30 s cap); pytest stays off.
   MONGODB_TRANSACTIONS: ${MONGODB_TRANSACTIONS:-1}
+  # Blob keeps the durable copy of every project and price-book file; the bind
+  # mounts below stay the working copy. The key is a placeholder - Floci checks
+  # none in dev mode - kept short and fake so no real-looking storage key is ever
+  # committed (GitHub push protection rejects the published development key).
+  STORAGE_BACKEND: ${STORAGE_BACKEND:-azure}
+  AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING:-DefaultEndpointsProtocol=https;AccountName=devstoreaccount1;AccountKey=ZmxvY2ktZGV2LW5vdC1hLXNlY3JldA==;BlobEndpoint=https://floci:4577/devstoreaccount1;}
+  AZURE_STORAGE_CONTAINER: ${AZURE_STORAGE_CONTAINER:-cbc}
+  # Secrets load from Key Vault at container start (docker/entrypoint.sh) and
+  # fall back to the mounted .env when the vault is unreachable.
+  KEY_VAULT_URL: ${KEY_VAULT_URL:-https://floci:4577/devstoreaccount1-keyvault}
+  # Floci's certificate is self-signed; the entrypoint fetches it from here and
+  # trusts it for the Azure clients only. Empty in production.
+  AZURE_EMULATOR_CA_URL: ${AZURE_EMULATOR_CA_URL-https://floci:4577/_floci/tls-cert}
+  # Where it lands. Set here rather than exported by the entrypoint so that
+  # `docker compose exec` - the seed and sync scripts - sees it too. Empty in
+  # production, and its presence is what switches the clients to emulator terms.
+  AZURE_EMULATOR_CA: ${AZURE_EMULATOR_CA-/tmp/azure-emulator-ca.pem}
   STORAGE_ROOT: /app/data/projects
   PRICEBOOK_DIR: /app/data/pricebooks
   REFERENCE_DIR: /app/reference-library
@@ -39,12 +63,12 @@ x-app-env: &app-env
   MALWARE_SCAN_REQUIRED: ${MALWARE_SCAN_REQUIRED:-0}
   CLAMD_HOST: ${CLAMD_HOST:-clamav}
   CLAMD_PORT: ${CLAMD_PORT:-3310}
-  STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
-  S3_BUCKET: ${S3_BUCKET:-}
-  S3_REGION: ${S3_REGION:-us-east-1}
-  S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
-  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+  # The memory graph. Optional: with Neo4j down a bid still runs, and the curator
+  # catches up on its next sync.
+  NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+  NEO4J_USER: ${NEO4J_USER:-neo4j}
+  NEO4J_PASSWORD: ${NEO4J_PASSWORD:-cbc_graph_local_dev}
+  NEO4J_DATABASE: ${NEO4J_DATABASE:-neo4j}
 
 x-domain-volumes: &domain-volumes
   - ../data/projects:/app/data/projects
@@ -87,61 +111,99 @@ x-api-health: &api-health
   start_period: 20s
 
 services:
-  mongo:
-    image: mongo:7
-    container_name: cbc-final-mongo
+  # Azure DocumentDB, locally. Pinned: the job queue's partial unique index with
+  # `$in` needs documentdb#449, and documentdb-init.sh leans on the emulator's
+  # internals to create the read-only user.
+  documentdb:
+    image: ghcr.io/documentdb/documentdb/documentdb-local:pg17-0.117.0
+    container_name: cbc-final-documentdb
     restart: unless-stopped
-    entrypoint: ["bash", "/mongo-keyfile-entrypoint.sh"]
-    expose:
-      - "27017"
-    # Published to the host so the characterization and integration suites can run
-    # from a normal shell - without it 575 of them skip with "MongoDB is not
-    # reachable at localhost:27017" and a new endpoint's contract snapshot cannot
-    # be recorded at all. Bound to 127.0.0.1, not 0.0.0.0: this is a dev database
-    # whose password defaults to `cbc_local_dev`, and it has no business being
-    # reachable from the network the laptop is on.
-    ports:
-      - "127.0.0.1:27017:27017"
+    # The stock entrypoint, plus the read-only user MONGODB_READONLY_URI names.
+    entrypoint: ["bash", "/documentdb-init.sh"]
     environment:
-      MONGO_INITDB_ROOT_USERNAME: cbc
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-cbc_local_dev}
-      MONGO_INITDB_DATABASE: cbc_opshub
+      USERNAME: cbc
+      PASSWORD: ${MONGO_ROOT_PASSWORD:-cbc_local_dev}
+      MONGODB_READONLY_PASSWORD: ${MONGODB_READONLY_PASSWORD:-cbc_catalog_ro_local_dev}
+    expose:
+      - "10260"
+    # Published to the host so the integration suites can run from a normal
+    # shell. Bound to 127.0.0.1: a dev database whose password defaults to
+    # `cbc_local_dev` has no business being reachable from the laptop's network.
+    ports:
+      - "127.0.0.1:10260:10260"
     volumes:
-      - mongo_data:/data/db
-      - ./docker/mongo-keyfile:/mongo-keyfile:ro
-      - ./docker/mongo-keyfile-entrypoint.sh:/mongo-keyfile-entrypoint.sh:ro
+      # Not `documentdb_data`: another checkout of this app uses that name under
+      # the same compose project, and its data has a different schema.
+      - opshub_documentdb:/data
+      - ./docker/documentdb-init.sh:/documentdb-init.sh:ro
+    # Healthy once the read-only user can sign in, so the catalog servers'
+    # credential exists before anything that hands it out starts.
     healthcheck:
       test:
         [
           "CMD",
           "mongosh",
           "--quiet",
-          "-u",
-          "cbc",
-          "-p",
-          "${MONGO_ROOT_PASSWORD:-cbc_local_dev}",
-          "--authenticationDatabase",
-          "admin",
+          "mongodb://cbc_catalog_ro:${MONGODB_READONLY_PASSWORD:-cbc_catalog_ro_local_dev}@localhost:10260/?authSource=admin&authMechanism=SCRAM-SHA-256&tls=true&tlsAllowInvalidCertificates=true",
           "--eval",
-          "db.adminCommand('ping')",
+          "db.adminCommand({ping: 1}).ok",
         ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 20s
 
-  # Idempotent single-node replica set init (local compose only; multi-node HA is ops).
-  mongo-init:
-    image: mongo:7
-    container_name: cbc-final-mongo-init
-    depends_on:
-      mongo:
-        condition: service_healthy
-    restart: "no"
+  # Azure Blob Storage and Key Vault, locally. TLS on, because the Key Vault SDK
+  # refuses a bearer token over plain http - and it is what production speaks.
+  # FLOCI_AZ_HOSTNAME puts `floci` in the certificate, so the app can verify it.
+  # No docker.sock: that is only for the emulated services that start real
+  # engines, and neither of these does.
+  floci:
+    image: floci/floci-az:0.13.0
+    container_name: cbc-final-floci
+    restart: unless-stopped
     environment:
-      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-cbc_local_dev}
+      FLOCI_AZ_TLS_ENABLED: "true"
+      FLOCI_AZ_HOSTNAME: floci
+      FLOCI_AZ_STORAGE_MODE: persistent
+    expose:
+      - "4577"
+    # Published on 127.0.0.1 for native runs, the storage tests and seeding the
+    # vault from the host (apps/backend/scripts/seed_key_vault.py).
+    ports:
+      - "127.0.0.1:4577:4577"
     volumes:
-      - ./docker/mongo-rs-init.sh:/mongo-rs-init.sh:ro
-    entrypoint: ["bash", "/mongo-rs-init.sh"]
+      - floci_data:/app/data
+
+  # The memory graph: vendors, multipliers, customers, catalog items, reference data
+  # and every approved bid's workflow, connected. DocumentDB stays the system of
+  # record; the memory curator (modules/memory) keeps this a connected copy of it
+  # plus what approved bids taught. 5.26 is the LTS line. Browser on
+  # http://localhost:7474, bolt on 7687 - both bound to this machine only.
+  neo4j:
+    image: neo4j:5.26-community
+    container_name: cbc-final-neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-cbc_graph_local_dev}
+      # The image reads every NEO4J_* variable as a server setting and refuses
+      # to start on one it does not know, so the health check's copy of the
+      # password goes under another name.
+      GRAPH_HEALTH_PASSWORD: ${NEO4J_PASSWORD:-cbc_graph_local_dev}
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    ports:
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${GRAPH_HEALTH_PASSWORD}\" 'RETURN 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
 
   clamav:
     image: clamav/clamav:stable
@@ -168,31 +230,24 @@ services:
     restart: unless-stopped
     expose:
       - "8001"
-    env_file:
-      # The machine identity for Infisical, and nothing else. Absent means
-      # secrets come from the mounted .env exactly as before. Deliberately NOT
-      # ../.env: promoting that file to process environment would make
-      # provider.build_env report every credential as `env` and lock the
-      # Settings screen against its own operator - and it holds native-run
-      # values (CLAMD_HOST=127.0.0.1, MALWARE_SCAN=off) that are wrong in here.
-      - path: ./infisical-client.env
-        required: false
     environment:
       <<: *app-env
       SERVICE_AUDIENCE: platform
     volumes: *domain-volumes
     depends_on:
-      mongo:
+      documentdb:
         condition: service_healthy
-      mongo-init:
-        condition: service_completed_successfully
+      floci:
+        condition: service_healthy
       clamav:
         condition: service_started
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
       <<: *api-health
-      start_period: 25s
+      # Building every index on a fresh DocumentDB volume takes a couple of
+      # minutes; a 25 s grace marked the API unhealthy before it had started.
+      start_period: 300s
 
   worker:
     build:
@@ -202,15 +257,6 @@ services:
     image: cbc-final-worker:latest
     container_name: cbc-final-worker
     restart: unless-stopped
-    env_file:
-      # The machine identity for Infisical, and nothing else. Absent means
-      # secrets come from the mounted .env exactly as before. Deliberately NOT
-      # ../.env: promoting that file to process environment would make
-      # provider.build_env report every credential as `env` and lock the
-      # Settings screen against its own operator - and it holds native-run
-      # values (CLAMD_HOST=127.0.0.1, MALWARE_SCAN=off) that are wrong in here.
-      - path: ./infisical-client.env
-        required: false
     environment:
       <<: *worker-env
       WORKER_CLAIM_ALL: "1"
@@ -225,10 +271,10 @@ services:
       - cbc_cache:/app/.cache
       - claude_home:/home/cbc/.claude
     depends_on:
-      mongo:
+      documentdb:
         condition: service_healthy
-      mongo-init:
-        condition: service_completed_successfully
+      floci:
+        condition: service_healthy
       platform:
         condition: service_healthy
     extra_hosts:
@@ -313,15 +359,6 @@ services:
     image: cbc-final-worker:latest
     container_name: cbc-final-parser
     restart: unless-stopped
-    env_file:
-      # The machine identity for Infisical, and nothing else. Absent means
-      # secrets come from the mounted .env exactly as before. Deliberately NOT
-      # ../.env: promoting that file to process environment would make
-      # provider.build_env report every credential as `env` and lock the
-      # Settings screen against its own operator - and it holds native-run
-      # values (CLAMD_HOST=127.0.0.1, MALWARE_SCAN=off) that are wrong in here.
-      - path: ./infisical-client.env
-        required: false
     environment:
       <<: *worker-env
       WORKER_DOMAIN: parsing
@@ -336,10 +373,10 @@ services:
       - cbc_cache:/app/.cache
       - claude_home:/home/cbc/.claude
     depends_on:
-      mongo:
+      documentdb:
         condition: service_healthy
-      mongo-init:
-        condition: service_completed_successfully
+      floci:
+        condition: service_healthy
       platform:
         condition: service_healthy
     extra_hosts:
@@ -362,138 +399,22 @@ services:
       platform:
         condition: service_healthy
 
-  certbot:
-    image: certbot/certbot:v3.1.0
-    container_name: cbc-final-certbot
-    restart: unless-stopped
-    volumes:
-      - certbot_conf:/etc/letsencrypt
-      - certbot_www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
-
-  tunnel:
-    image: cloudflare/cloudflared:latest
-    container_name: cbc-final-tunnel
-    restart: unless-stopped
-    # Default is a *quick* tunnel: no account, a random trycloudflare.com
-    # hostname, and - in cloudflared's own words on the first line of its log -
-    # "no uptime guarantee". The URL changes on every start, and when Cloudflare
-    # drops the tunnel the process does not exit. It retries the same tunnel id
-    # forever, logging `Unauthorized: Tunnel not found`, so `restart:
-    # unless-stopped` never fires and the container sits there looking healthy
-    # while the URL is dead. One ran 262 consecutive failed retries before anyone
-    # noticed.
-    #
-    # For a hostname that survives a restart, create a named tunnel in the
-    # Cloudflare dashboard and put its token in .env:
-    #
-    #     CLOUDFLARED_ARGS=run --token eyJhIjoi...
-    #
-    # The image is distroless - no shell - so this cannot branch at runtime; the
-    # argument list is chosen here instead.
-    command: tunnel --no-autoupdate ${CLOUDFLARED_ARGS:---url http://nginx:80}
-
-  # ── Infisical: the secrets manager ──────────────────────────────────────
-  # Opt-in, behind the `secrets` profile, so the documented
-  # `docker compose -f infra/docker-compose.yml up -d --build` is unchanged
-  # until someone asks for it:
-  #
-  #     docker compose -f infra/docker-compose.yml --profile secrets up -d
-  #
-  # Its own bootstrap credentials cannot live in Infisical, so they come from
-  # `infra/infisical.env` (gitignored, see infisical.env.example). That is a
-  # separate file from the app's `.env` on purpose - piping the app's `.env`
-  # in here would hand every application secret to the container that is
-  # supposed to be replacing it.
-  #
-  # `env_file` is read at container-create time and needs no `--env-file`, which
-  # matters: compose does NOT read the repo-root `.env` (its project directory
-  # is infra/), and that root file holds native-run values - CLAMD_HOST=127.0.0.1,
-  # MALWARE_SCAN=off - that are wrong inside compose. Do not "fix" that by
-  # adding --env-file.
-  infisical-db:
-    image: postgres:14-alpine
-    container_name: cbc-final-infisical-db
-    profiles: ["secrets"]
-    restart: unless-stopped
-    env_file:
-      - path: ./infisical.env
-        required: false
-    environment:
-      POSTGRES_USER: ${INFISICAL_DB_USER:-infisical}
-      POSTGRES_PASSWORD: ${INFISICAL_DB_PASSWORD:-infisical}
-      POSTGRES_DB: ${INFISICAL_DB_NAME:-infisical}
-    volumes:
-      - infisical_db:/var/lib/postgresql/data
-    networks:
-      - secrets
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready --username=$${POSTGRES_USER}"]
-      interval: 5s
-      timeout: 10s
-      retries: 10
-
-  infisical-redis:
-    image: redis:7-alpine
-    container_name: cbc-final-infisical-redis
-    profiles: ["secrets"]
-    restart: unless-stopped
-    networks:
-      - secrets
-    volumes:
-      - infisical_redis:/data
-
-  infisical:
-    # Pinned. `latest` on a store that holds every credential you own is a
-    # silent, unreviewed upgrade of the thing guarding them.
-    image: infisical/infisical:v0.165.15
-    container_name: cbc-final-infisical
-    profiles: ["secrets"]
-    restart: unless-stopped
-    depends_on:
-      infisical-db:
-        condition: service_healthy
-      infisical-redis:
-        condition: service_started
-    env_file:
-      - path: ./infisical.env
-        required: false
-    environment:
-      NODE_ENV: production
-      # ENCRYPTION_KEY and AUTH_SECRET come from infisical.env and have no
-      # default here on purpose. Infisical refuses to boot without them, which
-      # is the correct failure: a default would mean the secret store is
-      # encrypted with a key that is in a public git repository.
-      DB_CONNECTION_URI: postgres://${INFISICAL_DB_USER:-infisical}:${INFISICAL_DB_PASSWORD:-infisical}@infisical-db:5432/${INFISICAL_DB_NAME:-infisical}
-      REDIS_URL: redis://infisical-redis:6379
-      SITE_URL: ${INFISICAL_SITE_URL:-http://localhost:8080}
-      TELEMETRY_ENABLED: ${INFISICAL_TELEMETRY_ENABLED:-false}
-    ports:
-      - "${INFISICAL_PORT:-8080}:8080"
-    networks:
-      # `default` as well as `secrets`: platform, worker and parser resolve it
-      # as http://infisical:8080 from there. Postgres and Redis stay off it.
-      - default
-      - secrets
-
+# No certbot or tunnel service: this machine serves no public domain. nginx still
+# mounts the certificate volumes for its 443 block; renew them by hand, or bring
+# the certbot service back, before pointing a real domain here.
 volumes:
-  mongo_data:
+  neo4j_data:
+  opshub_documentdb:
+  floci_data:
   claude_home:
   cbc_cache:
   clamav_data:
   certbot_conf:
   certbot_www:
-  infisical_db:
-  infisical_redis:
 
 networks:
   default:
     name: cbc-final
   llm:
     name: cbc-final-llm
-    internal: true
-  # Postgres and Redis hold the decrypted secret store. Nothing outside
-  # Infisical itself has a route to them.
-  secrets:
-    name: cbc-final-secrets
     internal: true

@@ -13,7 +13,6 @@ import asyncio
 import logging
 import os
 import shutil
-import threading
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -49,15 +48,35 @@ PIPELINE_MAX_TURNS = int(os.environ.get("WORKER_PIPELINE_MAX_TURNS", "200"))
 # ponytail: measure it off a .runs leg log once W1 cohorts show the callCount.
 WAVE_LEG_MAX_TURNS = int(os.environ.get("WORKER_WAVE_LEG_MAX_TURNS", "80"))
 
-# (timeout seconds, max turns) per job type. Extraction is a multi-phase wave on a
-# set that can be 744 pages; the one-phase JOB_TIMEOUT/MAX_TURNS starved it, and the
-# pipeline budget it needed used to go only to run_full_pipeline - which is retired
-# and refused by the API, so nothing that actually runs received it. run_full_pipeline
-# stays in the table because _CLAIM_ALL_EXTRA still claims requeued historical jobs.
-LIMITS: dict[str, tuple[int, int]] = {
-    "run_full_pipeline": (PIPELINE_TIMEOUT, PIPELINE_MAX_TURNS),
-    "extract_bid_set": (PIPELINE_TIMEOUT, PIPELINE_MAX_TURNS),
-    "rerun_extraction": (PIPELINE_TIMEOUT, PIPELINE_MAX_TURNS),
+# Tokens one `claude` invocation may spend - input, cache writes and output; cache
+# reads are not counted. Like turns it applies per invocation, so per wave leg.
+# Turns and wall clock bound how long a run wanders, not what it costs: a pass
+# reading page images can spend a day's budget in forty turns.
+#
+# Set from runMetrics (2026-10, primary-model tokens per leg): extract_bid_set
+# p95 567k over 60 runs, max 936k; match_and_price p95 345k over 14, max 456k.
+# About twice the p95. The live count covers every model, the recorded one only
+# the primary, which the margin also absorbs.
+EXTRACT_TOKEN_BUDGET = 1_200_000
+MATCH_TOKEN_BUDGET = 700_000
+# ponytail: uncalibrated - build_proposal and rerun_extraction had two runs each
+# and the rest none. Re-run the runMetrics p95 once they have twenty.
+TOKEN_BUDGET = 2_000_000
+PIPELINE_TOKEN_BUDGET = 3_000_000
+# One budget for every job type when set; "0" turns the budget off.
+_TOKEN_BUDGET_OVERRIDE = os.environ.get("WORKER_TOKEN_BUDGET", "").strip()
+
+# (timeout seconds, max turns, max tokens) per job type. Extraction is a multi-phase
+# wave on a set that can be 744 pages; the one-phase JOB_TIMEOUT/MAX_TURNS starved
+# it, and the pipeline budget it needed used to go only to run_full_pipeline - which
+# is retired and refused by the API, so nothing that actually runs received it.
+# run_full_pipeline stays in the table because _CLAIM_ALL_EXTRA still claims
+# requeued historical jobs.
+LIMITS: dict[str, tuple[int, int, int]] = {
+    "run_full_pipeline": (PIPELINE_TIMEOUT, PIPELINE_MAX_TURNS, PIPELINE_TOKEN_BUDGET),
+    "extract_bid_set": (PIPELINE_TIMEOUT, PIPELINE_MAX_TURNS, EXTRACT_TOKEN_BUDGET),
+    "rerun_extraction": (PIPELINE_TIMEOUT, PIPELINE_MAX_TURNS, EXTRACT_TOKEN_BUDGET),
+    "match_and_price": (JOB_TIMEOUT, MAX_TURNS, MATCH_TOKEN_BUDGET),
 }
 
 # How long the first wave leg gets on its own before the rest follow.
@@ -120,9 +139,23 @@ def _combine(legs: list[WavePass], results: list[runner.RunResult]) -> runner.Ru
     )
 
 
-def limits_for(job_type: str) -> tuple[int, int]:
-    """(timeout seconds, max turns) for a job type."""
-    return LIMITS.get(job_type, (JOB_TIMEOUT, MAX_TURNS))
+def limits_for(job_type: str) -> tuple[int, int, int]:
+    """(timeout seconds, max turns, max tokens) for a job type. 0 tokens is no budget."""
+    timeout, turns, tokens = LIMITS.get(job_type, (JOB_TIMEOUT, MAX_TURNS, TOKEN_BUDGET))
+    if _TOKEN_BUDGET_OVERRIDE:
+        tokens = int(_TOKEN_BUDGET_OVERRIDE)
+    return timeout, turns, tokens
+
+
+def _spent(event: dict[str, Any]) -> tuple[str | None, int]:
+    """(message id, tokens it cost) for one assistant event - cache reads excluded."""
+    message = event.get("message") or {}
+    usage = message.get("usage") or {}
+    tokens = sum(
+        int(usage.get(key) or 0)
+        for key in ("input_tokens", "cache_creation_input_tokens", "output_tokens")
+    )
+    return message.get("id"), tokens
 
 
 # A retry may pick up the session its own leg left behind, and only that one.
@@ -290,22 +323,31 @@ async def run(
         ]
     await ops_jobs.set_fields(job["_id"], fields)
 
-    timeout, max_turns = limits_for(job["type"])
+    timeout, max_turns, max_tokens = limits_for(job["type"])
     # A wave splits the job's work across legs, each doing a fraction of it, so a
     # leg is capped lower than the whole-job budget the orchestrator path gets.
     leg_max_turns = WAVE_LEG_MAX_TURNS if len(legs) > 1 else max_turns
-    cancel_event = threading.Event()
+    worker_id = job.get("workerId", ops_worker.WORKER_ID)
+    claim_gen = job.get("claimGeneration", 0)
+    # Why every leg should stop, once something says so. Written by the watch
+    # below on the loop, read by the legs' threads; the first reason sticks.
+    stopped: list[str] = []
 
     async def watch_cancel() -> None:
-        while not cancel_event.is_set():
+        while not stopped:
             # A shutdown stops the subprocess the same way a cancel does. Without
             # this the container's grace period expires mid-run and the job is
             # SIGKILLed into a permanent `running`.
             if ops_worker.stopping():
-                cancel_event.set()
+                stopped.append("worker shutting down")
                 return
-            if await ops_worker.job_cancelled(job["_id"]):
-                cancel_event.set()
+            try:
+                reason = await ops_worker.stop_reason(job["_id"], worker_id, claim_gen)
+            except Exception as exc:  # noqa: BLE001 - a missed poll is not a stop
+                log.warning("cancel check for job %s failed: %s", job["_id"], exc)
+                reason = None
+            if reason:
+                stopped.append(reason)
                 return
             await asyncio.sleep(1)
 
@@ -335,8 +377,6 @@ async def run(
         await watch(project, progress_dir)
 
     loop = asyncio.get_running_loop()
-    worker_id = job.get("workerId", ops_worker.WORKER_ID)
-    claim_gen = job.get("claimGeneration", 0)
 
     def ping() -> None:
         async def _write() -> None:
@@ -356,6 +396,22 @@ async def run(
         resume = prior_sessions.get(leg.label or "")
 
         def _go(session: str | None, prompt: str):
+            # Per invocation, like turns. stream-json re-emits a message as it
+            # streams, each copy with the same usage, so it is counted by id.
+            spent: dict[str, int] = {}
+
+            def on_event(event: dict[str, Any]) -> None:
+                message_id, tokens = _spent(event)
+                spent[message_id or f"_event{len(spent)}"] = tokens
+
+            def cancel_check() -> str | None:
+                if stopped:
+                    return stopped[0]
+                total = sum(spent.values())
+                if max_tokens and total > max_tokens:
+                    return f"token budget exceeded ({total} > {max_tokens})"
+                return None
+
             kwargs = dict(
                 prompt=prompt,
                 timeout=timeout,
@@ -364,7 +420,7 @@ async def run(
                 recording=leg_recording,
                 job_type=job["type"],
                 max_turns=leg_max_turns,
-                cancel_check=cancel_event.is_set,
+                cancel_check=cancel_check,
                 settings=provider.claude_settings_overlay(config),
                 on_heartbeat=ping,
                 heartbeat_seconds=ops_worker.HEARTBEAT_SECONDS,
@@ -372,8 +428,11 @@ async def run(
                 resume_session_id=session,
             )
             if sandbox_mod.mode() == "docker":
-                return sandbox_mod.run_claude_docker(**kwargs)
-            return runner.run_claude(**kwargs)
+                # Named per claim, so a re-claimed job's container never collides
+                # with the one its reaped predecessor is still stopping.
+                name = f"cbc-{job['_id']}-g{claim_gen}-{leg.label or 'main'}"
+                return sandbox_mod.run_claude_docker(**kwargs, container_name=name)
+            return runner.run_claude(**kwargs, on_event=on_event)
 
         if not resume:
             return _go(None, leg.prompt)
@@ -436,7 +495,10 @@ async def run(
             )
             result = _combine(legs, leg_results)
     finally:
-        cancel_event.set()
+        # A pass torn down by an exception or a task cancel still has leg threads
+        # running claude; give them a reason so they stop rather than finish alone.
+        if not stopped:
+            stopped.append("pass ended")
         watcher.cancel()
         heartbeat.cancel()
         progress_watcher.cancel()

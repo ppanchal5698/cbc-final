@@ -7,11 +7,16 @@ from typing import Any
 from fastapi import APIRouter
 
 from cbc.modules.projects.api.lookup import load
-from cbc.modules.quoting.infrastructure.proposal_view import proposal_payload
+from cbc.modules.quoting.infrastructure.proposal_view import export_for_review, proposal_payload
 
 router = APIRouter(prefix="/api/projects/{code}/proposal", tags=["proposal"])
 
 
 @router.get("")
 async def get_proposal(code: str) -> dict[str, Any]:
-    return await proposal_payload(await load(code))
+    # Exported here as well as on approval: the screen disables Approve on
+    # `readiness.blocking`, so a flag computed from stale files would hold a
+    # line the estimator has already fixed with no way to press the button.
+    project = await load(code)
+    await export_for_review(project)
+    return await proposal_payload(project)

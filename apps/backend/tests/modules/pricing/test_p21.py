@@ -29,6 +29,28 @@ def test_a_fresh_po_is_priced(monkeypatch) -> None:
     assert result is not None and result["cost"] == 42.0
 
 
+def test_the_seed_asks_p21_what_the_mcp_client_asks(monkeypatch) -> None:
+    """Path, key and timeout come from the envs mcp-servers/p21-connector/client.py
+    reads, so the seed and the agent cannot be calling two different endpoints."""
+    monkeypatch.setenv("P21_BASE_URL", "http://p21.local/")
+    monkeypatch.setenv("P21_API_KEY", "k")
+    monkeypatch.setenv("P21_TIMEOUT_SECONDS", "3")
+    monkeypatch.delenv("P21_LOOKUP_PATH", raising=False)
+    seen = {}
+
+    def fake_urlopen(request, timeout):
+        seen.update(url=request.full_url, auth=request.get_header("Authorization"), timeout=timeout)
+        raise OSError("stop here")
+
+    monkeypatch.setattr(p21.urllib.request, "urlopen", fake_urlopen)
+    assert p21.P21Client().last_po("BB 1279", "Hager") is None
+    assert seen == {
+        "url": "http://p21.local/api/items/BB%201279/last-po?vendor=Hager",
+        "auth": "Bearer k",
+        "timeout": 3.0,
+    }
+
+
 def test_a_stale_po_is_written_nowhere(monkeypatch) -> None:
     monkeypatch.setenv("P21_BASE_URL", "http://p21.local")
     monkeypatch.setattr(p21, "_get", lambda url, **k: {"last_po_price": 42.0, "po_date": "2010-01-01"})
@@ -37,7 +59,7 @@ def test_a_stale_po_is_written_nowhere(monkeypatch) -> None:
 
 def test_an_unreliable_po_is_context_not_cost(monkeypatch) -> None:
     monkeypatch.setenv("P21_BASE_URL", "http://p21.local")
-    old = (date.today() - timedelta(days=300)).isoformat()  # >6mo, <3yr
+    old = (date.today() - timedelta(days=400)).isoformat()  # past the year, <3yr
     monkeypatch.setattr(p21, "_get", lambda url, **k: {"last_po_price": 42.0, "po_date": old})
     result = p21.P21Client().last_po("X", "Hager")
     assert result is not None and result.get("cost") is None
@@ -86,3 +108,15 @@ def test_the_breaker_stops_after_one_failure(monkeypatch) -> None:
     assert client.last_po("A", "Hager") is None
     assert client.last_po("B", "Hager") is None
     assert calls["n"] == 1, "the breaker must not keep dialling a dead endpoint"
+
+
+def test_the_line_shows_the_last_pos_price_date_and_vendor(monkeypatch) -> None:
+    """Requirements 7.3: show last-PO price, date, and vendor."""
+    monkeypatch.setenv("P21_BASE_URL", "http://p21.local")
+    today = date.today().isoformat()
+    monkeypatch.setattr(p21, "_get", lambda url, **k: {"last_po_price": 1256.5, "po_date": today,
+                                                       "vendor_name": "Hager Companies"})
+    detail = p21.P21Client().last_po("3580", "Hager")["detail"]
+    assert detail == f"P21 last PO $1,256.50 on {today} from Hager Companies (fresh)"
+    monkeypatch.setattr(p21, "_get", lambda url, **k: {"last_po_price": 42.0, "po_date": today})
+    assert p21.P21Client().last_po("3580")["detail"] == f"P21 last PO $42.00 on {today} (fresh)"

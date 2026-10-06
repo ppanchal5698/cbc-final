@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import parse_schedule as ps
+from cbc.modules.extraction.infrastructure import schedule_parser as ps
 
 
 def test_parse_size_inches_pair() -> None:

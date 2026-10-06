@@ -16,6 +16,8 @@ def register(app) -> None:
         Finishes,
         FrameDepths,
         FrpConstants,
+        HardwareEquals,
+        Stewardship,
         LiteKit,
         Margins,
         SpecialMargins,
@@ -34,11 +36,13 @@ def register(app) -> None:
         Finishes,
         FrameDepths,
         FrpConstants,
+        Stewardship,
         VendorTiers,
         SpecialNets,
         LiteKit,
         Stock,
         CustomOtherMatrix,
+        HardwareEquals,
         DeleteEntry,
     ):
         app.include_router(feature.router)

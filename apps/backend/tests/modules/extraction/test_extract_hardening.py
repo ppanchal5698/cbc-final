@@ -28,7 +28,9 @@ def test_post_extraction_blocks_invalid_scope_summary(tmp_path, monkeypatch) -> 
     sys.path.insert(0, str(hooks))
     import post_extraction_validate as pev
 
-    monkeypatch.setattr(pev, "ROOT", tmp_path)
+    # The hook finds the bid through the same roots as storage_root(); STORAGE_ROOT
+    # is the one a test can point at a temp dir.
+    monkeypatch.delenv("CBC_PROJECTS_ROOT", raising=False)
     monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "projects"))
     project = "demo"
     path = tmp_path / "projects" / project / "extracted" / "scope_summary.json"

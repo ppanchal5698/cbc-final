@@ -82,6 +82,7 @@ async def test_a_bid_set_over_the_page_cap_imports_nothing(monkeypatch) -> None:
     monkeypatch.setattr(passes.bids, "note_phase", AsyncMock())
     monkeypatch.setattr(passes.ops_worker, "finish", AsyncMock())
     monkeypatch.setattr(passes, "EXTRACT_MAX_PDF_PAGES", 100)
+    monkeypatch.setattr(passes.ops_pipeline, "extraction_engine", AsyncMock(return_value="legacy"))
 
     from cbc.modules.extraction.api import line_items
 
@@ -90,3 +91,15 @@ async def test_a_bid_set_over_the_page_cap_imports_nothing(monkeypatch) -> None:
 
     assert await passes.prepare(job, project, {}) is False
     imported.assert_not_awaited()
+
+    # Read in code, a set that size is a drawing set with its project manual - the
+    # cap guards the Claude pass's tokens, and in code no page costs one.
+    class PastTheCap(Exception):
+        pass
+
+    monkeypatch.setattr(passes.ops_pipeline, "extraction_engine", AsyncMock(return_value="v2"))
+    monkeypatch.setattr(line_items, "import_extraction", AsyncMock(side_effect=PastTheCap))
+    passes.ops_worker.finish.reset_mock()
+    with pytest.raises(PastTheCap):
+        await passes.prepare(job, project, {})
+    passes.ops_worker.finish.assert_not_awaited()

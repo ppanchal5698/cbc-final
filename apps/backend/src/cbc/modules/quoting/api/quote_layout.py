@@ -12,7 +12,7 @@ receives - collapsed each section into a single group named after the section, s
 It also dropped `substitution_note`. `_render_proposal_html` built each line dict
 by hand and simply had no key for it, so a direct equal printed as the substituted
 part with no mention that it was a substitution - while
-`.claude/rules/accuracy-trust.md` requires the note "naming what was specified and
+`.claude/guides/extraction.md` requires the note "naming what was specified and
 what is being offered instead" on every one. The template has always had a place
 to print it; the API path never gave it one.
 
@@ -21,6 +21,7 @@ into `Line` and get the same document back.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Iterable
 
 # Order is the order they print in. `other` exists because a division nobody
@@ -33,6 +34,12 @@ SECTIONS: tuple[tuple[str, str], ...] = (
 )
 
 SECTION_TITLES = dict(SECTIONS)
+
+# A hardware set as a legend names it - `01`, `E1`, `H-1` - which reads as a set
+# only with the words in front of it; `Doors`, `Frames` or a room print as they are.
+# A set's name as a legend or a schedule writes it - "02", "HW-3", and "GROUP 05"
+# for a set the schedule cites that the legend never listed - and its number.
+_BARE_SET = re.compile(r"^(?:(?:HARDWARE\s+|HW\s*)?(?:GROUP|SET)\s*(?:NO\.?\s*)?)?([A-Z]{0,3}-?[0-9]{1,3}[A-Z]?)$", re.I)
 
 
 def section_of(division: str | None, group_type: str | None = None) -> str:
@@ -49,8 +56,8 @@ def section_of(division: str | None, group_type: str | None = None) -> str:
     code = str(division).strip()
     if code.startswith("10"):
         return "accessories"
-    if code.startswith("06"):
-        return "frp"
+    if code.startswith("06") or code.startswith("09 77"):
+        return "frp"  # FRP: 06 64, or 09 77 where a spec book files it
     if code.startswith("08"):
         return "door"
     return "other"
@@ -63,14 +70,24 @@ def _money(value: Any) -> float:
         return 0.0
 
 
-def blocks(lines: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+def natural(text: Any) -> list[Any]:
+    """Set 9 before set 10, door 2 before door 10."""
+    return [(0, int(part)) if part.isdigit() else (1, part.lower()) for part in re.split(r"(\d+)", str(text)) if part]
+
+
+def blocks(lines: Iterable[dict[str, Any]], ratings: dict[str, str] | None = None) -> list[dict[str, Any]]:
     """Sections in print order, each grouped by door, each group subtotalled.
 
-    A line's `group` is the door it belongs to. Lines with no group - freight,
-    a standalone accessory - fall into a group named for the section, which is
-    the FR-7 shape too: the accessories block is one block, not one block per
-    accessory.
+    A line's `group` is what it is grouped under: the hardware set a take-off
+    line prices for the doors that cite it, or the door itself. Each group names
+    its doors (`doors`) and their fire ratings (`ratings`, from the take-off by
+    mark), so a set priced once for three doors still says which three, and at
+    what rating. Lines with no group - freight, a standalone accessory - fall into
+    a group named for the section, which is the FR-7 shape too: the accessories
+    block is one block, not one block per accessory.
     """
+    lines = list(lines)
+    rated = ratings or {}
     out: list[dict[str, Any]] = []
     for key, title in SECTIONS:
         groups: dict[str, dict[str, Any]] = {}
@@ -89,9 +106,24 @@ def blocks(lines: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
             )
             group["lines"].append(line)
             group["subtotal"] = round(group["subtotal"] + _money(line.get("ext_price")), 2)
+            doors = group.setdefault("doors", [])
+            doors.extend(d for d in line.get("openings") or [] if d not in doors)
         if not groups:
             continue
-        ordered = [groups[name] for name in sorted(groups)]
+        for group in groups.values():
+            # Doors 1, 2, 3 ... 10 - not in the order the lines happened to name them.
+            doors = group["doors"] = sorted(group.get("doors") or [], key=natural)
+            group["ratings"] = sorted({rated[d] for d in doors if rated.get(d)})
+            # One rating for the group when its doors share one; each door's own
+            # when they differ - "20 MIN / 90 MIN" would not say which is which.
+            group["door_labels"] = (
+                [f"{d} ({rated[d]})" if rated.get(d) else d for d in doors] if len(group["ratings"]) > 1 else doors
+            )
+            # A group with a line still to price has no total yet - not $0.00.
+            group["complete"] = all(line.get("ext_price") is not None for line in group["lines"])
+            named = _BARE_SET.match(group["name"]) if key == "door" else None
+            group["title"] = f"Hardware set {named.group(1)}" if named else group["name"]
+        ordered = [groups[name] for name in sorted(groups, key=natural)]
         out.append(
             {
                 "key": key,
@@ -99,6 +131,7 @@ def blocks(lines: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
                 "groups": ordered,
                 "lines": [line for group in ordered for line in group["lines"]],
                 "subtotal": round(sum(group["subtotal"] for group in ordered), 2),
+                "complete": all(group["complete"] for group in ordered),
             }
         )
     return out
@@ -120,6 +153,10 @@ def line(
     margin: Any = None,
     flags: list[str] | None = None,
     price_status: str | None = None,
+    manufacturer: str | None = None,
+    openings: list[str] | None = None,
+    qty_per_opening: Any = None,
+    uom: str = "EA",
 ) -> dict[str, Any]:
     """One printable line, in the shape the template reads.
 
@@ -142,4 +179,8 @@ def line(
         "margin": margin,
         "flags": flags or [],
         "price_status": price_status,
+        "manufacturer": manufacturer,
+        "openings": list(openings or []),
+        "qty_per_opening": qty_per_opening,
+        "uom": uom,
     }

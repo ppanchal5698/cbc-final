@@ -321,9 +321,13 @@ def text_looks_like_schedule_title_only(text: str, word_count: int) -> bool:
 # needs the number in the first cell plus two of these in the same row.
 CORROBORATING = ("room_name", "width", "height", "size", "hardware_set", "door_type")
 
+# A door mark: `101`, `07A`, a four-digit `1001`, and the letter-led `A12`,
+# `D-01`, `ST.3`. A rule that took only one to three digits re-found no row for
+# the others, and they reached review with no highlight.
+MARK = r"(?:[A-Z]{1,3}[-.]?)?\d{1,4}[A-Z]?"
 # Dutch Bros (and similar) glue the mark to the width: first cell reads
 # `01 3' - 6"` instead of a bare `01`.
-_MARK_PREFIX = re.compile(r"^(\d{1,3}[A-Z]?)\b", re.IGNORECASE)
+_MARK_PREFIX = re.compile(rf"^({MARK})\b", re.IGNORECASE)
 _SIZE_4DIGIT = re.compile(r"^([2-9])([0-9])([4-9])([0-9])$")
 
 
@@ -331,7 +335,7 @@ def _first_cell_mark(cell: str) -> str | None:
     text = (cell or "").strip()
     if not text:
         return None
-    if re.fullmatch(r"\d{1,3}[A-Z]?", text, re.IGNORECASE):
+    if re.fullmatch(MARK, text, re.IGNORECASE):
         return text
     match = _MARK_PREFIX.match(text)
     return match.group(1) if match else None
@@ -372,7 +376,7 @@ def _carries_another_mark(cell: str, other_marks: set[str]) -> bool:
     """
     tokens = (cell or "").split()
     return any(
-        token in other_marks and re.fullmatch(r"\d{1,3}[A-Z]?", token, re.IGNORECASE)
+        token in other_marks and re.fullmatch(MARK, token, re.IGNORECASE)
         for token in tokens[1:]
     )
 

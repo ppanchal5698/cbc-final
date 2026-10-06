@@ -19,12 +19,14 @@ lookup, not to replace estimating judgment.
 ## Your responsibilities
 1. **Do not export PDF yourself.** The worker renders `quotation.html` →
    `quotation.pdf` (WeasyPrint) and verifies it with PyMuPDF after this pass.
-   Write `review/deliverables.json` is also worker-owned — do not invent a
-   WeasyPrint success claim.
+   `review/deliverables.json` is worker-owned too - do not write it, and do not
+   claim a WeasyPrint success.
 2. Confirm the commercial terms are present in the email draft: **HP purchase
    order required**, **30-day validity**, **supply-only material** (no
    installation labor), freight `TBD`, and sales tax per the state rules - Ohio
-   ~8%, Kentucky 6.5%, all other 48 states and Canada none.
+   and Kentucky only, all other 48 states and Canada none. The rate is the one
+   the quotation's totals already applied (`compute_totals` reads it from the
+   reference library); do not write a rate into the email.
 3. Prepare the email body from `templates/quotation_email.md`, addressed to **the
    specific person who initiated the request in the sales queue** - Kellan, Matt,
    Rebecca or Tina - **not a group email**. That person deals with the customer.
@@ -59,5 +61,4 @@ Writing it to disk and reporting the path **is** the delivery.
 ## Reference data
 - @.claude/memory/sales_tax_rules.md
 - @.claude/memory/project_context.md
-- core constraints (.claude/rules/00-core-constraints.md)
 - core constraints (.claude/rules/00-core-constraints.md)

@@ -31,9 +31,12 @@ interface Prior {
 export function StartFromPrior({
   code,
   documentCount,
+  startedFrom,
 }: {
   code: string;
   documentCount: number;
+  /** The past bid this one's quote was copied from, if any. */
+  startedFrom?: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -47,13 +50,23 @@ export function StartFromPrior({
   const priors = data?.priors ?? [];
 
   async function reuse(prior: Prior) {
+    if (
+      startedFrom &&
+      !window.confirm(
+        `Replace the lines carried from ${startedFrom} with ${prior.code}'s?`,
+      )
+    ) {
+      return;
+    }
     setBusy(prior.code);
     try {
       await proxyMutate(
         `/api/proxy/projects/${encodeURIComponent(code)}/reuse/${encodeURIComponent(prior.code)}`,
         { method: "POST" },
       );
-      toast.success(`Started from ${prior.code}`, { description: prior.name });
+      toast.success(`Started from ${prior.code}`, {
+        description: "Its lines are on the quote, marked carried until you keep them.",
+      });
       router.refresh();
     } catch (problem) {
       toast.error("Could not start from that bid", { description: errorMessage(problem) });
@@ -78,7 +91,9 @@ export function StartFromPrior({
               Start from a past bid
             </span>
             <p className="mt-1 text-[12px] font-medium leading-relaxed text-tx-secondary">
-              Same brand, architect or GC. The lines carry across and you trim what is different.
+              Same brand, architect or GC. Its quote lines are copied to this bid, each marked
+              carried until you keep it, so nothing from the other job goes out unseen.
+              {startedFrom ? ` Started from ${startedFrom}.` : ""}
             </p>
             <ul className="mt-3 flex flex-col gap-1.5">
               {priors.slice(0, 4).map((prior) => (
@@ -99,10 +114,14 @@ export function StartFromPrior({
                   <button
                     type="button"
                     onClick={() => reuse(prior)}
-                    disabled={busy !== null}
+                    disabled={busy !== null || prior.code === startedFrom}
                     className="shrink-0 rounded-lg border border-subtle bg-panel px-3 py-1.5 text-[12px] font-bold text-tx-secondary transition-colors hover:text-tx-primary disabled:opacity-50"
                   >
-                    {busy === prior.code ? "Starting…" : "Start from this"}
+                    {busy === prior.code
+                      ? "Starting…"
+                      : prior.code === startedFrom
+                        ? "Started from this"
+                        : "Start from this"}
                   </button>
                 </li>
               ))}

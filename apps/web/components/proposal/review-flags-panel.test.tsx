@@ -27,3 +27,16 @@ it("renders derived and agent flags, including missing fields, most severe first
   expect(screen.getByText("General review")).toBeInTheDocument();
   expect(screen.getByText("Review the schedule")).toBeInTheDocument();
 });
+
+it("marks only the flags that hold the hand-off", () => {
+  const flags: ReviewFlag[] = [
+    { opening: "Door 101", field: "cost", severity: "medium", note: "No cost", blocking: true },
+    { opening: "quote", field: "sales_tax", severity: "medium", note: "State unknown", blocking: false },
+  ];
+  vi.mocked(useSWR).mockReturnValue({ data: { flags }, isLoading: false, isValidating: false, error: undefined, mutate: vi.fn() });
+
+  render(<ReviewFlagsPanel code="CBC-260006" />);
+
+  expect(screen.getAllByText("Blocks approval")).toHaveLength(1);
+  expect(screen.getAllByRole("listitem")[0]).toHaveTextContent("Blocks approval");
+});

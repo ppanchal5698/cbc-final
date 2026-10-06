@@ -41,6 +41,14 @@ def test_update_margins_round_trip() -> None:
 def test_update_margins_accessories() -> None:
     updated = reflib.update_margins(accessories=0.5)
     assert updated["accessories_derived"] == 0.5
+    assert calc.bands()["accessories"] == 0.5
+
+
+def test_the_restroom_accessories_band_is_the_one_pricing_reads() -> None:
+    """Settings edits the band; pricing read a derived note beside it, so an
+    edit to the band changed no quote."""
+    reflib.update_margins(bands={"restroom_accessories": 0.52})
+    assert calc.bands()["accessories"] == 0.52
 
 
 def test_update_margins_preserves_other_fields() -> None:
@@ -191,10 +199,22 @@ def test_update_frp_constants_rejects_negative() -> None:
 
 
 def test_seed_fills_all_families_when_empty() -> None:
+    """Every JSON seed is in the repo, so every one of those families seeds. A
+    family built from CBC's own price-book files - div10_equals, from the
+    cross-reference matrix - seeds wherever those files are: a deployment, not a
+    checkout, since data/pricebooks/ is the operator's and never in git."""
     import asyncio
 
+    def buildable(family: str) -> bool:
+        try:
+            reference_store.SEED_BUILDERS[family]()
+        except KeyError:
+            return False
+        return True
+
+    expected = set(reference_store.SEED_FILES) | {f for f in reference_store.SEED_BUILDERS if buildable(f)}
     seeded = asyncio.run(reference_store.ensure_reference_seed())
-    assert set(seeded) == set(reference_store.FAMILIES)
+    assert set(seeded) == expected
     again = asyncio.run(reference_store.ensure_reference_seed())
     assert again == []
 
@@ -411,3 +431,48 @@ def test_get_vendor_tiers(admin_client) -> None:
     response = admin_client.get("/api/reference/vendor-tiers")
     assert response.status_code == 200
     assert any(v.get("key") == "hager" for v in response.json().get("vendors", []))
+
+
+def test_a_distributor_bought_vendor_can_be_added_and_named() -> None:
+    added = reflib.update_vendor_distributors("Pionite", ["Laminate Distributor", " "])
+    pionite = next(v for v in added["vendors"] if v["key"] == "pionite")
+    assert (pionite["name"], pionite["distributors"], pionite["multiplier"]) == (
+        "Pionite", ["Laminate Distributor"], None)
+    updated = reflib.update_vendor_distributors("allegion", ["SecLock"])
+    assert next(v for v in updated["vendors"] if v["key"] == "allegion")["distributors"] == ["SecLock"]
+    with pytest.raises(ValueError):
+        reflib.update_vendor_distributors("Nobody", [])
+
+
+def test_admin_can_name_a_vendors_distributors(admin_client) -> None:
+    body = {"vendor": "Wilsonart", "distributors": ["Laminate Distributor"]}
+    response = admin_client.patch("/api/reference/vendor-tiers", json=body)
+    assert response.status_code == 200
+    assert any(v.get("key") == "wilsonart" for v in response.json()["vendors"])
+    assert admin_client.patch("/api/reference/vendor-tiers", json={"vendor": "hager"}).status_code == 422
+
+
+def test_an_equal_is_kept_by_the_part_specified() -> None:
+    reflib.update_hardware_equals(items=[{"brand": "Schlage", "part": "L9080", "equal_part": "3580",
+                                          "equal_manufacturer": "Hager", "named_by": "kevin"}])
+    after = reflib.update_hardware_equals(items=[{"part": "l-9080", "equal_part": "3590", "named_by": "rick"}])
+    [row] = after["rows"]
+    assert (row["brand"], row["part"], row["equal_part"], row["named_by"]) == ("Schlage", "l-9080", "3590", "rick")
+    assert reflib.update_hardware_equals(remove=["L9080"])["rows"] == []
+    with pytest.raises(ValueError):
+        reflib.update_hardware_equals(items=[{"part": "L9080", "equal_part": " "}])
+
+
+def test_the_vendors_cbc_does_not_quote_are_kept_with_why() -> None:
+    after = reflib.update_excluded_vendors([{"name": "J.L. Industries", "reason": "another department"},
+                                            {"name": "JL Industries"}, {"name": "Scranton Products"}])
+    assert after["excluded"] == [{"name": "JL Industries"}, {"name": "Scranton Products"}], "one entry a vendor"
+    with pytest.raises(ValueError):
+        reflib.update_excluded_vendors([{"name": " "}])
+
+
+def test_admin_can_set_the_vendors_cbc_does_not_quote(admin_client) -> None:
+    body = {"excluded": [{"name": "J.L. Industries", "reason": "Another department sells it"}]}
+    response = admin_client.patch("/api/reference/vendor-tiers", json=body)
+    assert response.status_code == 200 and response.json()["excluded"][0]["name"] == "J.L. Industries"
+    assert admin_client.patch("/api/reference/vendor-tiers", json={"categories": {"locks": 0.3}}).status_code == 422

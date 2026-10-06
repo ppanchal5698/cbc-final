@@ -155,6 +155,24 @@
   },
   "status": 401
  },
+ "GET /api/memory #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "GET /api/memory #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/memory/projects/{code}/similar #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "GET /api/ops/cohorts #estimator": {
   "body": {
    "detail": "str"
@@ -371,6 +389,12 @@
   },
   "status": 401
  },
+ "GET /api/reference/hardware-equals #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "GET /api/reference/lite-kit #wrong token": {
   "body": {
    "detail": "str"
@@ -390,6 +414,12 @@
   "status": 401
  },
  "GET /api/reference/special-nets #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "GET /api/reference/stewardship #wrong token": {
   "body": {
    "detail": "str"
   },
@@ -521,6 +551,18 @@
   },
   "status": 401
  },
+ "PATCH /api/projects/{code}/addenda/{number} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/projects/{code}/alternates/{name} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "PATCH /api/projects/{code}/line-items/{item_id} #wrong token": {
   "body": {
    "detail": "str"
@@ -600,6 +642,18 @@
   "status": 403
  },
  "PATCH /api/reference/frp-constants #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "PATCH /api/reference/hardware-equals #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "PATCH /api/reference/hardware-equals #wrong token": {
   "body": {
    "detail": "str"
   },
@@ -737,6 +791,30 @@
   },
   "status": 401
  },
+ "POST /api/memory/findings/dismiss #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "POST /api/memory/findings/dismiss #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/memory/sync #estimator": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 403
+ },
+ "POST /api/memory/sync #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "POST /api/price-books #wrong token": {
   "body": {
    "detail": "str"
@@ -756,6 +834,12 @@
   "status": 401
  },
  "POST /api/projects #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/addenda #wrong token": {
   "body": {
    "detail": "str"
   },
@@ -845,6 +929,12 @@
   },
   "status": 401
  },
+ "POST /api/projects/{code}/quote/carried/keep #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "POST /api/projects/{code}/quote/continue-to-proposal #wrong token": {
   "body": {
    "detail": "str"
@@ -852,6 +942,24 @@
   "status": 401
  },
  "POST /api/projects/{code}/quote/lines #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/quote/lines/{line_id}/adders/{index} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/quote/lines/{line_id}/close-matches/{index} #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/quote/lite-kits #wrong token": {
   "body": {
    "detail": "str"
   },
@@ -882,6 +990,12 @@
   "status": 401
  },
  "POST /api/projects/{code}/versions #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
+ "POST /api/projects/{code}/versions/{version}/decisions #wrong token": {
   "body": {
    "detail": "str"
   },
@@ -1133,6 +1247,16 @@
   },
   {
    "admin": true,
+   "op": "GET /api/memory",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/memory/projects/{code}/similar",
+   "status": 200
+  },
+  {
+   "admin": true,
    "op": "GET /api/ops/cohorts",
    "status": 200
   },
@@ -1303,6 +1427,11 @@
   },
   {
    "admin": false,
+   "op": "GET /api/reference/hardware-equals",
+   "status": 200
+  },
+  {
+   "admin": false,
    "op": "GET /api/reference/lite-kit",
    "status": 200
   },
@@ -1319,6 +1448,11 @@
   {
    "admin": false,
    "op": "GET /api/reference/special-nets",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/reference/stewardship",
    "status": 200
   },
   {
@@ -1388,6 +1522,16 @@
   },
   {
    "admin": false,
+   "op": "PATCH /api/projects/{code}/addenda/{number}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "PATCH /api/projects/{code}/alternates/{name}",
+   "status": 200
+  },
+  {
+   "admin": false,
    "op": "PATCH /api/projects/{code}/line-items/{item_id}",
    "status": 200
   },
@@ -1434,6 +1578,11 @@
   {
    "admin": true,
    "op": "PATCH /api/reference/frp-constants",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "PATCH /api/reference/hardware-equals",
    "status": 200
   },
   {
@@ -1507,6 +1656,16 @@
    "status": 200
   },
   {
+   "admin": true,
+   "op": "POST /api/memory/findings/dismiss",
+   "status": 200
+  },
+  {
+   "admin": true,
+   "op": "POST /api/memory/sync",
+   "status": 200
+  },
+  {
    "admin": false,
    "op": "POST /api/price-books",
    "status": 201
@@ -1524,6 +1683,11 @@
   {
    "admin": false,
    "op": "POST /api/projects",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/addenda",
    "status": 201
   },
   {
@@ -1598,12 +1762,32 @@
   },
   {
    "admin": false,
+   "op": "POST /api/projects/{code}/quote/carried/keep",
+   "status": 200
+  },
+  {
+   "admin": false,
    "op": "POST /api/projects/{code}/quote/continue-to-proposal",
    "status": 200
   },
   {
    "admin": false,
    "op": "POST /api/projects/{code}/quote/lines",
+   "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/quote/lines/{line_id}/adders/{index}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/quote/lines/{line_id}/close-matches/{index}",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/quote/lite-kits",
    "status": 201
   },
   {
@@ -1630,6 +1814,11 @@
    "admin": false,
    "op": "POST /api/projects/{code}/versions",
    "status": 201
+  },
+  {
+   "admin": false,
+   "op": "POST /api/projects/{code}/versions/{version}/decisions",
+   "status": 200
   },
   {
    "admin": false,

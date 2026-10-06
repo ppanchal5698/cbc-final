@@ -16,6 +16,10 @@ export const endpoints = {
     `/api/proxy/projects/${encodeURIComponent(code)}/documents/${documentId}/pages/${page}/blocks`,
   jobMetrics: (hours = 24) => `/api/proxy/jobs/metrics?hours=${hours}`,
   opsSpend: (hours = 24) => `/api/proxy/ops/spend?hours=${hours}`,
+  memory: () => "/api/proxy/memory",
+  memorySync: () => "/api/proxy/memory/sync",
+  memoryDismiss: () => "/api/proxy/memory/findings/dismiss",
+  memorySimilar: (code: string) => `/api/proxy/memory/projects/${encodeURIComponent(code)}/similar`,
   opsCohorts: (days = 30, limit = 20) =>
     `/api/proxy/ops/cohorts?days=${days}&limit=${limit}`,
 } as const;

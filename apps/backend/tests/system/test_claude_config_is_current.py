@@ -5,9 +5,8 @@ tool names resolve, servers exist, the delegation rule names real agents, the
 model split holds. What nothing checked is the *prose*, which is most of what an
 agent actually reads - and prose goes stale silently.
 
-It did. LlamaParse replaced MinerU and removed the only GPU from the stack, and
-the instructions telling agents to distrust the parse and read pictures instead
-survived the swap. On one 24-page bid the take-off rendered two sheets
+It did. When the parse became trustworthy, the instructions telling agents to
+distrust it and read pictures instead stayed behind. On one 24-page bid the take-off rendered two sheets
 twenty-four times, hit its turn cap and produced a single patch, while the door
 schedule sat parsed one call away. That cost real money for weeks, and no test
 could have noticed, because every tool name in the file was still valid.
@@ -28,8 +27,6 @@ CLAUDE = ROOT / ".claude"
 # Words that describe a system this repo no longer is. The value is what to say
 # instead, so a failure reads as an instruction rather than as a puzzle.
 RETIRED = {
-    "MinerU": "LlamaParse replaced MinerU; the parse is now the first read, not a hint",
-    "mineru": "LlamaParse replaced MinerU; the parse is now the first read, not a hint",
     "GPU-parsed": "no GPU is in the stack since LlamaParse - say 'parsed' and cite the verified score",
     "door_schedule.json": "renamed to line_items.json, which also carries Div 10 and FRP",
     "run_full_pipeline": "retired and refused by the API - autopilot chains the domain jobs",

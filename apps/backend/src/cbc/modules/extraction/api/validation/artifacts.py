@@ -25,6 +25,7 @@ from typing import Any
 
 import fitz
 
+from cbc.shared.storage import pdfs_in
 from cbc.shared.paths import repo_root, storage_root
 from cbc.modules.ops.api.artifact_gate import ArtifactValidationError
 from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
@@ -64,6 +65,10 @@ def _added_by_hand(row: dict) -> bool:
     The UI writes both markers when someone adds a line; either one is enough.
     """
     return bool(row.get("added_by_hand")) or str(row.get("status") or "").lower() == "by_hand"
+# Why a row has no bbox, as the re-measure records it (cbc.shared.pdfrows, geometry).
+_UNMEASURED = frozenset({"bbox_row_not_found", "bbox_row_ambiguous", "bbox_unavailable"})
+
+
 def _valid_bbox(box: Any) -> bool:
     return (
         isinstance(box, list)
@@ -119,7 +124,7 @@ def check_bboxes_are_real(project: str, openings: list[dict]) -> tuple[list[str]
     warnings: list[str] = []
 
     raw = storage_root() / project / "uploads" / "raw"
-    pdfs = sorted(raw.glob("*.pdf")) if raw.is_dir() else []
+    pdfs = pdfs_in(raw)
 
     cache: dict[tuple[str, int], Any] = {}
     for index, opening in enumerate(openings, start=1):
@@ -319,7 +324,7 @@ def _visual_manifest_schedule_pages(project: str) -> list[tuple[str, int]]:
 
     A page the parser read and verified is **not** required as an image. This
     check used to hold every schedule page to a rendered PNG, which is what kept
-    the render-and-crop loop alive after LlamaParse replaced MinerU: the prompt
+    the render-and-crop loop alive once the parse could be trusted: the prompt
     could stop asking for pictures, but the validator still failed the run
     without them. The requirement is that the page was *checked*, not that it was
     photographed - `visual_pages_checked` accepts a block citation for a verified
@@ -502,6 +507,11 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
             )
 
     for opening in openings:
+        # Division 10 and FRP rows reach this file only by an export. They are not
+        # doors - no size, no row to re-find by mark - and checked as doors, a
+        # confirmed one failed every re-run of the bid.
+        if isinstance(opening, dict) and opening.get("specialty"):
+            continue
         opening = _normalize_opening(opening)
         label = opening.get("door_number") or opening.get("description") or "?"
         if opening.get("hw_set") and not opening.get("hardware_set"):
@@ -534,14 +544,26 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
             problems.append(f"{project}: opening {label} has no resolvable size")
         if opening.get("confidence") is None:
             problems.append(f"{project}: opening {label} has no confidence score (NFR-2)")
+        # The bbox is evidence, not a gate. A row the re-measure could not find on
+        # its page - a scanned sheet, a mark the text layer splits - keeps its page
+        # and says why (`bbox_row_not_found`), and the estimator finds it by the
+        # page; failing the whole take-off over it lost every other row with it.
+        unmeasured = isinstance(opening.get("source_page"), int) and bool(
+            set(opening.get("flags") or []) & _UNMEASURED
+        )
         if not _valid_bbox(opening.get("bbox")):
-            problems.append(f"{project}: opening {label} has no valid bbox (NFR-3)")
+            (warnings if unmeasured else problems).append(
+                f"{project}: opening {label} has no valid bbox (NFR-3)"
+            )
         if not _valid_page_size(opening.get("page_size")):
-            problems.append(f"{project}: opening {label} has no valid page_size (NFR-3)")
+            (warnings if unmeasured else problems).append(
+                f"{project}: opening {label} has no valid page_size (NFR-3)"
+            )
         for field in SOFT_FIELDS:
             if opening.get(field) is None:
                 warnings.append(f"{project}: opening {label} is missing {field}")
-        # pdf-verify-before-present: missing/low-confidence claims need a page citation.
+        # .claude/guides/extraction.md (verify against the sheet before
+        # presenting): missing/low-confidence claims need a page citation.
         flags = opening.get("flags") or []
         if isinstance(flags, list):
             missingish = [
@@ -567,7 +589,7 @@ def check_extraction(project: str, *, require_scope: bool = False) -> tuple[list
                 warnings.append(
                     f"{project}: opening {label} has unresolved fields or low "
                     "confidence without a PDF page citation in evidence_note "
-                    "(pdf-verify-before-present)"
+                    "(.claude/guides/extraction.md)"
                 )
 
     # Shape is checked above; this checks the numbers are real. It opens the
@@ -900,14 +922,20 @@ def check_pricing(project: str, *, require_hardware_sets: bool = False) -> tuple
 
     hw_path = root / "extracted" / "hardware_sets.json"
     if hw_path.exists():
+        from cbc.shared.hardware_sets import SET_KEYS
+
         try:
             groups = json.loads(hw_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             groups = []
+        # Every writer wraps its sets in an object under one of SET_KEYS. Reading
+        # only a bare list meant this check never saw a single set.
+        if isinstance(groups, dict):
+            groups = [entry for key in SET_KEYS for entry in (groups.get(key) or [])]
         specified = {
-            str(entry.get("hardware_set"))
+            str(entry.get("hardware_set") or entry.get("set_id"))
             for entry in (groups if isinstance(groups, list) else [])
-            if entry.get("hardware_set")
+            if isinstance(entry, dict) and (entry.get("hardware_set") or entry.get("set_id"))
         }
         quoted = {str(line.get("group")) for line in lines if line.get("group")}
         for missing in sorted(specified - quoted):
@@ -1014,8 +1042,8 @@ def check_delivery_readiness(project: str) -> tuple[list[str], list[str]]:
         if not isinstance(opening, dict):
             problems.append(f"{project}: opening {index} is not an object")
             continue
-        if _added_by_hand(opening) and not opening.get("door_number"):
-            continue  # A hand-added accessory has no door handing or fire rating.
+        if (_added_by_hand(opening) and not opening.get("door_number")) or opening.get("specialty"):
+            continue  # An accessory or FRP has no door handing or fire rating.
         label = opening.get("door_number") or opening.get("mark") or index
         for field in ("fire_rating", "handing"):
             value = opening.get(field)
@@ -1163,6 +1191,11 @@ UNCHECKED_JOB_TYPES = frozenset(
         "index_catalog",
         "delete_catalog",
         "parse_document",
+        # The memory agents write the Neo4j graph, not an artifact a pass could
+        # get wrong; what they write is checked where it is written.
+        "memory_sync",
+        "memory_learn",
+        "memory_review",
     }
 )
 

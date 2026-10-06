@@ -113,8 +113,65 @@ def test_production_starts_on_real_secrets(monkeypatch) -> None:
     # deployment that leaves it at the repo default is exactly what that check is
     # for. Without it here the test asserted the opposite of what it says.
     monkeypatch.setenv("MONGODB_READONLY_PASSWORD", "a-real-readonly-secret")
+    for name in ("MONGODB_READONLY_URI", "AZURE_STORAGE_CONNECTION_STRING"):
+        monkeypatch.delenv(name, raising=False)
 
     assert Settings().app_env == "production"
+
+
+def _real_production(monkeypatch) -> None:
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("APP_SECRET_KEY", "a-real-secret-from-secrets-manager")
+    monkeypatch.setenv("INTERNAL_API_TOKEN", "another-real-secret")
+    monkeypatch.setenv(
+        "MONGODB_URI",
+        "mongodb+srv://cbc:s3cr3t@cbc.global.mongocluster.cosmos.azure.com/cbc_opshub"
+        "?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false",
+    )
+    # An explicit read-only URI is what production sets; the password variable
+    # only feeds the derived one, so it is not required alongside.
+    monkeypatch.setenv(
+        "MONGODB_READONLY_URI",
+        "mongodb+srv://ro:r3ad@cbc.global.mongocluster.cosmos.azure.com/cbc_opshub?tls=true",
+    )
+    monkeypatch.delenv("MONGODB_READONLY_PASSWORD", raising=False)
+    monkeypatch.setenv(
+        "AZURE_STORAGE_CONNECTION_STRING",
+        "DefaultEndpointsProtocol=https;AccountName=cbcprod;AccountKey=cmVhbA==;EndpointSuffix=core.windows.net",
+    )
+
+
+def test_production_starts_on_azure_connection_strings(monkeypatch) -> None:
+    from cbc.shared.config import Settings
+
+    _real_production(monkeypatch)
+    assert Settings().app_env == "production"
+
+
+@pytest.mark.parametrize(
+    ("variable", "value"),
+    [
+        ("AZURE_STORAGE_CONNECTION_STRING", "UseDevelopmentStorage=true"),
+        (
+            "AZURE_STORAGE_CONNECTION_STRING",
+            "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=x;"
+            "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;",
+        ),
+        (
+            "MONGODB_URI",
+            "mongodb://cbc:s3cr3t@db:10260/cbc_opshub?tls=true&tlsAllowInvalidCertificates=true",
+        ),
+        ("MONGODB_READONLY_URI", "mongodb://ro:r3ad@db:10260/?tls=true&tlsInsecure=TRUE"),
+    ],
+)
+def test_production_refuses_the_emulators(monkeypatch, variable, value) -> None:
+    """The emulator's account and its certificate bypass must not ship."""
+    from cbc.shared.config import Settings
+
+    _real_production(monkeypatch)
+    monkeypatch.setenv(variable, value)
+    with pytest.raises(RuntimeError, match=variable):
+        Settings()
 
 
 def test_development_keeps_working_with_no_configuration(monkeypatch) -> None:

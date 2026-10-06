@@ -25,12 +25,10 @@ def price_books():
     return database()[names.PRICE_BOOKS]
 
 
-def catalog_pages():
-    return database()[names.CATALOG_PAGES]
-
-
-def multiplier_pages():
-    return database()[names.MULTIPLIER_PAGES]
+def price_book_entries():
+    """Every list price read off a price book's pages, one document per row,
+    versioned by the file it was read from (effective-dated: never overwritten)."""
+    return database()[names.PRICE_BOOK_ENTRIES]
 
 
 def match_learning():
@@ -98,31 +96,10 @@ async def ensure_indexes() -> None:
         name="product_search",
     )
     await price_books().create_index([("vendor", ASCENDING), ("program", ASCENDING)])
-    await replace_index(
-        catalog_pages(),
-        "pricebook_page",
-        [("priceBookId", ASCENDING), ("page", ASCENDING)],
-        unique=True,
+    await price_book_entries().create_index(
+        [("priceBookId", ASCENDING), ("fileSha", ASCENDING), ("model", ASCENDING)], name="entry_lookup"
     )
-    await catalog_pages().create_index([("catalogId", ASCENDING), ("page", ASCENDING)])
-    await catalog_pages().create_index([("vendor", ASCENDING), ("page", ASCENDING)])
-    await replace_index(
-        catalog_pages(),
-        "blocks_text",
-        [("blocks.text", TEXT)],
-    )
-    await replace_index(
-        multiplier_pages(),
-        "sheet_page",
-        [("sheetId", ASCENDING), ("page", ASCENDING)],
-        unique=True,
-    )
-    await multiplier_pages().create_index([("family", ASCENDING), ("page", ASCENDING)])
-    await replace_index(
-        multiplier_pages(),
-        "blocks_text",
-        [("blocks.text", TEXT)],
-    )
+    await price_book_entries().create_index([("vendor", ASCENDING), ("model", ASCENDING)], name="entry_model")
     # One learned answer per specification, so draining the same feedback event
     # twice cannot count it twice.
     await replace_index(

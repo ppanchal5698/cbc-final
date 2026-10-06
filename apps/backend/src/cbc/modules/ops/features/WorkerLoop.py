@@ -80,6 +80,8 @@ DOMAIN_JOB_TYPES: dict[str, frozenset[str]] = {
     # is a livelock. The lane is the concurrency slot, not the GPU that used to
     # be here. Do not delete it for the reason the old comment gave.
     "parsing": frozenset({"parse_document"}),
+    # The memory curator: mirror the record into the graph, learn from approved bids.
+    "memory": frozenset({"memory_sync", "memory_learn", "memory_review"}),
 }
 
 # Retired types still claimable under WORKER_CLAIM_ALL so a requeued historical
@@ -94,7 +96,7 @@ def claimable_types(domain: str) -> frozenset[str]:
         raise ValueError(f"unknown domain: {domain}") from exc
 
 
-# Domain filter: set WORKER_DOMAIN (intake|extraction|pricing|quoting|catalog|parsing).
+# Domain filter: set WORKER_DOMAIN (intake|extraction|pricing|quoting|catalog|parsing|memory).
 # Empty / unset = claim nothing (fail closed) unless WORKER_CLAIM_ALL=1 for legacy.
 # WORKER_CLAIM_ALL claims every domain except parsing (dedicated GPU worker).
 def _claimable() -> frozenset[str] | None:
@@ -106,7 +108,7 @@ def _claimable() -> frozenset[str] | None:
     if not domain:
         raise RuntimeError(
             "WORKER_DOMAIN must be set to a domain name "
-            "(intake, extraction, pricing, quoting, catalog, parsing), "
+            "(intake, extraction, pricing, quoting, catalog, parsing, memory), "
             "or set WORKER_CLAIM_ALL=1"
         )
     return claimable_types(domain)

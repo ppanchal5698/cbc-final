@@ -41,7 +41,7 @@ async def incomplete_parses(project_id: Any) -> list[dict[str, Any]]:
     """
     return await documents().find(
         {"projectId": project_id, "parse.state": {"$in": list(_PARSE_INCOMPLETE)}},
-        {"filename": 1, "parse.state": 1},
+        {"filename": 1, "parse.state": 1, "uploadedAt": 1},
     ).to_list(length=200)
 
 

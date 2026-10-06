@@ -15,9 +15,28 @@ const INT_FIELDS = [
   "windowConcurrency",
   "windowTimeoutSeconds",
   "waitMaxSeconds",
+  "nimRpm",
 ] as const;
 
+// Never shown back: the API answers "set" or "", and an untouched field must not
+// post that placeholder over a real key.
+const SECRET_FIELDS = ["apiKey", "nimApiKey"];
+
 const FIELD_META: Record<string, { label: string; hint?: string; placeholder?: string }> = {
+  provider: {
+    label: "Bid set reader",
+    hint: "llamaparse, or nim: NVIDIA's nemotron-parse reads every page of every upload (tiled so drawing text is legible) at the free tier's 40 requests a minute. The pages are sent to NVIDIA.",
+  },
+  nimApiKey: {
+    label: "NVIDIA NIM API key",
+    hint: "From build.nvidia.com. Used when the reader is nim. Stored server-side; never shown back.",
+    placeholder: "nvapi-…",
+  },
+  nimModel: { label: "NIM model", placeholder: "nvidia/nemotron-parse" },
+  nimRpm: {
+    label: "NIM requests per minute",
+    hint: "The free tier allows 40. Lower it if NVIDIA still answers 429.",
+  },
   apiKey: {
     label: "API key",
     hint: "Empty turns parsing off — extraction reads PDFs directly through pdf-tools. Stored server-side; never shown back.",
@@ -47,6 +66,10 @@ const FIELD_META: Record<string, { label: string; hint?: string; placeholder?: s
 };
 
 const ENV_NAMES: Record<string, string> = {
+  provider: "PARSER_PROVIDER",
+  nimApiKey: "NVIDIA_NIM_API_KEY",
+  nimModel: "NIM_PARSE_MODEL",
+  nimRpm: "NIM_RPM",
   apiKey: "PARSER_API_KEY",
   tier: "PARSER_TIER",
   lang: "PARSER_LANG",
@@ -57,6 +80,10 @@ const ENV_NAMES: Record<string, string> = {
 };
 
 const ORDER = [
+  "provider",
+  "nimApiKey",
+  "nimModel",
+  "nimRpm",
   "apiKey",
   "tier",
   "lang",
@@ -74,7 +101,7 @@ function draftFromSettings(data: ParsingSettings): Draft {
     const field = data.fields?.[key];
     // The API key comes back as "set" or "" — never the value, so an untouched
     // form must not post that placeholder back over a real key.
-    draft[key] = key === "apiKey" ? "" : ((field?.value ?? "") as string | number);
+    draft[key] = SECRET_FIELDS.includes(key) ? "" : ((field?.value ?? "") as string | number);
   }
   return draft;
 }
@@ -89,8 +116,8 @@ export function ParsingSettingsClient() {
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<ParsingTestResult | null>(null);
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
-  if (error) return <p className="text-sm text-destructive">{errorMessage(error)}</p>;
+  if (isLoading) return <ParsingCard><p className="text-sm text-muted-foreground">Loading…</p></ParsingCard>;
+  if (error) return <ParsingCard><p className="text-sm text-destructive">{errorMessage(error)}</p></ParsingCard>;
   if (!data) return null;
 
   const stamp = `${data.updatedAt ?? ""}`;
@@ -104,7 +131,7 @@ export function ParsingSettingsClient() {
     const body: Record<string, unknown> = {};
     for (const key of ORDER) {
       const value = draft[key];
-      if (key === "apiKey" && !String(value ?? "").trim()) continue; // unchanged
+      if (SECRET_FIELDS.includes(key) && !String(value ?? "").trim()) continue; // unchanged
       if (value === "" || value === null) continue;
       body[key] = (INT_FIELDS as readonly string[]).includes(key) ? Number(value) : value;
     }
@@ -142,7 +169,7 @@ export function ParsingSettingsClient() {
   }
 
   return (
-    <div className="space-y-6">
+    <ParsingCard>
       <div
         className={cn(
           "flex items-center gap-2 rounded-md border px-3 py-2 text-sm",
@@ -152,7 +179,7 @@ export function ParsingSettingsClient() {
         {data.enabled ? <CheckCircle weight="bold" /> : <Warning weight="bold" />}
         <span>
           {data.enabled
-            ? "Parsing is on. Uploaded bid PDFs are parsed into page blocks."
+            ? "Parsing is on. Uploaded bid PDFs are read into page blocks and a page-by-page bid digest every phase reads first."
             : "Parsing is off. No API key, so extraction reads PDFs directly through pdf-tools."}
         </span>
       </div>
@@ -163,21 +190,22 @@ export function ParsingSettingsClient() {
           const meta = FIELD_META[key] ?? { label: key };
           const locked = Boolean(field?.locked);
           const isInt = (INT_FIELDS as readonly string[]).includes(key);
-          const isKeySet = key === "apiKey" && field?.value === "set";
+          const isSecret = SECRET_FIELDS.includes(key);
+          const isKeySet = isSecret && field?.value === "set";
           return (
             <label key={key} className="space-y-1 text-sm">
               <span className="flex items-center gap-1.5 font-medium">
                 {meta.label}
                 {locked && <Lock weight="bold" className="size-3.5 text-muted-foreground" />}
               </span>
-              {key === "tier" ? (
+              {key === "tier" || key === "provider" ? (
                 <select
                   className="w-full rounded-md border bg-background px-2 py-1.5"
                   value={String(draft[key] ?? "")}
                   disabled={locked}
                   onChange={(e) => set(key, e.target.value)}
                 >
-                  {(data.tiers ?? []).map((tier) => (
+                  {((key === "provider" ? data.providers : data.tiers) ?? []).map((tier) => (
                     <option key={tier} value={tier}>
                       {tier}
                     </option>
@@ -186,7 +214,7 @@ export function ParsingSettingsClient() {
               ) : (
                 <input
                   className="w-full rounded-md border bg-background px-2 py-1.5"
-                  type={key === "apiKey" ? "password" : isInt ? "number" : "text"}
+                  type={isSecret ? "password" : isInt ? "number" : "text"}
                   value={String(draft[key] ?? "")}
                   placeholder={isKeySet ? "•••••••• (saved — type to replace)" : meta.placeholder}
                   disabled={locked}
@@ -250,6 +278,21 @@ export function ParsingSettingsClient() {
           {data.updatedBy ? ` by ${data.updatedBy}` : ""}.
         </p>
       )}
-    </div>
+    </ParsingCard>
+  );
+}
+
+/** The standard settings card, so the reader sits beside the provider like every other panel. */
+function ParsingCard({ children }: { children: React.ReactNode }) {
+  return (
+    <section className="rounded-xl bg-panel border border-subtle shadow-sm">
+      <div className="border-b border-subtle px-5 py-4">
+        <h2 className="text-[16px] font-bold text-tx-primary tracking-tight">Bid-set reader</h2>
+        <p className="mt-1 text-[13px] font-medium text-tx-secondary">
+          Reads every uploaded PDF into page text and a page-by-page digest before extraction starts.
+        </p>
+      </div>
+      <div className="space-y-6 px-5 py-5">{children}</div>
+    </section>
   );
 }

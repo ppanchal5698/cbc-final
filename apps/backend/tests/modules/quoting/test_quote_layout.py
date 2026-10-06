@@ -8,7 +8,7 @@ the section, and built its line dicts by hand with no key for
 
 So "grouped by door with subtotals" was true only of the path nobody sees, and a
 direct equal printed to a customer as the substituted part with no mention that
-anything had been substituted - while `.claude/rules/accuracy-trust.md` requires
+anything had been substituted - while `.claude/guides/extraction.md` requires
 that note on every one.
 """
 from __future__ import annotations
@@ -34,7 +34,7 @@ def test_lines_are_grouped_by_door_with_a_subtotal_each() -> None:
 
 
 def test_a_substitution_note_survives_into_the_document() -> None:
-    """The accuracy-trust requirement the customer-facing path dropped."""
+    """The extraction guide's requirement the customer-facing path dropped."""
     blocks = layout.blocks([
         line(group="Door 101", division="08 71 00", ext_price=74.0,
              substitution_note="specified Von Duprin 99; offering Hager 4500"),
@@ -108,3 +108,15 @@ def test_freight_lands_in_a_block_rather_than_nowhere() -> None:
 
 def test_empty_input_renders_no_blocks() -> None:
     assert layout.blocks([]) == []
+
+
+def test_sets_and_doors_print_in_number_order() -> None:
+    """The Shakopee proposal printed "Doors · doors 3, 7, 8, 1, 2, 6, 4, 5"."""
+    blocks = layout.blocks([
+        line(group="10", division="08 71 00", ext_price=1.0, openings=["12", "9"]),
+        line(group="9", division="08 71 00", ext_price=1.0, openings=["10", "2"]),
+        line(group="Doors", division="08 14 16", ext_price=1.0, openings=["3", "7", "8", "1", "2", "6", "4", "5"]),
+    ])
+    groups = blocks[0]["groups"]
+    assert [g["name"] for g in groups] == ["9", "10", "Doors"]
+    assert [g["doors"] for g in groups] == [["2", "10"], ["9", "12"], ["1", "2", "3", "4", "5", "6", "7", "8"]]

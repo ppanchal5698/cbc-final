@@ -20,14 +20,16 @@ matching. A finish substitution changes both selection and price.
 ## Premium finishes
 Some finishes are **premium and/or carry lead times**, and are priced as an **adder on top
 of the base price** — they are not always shown cleanly in the price book (NR-4).
-See reference-library/adders/manual_adders.json
+Pricing applies them from `mcp__reference__get_manual_adders` (seed:
+`data/reference-library/adders/manual_adders.json`).
 
 Notes seen in Hager Price Book #18: split finish is **priced at the higher finish**;
 levers prepped for SFIC cores are only available in US10B, US26D and BLK; anti-microbial is
 26D-only.
 
 Finish is a **required matching attribute** — carry it on every line.
-Machine-readable form: reference-library/finishes/finish_crosswalk.json
+Machine-readable form: `mcp__reference__get_finish_crosswalk` (seed:
+`data/reference-library/finishes/finish_crosswalk.json`).
 
 ## On import (extraction sync)
 `normalize_finish_value` stores a canonical pair when the finish is uniquely

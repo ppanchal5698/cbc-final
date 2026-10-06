@@ -117,6 +117,21 @@ def test_prior_quotes_and_reuse(client, state, snapshots) -> None:
     snapshots.pin(op, client.post(f"/api/projects/{state['code']}/reuse/CBC-999999"), variant="missing prior")
 
 
+def test_memory_graph(client, state, snapshots, monkeypatch) -> None:
+    """With no graph configured: the summary says so, a sync is refused, recall is empty."""
+    monkeypatch.delenv("NEO4J_URI", raising=False)
+    snapshots.pin("GET /api/memory", client.get("/api/memory"))
+    snapshots.pin("POST /api/memory/sync", client.post("/api/memory/sync"))
+    snapshots.pin(
+        "POST /api/memory/findings/dismiss",
+        client.post("/api/memory/findings/dismiss", json={"key": "reference_pending:frp_constants"}),
+    )
+    snapshots.pin(
+        "GET /api/memory/projects/{code}/similar",
+        client.get(f"/api/memory/projects/{state['code']}/similar"),
+    )
+
+
 # ── calls and notes ──────────────────────────────────────────────────────────
 
 
@@ -198,6 +213,18 @@ def test_terminal_of_a_finished_job(client, state, snapshots) -> None:
 def test_pipeline_settings(client, snapshots) -> None:
     snapshots.pin("GET /api/settings/pipeline", client.get("/api/settings/pipeline"))
     snapshots.pin("PUT /api/settings/pipeline", client.put("/api/settings/pipeline", json={"autopilotDefault": False}))
+    # The engine is saved when sent and kept when not: the autopilot toggle sends
+    # only its own field, and must not put a bid back on the other engine.
+    assert client.put("/api/settings/pipeline", json={"autopilotDefault": False, "pricingEngine": "v2"}).json()["pricingEngine"] == "v2"
+    assert client.put("/api/settings/pipeline", json={"autopilotDefault": True}).json()["pricingEngine"] == "v2"
+    assert client.put("/api/settings/pipeline", json={"pricingEngine": "gpt"}).status_code == 422
+    # Each phase has its own switch: reading a bid in code leaves its pricing alone.
+    both = client.put("/api/settings/pipeline", json={"autopilotDefault": True, "extractionEngine": "v2"}).json()
+    assert (both["extractionEngine"], both["pricingEngine"]) == ("v2", "v2")
+    assert client.put("/api/settings/pipeline", json={"extractionEngine": "ocr"}).status_code == 422
+    assert client.put("/api/settings/pipeline", json={"proposalEngine": "v2"}).json()["proposalEngine"] == "v2"
+    client.put("/api/settings/pipeline", json={"autopilotDefault": False, "pricingEngine": "legacy",
+                                               "extractionEngine": "legacy", "proposalEngine": "legacy"})
 
 
 def test_freshness_settings(client, snapshots) -> None:
@@ -279,6 +306,17 @@ def test_ops_cohorts(client, snapshots) -> None:
 
 def test_audit_log(client, snapshots) -> None:
     snapshots.pin("GET /api/audit", client.get("/api/audit", params={"limit": 5}))
+
+
+def test_the_addendum_log(client, state, snapshots) -> None:
+    """FR-14: an addendum logged by number, then completed."""
+    base = f"/api/projects/{state['code']}/addenda"
+    op = "POST /api/projects/{code}/addenda"
+    snapshots.pin(op, client.post(base, json={"issuedOn": "2026-09-30", "changedDocuments": "A601"}))
+    snapshots.pin(op, client.post(base, json={"number": 1}), variant="number already logged")
+    op = "PATCH /api/projects/{code}/addenda/{number}"
+    snapshots.pin(op, client.patch(f"{base}/1", json={"changedForms": "bid form page 2"}))
+    snapshots.pin(op, client.patch(f"{base}/9", json={"notes": "x"}), variant="not logged")
 
 
 def test_delete_a_project(client, state, snapshots) -> None:

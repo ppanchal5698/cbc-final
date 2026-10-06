@@ -41,13 +41,25 @@ def _request(client, op: str, **kwargs):
 
 
 def test_the_route_table(snapshots) -> None:
+    # 148: FR-17 added GET and PATCH /api/reference/hardware-equals - the equal quoted for an Allegion part.
+    # 146: NR-1 added POST /api/projects/{code}/quote/lite-kits - a lite kit off NGP's size tables.
+    # 145: NFR-10 added GET /api/reference/stewardship - who keeps each data set current.
+    # 144: FR-14's reconciliation added POST /api/projects/{code}/versions/{version}/decisions.
+    # 143: FR-14's addendum log added POST /api/projects/{code}/addenda and PATCH .../addenda/{number}.
+    # 141: FR-14 added PATCH /api/projects/{code}/alternates/{name} - an alternate's kind and priority.
+    # 140: NR-4 added POST /api/projects/{code}/quote/lines/{line_id}/adders/{index}.
+    # 139: FR-8 added POST /api/projects/{code}/quote/lines/{line_id}/close-matches/{index}.
+    # 138: templated bids added POST /api/projects/{code}/quote/carried/keep (FR-1d).
+    # 137: the memory agents added POST /api/memory/findings/dismiss (admin).
+    # 136: the memory graph added GET /api/memory, POST /api/memory/sync (admin)
+    # and GET /api/memory/projects/{code}/similar.
     # 133: W1b added GET /api/ops/cohorts - LLM spend grouped by config cohort,
     # admin-only, the before/after view that turns "70%" into a number.
     # 132: the board gained GET /api/users/directory - who a bid may be
     # assigned to, names only and readable without the admin role.
     # 131: FR-13 added POST /api/learning/apply, which drains the estimator
     # corrections into what the matcher knows.
-    assert len(ROUTES) == 133
+    assert len(ROUTES) == 148
     snapshots.pin_value("routes", ROUTES)
 
 

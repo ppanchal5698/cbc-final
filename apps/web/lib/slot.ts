@@ -40,6 +40,8 @@ const PATTERNS: [RegExp, Slot][] = [
   [/\bcloser\b/i, "CLOSER"],
   [/exit\s*device|panic|\bsvr\b|vertical\s*rod/i, "EXIT DEVICE"],
   [/\block\b|lockset|\blever\b|cylinder|deadbolt/i, "LOCKSET"],
+  // Access control names the door it watches: a door position switch is not a door.
+  [/door\s+(?:position|contact|status)|request\s+to\s+exit|card\s+reader|credential|motion\s+sensor/i, "HARDWARE"],
   [/\bframe\b/i, "FRAME"],
   [/\bdoor\b/i, "DOOR"],
 ];
@@ -56,4 +58,13 @@ export function slotOf(description?: string | null): Slot {
 export function slotRank(slot: Slot): number {
   const index = SLOT_ORDER.indexOf(slot);
   return index < 0 ? SLOT_ORDER.length : index;
+}
+
+/** What the component column says: a Division 10 or FRP line is no part of an
+ * opening, so it is its division rather than the hardware fallback. */
+export function componentOf(line: { description?: string | null; division?: string | null }): string {
+  const division = line.division ?? "";
+  if (division.startsWith("10")) return "SPECIALTY";
+  if (division.startsWith("06") || division.startsWith("09")) return "FRP";
+  return slotOf(line.description);
 }

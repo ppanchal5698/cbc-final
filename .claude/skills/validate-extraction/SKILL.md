@@ -33,9 +33,12 @@ This skill exists to make the losses visible.
 3. Any opening that inherited `null` from a rated schedule is flagged at
    **severity high** - an unrated match on a rated opening is a defect.
 
-Whether a missing rating should hard-stop the line is still an open question
 Fire rating is a **mandatory** extract field. Exact page location varies across
-bid sets. After PDF verify, **flag, do not stop** (and never invent).
+bid sets. After PDF verify, **flag, do not stop the extraction** (and never
+invent). The flag is not advisory everywhere: when
+`scope_summary.fire_ratings_present` is true, a missing rating **blocks proposal
+approval** until the estimator resolves it. In a set with no ratings anywhere it
+is advisory.
 
 ## Other checks
 
@@ -72,6 +75,16 @@ bid sets. After PDF verify, **flag, do not stop** (and never invent).
   clustering. Zero openings on a page that visually has a DOOR SCHEDULE is a
   defect — re-run with the MCP tool, do not freehand.
 
+## Which flags block approval
+
+The review deriver (`apps/backend/src/cbc/modules/extraction/api/validation/review.py`)
+sets `blocking` on a flag, and the proposal cannot be approved while any blocking
+flag is open: a missing fire rating on a rated set, an unpriced `MANUAL` /
+`VENDOR_RFQ` / `DISTRIBUTOR_MANUAL` line, a below-band margin with no
+`margin_override_reason`, FRP quantities while the conversion constants are
+PENDING, and a brand / project identity mismatch. Every other flag is advisory,
+and a flag a pass writes itself never blocks.
+
 ## Reference
 
 - `references/validation_rules.md`
@@ -84,7 +97,7 @@ python apps/backend/scripts/validate_project.py --check-extraction dutch_bros_ma
 
 This also runs as a PostToolUse hook on writes under
 `projects/{project}/extracted/`. Checkpoint files
-(`scope_metadata`, `scope_summary`, `door_schedule`) **block** (exit 2) when
+(`scope_metadata`, `scope_summary`, `line_items`) **block** (exit 2) when
 schema-invalid. Bare Write/Edit to those paths is refused in PreToolUse — use
 `save_artifact`.
 

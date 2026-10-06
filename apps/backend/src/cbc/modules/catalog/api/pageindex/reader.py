@@ -260,7 +260,7 @@ def lookup_catalog_item(part: str, vendor: str | None = None) -> dict[str, Any] 
             if not prefix:
                 hit = items.find_one(query)
                 if hit is not None:
-                    return {**hit, "matchedOn": candidate}
+                    return _dated({**hit, "matchedOn": candidate})
                 continue
             # Prefix: a schedule cites a series token (3510) where the catalog
             # holds full models. Shortest part is the closest series match.
@@ -269,8 +269,23 @@ def lookup_catalog_item(part: str, vendor: str | None = None) -> dict[str, Any] 
             rows = list(items.find(query).sort("part", 1).limit(25))
             if rows:
                 rows.sort(key=lambda r: (len(str(r.get("part") or "")), str(r.get("part") or "")))
-                return {**rows[0], "matchedOn": candidate}
+                return _dated({**rows[0], "matchedOn": candidate})
     return None
+
+
+def _dated(row: dict[str, Any]) -> dict[str, Any]:
+    """Attach the effective date of the price book the row was read from.
+
+    A catalog cost is only as current as its sheet, and the row does not carry
+    the date - its book does (``priceBooks.effective``, the date
+    ``price_book_view.decorate`` measures staleness from). Without it the pricing
+    backfill applied a row from a lapsed sheet as if it were today's.
+    """
+    book_id = row.get("priceBookId")
+    if book_id is None:
+        return row
+    book = _collection().database["priceBooks"].find_one({"_id": book_id}, {"effective": 1})
+    return {**row, "priceBookEffective": (book or {}).get("effective")}
 
 
 def search_catalog_items(
@@ -300,11 +315,11 @@ def search_catalog_items(
 
     rows: list[dict[str, Any]] = []
     try:
+        # No projection. A `$meta`-only projection means "every field plus the
+        # score" to MongoDB but "only the score" to DocumentDB, where every hit
+        # came back as None. Sorting on the score needs no projection on either.
         rows = list(
-            items.find(
-                partquery.text_filter(needle, vendor, include_ingest=True),
-                {"score": {"$meta": "textScore"}},
-            )
+            items.find(partquery.text_filter(needle, vendor, include_ingest=True))
             .sort([("score", {"$meta": "textScore"})])
             .limit(lim * 3)
         )

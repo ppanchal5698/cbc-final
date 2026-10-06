@@ -29,12 +29,14 @@ test.describe("Proposal layout", () => {
 
     await page.goto(`/bids/${code}/proposal`);
     const aside = page.locator("aside").first();
-    const totals = page.getByText("Grand total").first();
-
-    if ((await totals.count()) === 0) {
-      test.skip(true, "Proposal totals not rendered for this bid");
+    // The document is the server's own render, the one the PDF prints, in a frame.
+    const document = page.locator('iframe[title="Proposal"]');
+    if ((await document.count()) === 0) {
+      test.skip(true, "Proposal not rendered for this bid");
       return;
     }
+    await expect(page.frameLocator('iframe[title="Proposal"]').getByText("Grand total")).toBeVisible();
+    const totals = document;
 
     await page.mouse.wheel(0, 1200);
     await page.waitForTimeout(300);

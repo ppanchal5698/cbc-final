@@ -129,6 +129,7 @@ async def test_deleting_last_line_clears_artifact_and_cannot_resurrect_it(quote_
     monkeypatch.setattr(DeleteQuoteLine, "estimate_lines", lambda: collection)
     monkeypatch.setattr(DeleteQuoteLine.audit, "record", AsyncMock())
     monkeypatch.setattr(DeleteQuoteLine.quote_service, "persist", AsyncMock(return_value={}))
+    monkeypatch.setattr(DeleteQuoteLine.bids, "remember_removed_lines", AsyncMock())
 
     await DeleteQuoteLine.delete_line(project["code"], line_id, "estimator")
     assert json.loads(path.read_text(encoding="utf-8"))["lines"] == []
@@ -250,6 +251,31 @@ async def test_a_hand_added_line_survives_a_reprice(reconciling_store) -> None:
 
 
 @pytest.mark.asyncio
+async def test_pricing_the_bids_own_take_off_clears_the_rows_carried_from_a_prior(
+    reconciling_store,
+) -> None:
+    """FR-1d: a templated bid's residual rows. One the new take-off reproduces is
+    this job's now; one it does not is the other job's and goes; a hand-added one
+    has nothing to be reproduced from, so it waits for the estimator."""
+    project, path, docs = reconciling_store
+    carried = {"projectId": project["_id"], "carriedFrom": "CBC-260001", "flags": ["carried_from_prior"]}
+    docs.extend([
+        {"_id": ObjectId(), **carried, "lineKey": "L1", "description": "Hinge"},
+        {"_id": ObjectId(), **carried, "lineKey": "L2", "description": "Kick plate"},
+        {"_id": ObjectId(), **carried, "lineKey": "hand-1", "description": "Site visit", "addedByHand": True},
+    ])
+
+    path.write_text(json.dumps(_priced("Hinge")), encoding="utf-8")
+    result = await priced_lines.import_quote_lines(project)
+
+    assert result["removed"] == 1, result
+    by_key = {d["lineKey"]: d for d in docs}
+    assert set(by_key) == {"L1", "hand-1"}
+    assert by_key["L1"]["flags"] == [] and by_key["L1"]["carriedFrom"] == "CBC-260001"
+    assert by_key["hand-1"]["flags"] == ["carried_from_prior"]
+
+
+@pytest.mark.asyncio
 async def test_an_empty_pricing_file_removes_nothing(reconciling_store) -> None:
     """An empty agent shell must never wipe a priced quote."""
     project, path, docs = reconciling_store
@@ -261,3 +287,39 @@ async def test_an_empty_pricing_file_removes_nothing(reconciling_store) -> None:
     result = await priced_lines.import_quote_lines(project)
     assert result.get("removed", 0) == 0
     assert len(docs) == 2
+
+
+@pytest.mark.asyncio
+async def test_a_special_margin_lands_with_its_reason(quote_store):
+    """The ladder applies Wendy's own margin and says so; the reason was dropped on
+    import, and the quote showed a margin under band with nothing saying why."""
+    project, path, docs, _ = quote_store
+    path.write_text(json.dumps({"lines": [{
+        "line_id": "L1", "description": "ENTRY LOCK", "part_number": "3553", "quantity": 2,
+        "cost": 74.0, "cost_source": "LIST_X_MULTIPLIER", "margin": 0.20,
+        "margin_override_reason": "special customer margin: Wendys",
+    }]}), encoding="utf-8")
+
+    await priced_lines.import_quote_lines(project)
+
+    assert docs[0]["margin"] == 0.20 and docs[0]["overrideReason"] == "special customer margin: Wendys"
+
+
+def test_a_part_the_estimator_named_keeps_no_match_confidence_through_a_re_price() -> None:
+    kept = priced_lines._estimator_fields({"overrides": [{"after": {"part": "BB1279", "cost": 4.42}}]})
+    assert "matchConfidence" in kept and "cost" in kept
+    assert "matchConfidence" not in priced_lines._estimator_fields({"overrides": [{"after": {"margin": 0.3}}]})
+
+
+async def test_a_line_the_estimator_deleted_stays_deleted_through_a_re_price(quote_store):
+    """Evernorth's unmeasured FRP and Div 10 placeholders, removed by hand, came back."""
+    project, path, docs, _collection = quote_store
+    path.write_text(json.dumps({"lines": matched_lines()[:2]}), encoding="utf-8")
+    await priced_lines.import_quote_lines(project)
+    removed = docs.pop(0)
+    project["removedQuoteLines"] = [removed["lineKey"]]
+
+    counts = await priced_lines.import_quote_lines(project)
+
+    assert (counts["inserted"], counts["skipped"]) == (0, 1)
+    assert not any(doc.get("lineKey") == removed["lineKey"] for doc in docs)

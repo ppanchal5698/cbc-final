@@ -83,11 +83,9 @@ const ATTRIBUTE_FIELDS = [
 ] as const;
 
 const FLAG_HINTS: Record<string, string> = {
-  fire_rating_missing:
-    "Mandatory fire rating — searched schedule / type schedule / Div 08 on the PDF; still absent or uncertain",
-  handing_missing:
-    "Agent searched schedule + floor-plan swing on the PDF — still unresolved",
-  finish_missing: "Required finish — checked HW group / sheet note on the PDF; still absent",
+  fire_rating_missing: "The schedule gives no rating for this door — confirm it on the type schedule or Div 08",
+  handing_missing: "No handing on the schedule, and none read off the plan — check the swing",
+  finish_missing: "No finish on the row or the sheet's notes — each item's finish is on its set",
   finish_ambiguous: "Ambiguous finish code — confirm which satin",
   finish_unrecognized: "Finish not in CBC crosswalk — confirm on sheet",
   keying_missing: "Lock/IC hardware implies keying options — fill the keying block",
@@ -98,6 +96,10 @@ const FLAG_HINTS: Record<string, string> = {
   wall_type_missing: "Missing wall type",
   frame_depth_underivable: "Frame depth needs wall type",
   details_dropped: "Schedule cells (glass / materials / notes) were not carried into fields",
+  handing_read_from_plan: "Handing read off the floor plan by the model — confirm the swing on the plan",
+  read_by_model: "Read off a picture of the sheet by the model (no text to parse) — confirm it on the sheet",
+  bbox_row_not_found: "The row could not be found again on its sheet — the page is right; find the row by eye",
+  qty_not_stated: "The schedule states no count — take it off the plans or elevations",
 };
 
 const MATERIAL_FIELDS = [

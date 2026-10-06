@@ -154,6 +154,14 @@
   },
   "status": 200
  },
+ "GET /api/reference/hardware-equals": {
+  "body": {
+   "description": "str",
+   "rows": [],
+   "source": "str"
+  },
+  "status": 200
+ },
  "GET /api/reference/lite-kit": {
   "body": {
    "data": {
@@ -889,6 +897,23 @@
   },
   "status": 200
  },
+ "GET /api/reference/stewardship": {
+  "body": {
+   "note": "str",
+   "sets": [
+    {
+     "cadence": "str",
+     "due": "bool",
+     "family": "str",
+     "owner": "str",
+     "reviewDue": "datetime",
+     "updatedAt": "datetime",
+     "updatedBy": "str"
+    }
+   ]
+  },
+  "status": 200
+ },
  "GET /api/reference/stock/{vendor}": {
   "body": {
    "items": [
@@ -1121,6 +1146,22 @@
    ],
    "waste_pct": "number",
    "waste_pct_note": "str"
+  },
+  "status": 200
+ },
+ "PATCH /api/reference/hardware-equals": {
+  "body": {
+   "description": "str",
+   "rows": [
+    {
+     "brand": "str",
+     "equal_manufacturer": "str",
+     "equal_part": "str",
+     "named_by": "str",
+     "part": "str"
+    }
+   ],
+   "source": "str"
   },
   "status": 200
  },

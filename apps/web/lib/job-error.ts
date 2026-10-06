@@ -8,7 +8,10 @@ export type JobErrorCode =
   | "sync_failed"
   | "worker_error"
   | "project_missing"
+  | "artifact_validation"
   | "unknown";
+
+type Stage = "extraction" | "quote" | "proposal" | "intake";
 
 export type JobErrorAction = {
   label: string;
@@ -49,6 +52,7 @@ export function classifyJobError(
   if (lower.includes("result sync failed")) return "sync_failed";
   if (lower.includes("worker error")) return "worker_error";
   if (lower.includes("project no longer exists")) return "project_missing";
+  if (lower.includes("artifact validation failed")) return "artifact_validation";
   return "unknown";
 }
 
@@ -62,8 +66,16 @@ function isJobErrorCode(value: string): value is JobErrorCode {
     "sync_failed",
     "worker_error",
     "project_missing",
+    "artifact_validation",
     "unknown",
   ].includes(value);
+}
+
+/** The bid stage a job belongs to, so its failure is worded for what it was doing. */
+export function stageForJobType(type: string): Stage {
+  if (type === "match_and_price") return "quote";
+  if (type === "build_proposal") return "proposal";
+  return "extraction";
 }
 
 const COPY: Record<
@@ -110,10 +122,58 @@ const COPY: Record<
     title: "Bid no longer found",
     message: "This bid was removed while the run was in progress.",
   },
+  artifact_validation: {
+    title: "Automatic read finished, but its output failed the checks",
+    message:
+      "Nothing from this run was accepted. You can add lines by hand or try running the read again.",
+  },
   unknown: {
     title: "Automatic read didn't finish",
     message:
       "Something went wrong. You can add lines by hand or try running the read again.",
+  },
+};
+
+// The copy above is worded for a read. A pricing or proposal run that fails the
+// same way must not tell the estimator to "try running the read again".
+const STAGE_COPY: Partial<
+  Record<Stage, Partial<Record<JobErrorCode, { title: string; message: string }>>>
+> = {
+  quote: {
+    cli_exit: {
+      title: "Pricing didn't finish",
+      message: "Something went wrong while pricing the lines. Try running pricing again.",
+    },
+    timeout: {
+      title: "Pricing took too long",
+      message: "Pricing timed out before it finished. Try running it again.",
+    },
+    artifact_validation: {
+      title: "Pricing finished, but its output failed the checks",
+      message: "Nothing from this run was accepted. Try running pricing again.",
+    },
+    unknown: {
+      title: "Pricing didn't finish",
+      message: "Something went wrong. Try running pricing again.",
+    },
+  },
+  proposal: {
+    cli_exit: {
+      title: "The proposal wasn't built",
+      message: "Something went wrong while building the proposal. Try building it again.",
+    },
+    timeout: {
+      title: "The proposal build took too long",
+      message: "It timed out before it finished. Try building the proposal again.",
+    },
+    artifact_validation: {
+      title: "The proposal was built, but it failed the checks",
+      message: "Nothing from this run was accepted. Try building the proposal again.",
+    },
+    unknown: {
+      title: "The proposal wasn't built",
+      message: "Something went wrong. Try building the proposal again.",
+    },
   },
 };
 
@@ -136,14 +196,15 @@ export function jobTypeLabel(type: string): string {
 export function translateJobError(
   error: string | null,
   role: string,
-  options?: { errorCode?: string | null; stage?: "extraction" | "quote" | "proposal" | "intake" },
+  options?: { errorCode?: string | null; stage?: Stage },
 ): TranslatedJobError | null {
   if (!error) return null;
 
   const code = classifyJobError(error, options?.errorCode);
-  const copy = COPY[code];
-  const admin = isAdminRole(role);
   const stage = options?.stage ?? "extraction";
+  const copy: { title: string; message: string; adminHint?: string } =
+    STAGE_COPY[stage]?.[code] ?? COPY[code];
+  const admin = isAdminRole(role);
 
   const actions: JobErrorAction[] = [];
 
@@ -158,7 +219,7 @@ export function translateJobError(
 
   if (code === "auth_failed" || code === "cli_missing") {
     if (admin) {
-      actions.push({ label: "Open settings", href: "/settings" });
+      actions.push({ label: "Open AI settings", href: "/settings/ai" });
     } else {
       actions.push({ label: "Notify your admin" });
     }

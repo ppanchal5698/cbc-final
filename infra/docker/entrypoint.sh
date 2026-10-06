@@ -16,49 +16,36 @@
 # incomplete. Merging into whatever is there now is the version that sticks.
 set -euo pipefail
 
-# -- Infisical: pull secrets in, before anything reads them -----------------
-# Re-executes this script under `infisical run`, so the secrets are process
-# environment for bootstrap.py and for the API/worker alike. That placement is
-# what makes this a no-op for application code: provider.build_env,
-# parsing_config.resolve and cost_budget all resolve os.environ BEFORE .env,
-# so a secret served here simply wins, and the Settings screen marks the field
-# `env` and locks it - which is the honest thing to show for a value the
-# operator can no longer change from that screen.
+# -- The local Azure emulator's certificate ---------------------------------
+# Floci serves Blob Storage and Key Vault over TLS with a certificate it makes
+# itself. Fetched once here and handed to the Azure clients as AZURE_EMULATOR_CA
+# - trusted by those clients only, never added to the system store. Production
+# leaves AZURE_EMULATOR_CA_URL empty and this does nothing.
+if [ -n "${AZURE_EMULATOR_CA_URL:-}" ]; then
+  export AZURE_EMULATOR_CA="${AZURE_EMULATOR_CA:-/tmp/azure-emulator-ca.pem}"
+  if ! curl -fsSk --retry 10 --retry-connrefused --retry-delay 2 \
+      -o "${AZURE_EMULATOR_CA}" "${AZURE_EMULATOR_CA_URL}"; then
+    echo "[entrypoint] could not fetch the emulator certificate from ${AZURE_EMULATOR_CA_URL}" >&2
+  fi
+fi
+
+# -- Key Vault: pull secrets in, before anything reads them -----------------
+# Re-executes this script with the vault's secrets in its environment, so they
+# are process environment for bootstrap.py and for the API/worker alike. That
+# placement is what makes this a no-op for application code: provider.build_env,
+# parsing_config.resolve and cost_budget all resolve os.environ BEFORE .env, so a
+# secret served here simply wins, and the Settings screen marks the field `env`
+# and locks it - the honest thing to show for a value the operator can no longer
+# change from that screen.
 #
-# Fail-open, deliberately. Infisical unreachable, credentials missing or login
-# refused all fall through to the mounted .env, which is exactly how this ran
-# before. A secrets manager that takes the whole stack down with it when it
-# blinks is a worse outage than the one it prevents.
-#
-# Configure with infra/infisical-client.env - see docs/operations/secrets.md.
-if [ -z "${INFISICAL_INJECTED:-}" ] && [ -n "${INFISICAL_PROJECT_ID:-}" ]; then
+# Fail-open, deliberately: an unreachable vault falls through to the mounted
+# .env. A secrets manager that takes the whole stack down with it when it blinks
+# is a worse outage than the one it prevents. Seed it with
+# apps/backend/scripts/seed_key_vault.py.
+if [ -z "${KEY_VAULT_LOADED:-}" ] && [ -n "${KEY_VAULT_URL:-}" ]; then
   # Guards the re-exec below against looping.
-  export INFISICAL_INJECTED=1
-  # The CLI phones home for a version check on every invocation; at start-up
-  # that is a stall between the container and a working API, not a feature.
-  export INFISICAL_DISABLE_UPDATE_CHECK=true
-
-  if [ -z "${INFISICAL_TOKEN:-}" ] && [ -n "${INFISICAL_UNIVERSAL_AUTH_CLIENT_ID:-}" ]; then
-    # Assigning inside `if` keeps `set -e` from killing the container on a
-    # failed login - falling back to .env is the whole point.
-    if _token="$(infisical login --method=universal-auth --silent --plain)"; then
-      export INFISICAL_TOKEN="${_token}"
-    else
-      echo "[entrypoint] Infisical login failed - falling back to .env" >&2
-    fi
-    unset _token
-  fi
-
-  if [ -n "${INFISICAL_TOKEN:-}" ]; then
-    echo "[entrypoint] secrets from Infisical: project ${INFISICAL_PROJECT_ID}, env ${INFISICAL_ENV_SLUG:-prod}, path ${INFISICAL_SECRET_PATH:-/}"
-    exec infisical run \
-      --projectId="${INFISICAL_PROJECT_ID}" \
-      --env="${INFISICAL_ENV_SLUG:-prod}" \
-      --path="${INFISICAL_SECRET_PATH:-/}" \
-      --recursive \
-      -- "$0" "$@"
-  fi
-  echo "[entrypoint] Infisical configured but no token - using .env" >&2
+  export KEY_VAULT_LOADED=1
+  exec python -m cbc.shared.keyvault -- "$0" "$@"
 fi
 
 python - <<'PY'

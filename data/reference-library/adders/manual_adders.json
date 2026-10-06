@@ -2,7 +2,7 @@
   "description": "Adders NOT shown cleanly in the base price book. They must be added on top of the base price (NR-4).",
   "rule": "The pricebook MCP server never includes these in a lookup. Adding one is a deliberate, recorded act.",
   "adder_types": [
-    { "type": "electrification", "note": "Electrified products carry a separate Hager multiplier tier (0.410, 50/18%, excludes HS4). Not in the base lock price." },
+    { "type": "electrification", "note": "Electrified products carry a separate Hager multiplier (get_multiplier, category electrified_products; excludes HS4). Not in the base lock price." },
     { "type": "non-removable-pin hinges (NRP)", "note": "Added on top of the base hinge price. Value PENDING from CBC (NR-7)." },
     { "type": "premium / lead-time finishes", "note": "Added on top of the base price; some finishes also carry lead times." }
   ],

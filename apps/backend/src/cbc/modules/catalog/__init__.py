@@ -87,12 +87,8 @@ def register_jobs() -> None:
     # two run in the worker itself. A bad payload, a missing file or a layout the
     # extractor cannot read all read exactly the same on the third attempt, so
     # they fail at once rather than spend the attempt budget reaching it.
-    #
-    # `parse_catalog` / `parse_multiplier` are gone with MinerU. Catalog PDFs are
-    # read by their own MCP server now; until then `catalog-docs` serves the
-    # pageIndex path, which is the documented fallback whenever a book's
-    # parse_state is not `parsed` - the same route the system already took
-    # whenever parsing was switched off.
+    # A book's list prices are read off its pages in `index_catalog` too
+    # (priceBookEntries), so a pass reaches them through the `catalog` server.
     permanent = (ValueError, FileNotFoundError, IndexCatalog.IndexingError)
     worker.register("index_catalog", partial(worker.run_locally, work=IndexCatalog.index_catalog, permanent=permanent))
     worker.register("delete_catalog", partial(worker.run_locally, work=DeleteCatalog.delete_catalog, permanent=permanent))

@@ -34,14 +34,25 @@ class ProjectRef(TypedDict, total=False):
     version: int
     autopilot: bool
     alternates: list[str]
+    bidAlternates: list[str]  # named on the create form (FR-1a)
+    alternateSpecs: list[dict[str, Any]]  # each alternate's kind, priority and description (FR-14)
+    addenda: list[dict[str, Any]]  # the addendum log: number, issued, what it changed (FR-14)
+    rfpText: str  # the request's scope notes, which pricing reads (FR-1)
     state: str
     location: str
     gc: str
+    brand: str
     architect: str
     initiator: str
     degraded: bool
     producedBy: str
     hasTrustDialogAccepted: bool
+    removedOpenings: list[str]  # take-off keys of openings the estimator deleted
+    removedQuoteLines: list[str]  # line keys of derived quote lines the estimator deleted
+    bidDue: Any
+    jobName: str
+    p21OrderNo: str  # the P21 order raised against the bid
+    templateSourceCode: str  # the prior bid a templated one started from (FR-11)
 
 
 async def load(code_or_id: str) -> ProjectRef:

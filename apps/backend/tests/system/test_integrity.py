@@ -620,7 +620,7 @@ def test_a_failed_heartbeat_does_not_kill_the_heartbeat(monkeypatch) -> None:
             calls.append(1)
             if len(calls) == 1:
                 raise RuntimeError("connection reset by peer")
-            return None
+            return type("Result", (), {"matched_count": 1})()
 
     class _Db:
         jobs = _Jobs()
@@ -640,6 +640,40 @@ def test_a_failed_heartbeat_does_not_kill_the_heartbeat(monkeypatch) -> None:
 
     asyncio.run(asyncio.wait_for(drive(), timeout=5))
     assert len(calls) >= 3, "the beat stopped at the first failure"
+
+
+class _ReapedJobs:
+    """A jobs collection holding one job reaped and re-claimed by another worker."""
+
+    doc = {"_id": "job-1", "status": "running", "workerId": "worker-2", "claimGeneration": 4}
+
+    async def update_one(self, query, _update):
+        held = all(self.doc.get(key) == value for key, value in query.items())
+        return type("Result", (), {"matched_count": int(held)})()
+
+    async def find_one(self, _query, _projection=None):
+        return dict(self.doc)
+
+
+def test_a_reaped_claim_stops_the_heartbeat_and_the_pass(monkeypatch) -> None:
+    """A worker whose job was reaped kept beating and kept its Claude process
+    running - spending tokens on a result finish() would throw away."""
+    import asyncio
+
+    from cbc.modules.ops.api import worker
+
+    monkeypatch.setattr(worker, "jobs_collection", lambda: _ReapedJobs())
+    monkeypatch.setattr(worker, "HEARTBEAT_SECONDS", 0)
+
+    assert asyncio.run(worker.heartbeat_once("job-1", "worker-1", 3)) is False
+    assert asyncio.run(worker.heartbeat_once("job-1", "worker-2", 4)) is True
+    # beat() returns on its own rather than beating on someone else's claim.
+    asyncio.run(asyncio.wait_for(worker.beat("job-1", "worker-1", 3), timeout=5))
+
+    assert asyncio.run(worker.stop_reason("job-1", "worker-1", 3)) == "lease lost"
+    assert asyncio.run(worker.stop_reason("job-1", "worker-2", 4)) is None
+    monkeypatch.setattr(_ReapedJobs, "doc", {**_ReapedJobs.doc, "status": "cancelled"})
+    assert asyncio.run(worker.stop_reason("job-1", "worker-2", 4)) == "cancelled by estimator"
 
 
 def test_the_shutdown_requeue_is_guarded_like_finish() -> None:
@@ -705,3 +739,40 @@ def test_heartbeat_watchdog_fires_while_blocked() -> None:
     dog.stop()
     assert len(hits) >= 2
 
+
+
+def test_the_hook_carries_preprices_source_stamp() -> None:
+    """The hook duplicates preprice.SOURCE because it cannot import cbc; this is
+    what notices if the two ever drift."""
+    import importlib.util
+
+    from cbc.modules.pricing.api import preprice
+
+    spec = importlib.util.spec_from_file_location(
+        "pre_delete_guard", ROOT / ".claude" / "hooks" / "pre_delete_guard.py"
+    )
+    guard = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(guard)
+    assert guard._PREPRICE_SOURCE == preprice.SOURCE
+
+
+@pytest.mark.parametrize(
+    ("source", "blocked"),
+    [("preprice.py (deterministic pre-pricing)", True), ("the pricing pass", False)],
+)
+def test_saving_the_whole_priced_file_is_blocked_only_over_the_seed(tmp_path, source, blocked) -> None:
+    """Over preprice's seed, priced lines are patched; over a file the pricing pass
+    wrote itself (PREPRICE_SEED=0), save_artifact is still how it writes."""
+    priced = tmp_path / "bid" / "priced" / "line_items.json"
+    priced.parent.mkdir(parents=True)
+    priced.write_text(json.dumps({"source": source, "lines": []}), encoding="utf-8")
+    payload = {
+        "tool_name": "mcp__artifact-storage__save_artifact",
+        "tool_input": {"project": "bid", "path": "priced/line_items.json", "content": "{}"},
+    }
+    env = dict(os.environ, CLAUDE_PROJECT_DIR=str(ROOT), CBC_PROJECTS_ROOT=str(tmp_path))
+    result = subprocess.run(
+        [sys.executable, str(ROOT / ".claude" / "hooks" / "pre_delete_guard.py")],
+        input=json.dumps(payload), capture_output=True, text=True, env=env, cwd=ROOT,
+    )
+    assert (result.returncode == 2) is blocked, result.stderr

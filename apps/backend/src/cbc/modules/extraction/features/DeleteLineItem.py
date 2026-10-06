@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Response
 
+from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.extraction.infrastructure.collections import openings
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api.lookup import load
@@ -20,7 +21,7 @@ async def delete_line_item(code: str, item_id: str, actor: Actor) -> Response:
     if not item:
         raise HTTPException(404, "line item not found")
 
-    await openings().delete_one({"_id": item["_id"]})
+    await extraction_openings.remove(project["_id"], [item["_id"]])
     await audit.record(
         "line_item.delete",
         actor,

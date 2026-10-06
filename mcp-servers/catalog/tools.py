@@ -143,7 +143,7 @@ TOOLS: list[dict[str, Any]] = [
         "name": "search_catalog_items",
         "description": (
             "Search the product catalog (catalogItems) for matching parts before "
-            "PDF search_blocks / find_pages. Returns ranked candidates with part, "
+            "the PDF find_pages. Returns ranked candidates with part, "
             "model, description, manufacturer, cost, and listPrice. Use for "
             "product matching Tier 1–3; pricing still calls lookup_catalog_item."
         ),

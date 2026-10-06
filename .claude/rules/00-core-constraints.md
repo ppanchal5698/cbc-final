@@ -1,12 +1,18 @@
 # Core constraints
 
-**The two rules that apply to every task, in every phase.** Both are enforced by
-PreToolUse hooks, so breaking either fails the tool call rather than the review.
+**The rules that apply to every task, in every phase.** What enforces each:
+
+| Concern | Enforced by |
+|---|---|
+| Reading or editing secrets (`.env`, `.env.*`) | `deny` rules in `.claude/settings.json` |
+| Sending anything (NFR-1) | `pre_send_quote.py` (PreToolUse, exit 2) |
+| Writes, deletes and `git push` | `pre_delete_guard.py` (PreToolUse, exit 2) |
+
+Settings `allow` / `ask` rules decide what prompts; they are not a safety
+control. The hooks are a backstop, not a guarantee: they match command text.
 
 Everything else in `.claude/rules/` is phase-specific — see
 [README.md](README.md).
-
-Merged from `file-safety.md` and `human-in-the-loop.md`.
 
 ---
 
@@ -36,9 +42,8 @@ judgment.
 
 ### Enforcement
 
-`.claude/hooks/pre_send_quote.py` (PreToolUse, exit 2 blocks) · the permission
-deny list in `.claude/settings.json` · the agent instruction in
-`.claude/agents/delivery-agent.md`.
+`.claude/hooks/pre_send_quote.py` (PreToolUse, exit 2 blocks) · the agent
+instruction in `.claude/agents/delivery-agent.md`.
 
 **Owner:** CBC Estimating (Kevin, Rick, Shanna).
 
@@ -49,16 +54,17 @@ deny list in `.claude/settings.json` · the agent instruction in
 ### Writes
 
 - Write **only** inside `projects/{current_project}/` during a pipeline run.
-- **Never write to `pricebooks/` or `reference-library/` during a run.** They
-  are read-only reference data. Updating them is a separate, deliberate,
-  human-initiated act.
+- **Never write to the price books (`data/pricebooks/`) or the reference data
+  (`data/reference-library/`, served in a run only by the `reference` MCP
+  server) during a run.** They are read-only reference data. Updating them is a
+  separate, deliberate, human-initiated act.
 - Raw uploads in `projects/{project}/uploads/raw/` are **immutable**. Extraction
   output goes to `uploads/processed/` or `extracted/`, never back over the
   original.
 
 **The Ops-Hub API is that deliberate act.** The FastAPI service writes
-`pricebooks/` when purchasing uploads a sheet, and owns the `products` and
-`priceBooks` collections. That is a human-initiated change made outside any
+`data/pricebooks/` when purchasing uploads a sheet, and owns the `catalogItems`
+and `priceBooks` collections. That is a human-initiated change made outside any
 pipeline run, which is exactly what this rule permits. The constraint on an
 agent is unchanged: during a job, those paths are read-only.
 
@@ -69,7 +75,7 @@ is read-only by design and asserts it at import — the same guarantee
 ### Deletes
 
 - **Never delete anything outside `projects/{project}/`.**
-- Never delete anything in `pricebooks/` or `reference-library/`, ever.
+- Never delete anything in `data/pricebooks/` or `data/reference-library/`, ever.
 - `rm -rf` outside `projects/` and `git push` are both blocked by
   `.claude/hooks/pre_delete_guard.py` (exit 2).
 
@@ -84,5 +90,13 @@ estimator-facing file that needs version history.
 
 ### Enforcement
 
-`.claude/hooks/pre_delete_guard.py` (PreToolUse, exit 2 blocks) · the permission
-deny list in `.claude/settings.json`.
+`.claude/hooks/pre_delete_guard.py` (PreToolUse, exit 2 blocks).
+
+---
+
+## 3. Secrets
+
+Never read, print or edit `.env` or any `.env.*` file. The values belong to the
+operator; a run gets what it needs as environment. `deny` rules in
+`.claude/settings.json` refuse Read, Edit and Write on them - they do not cover a
+shell command that prints one, so do not try.

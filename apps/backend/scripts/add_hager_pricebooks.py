@@ -85,7 +85,7 @@ def update_index_json() -> None:
     payload = json.loads(index_path.read_text(encoding="utf-8")) if index_path.exists() else {
         "description": "Inventory of CBC vendor price books. Read-only during a pipeline run.",
         "generated_from": "final_pricebooks/",
-        "refresh_cadence": "UNDEFINED - see .claude/rules/data-stewardship.md (NFR-10, OPEN)",
+        "refresh_cadence": "UNDEFINED (NFR-10, OPEN)",
         "pricebooks": [],
     }
     by_file = {row["file"]: row for row in payload.get("pricebooks", [])}

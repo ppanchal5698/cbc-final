@@ -14,17 +14,25 @@ comparable prior quote, and writing the RFIs.
 
 `merge` keeps both. A derived flag wins on the field it owns, and anything the
 agent wrote that nothing here derives is carried through untouched.
+
+Every flag carries `blocking` beside `severity`. Severity is for display;
+`blocking` is what the approval gate reads (`quoting` proposal readiness), and
+only rules in this module set it. A finding a model wrote can inform the
+estimator but cannot hold a quote, because nothing but an edit to that file
+could ever clear it.
 """
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 from cbc.modules.pricing.api import calc
 from cbc.shared.paths import repo_root, storage_root
 from cbc.modules.pricing.api import pricing, reference_library
-from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
+from cbc.modules.pricing.api.confidence import AUTO_PROPOSE, CONFIDENCE_FLOOR
+from cbc.shared import fire_rating
 
 ROOT = repo_root()
 
@@ -42,6 +50,16 @@ REQUIRED_OPENING_FIELDS = {
     "handing": "Missing handing",
     "finish": "Missing finish",
     "size": "Missing size",
+}
+
+# What to say once, for the bid, when no door on the schedule gives the field: the
+# schedule does not carry it, and eight copies of "missing handing" at HIGH hid the
+# one flag that mattered.
+ABSENT_FROM_SCHEDULE = {
+    "fire_rating": ("high", "No door on the schedule gives a fire rating - confirm the set has no rated openings"),
+    "handing": ("medium", "The schedule gives no handing for any door - read it off the floor plan swings"),
+    "finish": ("medium", "The door schedule gives no finish - each hardware item's finish is on its set"),
+    "size": ("high", "No door on the schedule gives a size"),
 }
 
 # Ohio and Kentucky are taxed; the other 48 states and Canada are not. An unknown
@@ -68,7 +86,7 @@ def _openings(payload: Any) -> list[dict]:
     return []
 
 
-def _flag(opening, field, severity, note, source_page=None) -> dict[str, Any]:
+def _flag(opening, field, severity, note, source_page=None, *, blocking=False) -> dict[str, Any]:
     return {
         "opening": opening,
         "field": field,
@@ -76,6 +94,7 @@ def _flag(opening, field, severity, note, source_page=None) -> dict[str, Any]:
         "source_page": source_page,
         "note": note,
         "derived": True,
+        "blocking": blocking,
     }
 
 
@@ -115,15 +134,51 @@ def reconcile_flags(opening: dict[str, Any]) -> list[str]:
     return [f for f in kept if not (f in seen or seen.add(f))]
 
 
-def _opening_flags(openings: list[dict]) -> list[dict]:
+def _opening_flags(openings: list[dict], fire_ratings_present: bool = False) -> list[dict]:
     flags: list[dict] = []
+    doors = [o for o in openings if not o.get("specialty")]
+    # A field no door has is the schedule's silence, said once - unless rule 1 makes
+    # each door's missing rating a stop of its own. A handing read off the plan is
+    # not the schedule's: Evernorth's has no handing column, the plan gave 13 doors
+    # theirs, and the other 21 came back one HIGH flag each.
+    def on_schedule(opening: dict, field: str) -> bool:
+        if field == "handing" and "handing_read_from_plan" in (opening.get("flags") or []):
+            return False
+        return opening.get(field) not in (None, "", [])
+
+    absent = {field for field in REQUIRED_OPENING_FIELDS
+              if len(doors) > 1 and not any(on_schedule(o, field) for o in doors)
+              and not (field == "fire_rating" and fire_ratings_present)}
+    for field in sorted(absent):
+        severity, note = ABSENT_FROM_SCHEDULE[field]
+        unread = [str(o.get("door_number") or o.get("mark") or "?") for o in doors
+                  if o.get(field) in (None, "", [])]
+        if len(unread) < len(doors):
+            note = (f"{note}: {len(doors) - len(unread)} read off the plan - confirm them"
+                    + (f"; still to read: doors {', '.join(unread)}" if unread else ""))
+        flags.append(_flag("All doors", field, severity, note, doors[0].get("source_page")))
     for opening in openings:
+        if opening.get("specialty"):
+            continue  # Division 10 / FRP rows an export wrote here: not doors
         label = _label(opening)
         page = opening.get("source_page")
 
         for field, note in REQUIRED_OPENING_FIELDS.items():
+            if field in absent:
+                continue
             if opening.get(field) in (None, "", []):
-                flags.append(_flag(label, field, "high", note + " - estimator review", page))
+                # In a set that rates its doors, an unrated opening may be a
+                # rated door priced as an unrated one - a code problem, not a
+                # price one (requirements 6.1, rule 1). In a set with no ratings
+                # anywhere it is just a gap; on a door CBC is not quoting, nothing.
+                blocking = (field == "fire_rating" and fire_ratings_present
+                            and opening.get("in_scope") is not False)
+                # As severe as the schedule's silence on it would be: a door's
+                # handing or finish orders the part, its rating or size prices it.
+                flags.append(
+                    _flag(label, field, ABSENT_FROM_SCHEDULE[field][0], note + " - estimator review", page,
+                          blocking=blocking)
+                )
 
         keying = opening.get("keying")
         hw = " ".join(
@@ -146,7 +201,8 @@ def _opening_flags(openings: list[dict]) -> list[dict]:
 
         confidence = opening.get("confidence")
         if isinstance(confidence, (int, float)) and confidence < CONFIDENCE_FLOOR:
-            note = "Match confidence {:.2f} is below {}".format(confidence, CONFIDENCE_FLOOR)
+            note = "Read at confidence {:.2f}, under {} - check the row against the sheet".format(
+                confidence, CONFIDENCE_FLOOR)
             flags.append(_flag(label, "confidence", "high", note, page))
 
         # NFR-3: a record the estimator cannot find on the drawing is not traceable.
@@ -157,6 +213,16 @@ def _opening_flags(openings: list[dict]) -> list[dict]:
     return flags
 
 
+# Requirements 7.1 / NFR-2: a priced match under the auto-propose line is amber, and
+# says what keeps it from certain. A price the model read has a note of its own.
+_MATCH_WHY = {
+    "model_chose_match": "the model chose it among rows at different prices",
+    "series_match": "it is a size of the series the legend names, not the part itself",
+    "direct_equal": "it is a direct equal for the part specified",
+    "hardware_equal": "it is the equal on file for the Allegion part specified",
+}
+
+
 def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[dict]:
     flags: list[dict] = []
     for line in lines:
@@ -164,21 +230,93 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
         page = line.get("source_page")
         source = str(line.get("cost_source") or "").upper()
 
-        # scope-boundaries: an excluded vendor is not quoted at any price. The
+        # .claude/guides/takeoff.md: an excluded vendor is not quoted at any price. The
         # tier sheet's `excluded` list is the record of who that is.
-        vendor = str(line.get("vendor") or line.get("manufacturer") or "").lower()
+        vendor = re.sub(r"[^a-z0-9]", "", str(line.get("vendor") or line.get("manufacturer") or "").lower())
         for entry in excluded or []:
             name = str(entry.get("name") or "")
-            if name and name.lower() in vendor:
+            if name and re.sub(r"[^a-z0-9]", "", name.lower()) in vendor:
                 note = "{} is not quoted by CBC ({}) - remove the line and list it as out of scope".format(
                     name, entry.get("reason") or "excluded vendor"
                 )
                 flags.append(_flag(label, "out_of_scope", "high", note, page))
 
         if source in UNFINISHED_COST_SOURCES and line.get("cost") is None:
+            # A line with no cost has no price; a quote cannot go out with one.
+            # An alternate's missing price is visible but holds nothing: it is
+            # not in the bid's total, and the bid can go out without it.
             flags.append(
-                _flag(label, "cost", "medium", UNFINISHED_COST_SOURCES[source], page)
+                _flag(label, "cost", "medium", UNFINISHED_COST_SOURCES[source], page,
+                      blocking=bool(line.get("in_base", not line.get("alternate_group"))))
             )
+
+        if "carried_from_prior" in (line.get("flags") or []):
+            # FR-1d: a templated bid starts as a copy of a prior job's quote, and a
+            # row left over from that job must not go out on this one unseen.
+            flags.append(_flag(label, "carried", "medium",
+                               "Carried from {} - keep it if it applies to this job, or remove it".format(
+                                   line.get("carried_from") or "a prior bid"),
+                               page, blocking=True))
+
+        # Requirements 6.1: a smoke-labeled assembly, and a 20-minute door tested
+        # without hose stream - both the estimator's to confirm against the listing.
+        if "smoke_gasketing_missing" in (line.get("flags") or []):
+            flags.append(_flag(label, "smoke_gasketing", "high",
+                               "Smoke-labeled doors cite this set, and it lists no gasketing - a smoke "
+                               "assembly needs seals listed for smoke and draft control (UL 1784)", page))
+        if "smoke_label" in (line.get("flags") or []) and str(line.get("line_id") or "").startswith("door:"):
+            flags.append(_flag(label, "smoke_label", "medium",
+                               "Smoke-labeled door (S label): the door, frame and gasketing must be "
+                               "listed for smoke and draft control", page))
+        match = line.get("match_confidence")
+        why = next((text for flag, text in _MATCH_WHY.items() if flag in (line.get("flags") or [])), None)
+        if why and line.get("cost") is not None and isinstance(match, (int, float)) and match < AUTO_PROPOSE:
+            flags.append(_flag(label, "match", "medium",
+                               "Matched at {:.2f}: {} - confirm the part".format(match, why), page))
+        # A set priced by hand because the legend does not give it: Evernorth's schedule
+        # cites groups 05, 06 and 08, and its manual lists 01 to 04.
+        doors = ", ".join(str(d) for d in line.get("openings") or [])
+        if "hardware_set_not_in_legend" in (line.get("flags") or []):
+            flags.append(_flag(label, "hardware_set", "high",
+                               "{} is cited by door{} {} but is not in the hardware legend - price it from "
+                               "the schedule's notes, or ask for the set (RFI)".format(
+                                   label, "s" if len(line.get("openings") or []) > 1 else "", doors), page))
+        if "hardware_set_not_itemised" in (line.get("flags") or []):
+            flags.append(_flag(label, "hardware_set", "medium",
+                               "The legend names {} without its items - price the set from the sheet".format(label),
+                               page))
+        if "supply_unclear" in (line.get("flags") or []):
+            flags.append(_flag(label, "supply", "medium",
+                               "The schedule names another party here without saying who supplies the "
+                               "item - confirm it is CBC's to quote", page))
+        if "supply_read_by_model" in (line.get("flags") or []):
+            flags.append(_flag(label, "supply", "medium",
+                               "Moved to 'Supplied by others' on the model's reading of the schedule's "
+                               "words - confirm, or move it back into the bid", page))
+        if "price_read_by_model" in (line.get("flags") or []):
+            flags.append(_flag(label, "cost", "medium",
+                               "List price read off the price-book page by the model - confirm it against the sheet",
+                               page))
+        if "temperature_rise" in (line.get("flags") or []):
+            flags.append(_flag(label, "fire_rating", "medium",
+                               "Temperature-rise door (stair or exit enclosure) - quote it with its "
+                               "temperature-rise core, and confirm the limit the schedule gives", page))
+        if "no_hose_stream" in (line.get("flags") or []):
+            flags.append(_flag(label, "fire_rating", "medium",
+                               "20-minute door tested without hose stream - confirm the listing allows it here",
+                               page))
+
+        if "rated_set" in (line.get("flags") or []):
+            flags.append(_flag(label, "fire_rating", "medium",
+                               "This set serves fire-rated doors and the library does not record which parts "
+                               "are listed - confirm its hinges, closer, latching and seals are listed for "
+                               "the doors' rating", page))
+        if "fire_exit_hardware_required" in (line.get("flags") or []):
+            # Panic hardware on a rated door must be listed fire exit hardware
+            # (requirements 6.1): a part priced off a list cannot say it is.
+            flags.append(_flag(label, "fire_rating", "high",
+                               "Exit device on a rated opening - confirm the part is listed fire exit hardware",
+                               page))
 
         margin = line.get("margin")
         if isinstance(margin, (int, float)):
@@ -188,9 +326,14 @@ def _line_flags(lines: list[dict], excluded: list[dict] | None = None) -> list[d
                 note = "Margin {:.0%} is below the {:.0%} floor for {} (NFR-8)".format(
                     margin, verdict["floor"], verdict["product_type"]
                 )
-                flags.append(_flag(label, "margin", "medium", note, page))
+                # A recorded reason makes it a decision (.claude/guides/pricing.md);
+                # it stays visible but no longer holds the quote.
+                flags.append(
+                    _flag(label, "margin", "medium", note, page,
+                          blocking=not line.get("margin_override_reason"))
+                )
 
-            # margin-governance.md: a below-band margin with a recorded reason is
+            # .claude/guides/pricing.md: a below-band margin with a recorded reason is
             # a decision. Without one it is the thing the flag exists for.
             if line.get("margin_overridden") and not line.get("margin_override_reason"):
                 flags.append(
@@ -213,7 +356,8 @@ def _scope_flags(scope: Any, metadata: Any) -> list[dict]:
             _flag("bid set", "project_identity", "critical",
                   "Unresolved brand/project identity mismatch: "
                   + str(metadata["brand_mismatch_warning"])
-                  + ". Confirm the correct bid and documents before sending to the customer.")
+                  + ". Confirm the correct bid and documents before sending to the customer.",
+                  blocking=True)
         )
     if isinstance(scope, dict):
         for item in scope.get("out_of_scope_items") or []:
@@ -227,11 +371,8 @@ def _scope_flags(scope: Any, metadata: Any) -> list[dict]:
                       note, item.get("source_page"))
             )
         if scope.get("fire_ratings_present") is False:
-            flags.append(
-                _flag("bid set", "fire_rating", "high",
-                      "No fire ratings found in the set - fire rating is mandatory "
-                      "to extract; leave null with a review flag, never invent", None)
-            )
+            # The estimator's words, the same as the doors' own note - said once.
+            flags.append(_flag("All doors", "fire_rating", *ABSENT_FROM_SCHEDULE["fire_rating"], None))
 
     state = metadata.get("state") if isinstance(metadata, dict) else None
     if not state:
@@ -291,17 +432,46 @@ def derive_flags(slug: str) -> list[dict]:
         lines = priced.get("lines", [])
     else:
         lines = []
+    scope = _load(project / "extracted" / "scope_summary.json")
+    # Whether the set rates its doors is read off the doors: the summary flag this
+    # waited for was written by no code path, so rule 1 never held anything.
+    rated = (isinstance(scope, dict) and scope.get("fire_ratings_present") is True) or any(
+        fire_rating.is_rated(o.get("fire_rating")) for o in openings
+        if o.get("in_scope") is not False and not o.get("specialty"))
 
-    return [
+    flags = [
         *_no_scope_flags(schedule, openings),
-        *_opening_flags(openings),
+        *_opening_flags(openings, rated),
         *_line_flags([line for line in lines if isinstance(line, dict)], _excluded_vendors() if lines else []),
-        *_scope_flags(
-            _load(project / "extracted" / "scope_summary.json"),
-            _load(project / "extracted" / "scope_metadata.json"),
-        ),
+        *_scope_flags(scope, _load(project / "extracted" / "scope_metadata.json")),
+        *_frp_constants_flags(project),
         *_document_not_parsed_flags(project),
         *_ocr_unavailable_flags(project),
+    ]
+    # The schedule's silence and the scope summary can both say "no door is rated":
+    # one bid-level finding, said once. Two lines flagged alike are two findings.
+    seen: set[tuple] = set()
+    return [f for f in flags if f["opening"] != "All doors"
+            or not ((key := (f["field"], f["note"])) in seen or seen.add(key))]
+
+
+def _frp_constants_flags(project: Path) -> list[dict]:
+    """FRP measured but not yet convertible: its quantities are not real yet.
+
+    Panel, trim and adhesive counts come from geometry through CBC's conversion
+    constants, and until those are set (Open Item 5) any FRP quantity on the
+    quote is a placeholder rather than a count.
+    """
+    frp = _load(project / "extracted" / "frp_takeoff.json")
+    if not (isinstance(frp, dict) and frp.get("areas")):
+        return []
+    if reference_library.load_frp_constants().get("status") != "PENDING":
+        return []
+    return [
+        _flag("bid set", "frp_constants_pending", "high",
+              "FRP was taken off but the FRP conversion constants are still PENDING - "
+              "panel, trim and adhesive quantities cannot be computed yet",
+              blocking=True)
     ]
 
 
@@ -337,16 +507,29 @@ def _document_not_parsed_flags(project: Path) -> list[dict]:
     for doc in status.get("documents") or []:
         if not isinstance(doc, dict):
             continue
+        name = doc.get("filename") or "document"
+        fallback = doc.get("fallbackPages") or []
+        if fallback:
+            # Advisory: the pages were read, just without LlamaParse's layout,
+            # so a table may have come through as loose rows.
+            note = (
+                f"{name} pages {', '.join(str(p) for p in fallback)} were parsed "
+                "locally after LlamaParse failed or ran past its deadline; "
+                "check values read from them against the sheet"
+            )
+            flags.append(
+                _flag(None, "parse_fallback", "medium", note, source_page=fallback[0])
+            )
         state = doc.get("state")
         if state in (None, "parsed", "off"):
             continue
-        name = doc.get("filename") or "document"
         note = (
-            f"{name} was not GPU-parsed (state={state}); "
-            "extraction read it with pdf-tools directly"
+            f"{name} was not read by the cloud parser ({state}); "
+            "its pages were read from the PDF's own text instead"
         )
         if doc.get("error"):
-            note = f"{note}. {doc['error']}"
+            error = str(doc["error"])
+            note = f"{note}. {error[:1].upper()}{error[1:]}"
         flags.append(
             _flag(None, "document_not_parsed", "info", note, source_page=None)
         )
@@ -367,10 +550,16 @@ def merge(derived: list[dict], existing: Any) -> list[dict]:
         existing = []
 
     owned = {(f.get("opening"), f.get("field")) for f in derived}
+    # A derived flag in the saved file is this module's own output from the last
+    # write, not the agent's. Keeping one whose condition has since cleared
+    # would hold the approval gate after the estimator fixed what it named.
+    # The agent's flags are kept but never block: see the module docstring.
     kept = [
-        f
+        {**f, "blocking": False}
         for f in existing
-        if isinstance(f, dict) and (f.get("opening"), f.get("field")) not in owned
+        if isinstance(f, dict)
+        and not f.get("derived")
+        and (f.get("opening"), f.get("field")) not in owned
     ]
     return [*derived, *kept]
 

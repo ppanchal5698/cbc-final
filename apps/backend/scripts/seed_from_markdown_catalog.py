@@ -12,7 +12,7 @@ Reads:
 Writes seed JSON under data/reference-library/ and upserts Mongo:
   catalogItems, priceBooks, referenceData (vendor_tiers, hager_special_nets, margins)
 
-Drops first: catalogItems, priceBooks, catalogPages, multiplierPages, pageIndex,
+Drops first: catalogItems, priceBooks, pageIndex,
 and the three referenceData families above (plus their revisions).
 """
 from __future__ import annotations
@@ -21,7 +21,6 @@ import argparse
 import json
 import os
 import re
-import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -199,7 +198,7 @@ def build_vendor_tiers() -> dict[str, Any]:
         ),
         "rule": "The multiplier is a per-vendor account attribute (a tier), not a per-item value. MAP is not cost.",
         "phase_1_scope": "Top vendors covering ~90% of quote volume (catalog.md Phase 1 lines).",
-        "owner": "UNASSIGNED - see .claude/rules/data-stewardship.md (NFR-10, OPEN)",
+        "owner": "UNASSIGNED (NFR-10, OPEN)",
         "source": "pricebooks/multipliers.md",
         "vendors": [
             {
@@ -899,12 +898,10 @@ def load_catalog_corpus() -> tuple[str, str]:
 # ── persistence ──────────────────────────────────────────────────────────────
 
 
-def wipe(db, *, processed_dir: Path) -> None:
+def wipe(db) -> None:
     for name in (
         names.CATALOG_ITEMS,
         names.PRICE_BOOKS,
-        names.CATALOG_PAGES,
-        names.MULTIPLIER_PAGES,
         names.PAGE_INDEX,
     ):
         db[name].drop()
@@ -916,10 +913,6 @@ def wipe(db, *, processed_dir: Path) -> None:
         ref.delete_one({"_id": family})
         revs.delete_many({"family": family})
         print(f"  deleted referenceData/{family}")
-
-    if processed_dir.is_dir():
-        shutil.rmtree(processed_dir, ignore_errors=True)
-        print(f"  cleared {processed_dir}")
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -1108,7 +1101,7 @@ def main() -> int:
     client.server_info()
 
     print("wiping old catalog + multiplier data…")
-    wipe(db, processed_dir=pricebook_dir() / "processed")
+    wipe(db)
 
     print("seeding Mongo…")
     put_family(db, "vendor_tiers", vendor_tiers)

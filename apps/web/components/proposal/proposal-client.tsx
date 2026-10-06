@@ -10,6 +10,7 @@ import {
   Circle,
   SealCheck,
   Copy,
+  Trash,
 } from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
 
@@ -19,9 +20,8 @@ import { RfisPanel } from "@/components/proposal/rfis-panel";
 import { LapsedGate } from "@/components/proposal/lapsed-gate";
 import { PriorBidCompare } from "@/components/proposal/prior-bid-compare";
 import { P21OrderField } from "@/components/proposal/p21-order-field";
+import { ProposalDocument } from "@/components/proposal/proposal-document";
 import { useUiState } from "@/components/shell/ui-state";
-import { formatMoney } from "@/lib/format";
-import { taxSummary } from "@/lib/tax-display";
 import type { EmailDraft, HandOffResult, Job, ProposalResponse } from "@/lib/types";
 
 import { endpoints } from "@/lib/endpoints";
@@ -103,7 +103,6 @@ export function ProposalClient({
   }
 
   const { proposal, project, sections, totals, readiness } = data;
-  const tax = taxSummary(totals);
 
   async function setMarkup(markup: number) {
     try {
@@ -114,6 +113,16 @@ export function ProposalClient({
       mutate();
     } catch (problem) {
       toast.error("Could not change the markup", { description: errorMessage(problem) });
+    }
+  }
+
+  /** The exclusions printed on the proposal (FR-10): the estimator's, line by line. */
+  async function setExclusions(exclusions: string[]) {
+    try {
+      await proxyMutate(`/api/proxy/projects/${code}/proposal`, { method: "PATCH", body: { exclusions } });
+      mutate();
+    } catch (problem) {
+      toast.error("Could not change the exclusions", { description: errorMessage(problem) });
     }
   }
 
@@ -207,6 +216,12 @@ ${draft.body}`;
         ? `${proposal.signoff[0].by} · ${new Date(proposal.signoff[0].at).toLocaleDateString()}`
         : "Not yet signed off",
     },
+    // Each one holds the hand-off on its own, so each is listed rather than counted.
+    ...(readiness.blockingFlags ?? []).map((flag) => ({
+      state: "warn",
+      title: `Blocks approval: ${flag.opening ?? "bid"} · ${(flag.field ?? "review").replaceAll("_", " ")}`,
+      detail: flag.note ?? "Clear this before handing off",
+    })),
     {
       state: readiness.flaggedLineItems > 0 ? "warn" : "done",
       title:
@@ -275,214 +290,10 @@ ${draft.body}`;
             </div>
           )}
 
-          <article className="mx-auto max-w-[820px] overflow-x-auto rounded-xl px-6 py-8 sm:px-12 sm:py-10 bg-white text-[#15151f] shadow-lg border border-subtle/50">
-            <header className="flex items-start justify-between">
-              <div>
-                <h1 className="text-[26px] font-semibold">Proposal</h1>
-                <p className="mt-2.5 text-[11.5px] leading-relaxed" style={{ color: "#55556b" }}>
-                  CBC Construction Building Components — A Division of The Hamilton Parker Company
-                  <br />
-                  1865 Leonard Ave. Columbus, OH 43219 · Phone (614) 358-7800
-                </p>
-              </div>
-              <table className="text-[11.5px]">
-                <tbody>
-                  <tr>
-                    <td className="pr-4 text-right" style={{ color: "#55556b" }}>
-                      Proposal No.
-                    </td>
-                    <td className="tnum font-semibold">{proposal.proposalNo}</td>
-                  </tr>
-                  <tr>
-                    <td className="pr-4 text-right" style={{ color: "#55556b" }}>
-                      Date
-                    </td>
-                    <td className="tnum font-semibold">{proposal.date}</td>
-                  </tr>
-                  <tr>
-                    <td className="pr-4 text-right" style={{ color: "#55556b" }}>
-                      Valid
-                    </td>
-                    <td className="tnum font-semibold">{proposal.validityDays} days</td>
-                  </tr>
-                  <tr>
-                    <td className="pr-4 text-right" style={{ color: "#55556b" }}>
-                      Order #
-                    </td>
-                    <td className="tnum font-semibold">—</td>
-                  </tr>
-                </tbody>
-              </table>
-            </header>
-
-            <div
-              className="mt-6 grid grid-cols-3 gap-4 rounded border p-3.5 text-[11.5px]"
-              style={{ borderColor: "#d6d9de" }}
-            >
-              <div>
-                <span className="block" style={{ color: "#55556b" }}>
-                  Customer
-                </span>
-                <span className="font-semibold">{project.gc ?? "—"}</span>
-              </div>
-              <div>
-                <span className="block" style={{ color: "#55556b" }}>
-                  Requested by
-                </span>
-                <span className="font-semibold">{project.initiator ?? "—"}</span>
-              </div>
-              <div>
-                <span className="block" style={{ color: "#55556b" }}>
-                  Estimator
-                </span>
-                <span className="font-semibold">
-                  {proposal.estimator?.name ?? "CBC Estimating"}
-                </span>
-              </div>
-              <div className="col-span-2">
-                <span className="block" style={{ color: "#55556b" }}>
-                  Job name
-                </span>
-                <span className="font-semibold">{project.jobName ?? project.name}</span>
-              </div>
-              <div>
-                <span className="block" style={{ color: "#55556b" }}>
-                  Location
-                </span>
-                <span className="font-semibold">{project.location ?? "—"}</span>
-              </div>
-            </div>
-
-            {/* The banner CBC prints across every proposal: the confirmation is
-                the customer's, and it is asked for before anything is ordered. */}
-            <div
-              className="mt-5 border-y py-1.5 text-center text-[10.5px] font-bold uppercase tracking-[0.08em]"
-              style={{ borderColor: "#15151f" }}
-            >
-              All bidders — confirm all doors, frames and hardware are correct before ordering
-            </div>
-
-            <p className="mt-5 text-[10px] leading-relaxed" style={{ color: "#55556b" }}>
-              This quote is conditioned upon the use of HAMILTON PARKER CO. purchase order as the
-              parties contract. This quote is only good for {proposal.validityDays} days from the
-              date of this quote. All special order materials not picked up within 30 days are
-              subject to invoicing unless other arrangements have been made.
-            </p>
-
-            {sections.map((section) => (
-              <section key={section.key} className="mt-6">
-                <div
-                  className="flex items-baseline justify-between border-b pb-1.5"
-                  style={{ borderColor: "#15151f" }}
-                >
-                  <h2 className="text-[12px] font-bold uppercase tracking-[0.05em]">
-                    {section.title}
-                  </h2>
-                  <span className="tnum text-[12.5px] font-bold">
-                    ${formatMoney(section.subtotal)}
-                  </span>
-                </div>
-
-                <table className="mt-2 w-full text-[10.5px]">
-                  <thead>
-                    <tr style={{ color: "#55556b" }}>
-                      <th className="w-[140px] py-1 text-left font-medium">PART</th>
-                      <th className="w-[44px] py-1 text-left font-medium">QTY</th>
-                      <th className="w-[40px] py-1 text-left font-medium">UOM</th>
-                      <th className="py-1 text-left font-medium">DESCRIPTION</th>
-                      <th className="w-[80px] py-1 text-right font-medium">UNIT PRICE</th>
-                      <th className="w-[86px] py-1 text-right font-medium">EXT. PRICE</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {section.lines.map((line, index) => (
-                      <tr key={`${line.part}-${index}`} className="border-t" style={{ borderColor: "#eceef1" }}>
-                        <td className="py-1 font-medium">{line.part ?? "—"}</td>
-                        <td className="tnum py-1" style={{ color: "#5b5bd6" }}>
-                          {line.qty}
-                        </td>
-                        <td className="py-1">{line.uom}</td>
-                        <td className="py-1" style={{ color: "#5b5bd6" }}>
-                          {line.description}
-                        </td>
-                        <td className="tnum py-1 text-right">
-                          {line.unitPrice === null ? (
-                            <span style={{ color: "#b45309" }}>{line.priceStatus ?? "MANUAL"}</span>
-                          ) : (
-                            `$${formatMoney(line.unitPrice)}`
-                          )}
-                        </td>
-                        <td className="tnum py-1 text-right font-medium">
-                          {line.extPrice === null ? "—" : `$${formatMoney(line.extPrice)}`}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </section>
-            ))}
-
-            <div className="mt-8 flex justify-end pb-12">
-              <table className="w-[300px] text-[11.5px]">
-                <tbody>
-                  <tr>
-                    <td className="py-1" style={{ color: "#55556b" }}>
-                      Subtotal
-                    </td>
-                    <td className="tnum py-1 text-right">${formatMoney(totals.subtotal)}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1" style={{ color: "#55556b" }}>
-                      Freight
-                    </td>
-                    <td className="tnum py-1 text-right">
-                      {totals.freight ? `$${formatMoney(totals.freight)}` : "TBD"}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-1" style={{ color: "#55556b" }}>
-                      {tax.label}
-                      {totals.taxJurisdiction ? ` (${totals.taxJurisdiction})` : ""}
-                    </td>
-                    <td
-                      className="tnum py-1 text-right"
-                      style={{ color: tax.muted ? "#6e6e88" : undefined }}
-                    >
-                      {tax.value}
-                    </td>
-                  </tr>
-                  <tr className="border-t-2" style={{ borderColor: "#0f3d2e" }}>
-                    <td className="pt-2 text-[14px] font-bold" style={{ color: "#0f3d2e" }}>
-                      Grand total
-                    </td>
-                    <td
-                      className="tnum pt-2 text-right text-[17px] font-bold"
-                      style={{ color: "#0f3d2e" }}
-                    >
-                      ${formatMoney(totals.grandTotal)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-              {tax.hint && (
-                <p className="mt-1 text-right text-[10px]" style={{ color: "#6e6e88" }}>
-                  {tax.hint}
-                </p>
-              )}
-            </div>
-
-            <footer className="mt-8 border-t pt-4 text-[10.5px]" style={{ borderColor: "#d6d9de", color: "#55556b" }}>
-              <p className="font-semibold" style={{ color: "#15151f" }}>
-                Terms
-              </p>
-              <ul className="mt-1 list-disc pl-4">
-                <li>Hamilton Parker purchase order required.</li>
-                <li>Supply-only material. Installation labor is not included.</li>
-                <li>Freight is handled when a quote becomes a job.</li>
-                <li>Sales tax is charged for Ohio and Kentucky only.</li>
-              </ul>
-            </footer>
-          </article>
+          <ProposalDocument
+            code={code}
+            stamp={JSON.stringify([proposal.markup, proposal.draft, totals, sections, data.alternates])}
+          />
         </section>
 
         <aside className="z-10 flex shrink-0 flex-col gap-4 xl:sticky xl:top-4 xl:w-[340px] xl:self-start bg-background">
@@ -521,8 +332,8 @@ ${draft.body}`;
               Sign-off
             </span>
             <div className="mt-4 flex flex-col gap-4">
-              {signoff.map((entry) => (
-                <div key={entry.title} className="flex gap-3">
+              {signoff.map((entry, index) => (
+                <div key={`${entry.title}-${index}`} className="flex gap-3">
                   {entry.state === "done" ? (
                     <CheckCircle size={18} weight="fill" className="text-brand-primary mt-0.5" />
                   ) : entry.state === "warn" ? (
@@ -545,13 +356,55 @@ ${draft.body}`;
             <span className="block text-[11px] font-bold uppercase tracking-widest text-tx-muted">
               Exclusions on the sheet
             </span>
-            <ul className="mt-4 flex flex-col gap-2.5">
-              {proposal.exclusions.map((exclusion) => (
-                <li key={exclusion} className="text-[12.5px] font-medium text-tx-secondary pl-3 relative before:absolute before:left-0 before:top-2 before:h-1.5 before:w-1.5 before:rounded-full before:bg-brand-primary/40">
-                  {exclusion}
+            <ul className="mt-4 flex flex-col gap-2">
+              {proposal.exclusions.map((exclusion, index) => (
+                <li key={`${index}-${exclusion}`} className="flex items-start gap-2">
+                  <textarea
+                    aria-label={`Exclusion ${index + 1}`}
+                    defaultValue={exclusion}
+                    rows={2}
+                    onBlur={(event) => {
+                      const next = event.target.value.trim();
+                      if (next === exclusion) return;
+                      setExclusions(
+                        next
+                          ? proposal.exclusions.map((item, at) => (at === index ? next : item))
+                          : proposal.exclusions.filter((_, at) => at !== index),
+                      );
+                    }}
+                    className="min-w-0 flex-1 resize-y rounded-md border border-subtle bg-background px-2 py-1 text-[12.5px] font-medium text-tx-secondary"
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Remove exclusion ${index + 1}`}
+                    onClick={() => setExclusions(proposal.exclusions.filter((_, at) => at !== index))}
+                    className="mt-1 rounded p-1 text-tx-muted hover:bg-status-error-soft hover:text-status-error"
+                  >
+                    <Trash size={14} weight="bold" />
+                  </button>
                 </li>
               ))}
             </ul>
+            <form
+              className="mt-3 flex gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = event.currentTarget;
+                const added = String(new FormData(form).get("exclusion") ?? "").trim();
+                if (!added) return;
+                setExclusions([...proposal.exclusions, added]);
+                form.reset();
+              }}
+            >
+              <input
+                name="exclusion"
+                placeholder="Add an exclusion"
+                className="min-w-0 flex-1 rounded-md border border-subtle bg-background px-2 py-1 text-[12.5px]"
+              />
+              <button type="submit" className="rounded-md border border-subtle px-2.5 py-1 text-[12px] font-bold text-tx-secondary hover:text-tx-primary">
+                Add
+              </button>
+            </form>
           </div>
 
           <LapsedGate code={code} readiness={readiness} onAcknowledged={() => mutate()} />
@@ -576,7 +429,9 @@ ${draft.body}`;
           </button>
           <p className="text-center text-[12px] font-medium text-tx-muted px-2">
             {readiness.blocking
-              ? "Held until purchasing confirms the lapsed cost, or you override it above."
+              ? readiness.blockingFlags?.length
+                ? "Held until the flags marked “Blocks approval” in Sign-off are cleared."
+                : "Held until purchasing confirms the lapsed cost, or you override it above."
               : "This records your sign-off and puts the bid in their queue. It does not send anything."}
           </p>
         </aside>

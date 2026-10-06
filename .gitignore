@@ -90,7 +90,8 @@ infra/docker/mongo-keyfile
 # Orchestrator/subagent lock state written by cbc.worker_kit.tool_session.
 .cbc_tool_session.json
 
-# Infisical: bootstrap + machine-identity credentials (see *.example)
+# Retired Infisical credentials. Kept ignored so a leftover local copy can never
+# be committed - delete the files once nothing needs them.
 infra/infisical.env
 infra/infisical-client.env
 
@@ -98,3 +99,6 @@ infra/infisical-client.env
 .env.bak
 .env.backup
 *.env.bak
+
+# The estimators' own quotes and line detail per bid: CBC's costs and margins.
+ground_truth/

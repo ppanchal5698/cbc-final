@@ -17,4 +17,5 @@ cover most work — offer them as a pick-list plus a CUSTOM manual-entry option.
 If the wall type cannot be read off the drawing, do **not** guess a depth — flag the opening
 for estimator review (see [manual_cutoff](manual_cutoff.md) and `.claude/guides/extraction.md`).
 
-Machine-readable form: reference-library/frame_depths/wall_type_to_depth.json
+Machine-readable form: `mcp__reference__get_frame_depth(wall_type)` (seed:
+`data/reference-library/frame_depths/wall_type_to_depth.json`).

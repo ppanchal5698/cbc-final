@@ -14,8 +14,8 @@ from Settings without touching code; the range is theirs to close.
 These were 24 months and 30 months until this change: three to four times more
 permissive than 6.2 on the first threshold and, oddly, stricter than it on the
 second. The numbers had also been restated as if they were the CBC rule in the
-p21-connector tool description, the cost-sourcing memory file and the
-p21-read-only rule, so five places moved together.
+p21-connector tool description, the cost-sourcing memory file and what is now
+the pricing guide (.claude/guides/pricing.md), so five places moved together.
 
 Admins can change the windows from Settings. Those live values are loaded in
 `cbc.modules.ops.api.freshness`; this module is the rule itself: defaults, conversion,
@@ -39,11 +39,18 @@ def days_from_months(months: int) -> int:
 FRESH_DAYS = days_from_months(FRESH_MONTHS)
 DISCARD_AFTER_DAYS = days_from_months(DISCARD_AFTER_MONTHS)
 
+# CBC's own rule for a last PO (requirements 5.2 [C]): "use if sold within a year
+# and no price increase". Past `fresh` and within the year it still prices, but
+# aging - the amber of the requirements' proposed states (green under 6 months,
+# amber 6-12, red over 12, blocked over 3 years).
+USABLE_MONTHS = 12
+USABLE_DAYS = days_from_months(USABLE_MONTHS)
+
 # A vendor price sheet is a different question from a purchase-order price, and a
 # different rule answers it. Price changes arrive as dated memos with a protection
-# window (Matrix 6.3), and `.claude/rules/data-stewardship.md` warns past ~24
-# months. This used to be an alias for FRESH_DAYS, which was harmless only while
-# both windows happened to be 24 months; correcting the cost rule to Matrix 6.2
+# window (Matrix 6.3), and a sheet past ~24 months is due for review. This used
+# to be an alias for FRESH_DAYS, which was harmless only while both windows
+# happened to be 24 months; correcting the cost rule to Matrix 6.2
 # would otherwise have quietly cut price-book staleness to six months as well.
 CATALOG_STALE_MONTHS = 24
 CATALOG_STALE_DAYS = days_from_months(CATALOG_STALE_MONTHS)
@@ -98,6 +105,15 @@ def classify(
             "status": "fresh",
             "usable": True,
             "guidance": "Usable if there has been no price increase.",
+        }
+    if age_days <= max(USABLE_DAYS, fresh_days):
+        return {
+            "status": "aging",
+            "usable": True,
+            "guidance": (
+                f"More than {fresh_label} old but sold within the year - usable if there "
+                "has been no price increase since; check the vendor's latest memo."
+            ),
         }
     if age_days <= discard_after_days:
         return {

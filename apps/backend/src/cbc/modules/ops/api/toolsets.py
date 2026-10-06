@@ -31,7 +31,6 @@ SERVERS = {
     "catalog": "mcp-servers/catalog/server.py",
     "reference": "mcp-servers/reference/server.py",
     "bid-docs": "mcp-servers/bid-docs/server.py",
-    "catalog-docs": "mcp-servers/catalog-docs/server.py",
 }
 
 # Reading drawings and writing what was found. Reference for finishes / frame
@@ -55,7 +54,6 @@ _READING = ["pdf-tools", "artifact-storage", "reference", "bid-docs"]
 # lines MANUAL.
 _PRICING = [
     "catalog",
-    "catalog-docs",
     "reference",
     "pdf-tools",
     "calc-engine",
@@ -107,6 +105,20 @@ DISALLOWED = ["WebSearch", "WebFetch", "NotebookEdit"]
 PREFLIGHT = "preflight"
 PROFILES[PREFLIGHT] = []
 
+# Which artifacts a job may change through `propose_patch`, as a path prefix the
+# artifact-storage server enforces (`CBC_PATCH_SCOPE`). Neither the server nor a
+# hook ever sees which subagent is calling, so the scope is the job's: a take-off
+# job patches the take-off, a pricing job the price file, and the proposal job
+# nothing. "" means no patches; a job absent here gets no variable and no limit
+# (run_full_pipeline spans every phase, and interactive runs read .mcp.json).
+PATCH_SCOPE: dict[str, str] = {
+    "extract_bid_set": "extracted/",
+    "rerun_extraction": "extracted/",
+    "ingest_addendum": "extracted/",
+    "match_and_price": "priced/",
+    "build_proposal": "",
+}
+
 
 
 def _readonly_uri() -> str | None:
@@ -139,8 +151,8 @@ def config_for(job_type: str) -> str:
             "args": [str((REPO_ROOT / SERVERS[name]).resolve())],
         }
         env: dict[str, str] = {}
-        if name in ("catalog", "p21-connector", "reference", "bid-docs", "catalog-docs"):
-            # Page index, freshness, referenceData, and parsed bid/catalog blocks use a
+        if name in ("catalog", "p21-connector", "reference", "bid-docs"):
+            # Page index, freshness, referenceData, and parsed bid blocks use a
             # read-only credential with no fallback to the writable string.
             readonly = _readonly_uri()
             if readonly:
@@ -149,6 +161,8 @@ def config_for(job_type: str) -> str:
                 env["MONGODB_DB"] = os.environ["MONGODB_DB"]
             if name == "reference" and os.environ.get("REFERENCE_DIR"):
                 env["REFERENCE_DIR"] = os.environ["REFERENCE_DIR"]
+        if name == "artifact-storage" and job_type in PATCH_SCOPE:
+            env["CBC_PATCH_SCOPE"] = PATCH_SCOPE[job_type]
         if env:
             entry["env"] = env
         servers[name] = entry

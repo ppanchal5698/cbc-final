@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from cbc.modules.pricing.api.confidence import CONFIDENCE_FLOOR
+from cbc.shared.hardware_sets import SET_KEYS
 from cbc.shared.paths import storage_root
 from cbc.shared import manifests
 
@@ -86,12 +87,13 @@ def _iter_items(payload: Any) -> list[dict[str, Any]]:
     if not isinstance(payload, dict):
         return []
     found: list[dict[str, Any]] = []
-    for group in payload.get("groups") or []:
-        if not isinstance(group, dict):
-            continue
-        for item in group.get("items") or []:
-            if isinstance(item, dict):
-                found.append(item)
+    for key in SET_KEYS:
+        for group in payload.get(key) or []:
+            if not isinstance(group, dict):
+                continue
+            for item in group.get("items") or []:
+                if isinstance(item, dict):
+                    found.append(item)
     for item in payload.get("items") or []:
         if isinstance(item, dict):
             found.append(item)

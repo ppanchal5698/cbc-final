@@ -9,7 +9,7 @@ from pymongo.errors import DuplicateKeyError
 
 from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.quoting.api import lines as quoting_lines
-from cbc.modules.intake.infrastructure.collections import versions
+from cbc.modules.intake.infrastructure.collections import documents, versions
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api import bids
 from cbc.modules.intake.domain import versioning
@@ -51,6 +51,11 @@ async def snapshot(project: dict[str, Any], reason: str, actor: str) -> dict[str
         {"projectId": project_id, "supersededByVersionId": None},
         sort=[("version", -1)],
     )
+    # What the frozen take-off and quote were read and priced from (requirements
+    # 6.4): the drawings and specs on the bid, and the addenda already in its log.
+    on_file = await documents().find(
+        {"projectId": project_id}, {"filename": 1, "kind": 1, "uploadedAt": 1, "contentSha": 1}
+    ).to_list(500)
     document = {
         "projectId": project_id,
         "reason": reason,
@@ -69,6 +74,14 @@ async def snapshot(project: dict[str, Any], reason: str, actor: str) -> dict[str
         "approvedAt": None,
         "lineItemCount": len(line_items),
         "quoteLineCount": len(quote_lines),
+        "basis": {
+            "documents": [
+                {"id": str(d["_id"]), "filename": d.get("filename"), "kind": d.get("kind"),
+                 "uploadedAt": d.get("uploadedAt"), "contentSha": d.get("contentSha")}
+                for d in on_file
+            ],
+            "addenda": [a.get("number") for a in project.get("addenda") or []],
+        },
         "snapshot": {
             "lineItems": serialise(line_items),
             "quoteLines": serialise(quote_lines),

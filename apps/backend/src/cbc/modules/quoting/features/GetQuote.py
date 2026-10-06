@@ -7,9 +7,10 @@ from typing import Any
 from fastapi import APIRouter
 
 from cbc.modules.ops.api import freshness as freshness_settings
+from cbc.modules.pricing.api import confidence
 from cbc.modules.projects.api.lookup import load
 from cbc.modules.quoting.api import quote as quote_service
-from cbc.modules.quoting.domain.freshness import is_lapsed
+from cbc.modules.quoting.domain.freshness import cost_freshness, is_lapsed
 from cbc.modules.quoting.infrastructure.collections import quotes
 from cbc.shared.mongo import serialise
 
@@ -24,7 +25,12 @@ async def get_quote(code: str) -> dict[str, Any]:
     totals, raw = await quote_service.totals_for(project)
     bands = await freshness_settings.load()
     lines = [
-        {**serialise(line), "lapsed": is_lapsed(line, bands.catalog_stale_days)}
+        {
+            **serialise(line),
+            "lapsed": is_lapsed(line, bands.catalog_stale_days),
+            "freshness": cost_freshness(line, bands),  # FR-6a: every cost shows its age
+            "matchBand": confidence.band(line.get("matchConfidence")),  # FR-8, requirements 7.1
+        }
         for line in raw
     ]
 

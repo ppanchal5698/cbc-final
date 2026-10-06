@@ -5,12 +5,13 @@ Every write is content-addressed by SHA-256 and recorded in an append-only index
 so "what did the previous run produce for this opening?" is always answerable
 (NFR-3, .claude/rules/auditability.md).
 
-Writes are confined to projects/{project}/ (.claude/rules/file-safety.md).
+Writes are confined to projects/{project}/ (.claude/rules/00-core-constraints.md).
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -293,6 +294,15 @@ def propose_patch(
     # Before the read, not after: a path the write gate refuses must say so,
     # rather than surfacing as "does not exist yet" or a UnicodeDecodeError.
     _assert_writable(path)
+    # The job's patch scope (ops/api/toolsets.PATCH_SCOPE). Nothing here can tell
+    # which subagent is calling, so the job decides: a pricing job patches priced/
+    # only, the proposal job nothing (""), and an unset variable is no limit.
+    scope = os.environ.get("CBC_PATCH_SCOPE")
+    if scope is not None and not (scope and path.replace("\\", "/").lstrip("/").startswith(scope)):
+        raise ValueError(
+            f"refusing to patch {path!r} — this job may patch "
+            + (f"{scope}* only" if scope else "nothing")
+        )
     target = _resolve(project, path)
     if not target.is_file():
         raise ValueError(

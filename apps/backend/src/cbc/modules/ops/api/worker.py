@@ -74,6 +74,7 @@ Handler = Callable[[dict[str, Any]], Awaitable[None]]
 AfterFinish = Callable[[dict[str, Any], str, str | None, Any], Awaitable[None]]
 OnDead = Callable[[dict[str, Any], str], Awaitable[None]]
 IncompleteParses = Callable[[Any], Awaitable[list[dict[str, Any]]]]
+ExpireParse = Callable[[Any, str], Awaitable[None]]
 
 _handlers: dict[str, Handler] = {}
 _after: dict[str, AfterFinish] = {}
@@ -81,6 +82,8 @@ _after_finish: AfterFinish | None = None
 _on_dead: OnDead | None = None
 # Bound by intake: documents still queued/running for parsing on a bid.
 _incomplete_parses: IncompleteParses | None = None
+# Bound by intake: mark one document's parse failed, as a dead parse job would.
+_expire_parse: ExpireParse | None = None
 
 
 def register(job_type: str, handler: Handler, *, after_finish: AfterFinish | None = None) -> None:
@@ -103,10 +106,14 @@ def bind(*, after_finish: AfterFinish, on_dead: OnDead) -> None:
     _after_finish, _on_dead = after_finish, on_dead
 
 
-def bind_parse_status(*, incomplete_parses: IncompleteParses) -> None:
-    """Intake supplies which bid documents still need parsing before Claude may run."""
-    global _incomplete_parses
+def bind_parse_status(
+    *, incomplete_parses: IncompleteParses, expire_parse: ExpireParse | None = None
+) -> None:
+    """Intake supplies which bid documents still need parsing before Claude may run,
+    and how to give up on one that never finishes."""
+    global _incomplete_parses, _expire_parse
     _incomplete_parses = incomplete_parses
+    _expire_parse = expire_parse
 
 
 def bound() -> bool:
@@ -171,12 +178,16 @@ async def claude_config() -> dict[str, Any]:
     return await settings_collection().find_one({"_id": "claude"}) or provider.default_config()
 
 
-async def heartbeat_once(job_id: Any, worker_id: str, claim_gen: int) -> None:
-    """Stamp the heartbeat - only while this worker still holds the claim."""
-    await jobs_collection().update_one(
+async def heartbeat_once(job_id: Any, worker_id: str, claim_gen: int) -> bool:
+    """Stamp the heartbeat - only while this worker still holds the claim.
+
+    False when the claim is gone: the job was reaped, re-claimed or finished.
+    """
+    result = await jobs_collection().update_one(
         {"_id": job_id, "workerId": worker_id, "claimGeneration": claim_gen},
         {"$set": {"heartbeatAt": _now()}},
     )
+    return result.matched_count == 1
 
 
 async def beat(job_id, worker_id: str, claim_gen: int) -> None:
@@ -191,11 +202,17 @@ async def beat(job_id, worker_id: str, claim_gen: int) -> None:
     while True:
         await asyncio.sleep(HEARTBEAT_SECONDS)
         try:
-            await heartbeat_once(job_id, worker_id, claim_gen)
+            held = await heartbeat_once(job_id, worker_id, claim_gen)
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001 - a missed beat is not fatal
             log.warning("heartbeat for job %s failed, will retry: %s", job_id, exc)
+            continue
+        if not held:
+            # Beating on a claim another worker now holds proves nothing. The
+            # pass's own watch sees the lost lease and stops the process.
+            log.warning("job %s lost its claim; heartbeat stopped", job_id)
+            return
 
 
 def owns_job(job: dict, current: dict | None) -> bool:
@@ -211,6 +228,24 @@ def owns_job(job: dict, current: dict | None) -> bool:
 async def job_cancelled(job_id) -> bool:
     doc = await jobs_collection().find_one({"_id": job_id}, {"status": 1})
     return bool(doc and doc.get("status") == "cancelled")
+
+
+async def stop_reason(job_id: Any, worker_id: str, claim_gen: int) -> str | None:
+    """Why a running pass should stop now, or None to let it carry on.
+
+    A cancel was the only reason once. A worker whose job was reaped kept its
+    Claude process running to the end - spending tokens on a result finish()
+    would then throw away, while a second worker ran the same pass.
+    """
+    current = await jobs_collection().find_one(
+        {"_id": job_id}, {"status": 1, "workerId": 1, "claimGeneration": 1}
+    )
+    if current and current.get("status") == "cancelled":
+        return "cancelled by estimator"
+    claim = {"workerId": worker_id, "claimGeneration": claim_gen}
+    if not owns_job(claim, current) or current.get("status") != "running":
+        return "lease lost"
+    return None
 
 
 def rate_limit_wait(retry_at: datetime | None) -> datetime | None:
@@ -460,16 +495,22 @@ async def defer_if_bid_busy(job: dict[str, Any]) -> dict[str, Any] | None:
 _WAIT_FOR_PARSE = frozenset({"extract_bid_set", "rerun_extraction", "ingest_addendum"})
 
 
+NIM_PARSE_GIVE_UP = 6 * 3600
+
+
 async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
     """Hold Claude extract until every in-flight parse on this bid has finished.
 
     When PARSER_URL is unset, returns None immediately — Claude handles the PDF
     with pdf-tools. When parsing is on, requeues (15s, no attempt spent) while
     any `parse_document` job is queued/running *or* any document still has
-    `parse.state` of queued/running. Does not proceed early on
-    PARSER_WAIT_MAX_SECONDS: that value is only used for the job note / log so
-    operators can see how long Claude has been waiting. Failed parses
-    (`parse.state=failed`) do not block — those documents fall back to pdf-tools.
+    `parse.state` of queued/running. Failed parses (`parse.state=failed`) do not
+    block — those documents fall back to pdf-tools.
+
+    Waiting is measured from the earliest incomplete document's upload. At twice
+    PARSER_WAIT_MAX_SECONDS the parse is given up on: its documents are marked
+    failed, their parse jobs cancelled, and the extract proceeds. A parse worker
+    that never starts used to hold the bid for ever.
     """
     if (
         job.get("projectId") is None
@@ -495,22 +536,64 @@ async def defer_if_parsing(job: dict[str, Any]) -> dict[str, Any] | None:
     pending_docs: list[dict[str, Any]] = []
     if _incomplete_parses is not None:
         pending_docs = await _incomplete_parses(job["projectId"])
+    if pending_docs:
+        # A document still `queued` with no parse job left to read it - one cancelled
+        # in the queue, where no worker ran the hook that marks it - will never be
+        # parsed. Waiting the hour it takes to give up held the bid for nothing.
+        live = {str((j.get("payload") or {}).get("documentId")) async for j in jobs_collection().find(
+            {"projectId": job["projectId"], "type": "parse_document", "status": {"$in": ["queued", "running"]}},
+            {"payload.documentId": 1})}
+        orphans = [d for d in pending_docs if str(d["_id"]) not in live]
+        if orphans and _expire_parse is not None:
+            for doc in orphans:
+                await _expire_parse(doc["_id"], "no parse job left to read it")
+        pending_docs = [d for d in pending_docs if str(d["_id"]) in live]
 
     if not other and not pending_docs:
         return None
 
-    created = job.get("createdAt") or _now()
+    # From the upload, not from this job: an extract enqueued late must not
+    # restart the clock on a parse that has already been stuck for an hour.
+    uploads = [d["uploadedAt"] for d in pending_docs if d.get("uploadedAt")]
+    created = min(uploads) if uploads else job.get("createdAt") or _now()
     if getattr(created, "tzinfo", None) is None:
         created = created.replace(tzinfo=timezone.utc)
     waited = int((_now() - created).total_seconds())
     wait_max = int(resolved.get("waitMaxSeconds") or 1800)
-    if waited >= wait_max:
+    # NIM reads every page at its free tier's pace, so a long read is progress,
+    # not a stuck parser: give it hours rather than twice the LlamaParse wait.
+    give_up = max(2 * wait_max, NIM_PARSE_GIVE_UP) if resolved.get("provider") == "nim" else 2 * wait_max
+    if waited >= give_up:
         log.warning(
-            "job %s still waiting for the parser after %ss (PARSER_WAIT_MAX_SECONDS=%s); "
-            "Claude will not start until parse finishes or fails",
+            "job %s gave up on the parser after %ss (PARSER_WAIT_MAX_SECONDS=%s); "
+            "extracting from the PDF instead",
             job["_id"],
             waited,
             wait_max,
+        )
+        error = "parse deadline exceeded"
+        # Cancelled first, so a parse that finishes now cannot mark its document
+        # parsed after it was given up on. A running one stops at its next window.
+        await jobs_collection().update_many(
+            {
+                "projectId": job["projectId"],
+                "type": "parse_document",
+                "status": {"$in": ["queued", "running"]},
+            },
+            {"$set": {"status": "cancelled", "cancelledAt": _now(), "note": error}},
+        )
+        if _expire_parse is not None:
+            for doc in pending_docs:
+                await _expire_parse(doc["_id"], error)
+        return None
+    if waited >= wait_max:
+        log.warning(
+            "job %s still waiting for the parser after %ss (PARSER_WAIT_MAX_SECONDS=%s); "
+            "Claude starts without it at %ss",
+            job["_id"],
+            waited,
+            wait_max,
+            give_up,
         )
 
     if other:

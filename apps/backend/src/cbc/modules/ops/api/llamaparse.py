@@ -1,6 +1,6 @@
 """LlamaParse Cloud client: one window of pages in, parser-neutral blocks out.
 
-Replaces the MinerU HTTP client. The shape returned here is what `normalise_window`
+The shape returned here is what `normalise_window`
 consumes, so nothing downstream - documentPages, the MCP servers, the sheet viewer,
 the validators - has to know which parser produced it.
 
@@ -35,9 +35,8 @@ Two things are deliberately NOT trusted:
   grounding lines, which are tight and real.
 * **Granular grounding is required, not optional.** A result with no grounded
   items is treated as a failed parse rather than stored as a page with no
-  coordinates, for the same reason the MinerU client refused a status stub: a
-  page recorded without boxes looks parsed forever and silently yields values
-  nothing can point at.
+  coordinates: a page recorded without boxes looks parsed forever and silently
+  yields values nothing can point at.
 """
 from __future__ import annotations
 
@@ -399,9 +398,8 @@ async def _grounded_rows(
     grounded = meta.get("grounded_items") or {}
     url = grounded.get("presigned_url")
     if not url:
-        # We asked for granular boxes and got none. Treated as a failed parse for
-        # the same reason a MinerU status stub was: a page stored without
-        # coordinates reads as parsed forever.
+        # We asked for granular boxes and got none. Treated as a failed parse: a
+        # page stored without coordinates reads as parsed forever.
         raise ParseRetryable(f"parse job {job_id} returned no grounded items")
 
     # Presigned S3 URL - it carries its own auth, and sending ours would be

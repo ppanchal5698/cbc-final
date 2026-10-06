@@ -102,6 +102,13 @@ def test_create_an_alternate(client, bid, snapshots) -> None:
     snapshots.pin(op, client.post(_url(ALTS, bid), json={"name": "Alternate 1"}), variant="duplicate name")
 
 
+def test_describe_an_alternate(client, bid, snapshots) -> None:
+    """FR-14: an alternate's kind, its place on the bid form, what it says."""
+    op = f"PATCH {ALTS}/{{name}}"
+    snapshots.pin(op, client.patch(_url(ALTS + "/Alternate 1", bid), json={"kind": "deductive", "priority": 1}))
+    snapshots.pin(op, client.patch(_url(ALTS + "/Nothing", bid), json={"kind": "additive"}), variant="unknown alternate")
+
+
 def test_assign_lines_to_an_alternate(client, bid, snapshots) -> None:
     op = f"POST {ALTS}/assign"
     url = _url(ALTS + "/assign", bid)

@@ -33,7 +33,7 @@ grade 2 - the architect specifies the series, and that is what gets quoted.
 | Alarm | `ALARM LOCK ETDL27R1G/26DV` | Alarm Lock | MANUAL |
 | Exit device | `VON DUPRIN 99EO, 42", 626` | Allegion | DISTRIBUTOR_MANUAL |
 | Kick plate | `IVES 8400, 40"x30", 630` | Allegion | DISTRIBUTOR_MANUAL |
-| Threshold | `PEMKO 275A, 42"` | PEMKO | LIST_X_MULTIPLIER |
+| Threshold | `PEMKO 275A, 42"` | PEMKO | CATALOG_BASELINE (the product catalog answers before any price-book page) |
 | Door shoe / sweep | `ZERO 39A, 42"` | Zero | MANUAL (not a top-10 vendor) |
 | Seal | `ZERO 188S BK, 18'` | Zero | MANUAL |
 | Floor stop | `IVES FS43, 626` | Allegion | DISTRIBUTOR_MANUAL |

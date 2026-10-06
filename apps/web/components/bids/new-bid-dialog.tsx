@@ -43,6 +43,13 @@ const FIELDS: Field[] = [
     placeholder: "e.g. Alternate 1, Alternate 2",
     hint: "Optional. Names only at intake — reconciliation rules are still pending (Matrix 4.1).",
   },
+  {
+    // FR-1a: a phone bid's scope notes, or the text of the email or RFP it came in.
+    key: "rfpText",
+    label: "Scope notes",
+    placeholder: "e.g. Div 08 hardware and Div 10 accessories only - doors by others",
+    hint: "Optional. Pricing reads it: \"hardware only\", \"doors and frames by GC\" or \"no Div 10\" keeps those off the bid as supplied by others.",
+  },
 ];
 
 export function NewBidDialog() {
@@ -151,7 +158,7 @@ export function NewBidDialog() {
               key={field.key}
               htmlFor={`new-bid-${field.key}`}
               className={
-                field.key === "name" || field.key === "bidAlternates"
+                field.key === "name" || field.key === "bidAlternates" || field.key === "rfpText"
                   ? "block sm:col-span-2"
                   : "block"
               }

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter
 
+from cbc.modules.extraction.api import openings as extraction_openings
 from cbc.modules.extraction.api.openings import LINES_CONFIRMED
 from cbc.modules.extraction.domain.openings import BulkAction
 from cbc.modules.extraction.infrastructure.collections import openings
@@ -40,8 +41,7 @@ async def bulk_action(code: str, body: BulkAction, actor: Actor) -> dict:
         )
         affected = result.modified_count
     else:
-        result = await openings().delete_many(query)
-        affected = result.deleted_count
+        affected = await extraction_openings.remove(project["_id"], ids)
 
     await audit.record(
         f"line_item.bulk_{body.action}",

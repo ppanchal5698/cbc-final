@@ -6,7 +6,7 @@ so these tests guard the contract the viewer depends on.
 """
 from __future__ import annotations
 
-import parse_schedule
+from cbc.modules.extraction.infrastructure import schedule_parser as parse_schedule
 from tests.shared import ROOT, SCHEDULE_PAGE
 
 from _runtime import load_server  # noqa: E402
@@ -352,5 +352,31 @@ def test_a_hardware_group_that_reads_like_a_door_number_keeps_its_bbox(tmp_path)
     attached, unmatched = attach_measured_bboxes(openings, doc[0])
 
     assert (attached, unmatched) == (2, 0), "a group number is not a second door"
+    assert openings[0]["bbox"] != openings[1]["bbox"]
+    doc.close()
+
+
+def test_letter_led_and_four_digit_marks_find_their_rows(tmp_path):
+    """A12 and 1001 are door marks. A rule that took one to three digits re-found
+    no row for either, and both reached review with no highlight."""
+    import fitz
+
+    from cbc.shared.pdfrows import attach_measured_bboxes
+
+    doc = fitz.open()
+    page = doc.new_page(width=612, height=792)
+    for row, cells in enumerate([["A12", "3' - 0\"", "7' - 0\"", "GROUP 1"], ["1001", "3' - 6\"", "7' - 0\"", "GROUP 2"]]):
+        for column, text in enumerate(cells):
+            page.insert_text((72 + column * 90, 200 + row * 30), text, fontsize=9)
+    path = tmp_path / "marks.pdf"
+    doc.save(path)
+    doc.close()
+
+    doc = fitz.open(path)
+    openings = [
+        {"door_number": "A12", "size": "3070", "hardware_set": "GROUP 1"},
+        {"door_number": "1001", "size": "3670", "hardware_set": "GROUP 2"},
+    ]
+    assert attach_measured_bboxes(openings, doc[0]) == (2, 0)
     assert openings[0]["bbox"] != openings[1]["bbox"]
     doc.close()

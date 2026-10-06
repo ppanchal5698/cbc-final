@@ -14,6 +14,7 @@ from cbc.shared.mongo import create_index_resilient, database, replace_index
 # How long a failed sign-in stays counted. The TTL index below and
 # VerifyCredentials' window both read it from here, so they cannot disagree.
 AUTH_ATTEMPT_TTL = 300
+AI_ANSWER_TTL = 90 * 24 * 3600
 
 
 def users():
@@ -44,10 +45,19 @@ def jobs():
     return database()[names.JOBS]
 
 
+def ai_answers():
+    return database()[names.AI_ANSWERS]
+
+
 async def ensure_indexes() -> None:
     """Idempotent. Runs after the migrations, because m001 renames auditLog."""
     await users().create_index([("email", ASCENDING)], unique=True)
     await audit_logs().create_index([("at", DESCENDING)])
+    # Cached answers to typed AI questions, keyed by the hash of question,
+    # version and inputs. The TTL is only garbage collection.
+    await create_index_resilient(
+        ai_answers(), [("at", ASCENDING)], name="ai_answer_ttl", expireAfterSeconds=AI_ANSWER_TTL
+    )
     await audit_logs().create_index([("target.projectId", ASCENDING)])
     # Sign-in attempts, counted across replicas rather than in one process. The
     # TTL is only garbage collection - `verify` filters on `at` itself, so the
@@ -89,7 +99,10 @@ async def ensure_indexes() -> None:
         unique=True,
         partialFilterExpression={
             "status": {"$in": ["queued", "running"]},
-            "idempotencyKey": {"$exists": True, "$type": "string"},
+            # $type alone: it never matches a missing field, so `$exists: True`
+            # added nothing - and DocumentDB refuses two operators on one field
+            # here as a nested $and.
+            "idempotencyKey": {"$type": "string"},
         },
     )
     await jobs().create_index([("status", ASCENDING), ("heartbeatAt", ASCENDING)])

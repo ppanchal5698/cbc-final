@@ -457,24 +457,29 @@ def normalize_hardware_sets_payload(raw: Any) -> Any:
     """Apply manufacturer OCR aliases on hardware set items."""
     from cbc.modules.extraction.api.manufacturer_aliases import apply_to_hardware_item
 
+    from cbc.shared.hardware_sets import SET_KEYS
+
     if not isinstance(raw, dict):
         return raw
     data = dict(raw)
-    groups = data.get("hardware_sets")
-    if not isinstance(groups, list):
-        return data
-    new_groups = []
-    for group in groups:
-        if not isinstance(group, dict):
-            new_groups.append(group)
+    # Every key a writer uses: the matcher writes `groups`, so aliases applied to
+    # `hardware_sets` alone never touched a matched file.
+    for key in SET_KEYS:
+        groups = data.get(key)
+        if not isinstance(groups, list):
             continue
-        g = dict(group)
-        items = g.get("items")
-        if isinstance(items, list):
-            g["items"] = [
-                apply_to_hardware_item(item) if isinstance(item, dict) else item
-                for item in items
-            ]
-        new_groups.append(g)
-    data["hardware_sets"] = new_groups
+        new_groups = []
+        for group in groups:
+            if not isinstance(group, dict):
+                new_groups.append(group)
+                continue
+            g = dict(group)
+            items = g.get("items")
+            if isinstance(items, list):
+                g["items"] = [
+                    apply_to_hardware_item(item) if isinstance(item, dict) else item
+                    for item in items
+                ]
+            new_groups.append(g)
+        data[key] = new_groups
     return data

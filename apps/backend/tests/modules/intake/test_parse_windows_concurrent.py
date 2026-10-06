@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import tempfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -39,12 +40,21 @@ class _Pages:
     def __init__(self, existing: int = 0):
         self.existing = existing
         self.upserts: list[int] = []
+        self.rows: dict[int, dict] = {}
 
     async def count_documents(self, _filter):
         return self.existing
 
-    async def update_one(self, filt, _update, **_k):
+    async def update_one(self, filt, update, **_k):
         self.upserts.append(filt["page"])
+        self.rows.setdefault(filt["page"], update["$set"])
+
+    async def distinct(self, _field, filt):
+        return [
+            page
+            for page, row in self.rows.items()
+            if (row.get("parser") or {}).get("name") == filt["parser.name"]
+        ]
 
 
 def _window_payload(start: int, end: int) -> list[dict]:
@@ -54,7 +64,9 @@ def _window_payload(start: int, end: int) -> list[dict]:
     ]
 
 
-def _run_job(*, pages: int, window: int, concurrency: int, parse_window, existing=0):
+def _run_job(
+    *, pages: int, window: int, concurrency: int, parse_window, existing=0, parse=None, kind=None, texts=None
+):
     doc = {
         "_id": DOC_ID,
         "projectId": PROJ_ID,
@@ -62,7 +74,8 @@ def _run_job(*, pages: int, window: int, concurrency: int, parse_window, existin
         "pages": pages,
         "contentSha": "sha",
         "filename": "x.pdf",
-        "parse": {"fileId": "file-1"},
+        "kind": kind,
+        "parse": {"fileId": "file-1", **(parse or {})},
     }
     sets: list[dict] = []
     pages_col = _Pages(existing)
@@ -87,12 +100,19 @@ def _run_job(*, pages: int, window: int, concurrency: int, parse_window, existin
             patch.object(ParseDocument.worker, "job_cancelled", AsyncMock(return_value=False)),
             patch.object(ParseDocument.llamaparse, "upload", AsyncMock(return_value="file-1")),
             patch.object(ParseDocument.llamaparse, "parse_window", parse_window),
+            patch.object(ParseDocument.pdfpages, "pages_text", lambda _p: texts or [""] * pages),
             patch.object(
                 ParseDocument.page_blocks,
                 "normalise_window",
-                lambda payload, **_k: [
-                    {"page": p["page"], "blocks": [], "verified": None} for p in payload
+                lambda payload, parser, **_k: [
+                    {"page": p["page"], "blocks": [], "verified": None, "parser": parser}
+                    for p in payload
                 ],
+            ),
+            patch.object(
+                ParseDocument.page_blocks,
+                "local_window",
+                lambda _path, page: _window_payload(page, page)[0],
             ),
         ):
             with tempfile.TemporaryDirectory() as tmp:
@@ -186,3 +206,82 @@ async def test_already_parsed_windows_are_skipped_on_resume():
     assert called == [], "a stored window was parsed again"
     progress = [s["parse.pagesDone"] for s in sets if "parse.pagesDone" in s]
     assert progress[-1] == 16, "skipped windows must still count as done"
+
+
+@pytest.mark.asyncio
+async def test_a_permanently_failed_window_is_read_locally():
+    """A permanent LlamaParse error no longer kills the parse; the bid moves on."""
+
+    async def parse_window(_client, *, start_page, end_page, **_k):
+        if start_page == 9:
+            raise ParseDocument.ParsePermanent("parse job failed (422)")
+        return _window_payload(start_page, end_page)
+
+    note, sets, pages_col = await asyncio.to_thread(
+        lambda: _run_job(pages=16, window=8, concurrency=2, parse_window=parse_window)
+    )
+    assert sorted(pages_col.upserts) == list(range(1, 17))
+    assert pages_col.rows[9]["parser"]["name"] == "local"
+    assert pages_col.rows[1]["parser"]["name"] == "llamaparse"
+    final = next(s for s in sets if "parse.fallbackPages" in s)
+    assert final["parse.fallbackPages"] == list(range(9, 17))
+    assert final["parse.settings.backend"] == "mixed"
+    assert "mixed" in note
+
+
+@pytest.mark.asyncio
+async def test_a_window_past_the_deadline_is_not_sent_to_llamaparse():
+    """The deadline runs from the first attempt's start, not this one's."""
+    called: list[int] = []
+
+    async def parse_window(_client, *, start_page, end_page, **_k):
+        called.append(start_page)
+        return _window_payload(start_page, end_page)
+
+    started = datetime.now(timezone.utc) - timedelta(hours=2)
+    _note, sets, pages_col = await asyncio.to_thread(
+        lambda: _run_job(
+            pages=8, window=8, concurrency=1, parse_window=parse_window,
+            parse={"state": "running", "startedAt": started},
+        )
+    )
+    assert called == [], "a window past the deadline went to LlamaParse"
+    assert sets[0]["parse.startedAt"] == started
+    final = next(s for s in sets if "parse.fallbackPages" in s)
+    assert final["parse.settings.backend"] == "local"
+
+
+def test_a_spec_book_sends_the_reader_only_the_sections_cbc_quotes() -> None:
+    """The Evernorth manual is 859 pages; 72 hold Divisions 08 and 10. A window with
+    none of them is read from the text layer, and is no fallback."""
+    asked: list[tuple[int, int]] = []
+
+    async def parse_window(_client, *, start_page, end_page, **_k):
+        asked.append((start_page, end_page))
+        return _window_payload(start_page, end_page)
+
+    texts = ["SECTION 03 30 00 - CONCRETE"] * 8 + ["SECTION 087100 - DOOR HARDWARE"] * 4 + ["SECTION 23 05 00"] * 12
+    summary, sets, pages_col = _run_job(pages=24, window=8, concurrency=2, parse_window=parse_window,
+                                        kind="spec", texts=texts)
+    assert asked == [(9, 16)], "only the window holding 08 71 00"
+    assert {p: row["parser"]["name"] for p, row in pages_col.rows.items() if p in (1, 9, 17)} == {
+        1: "text-layer", 9: "llamaparse", 17: "text-layer"}
+    assert next(s["parse.fallbackPages"] for s in sets if "parse.fallbackPages" in s) == []
+
+
+def test_a_parse_given_up_on_from_a_wait_finishes_without_a_job_log() -> None:
+    """The extract's wait expires a parse with no job's log at hand; the digest
+    rebuild logged to None and failed the extract it was letting go."""
+    finished: list[tuple] = []
+
+    async def go():
+        with (
+            patch.object(ParseDocument, "_finish_parse", AsyncMock(side_effect=lambda *a: finished.append(a))),
+            patch.object(ParseDocument, "documents", lambda: _Docs({"projectId": PROJ_ID}, [])),
+            patch("cbc.modules.projects.api.lookup.get", AsyncMock(return_value={"slug": "s", "_id": PROJ_ID})),
+            patch("cbc.modules.intake.api.digest.build", AsyncMock(return_value={"documents": 1, "path": "p"})),
+        ):
+            await ParseDocument.after_finish({"payload": {"documentId": str(DOC_ID)}}, "dead", "gave up", None)
+
+    asyncio.run(go())
+    assert finished and finished[0][1:] == ("dead", "gave up")

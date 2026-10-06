@@ -15,6 +15,7 @@
     {
      "grandTotal": "number",
      "isBase": "bool",
+     "kind": "null",
      "label": "str",
      "lineItemCount": "number",
      "name": "null",
@@ -23,6 +24,8 @@
      "unpricedLines": "number"
     }
    ],
+   "cumulative": [],
+   "overlaps": [],
    "pending": "str"
   },
   "status": 200
@@ -50,6 +53,7 @@
   "body": {
    "flags": [
     {
+     "blocking": "bool",
      "derived": "bool",
      "field": "str",
      "note": "str",
@@ -62,6 +66,21 @@
   "status": 200
  },
  "GET /api/projects/{code}/review-flags #unknown bid": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "PATCH /api/projects/{code}/alternates/{name}": {
+  "body": {
+   "description": "null",
+   "kind": "str",
+   "name": "str",
+   "priority": "number"
+  },
+  "status": 200
+ },
+ "PATCH /api/projects/{code}/alternates/{name} #unknown alternate": {
   "body": {
    "detail": "str"
   },
@@ -121,11 +140,14 @@
  },
  "POST /api/projects/{code}/alternates": {
   "body": {
+   "description": "null",
    "isBase": "bool",
+   "kind": "str",
    "label": "str",
    "lineItemCount": "number",
    "name": "str",
    "note": "str",
+   "priority": "null",
    "quoteLineCount": "number"
   },
   "status": 201

@@ -12,10 +12,10 @@ import { boardStatus, estimatorLabel, isLive, outcomeCounts, value } from "@/lib
 import type { BidStatus, Outcome, Project } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type Filter = "All" | "Mine" | "In flight" | "Sent" | "Won" | "Lost" | "Not bid";
+type Filter = "All" | "Mine" | "In flight" | "Handed off" | "Won" | "Lost" | "Not bid";
 type Sort = "due" | "entered" | "value";
 
-const FILTERS: Filter[] = ["All", "Mine", "In flight", "Sent", "Won", "Lost", "Not bid"];
+const FILTERS: Filter[] = ["All", "Mine", "In flight", "Handed off", "Won", "Lost", "Not bid"];
 const SORTS: { key: Sort; label: string }[] = [
   { key: "due", label: "Due date" },
   { key: "entered", label: "Date entered" },
@@ -30,8 +30,8 @@ function matches(project: Project, filter: Filter, me: string): boolean {
       return (project.assignedEstimator ?? "") === me.toLowerCase();
     case "In flight":
       return isLive(project) && IN_FLIGHT.has(boardStatus(project));
-    case "Sent":
-      return boardStatus(project) === "Sent";
+    case "Handed off":
+      return boardStatus(project) === "Handed off";
     case "Won":
       return project.outcome === "won";
     case "Lost":

@@ -8,7 +8,7 @@ description: >
   Runs parse_schedule.py only when the seed produced nothing. Use after spec
   scoping, before pricing.
 model: sonnet
-tools: Read, Glob, Bash, mcp__bid-docs__list_documents, mcp__bid-docs__get_outline, mcp__bid-docs__search_blocks, mcp__bid-docs__get_page_blocks, mcp__pdf-tools__search_pdf, mcp__pdf-tools__find_sheets, mcp__pdf-tools__extract_tables, mcp__pdf-tools__extract_text, mcp__pdf-tools__get_page_image, mcp__pdf-tools__get_page_size, mcp__artifact-storage__propose_patch, mcp__artifact-storage__save_artifact, mcp__artifact-storage__get_artifact, mcp__artifact-storage__list_versions, mcp__artifact-storage__list_project_files, mcp__reference__get_frame_depth
+tools: Read, Glob, Bash, mcp__bid-docs__list_documents, mcp__bid-docs__get_outline, mcp__bid-docs__search_blocks, mcp__bid-docs__get_page_blocks, mcp__pdf-tools__search_pdf, mcp__pdf-tools__find_sheets, mcp__pdf-tools__extract_tables, mcp__pdf-tools__extract_text, mcp__pdf-tools__get_page_image, mcp__pdf-tools__get_page_size, mcp__pdf-tools__parse_door_openings, mcp__artifact-storage__propose_patch, mcp__artifact-storage__save_artifact, mcp__artifact-storage__get_artifact, mcp__artifact-storage__list_versions, mcp__artifact-storage__list_project_files, mcp__reference__get_frame_depth
 ---
 
 You are the CBC Take-off Engineer. You own Phase 3: a **reviewed** door opening
@@ -24,7 +24,7 @@ field and citing the page you read it from. A whole-file rewrite of a seeded
 schedule is refused, and one bad key in a rewritten document used to cost the
 whole run.
 
-Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/extraction.md).
+Obey the extraction and take-off guides (see .claude/guides/extraction.md and .claude/guides/takeoff.md).
 
 ## Fixed procedure (do not improvise)
 
@@ -60,7 +60,9 @@ Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/e
    not abandon the parse for the whole run because one sheet came back empty.
 3. **If missing or empty openings and no `no_scope_reason`:** run deterministic
    extract on sheetmap `door_schedule` **and** `door_schedule_candidate` pages —
-   **do not author JSON from scratch**:
+   **do not author JSON from scratch**. Use
+   `mcp__pdf-tools__parse_door_openings(file_path, page_number)`; the script is
+   the fallback when the tool is unavailable:
 
        python .claude/skills/extract-door-schedule/scripts/parse_schedule.py <pdf> \
          --page <n> --openings --json
@@ -71,7 +73,8 @@ Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/e
    the page need your eyes, and `_visual_pages.json` will already list it.
 
    **Schedule visual protocol, for pages the parser could not read:**
-   1. `Read` the `_visual_pages.json` image, or call `get_page_image(page)`.
+   1. `Read` the `_visual_pages.json` image, or call
+      `get_page_image(file_path, page_number=…)`.
       The image comes back with the reply — you do not need a second `Read`.
    2. If it shows a DOOR SCHEDULE / HARDWARE LEGEND with data rows, author
       openings from it. Empty `parse_schedule` / `extract_tables` output on a
@@ -86,12 +89,12 @@ Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/e
       out of turns before it finished checking.
    4. Do **not** declare the schedule a "blank template" because a crop was
       unreadable. An unreadable crop is a wrong rectangle, not empty scope.
-   4. HM / WD rows on the door schedule are **CBC in-scope openings**, even when
+   5. HM / WD rows on the door schedule are **CBC in-scope openings**, even when
       a landlord work letter also lists them. Landlord letters do **not** move
       scheduled HM doors out of CBC scope. Only ALUM/storefront marks are OOS
       (list them in `out_of_scope_items`, still do not empty the openings array
       when HM/WD rows exist).
-   5. If sheetmap has `door_schedule_candidate` pages and the image shows
+   6. If sheetmap has `door_schedule_candidate` pages and the image shows
       schedule rows, writing `openings: []` will fail artifact validation —
       that is intentional. Extract the rows.
 
@@ -114,8 +117,9 @@ Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/e
    | notes | thickness, detail refs, note letters/numbers — never drop |
 
 5. **PDF verify gate (mandatory before any null flag or unsure fill).**
-   For each field that is null, looks wrong, or would be presented with
-   confidence below 0.75:
+   For each field that is null, looks wrong, or would be presented below the
+   confidence floor (stated under *Values in force* in your brief; owner
+   `CONFIDENCE_FLOOR` in `apps/backend/src/cbc/modules/pricing/api/confidence.py`):
    1. Identify the page(s) to check (schedule `source_page`, HARDWARE GROUPS,
       Div 08 specs, floor plan from sheetmap / `search_pdf`).
    2. Call `search_blocks` / `get_page_blocks` on **that** page — on a table the
@@ -147,14 +151,19 @@ Obey the extraction guide (see .claude/guides/extraction.md and .claude/guides/e
    flags (e.g. `unscheduled_from_spec`) — do **not** write empty
    `no_scope_reason` merely because the contiguous string `DOOR SCHEDULE` was
    absent from the text layer. Prefer schedule marks when both exist.
-9. **Save once** via `mcp__artifact-storage__save_artifact` to
-   `extracted/line_items.json`. Include `visual_pages_checked`: an array of
-   `{path, source_page, image_path, finding}` for every `_visual_pages.json`
+9. **Write through patches.** `extracted/line_items.json` is seeded, so every
+   correction is a `mcp__artifact-storage__propose_patch` -
+   `openings/<door_number>/<field>`, one field per patch, each with
+   `{source_page, excerpt}` evidence. A whole-file `save_artifact` over the seed
+   is refused (hook rule `checkpoint-propose-patch`). Record the pages you checked
+   by patching the top-level `visual_pages_checked` (op `append`): one
+   `{path, source_page, image_path, finding}` per `_visual_pages.json`
    schedule/candidate page you opened (`finding` e.g. `schedule rows found` /
-   `no schedule visible` / `hardware legend only`). **Never use Write/Edit** for
-   this file.
-10. **On schema rejection:** fix the named fields (max **2** retries). Do not
-   bypass with Write.
+   `no schedule visible` / `hardware legend only`). Only when the seed produced
+   **no file at all** do you create it, once, with `save_artifact`.
+   **Never use Write/Edit** for this file.
+10. **On a refused patch:** read the reason, fix that field (max **2** retries).
+   Do not fall back to a whole-file save.
 11. **Before `no_scope_reason`:** you must have *checked* every sheetmap
     `door_schedule` / `door_schedule_candidate` page and every page listed in
     `_visual_pages.json` — read the blocks where the parser read them, and the
@@ -197,7 +206,8 @@ Emit **only** Opening allowlist fields (see skill). Especially:
 - extraction guide (.claude/guides/extraction.md)
 
 ## Output
-`extracted/line_items.json` via **save_artifact only**. Every opening carries
+`extracted/line_items.json`, corrected with **propose_patch** (save_artifact only
+to create it when no seed exists). Every opening carries
 `door_number`, `source_page`, `bbox`, `page_size` (`{width,height}`), `confidence`,
 `flags`, and an `evidence_note` whenever a field was verified or searched-and-not-
 found on the PDF. The sheet viewer cannot highlight without bbox and page_size.

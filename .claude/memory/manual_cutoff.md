@@ -22,8 +22,9 @@
 
 ## How to behave at the cut-off
 Do not guess, do not extrapolate a price from a similar SKU, do not silently pick the
-nearest stock item. **Emit the line with cost_source "MANUAL", confidence 0.0, and a
-plain-language reason**, and let the estimator price it.
+nearest stock item. **Emit the line with cost_source "MANUAL" (or "DISTRIBUTOR_MANUAL"
+for a distributor-bought line), confidence 0.0, and a plain-language reason**, and let
+the estimator price it. Until it is priced, the line blocks proposal approval.
 
 There is no partial credit for a confidently wrong price.
 

@@ -18,6 +18,7 @@ import {
 
 import {
   PIPELINE_STAGES,
+  alternatesNote,
   boardStatus,
   daysUntil,
   dueLabel,
@@ -69,7 +70,7 @@ const STATUS_TONE: Record<BoardStatus, string> = {
   Extracting: "text-status-info",
   Review: "text-status-warning",
   "In progress": "text-brand-primary",
-  Sent: "text-status-success",
+  "Handed off": "text-status-success",
   Closed: "text-tx-muted",
   Shelved: "text-tx-muted",
 };
@@ -212,6 +213,7 @@ export function DueNext({ projects }: { projects: Project[] }) {
                   </span>
                   <span className="truncate text-[11.5px] font-medium text-tx-muted">
                     {estimatorLabel(project)}
+                    {alternatesNote(project)}
                   </span>
                 </span>
                 <span

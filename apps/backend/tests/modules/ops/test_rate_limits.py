@@ -75,6 +75,17 @@ def test_a_stopped_run_carries_the_reset_time_up():
     assert not result.permanent, "the limit lifts; the job should get another go"
 
 
+def test_the_subscription_session_limit_is_a_limit_not_a_failure():
+    result = _interpret(
+        stdout='{"type":"result","is_error":true,"result":"You\'ve hit your session limit \\u00b7 resets 3pm"}',
+        stderr="",
+        returncode=1,
+        timeout=60,
+        redact_values=None,
+    )
+    assert result.error_code == "rate_limited"
+
+
 def test_the_queue_waits_for_the_window_instead_of_its_own_ladder():
     soon = datetime.now(timezone.utc) + timedelta(hours=4)
     assert worker.rate_limit_wait(soon) == soon

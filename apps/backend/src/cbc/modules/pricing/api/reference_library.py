@@ -5,6 +5,7 @@ JSON under REFERENCE_DIR is seed only; live reads/writes go through reference_st
 from __future__ import annotations
 
 import re
+from datetime import date
 from typing import Any
 
 from cbc.modules.pricing.api import reference_store
@@ -52,6 +53,10 @@ def update_margins(
         if not 0 <= accessories < 1:
             raise ValueError(f"accessories margin must be in [0, 1), got {accessories}")
         payload["accessories_derived"] = accessories
+        # The restroom-accessories band is the one pricing reads; this is its value.
+        for record in payload.get("bands", []):
+            if record.get("key") == "restroom_accessories":
+                record["margin"], record["divisor"] = accessories, round(1 - accessories, 4)
 
     reference_store.put_family_sync("margins", payload)
     from cbc.modules.pricing.api.calc import invalidate_reference_caches
@@ -353,6 +358,40 @@ def update_vendor_categories(vendor_key: str, categories: dict[str, float]) -> d
     raise ValueError(f"vendor {vendor_key!r} not in vendor_tiers")
 
 
+def update_excluded_vendors(entries: list[dict[str, Any]]) -> dict[str, Any]:
+    """The vendors CBC does not quote at any price (requirements 1.2), each with
+    why: another department's line, an account CBC lost."""
+    payload = load_vendor_tiers()
+    kept: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        name = str(entry.get("name") or "").strip()
+        if not name:
+            raise ValueError("an excluded vendor needs a name")
+        reason = str(entry.get("reason") or "").strip()
+        kept[re.sub(r"[^a-z0-9]", "", name.lower())] = {"name": name, **({"reason": reason} if reason else {})}
+    payload["excluded"] = list(kept.values())
+    update_vendor_tiers(payload)
+    return payload
+
+
+def update_vendor_distributors(vendor: str, distributors: list[str]) -> dict[str, Any]:
+    """Who CBC buys a vendor through. Such a vendor's lines carry no list price and
+    are priced by hand (NR-2), so one not on file is added with no multiplier."""
+    payload = load_vendor_tiers()
+    names = [str(d).strip() for d in distributors if str(d).strip()]
+    needle = vendor.strip().lower()
+    record = next((r for r in payload.get("vendors", [])
+                   if needle in {str(r.get("key", "")).lower(), str(r.get("name", "")).lower()}), None)
+    if record is None:
+        if not names:
+            raise ValueError(f"vendor {vendor!r} not in vendor_tiers")
+        record = {"key": re.sub(r"[^a-z0-9]+", "_", needle).strip("_"), "name": vendor.strip(), "multiplier": None}
+        payload.setdefault("vendors", []).append(record)
+    record["distributors"] = names
+    update_vendor_tiers(payload)
+    return payload
+
+
 def update_special_net_items(
     items: list[dict[str, Any]] | None = None,
     remove: list[str] | None = None,
@@ -418,6 +457,46 @@ def update_stock_items(
     return update_stock_list(vendor_key, payload)
 
 
+def equal_key(part: Any) -> str:
+    """A part as the equals list keys it: `4040XP-RW/PA` and `4040xp rw pa` agree."""
+    return re.sub(r"[^A-Z0-9]", "", str(part or "").upper())
+
+
+def load_hardware_equals() -> dict[str, Any]:
+    return reference_store.get_family_sync("hardware_equals")
+
+
+def update_hardware_equals(
+    items: list[dict[str, Any]] | None = None,
+    remove: list[str] | None = None,
+    *,
+    actor: str | None = None,
+) -> dict[str, Any]:
+    """Upsert equals by the part specified; remove by it. An equal names the part
+    it is offered for and the part offered, nothing less."""
+    payload = load_hardware_equals()
+    rows = {equal_key(r.get("part")): r for r in payload.get("rows") or [] if equal_key(r.get("part"))}
+    for item in items or []:
+        key = equal_key(item.get("part"))
+        if not key or not str(item.get("equal_part") or "").strip():
+            raise ValueError("an equal needs the part specified and the part offered for it")
+        rows[key] = {**rows.get(key, {}), **{k: v.strip() if isinstance(v, str) else v
+                                              for k, v in item.items() if v not in (None, "")}}
+    for part in remove or []:
+        rows.pop(equal_key(part), None)
+    payload["rows"] = sorted(rows.values(), key=lambda r: (str(r.get("brand") or ""), equal_key(r.get("part"))))
+    reference_store.put_family_sync("hardware_equals", payload, actor=actor)
+    return payload
+
+
+def load_div10_equals() -> dict[str, Any]:
+    """The Division 10 direct-equal matrix, or nothing when it has not been placed."""
+    try:
+        return reference_store.get_family_sync("div10_equals")
+    except KeyError:
+        return {}
+
+
 def get_vendor_tier(vendor: str, category: str | None = None) -> dict[str, Any]:
     """Same shape as catalog get_multiplier — shared with MCP."""
     data = load_vendor_tiers()
@@ -435,6 +514,7 @@ def get_vendor_tier(vendor: str, category: str | None = None) -> dict[str, Any]:
                     "category": key,
                     "multiplier": categories[key],
                     "effective_date": record.get("effective_date"),
+                    "price_book": record.get("price_book"),
                     "account": record.get("account"),
                     "source": record.get("source"),
                 }
@@ -451,6 +531,7 @@ def get_vendor_tier(vendor: str, category: str | None = None) -> dict[str, Any]:
             "multiplier": record.get("multiplier"),
             "categories": categories or None,
             "effective_date": record.get("effective_date"),
+            "price_book": record.get("price_book"),
             "account": record.get("account"),
             "note": record.get("note"),
             "source": record.get("source"),
@@ -460,6 +541,25 @@ def get_vendor_tier(vendor: str, category: str | None = None) -> dict[str, Any]:
         "multiplier": None,
         "note": "Vendor not in the tier sheet. Price manually (MANUAL cut-off) - never guess.",
     }
+
+
+def sheet_lapsed(effective: Any) -> bool:
+    """True when a dated price sheet is past the price-book review window.
+
+    The rule ``quoting.domain.freshness.is_lapsed`` applies to a priced line
+    (older than ``catalog_stale_days``), applied here before the cost is taken, so
+    the ladder skips a lapsed sheet instead of seeding a price the proposal gate
+    would then hold. Undated is not lapsed: nothing is known either way.
+    """
+    if not effective:
+        return False
+    from cbc.modules.ops.api.freshness import load_sync
+
+    try:
+        age = (date.today() - date.fromisoformat(str(effective)[:10])).days
+    except ValueError:
+        return False
+    return age > load_sync().catalog_stale_days
 
 
 def get_special_net(vendor: str, part_number: str) -> dict[str, Any] | None:
@@ -486,10 +586,17 @@ def get_special_net(vendor: str, part_number: str) -> dict[str, Any] | None:
     return None
 
 
+def _name_key(name: Any) -> str:
+    """`Wendy's`, `WENDYS` and `Wendys` are one account."""
+    return re.sub(r"[^a-z0-9]", "", str(name or "").lower())
+
+
 def get_special_customer_margin(customer: str) -> dict[str, Any] | None:
-    needle = str(customer or "").strip().lower()
+    needle = _name_key(customer)
+    if not needle:
+        return None
     for row in load_special_margins().get("customers", []):
-        if str(row.get("name", "")).strip().lower() == needle:
+        if _name_key(row.get("name")) == needle:
             return dict(row)
     return None
 
@@ -565,6 +672,23 @@ def update_stock_list(vendor_key: str, payload: dict[str, Any]) -> dict[str, Any
     return payload
 
 
+def stock_parts(payload: dict[str, Any] | None) -> set[str]:
+    """The part numbers a stock list names, upper-cased."""
+    return {
+        str(item.get("part_number", "")).strip().upper()
+        for item in (payload or {}).get("items", [])
+        if item.get("part_number")
+    }
+
+
+def in_stock(parts: set[str], part_number: str) -> bool:
+    """A part is stock when the list names it, or names the part it is a size or
+    finish of (`BB1279-4.5x4.5` is `BB1279`) - the one rule for NR-6."""
+    needle = part_number.strip().upper()
+    base = (needle.split("-")[0].split() or [""])[0]
+    return needle in parts or base in parts
+
+
 def is_stock_part(vendor_key: str, part_number: str) -> dict[str, Any]:
     """NR-6 stock-list lookup. Returns None for stock when no list is on file."""
     payload = load_stock_list(vendor_key)
@@ -576,14 +700,7 @@ def is_stock_part(vendor_key: str, part_number: str) -> dict[str, Any]:
             "note": "No top-10 stock list on file for this vendor (NR-6 pending).",
         }
 
-    needle = part_number.strip().upper()
-    base = needle.split("-")[0].split()[0]
-    parts = {
-        str(item.get("part_number", "")).strip().upper()
-        for item in payload.get("items", [])
-        if item.get("part_number")
-    }
-    matched = needle in parts or base in parts
+    matched = in_stock(stock_parts(payload), part_number)
     return {
         "vendor": vendor_key,
         "part_number": part_number,
@@ -626,6 +743,13 @@ def depth_for_wall_type(wall_type: str | None) -> dict[str, Any] | None:
 
 _FINISH_TOKEN = re.compile(r"^(?:US)?\s*(\d{1,3}[A-Z]?)$", re.IGNORECASE)
 
+# BHMA A156.18 gives a finish plated on a steel base - a hinge's - its own number:
+# 652 is satin chrome as 626 is, on steel. A spec writes 652 for the hinges and 626
+# for the locks of one set, and the price books list both as US26D. The crosswalk's
+# rows are keyed by US code, so it cannot hold the twin; this is the twin.
+_ON_STEEL = {"632": "605", "633": "606", "637": "611", "639": "612", "640": "613",
+             "645": "618", "646": "619", "651": "625", "652": "626"}
+
 
 def resolve_finish(text: str | None) -> dict[str, Any] | None:
     """Read a finish written in either nomenclature, or say it is ambiguous."""
@@ -648,6 +772,10 @@ def resolve_finish(text: str | None) -> dict[str, Any] | None:
         return {**by_us[f"US{body}"], "matched_on": "us_code"}
 
     numeric = [f for f in finishes if str(f.get("numeric_code") or "") == body]
+    if not numeric and body in _ON_STEEL:
+        # The twin's finish, under the number the spec wrote: US26D (652).
+        numeric = [{**f, "numeric_code": body} for f in finishes
+                   if str(f.get("numeric_code") or "") == _ON_STEEL[body]]
     if len(numeric) == 1:
         return {**numeric[0], "matched_on": "numeric_code"}
     if len(numeric) > 1:

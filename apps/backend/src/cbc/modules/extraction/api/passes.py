@@ -19,6 +19,7 @@ from cbc.modules.extraction.api import documents as extraction_documents, openin
 from cbc.modules.extraction.infrastructure import geometry
 from cbc.modules.ops.api import (
     jobs as ops_jobs,
+    pipeline as ops_pipeline,
     runmetrics as ops_runmetrics,
     worker as ops_worker,
 )
@@ -165,6 +166,9 @@ async def prepare(job: dict[str, Any], project: dict[str, Any], payload: dict[st
 
     # Cumulative over all uploads/raw — re-checked on every extract_bid_set,
     # including stragglerMerge follow-ups (late PDFs can push the set over the cap).
+    # The Claude pass's breaker: it hands pages to the model. Reading in code costs
+    # no token a page, and a drawing set with its project manual is routinely past
+    # 400 pages - the Evernorth bid is 932, and was refused outright.
     if (
         job["type"] in ("extract_bid_set", "rerun_extraction", "run_full_pipeline")
         and EXTRACT_MAX_PDF_PAGES > 0
@@ -172,7 +176,7 @@ async def prepare(job: dict[str, Any], project: dict[str, Any], payload: dict[st
         over, pages = await asyncio.to_thread(
             sheetmap.exceeds_page_cap, project["slug"], EXTRACT_MAX_PDF_PAGES
         )
-        if over:
+        if over and await ops_pipeline.extraction_engine() == "legacy":
             merge = " (straggler merge; set still subject to page cap)" if payload.get(
                 "stragglerMerge"
             ) else ""
@@ -353,36 +357,43 @@ async def check_output(job: dict[str, Any], project: dict[str, Any] | None) -> s
     return None
 
 
+def measure(project: dict, *, overwrite: bool = True) -> None:
+    """What the take-off reads off the sheet besides its values: each row's bbox,
+    the specialty rows' boxes, flags its own data contradicts, frame depths."""
+    slug = project["slug"]
+    attached, unmatched = geometry.measure_bboxes(project, overwrite=overwrite)
+    if attached or unmatched:
+        log.info(
+            "%s bbox: %d measured from the sheet, %d left null and flagged",
+            project.get("code", slug), attached, unmatched,
+        )
+    spec_attached, spec_unmatched = geometry.measure_specialty_bboxes(project)
+    if spec_attached or spec_unmatched:
+        log.info(
+            "%s specialty bbox: %d measured from the sheet, %d left null and flagged",
+            project.get("code", slug), spec_attached, spec_unmatched,
+        )
+    reconciled = geometry.reconcile_review_flags(project)
+    if reconciled:
+        log.info(
+            "%s review flags: %d opening(s) had flags contradicting their own data",
+            project.get("code", slug), reconciled,
+        )
+    derived, no_depth = geometry.derive_frame_depths(project)
+    if derived or no_depth:
+        log.info(
+            "%s frame depth: %d derived from wall type, %d flagged for review",
+            project.get("code", slug), derived, no_depth,
+        )
+
+
 def _sync_blocking_pre(job: dict, project: dict) -> dict:
     """BBox measurement, frame depths, and artifact validation — all sync I/O."""
     from cbc.modules.ops.api.artifact_gate import ArtifactValidationError
 
     slug = project["slug"]
     if job["type"] in ("extract_bid_set", "rerun_extraction", "run_full_pipeline"):
-        attached, unmatched = geometry.measure_bboxes(project)
-        if attached or unmatched:
-            log.info(
-                "%s bbox: %d measured from the sheet, %d left null and flagged",
-                project.get("code", slug), attached, unmatched,
-            )
-        spec_attached, spec_unmatched = geometry.measure_specialty_bboxes(project)
-        if spec_attached or spec_unmatched:
-            log.info(
-                "%s specialty bbox: %d measured from the sheet, %d left null and flagged",
-                project.get("code", slug), spec_attached, spec_unmatched,
-            )
-        reconciled = geometry.reconcile_review_flags(project)
-        if reconciled:
-            log.info(
-                "%s review flags: %d opening(s) had flags contradicting their own data",
-                project.get("code", slug), reconciled,
-            )
-        derived, no_depth = geometry.derive_frame_depths(project)
-        if derived or no_depth:
-            log.info(
-                "%s frame depth: %d derived from wall type, %d flagged for review",
-                project.get("code", slug), derived, no_depth,
-            )
+        measure(project)
 
     if job["type"] in ("match_and_price", "run_full_pipeline"):
         from cbc.modules.pricing.api.catalog_baseline_backfill import (

@@ -64,6 +64,22 @@ export interface Person {
   initials: string;
 }
 
+/** One entry in the bid's addendum log (FR-14). */
+export interface Addendum {
+  number: number;
+  issuedOn?: string | null;
+  changedDocuments?: string | null;
+  newBidDue?: string | null;
+  previousBidDue?: string | null;
+  changedForms?: string | null;
+  notes?: string | null;
+  filename?: string | null;
+  documentId?: string | null;
+  version?: number | null;
+  recordedAt?: string;
+  recordedBy?: string | null;
+}
+
 export interface Project {
   id: string;
   code: string;
@@ -82,6 +98,8 @@ export interface Project {
   mode?: "one_off" | "templated" | null;
   /** Phase 0: alternate names noted at intake (Matrix 4.1 reconciliation pending). */
   bidAlternates?: string[];
+  /** Scope notes from the call, or the text of the email or RFP (FR-1, FR-1a). */
+  rfpText?: string | null;
   stage: Stage;
   progress: number;
   /** Which phase an autopilot / coalesce run has reached. */
@@ -114,6 +132,10 @@ export interface Project {
   outcome?: Outcome;
   /** The P21 order raised against a won bid. */
   p21OrderNo?: string | null;
+  /** The addendum log, in the order logged (FR-14). */
+  addenda?: Addendum[];
+  /** The past bid a templated bid's quote was copied from (FR-11). */
+  templateSourceCode?: string | null;
   counts: Counts;
   documentCount: number;
   quoteTotal?: number | null;
@@ -301,6 +323,25 @@ export interface QuoteLine {
   basis?: string | null;
   costSource?: string | null;
   costSourceDetail?: string | null;
+  /** The NOTE a substitution prints on the quote (FR-17). */
+  substitutionNote?: string | null;
+  /** How sure the match is (FR-8), and the API's band for it (requirements 7.1). */
+  matchConfidence?: number | null;
+  matchBand?: "auto" | "review" | "manual" | null;
+  /** On its maker's stock list (NR-6); null when the maker has none on file. */
+  stock?: boolean | null;
+  /** Why its margin is not the band's, as a code (requirements 5.1). */
+  overrideCode?: string | null;
+  /** Substitution alternates that take this base line out when accepted (FR-14). */
+  deductedBy?: string[];
+  /** List adders the legend names, for the estimator to add (NR-4), and those added. */
+  adderCandidates?: { name: string; listAdder: number }[];
+  appliedAdders?: { name: string; listAdder: number }[];
+  /** Rows this line could as well be, each priced, for an estimator to choose (FR-8). */
+  closeMatches?: CloseMatch[];
+  /** The prior bid a templated quote copied this line from (FR-1d). */
+  carriedFrom?: string | null;
+  manufacturer?: string | null;
   multiplier?: number | null;
   multiplierTier?: string | null;
   multiplierEffectiveDate?: string | null;
@@ -312,6 +353,13 @@ export interface QuoteLine {
   priceStatus?: string | null;
   /** The price book this cost came from is past its review window. */
   lapsed?: boolean;
+  /** How old the cost is, by the rule for where it came from (FR-6a). Null with no cost. */
+  freshness?: {
+    status: "fresh" | "aging" | "unreliable" | "stale" | "unknown" | "future_dated";
+    asOf: string | null;
+    basis: string;
+    guidance: string;
+  } | null;
   /**
    * Margin against its product-type floor (NFR-8). The API has computed this on
    * every line since quote.py:68 and the screen ignored it, so the one guardrail
@@ -326,6 +374,8 @@ export interface QuoteLine {
     product_type?: string;
   } | null;
   alternateGroup?: string | null;
+  /** The doors a set's line is for. */
+  openings?: string[];
   flags: string[];
 }
 
@@ -542,9 +592,15 @@ export interface ProposalResponse {
     exclusions: string[];
     signoff: { role: string; by: string; at: string; state: string }[];
     sentAt: string | null;
+    /** True until an estimator approves it; the document prints as a draft. */
+    draft?: boolean;
   };
   project: Project;
   sections: ProposalSection[];
+  /** Offered beside the bid, each with its own total - never in the bid's. */
+  alternates?: { name: string; total: number; withBase: number; lines: ProposalSection["lines"] }[];
+  /** What this bid's quote assumes and leaves out, generated from its lines. */
+  qualifications?: string[];
   totals: QuoteTotals & { markup: number };
   readiness: {
     flaggedLineItems: number;
@@ -553,7 +609,9 @@ export interface ProposalResponse {
     lapsedLines: number;
     /** Who took responsibility for those lines, if anyone has. */
     lapsedAcknowledgedBy?: string | null;
-    /** True only for lapsed lines: the one gate that stops a hand-off. */
+    /** The review flags that hold the hand-off: no cost, below band with no reason, ... */
+    blockingFlags?: ReviewFlag[];
+    /** Unacknowledged lapsed lines, or any blocking review flag: the hand-off waits. */
     blocking: boolean;
     note: string;
   };
@@ -593,6 +651,8 @@ export interface ParsingSettings {
   fields: Record<string, ParsingField>;
   /** cost_effective | agentic | agentic_plus. `fast` is excluded: no bboxes. */
   tiers: string[];
+  /** llamaparse | nim (NVIDIA nemotron-parse, every page, 40 requests a minute). */
+  providers?: string[];
   updatedAt?: string | null;
   updatedBy?: string | null;
 }
@@ -685,6 +745,37 @@ export interface HandOffResult {
   sent: boolean;
 }
 
+/** One of a line's close matches: what choosing it sets on the line. */
+export interface CloseMatch {
+  label: string;
+  part: string | null;
+  manufacturer: string | null;
+  cost: number | null;
+  costSource: string | null;
+  costSourceDetail: string | null;
+  listPrice?: number | null;
+  multiplier?: number | null;
+  multiplierTier?: string | null;
+  multiplierEffectiveDate?: string | null;
+  priceBookVersion?: string | null;
+}
+
+/** NFR-10: who keeps a data set current and when it is due for review. */
+export interface StewardshipSet {
+  family: string;
+  owner: string;
+  cadence: string;
+  updatedAt: string | null;
+  updatedBy: string | null;
+  reviewDue: string | null;
+  due: boolean;
+}
+
+export interface StewardshipResponse {
+  sets: StewardshipSet[];
+  note: string;
+}
+
 export interface EmailDraft {
   to: string | null;
   subject: string;
@@ -728,8 +819,27 @@ export interface VersionSummary {
   createdAt: string;
   createdBy: string;
   reconciled: boolean;
+  /** Set once a newer version supersedes it: it is never written again. */
+  lockedAt?: string | null;
   lineItemCount: number;
   quoteLineCount: number;
+  /** What the frozen take-off and quote were read from (FR-14). Absent on older versions. */
+  basis?: {
+    documents: { id: string; filename: string | null; kind: string | null }[];
+    addenda: number[];
+  };
+}
+
+/** One difference between a version and the bid as it stands, for the estimator to keep or revert (FR-14). */
+export interface VersionDiffRow {
+  kind: "opening" | "line";
+  key: string;
+  label: string | null;
+  change: "added" | "removed" | "changed";
+  fields?: string[];
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+  decision?: "keep" | "revert" | null;
 }
 
 export interface VersionDiff {
@@ -742,6 +852,8 @@ export interface VersionDiff {
     before: Record<string, unknown>;
     after: Record<string, unknown>;
   }[];
+  rows?: VersionDiffRow[];
+  undecided?: number;
   pending: string;
 }
 
@@ -752,19 +864,38 @@ export interface VersionsResponse {
   pending: string;
 }
 
+/** FR-14: additive adds its lines; deductive takes base scope out; a substitution
+ * is offered instead of the base lines that name it. "by_others" is out of the bid. */
+export type AlternateKind = "additive" | "deductive" | "substitution" | "by_others";
+
 export interface Alternate {
   name: string | null;
   label: string;
   isBase: boolean;
+  kind?: AlternateKind | null;
+  priority?: number | null;
+  description?: string | null;
   lineItemCount: number;
   quoteLineCount: number;
+  /** The group's own lines, before tax and freight. */
   subtotal: number;
   grandTotal: number;
   unpricedLines: number;
+  /** What accepting it does: lines added, base lines taken out, the difference. */
+  added?: number;
+  deducted?: number;
+  net?: number;
+  withBase?: number;
+  complete?: boolean;
+  takeoff?: { item: string | null; baseQty: number; withAlternateQty: number; netQty: number }[];
 }
 
 export interface AlternatesResponse {
   alternates: Alternate[];
+  /** Accepted in priority order, each base line taken out once. */
+  cumulative?: { through: string; total: number }[];
+  /** Base lines two alternates both take out. */
+  overlaps?: { line: string | null; alternates: string[] }[];
   pending: string;
 }
 
@@ -906,12 +1037,32 @@ export interface VendorTierRow {
   price_book?: string | null;
   source?: string | null;
   share_of_volume?: number | null;
+  /** Not bought direct: lines are priced by hand from these (NR-2). */
+  distributors?: string[];
 }
 
 export interface VendorTierDoc {
   vendors: VendorTierRow[];
+  /** Vendors CBC does not quote at any price (requirements 1.2). */
+  excluded?: Array<{ name: string; reason?: string | null }>;
   description?: string;
   rule?: string;
+}
+
+/** The equal CBC quotes for a part it buys only through a distributor (FR-17). */
+export interface HardwareEqualRow {
+  brand?: string | null;
+  part: string;
+  equal_manufacturer?: string | null;
+  equal_part: string;
+  note?: string | null;
+  named_by?: string | null;
+  named_at?: string | null;
+}
+
+export interface HardwareEqualsDoc {
+  description?: string;
+  rows: HardwareEqualRow[];
 }
 
 export interface SpecialNetsDoc {
@@ -1003,8 +1154,18 @@ export interface UserRow {
   role: string;
 }
 
+/** `v2` prices a bid in code; `legacy` runs the Claude pricing pass. */
+export type PricingEngine = "legacy" | "v2";
+
+/** `v2` reads a bid set in code; `legacy` runs the Claude extraction wave. */
+export type ExtractionEngine = "legacy" | "v2";
+
 export interface PipelineSettings {
   autopilotDefault: boolean;
+  pricingEngine: PricingEngine;
+  extractionEngine: ExtractionEngine;
+  /** `v2` builds the proposal in code; `legacy` runs the Claude proposal pass. */
+  proposalEngine: ExtractionEngine;
   note?: string;
   updatedAt?: string | null;
   updatedBy?: string | null;
@@ -1124,6 +1285,8 @@ export interface ReviewFlag {
   issue?: string | null;
   action_required?: string | null;
   derived?: boolean;
+  /** Holds the proposal hand-off until cleared. Only derived flags set it; display severity is separate. */
+  blocking?: boolean;
 }
 
 /** `GET /api/projects/{code}/vendor-rfqs` - FR-16, the third cost path. */
@@ -1164,3 +1327,65 @@ export interface Rfi {
   answer?: string | null;
   answeredAt?: string | null;
 }
+
+/** GET /api/memory - what the memory graph holds. */
+export interface MemoryBid {
+  code: string;
+  name: string | null;
+  brand: string | null;
+  gc: string | null;
+  total: number | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  lines: number | null;
+  sets: number;
+}
+
+/** A problem the steward found in the graph. `summary` is the check's own words;
+ * headline, whyItMatters and suggestedFix are the model's, once it has explained it. */
+export interface MemoryFinding {
+  key: string;
+  check: string;
+  severity: "high" | "medium" | "low";
+  status: "open" | "dismissed";
+  summary: string;
+  count: number;
+  firstSeen: string | null;
+  headline: string | null;
+  whyItMatters: string | null;
+  suggestedFix: string | null;
+  whoFixes: "purchasing" | "estimating" | "admin" | "it" | null;
+  dismissedBy: string | null;
+  dismissNote: string | null;
+}
+
+/** What the historian wrote about one customer's approved bids. */
+export interface MemoryInsight {
+  customer: string;
+  summary: string;
+  patterns: string[] | null;
+  cautions: string[] | null;
+  bids: number;
+  generatedAt: string | null;
+}
+
+export interface MemoryAgentRun {
+  lastRunAt: string | null;
+  open?: number | null;
+  explained?: number | null;
+  customers?: number | null;
+  insights?: number | null;
+}
+
+export interface MemorySummary {
+  available: boolean;
+  configured: boolean;
+  nodes?: Record<string, number>;
+  relationships?: Record<string, number>;
+  lastSyncAt?: string | null;
+  recentBids?: MemoryBid[];
+  agents?: { steward?: MemoryAgentRun; historian?: MemoryAgentRun };
+  findings?: MemoryFinding[];
+  insights?: MemoryInsight[];
+}
+

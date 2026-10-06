@@ -87,3 +87,23 @@ def test_a_superseded_proposal_names_its_replacement() -> None:
     closed = proposals.supersede(first, by_id="p2")
     assert closed["status"] == "superseded"
     assert closed["supersededByProposalId"] == "p2"
+
+
+# ── FR-14: revisions ─────────────────────────────────────────────────────────
+
+def test_a_proposal_is_revised_by_an_addendum_or_a_version_after_its_issue() -> None:
+    from datetime import datetime, timezone
+
+    from cbc.modules.quoting.domain import proposals as rules
+
+    issued = {"issues": [{"revision": 0, "at": datetime(2026, 10, 2, 12, 0), "version": None}]}
+    assert not rules.revised_since_issue({}, {})
+    assert not rules.revised_since_issue({"addenda": [{"recordedAt": datetime(2026, 10, 1)}]}, issued)
+    # Mongo hands back naive datetimes and the app makes aware ones: both compare.
+    later = datetime(2026, 10, 3, tzinfo=timezone.utc)
+    assert rules.revised_since_issue({"addenda": [{"recordedAt": later}]}, issued)
+    assert rules.revised_since_issue({"version": 1}, issued)
+
+    shown = rules.revision({"version": 1}, issued)
+    assert (shown["number"], shown["reissue"], shown["supersedes"]["revision"]) == (1, True, 0)
+    assert rules.numbered("Q-1234", 0) == "Q-1234" and rules.numbered("Q-1234", 2) == "Q-1234 R2"

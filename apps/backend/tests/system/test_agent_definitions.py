@@ -149,20 +149,25 @@ def test_no_agent_claims_a_server_the_deleted_alias_used_to_serve() -> None:
         assert "`pricebook` MCP" not in body, path.stem
 
 
-def test_takeoff_engineer_is_review_first_and_save_artifact_only() -> None:
-    """Closed-world takeoff: no freehand invent, no Write bypass of schema."""
+def test_takeoff_engineer_is_review_first_and_patch_only() -> None:
+    """Closed-world takeoff: no freehand invent, no Write bypass of schema, and the
+    seeded schedule corrected by patch - a whole-file save over it is refused."""
     text = (AGENT_DIR / "takeoff-engineer.md").read_text(encoding="utf-8")
     tools = _frontmatter_tools(text)
     body = _body(text)
     assert "Write" not in tools
     assert "mcp__artifact-storage__save_artifact" in tools
+    assert "mcp__artifact-storage__propose_patch" in tools
+    assert "mcp__pdf-tools__parse_door_openings" in tools
+    assert "checkpoint-propose-patch" in body
+    assert "Save once" not in body
     assert "Fixed procedure" in body or "review-first" in body.lower() or "Read first" in body
     assert "parse_schedule.py" in body
     assert "page_size" in body
     assert "thickness" in body.lower()
     assert "save_artifact" in body
     assert "Never use Write" in body or "never Write" in body.lower()
-    assert "PDF verify" in body or "pdf-verify-before-present" in body
+    assert "PDF verify" in body
     assert "evidence_note" in body
     assert "get_page_blocks" in body or "search_blocks" in body
 
@@ -173,7 +178,7 @@ def test_quality_reviewer_can_open_the_pdf_when_unclear() -> None:
     tools = _frontmatter_tools(text)
     body = _body(text)
     assert any(t.startswith("mcp__pdf-tools__") for t in tools)
-    assert "PDF verify" in body or "pdf-verify-before-present" in body
+    assert "PDF verify" in body
     assert "get_page_blocks" in body or "search_blocks" in body
 
 

@@ -12,7 +12,7 @@ each one is validated **on its own**:
   - a patch that does not name a real opening and a declared field is rejected
   - a patch whose value the `Opening` contract refuses is rejected
   - a patch that fills a field without citing a page is rejected (NFR-3, and
-    `.claude/rules/pdf-verify-before-present.md`, enforced here rather than
+    `.claude/guides/extraction.md`, enforced here rather than
     asked for in prose)
 
 A rejected patch costs that field and leaves a review flag. It never costs the
@@ -49,11 +49,57 @@ def _openings(payload: Any) -> list[dict[str, Any]]:
     return []
 
 
-# For a `lines` patch, the evidence a field needs depends on the field's axis: a
-# cost-derived value is provenanced by cost_source + cost_source_detail, a
-# drawing-derived one by the source_page + excerpt every opening uses. Demanding a
-# drawing page for a cost forces the agent to invent one.
-_LINE_PRICING_FIELDS = frozenset({"cost", "margin", "sale_ea", "ext_price", "multiplier"})
+# What a pricing pass may change on a priced line, and nothing else. Quantity is
+# the take-off's - a pricing patch to it was a count nobody read off a sheet -
+# and sale_ea / ext_price are arithmetic, recomputed here from cost and margin,
+# never typed in. `line_id` is the row's key.
+_LINE_PATCHABLE = frozenset({
+    "cost", "margin", "multiplier", "cost_source", "cost_source_detail",
+    "multiplier_tier", "multiplier_effective_date", "price_book_version",
+    "confidence", "flags", "notes", "substitution_note",
+})
+
+# For a `lines` patch every non-exempt field is a pricing value, provenanced by
+# cost_source + cost_source_detail. Demanding a drawing page for a cost forces
+# the agent to invent one.
+_LINE_PRICING_FIELDS = _LINE_PATCHABLE - EVIDENCE_EXEMPT
+
+# A patch to one of these changes the number the line sells at, so the evidence
+# becomes the line's provenance and the sell price is recomputed.
+_LINE_COST_FIELDS = frozenset({"cost", "margin", "multiplier"})
+
+
+def _repriced(row: dict[str, Any], field: str, evidence: dict[str, Any]) -> str | None:
+    """Carry a cost patch's evidence onto the row and recompute its sell price, in
+    place. None when the row is consistent, else why it cannot be priced.
+
+    A cost or multiplier patch changes where the cost came from, so its evidence
+    becomes the line's provenance. A margin patch does not - the cost still came
+    from wherever it came from - so its evidence is recorded as the override
+    reason, which is what the below-band review flag asks for.
+
+    Through ``pricing.price_line`` -> ``calc.calculate_line``, the same path
+    preprice seeds with: rounding once at the extension, and the division's
+    default margin when the line has none yet - a MANUAL seed row has none.
+    """
+    from cbc.modules.pricing.api import pricing
+
+    if field == "margin":
+        row["margin_overridden"] = True
+        row["margin_override_reason"] = evidence.get("cost_source_detail")
+    else:
+        row["cost_source"] = evidence.get("cost_source")
+        row["cost_source_detail"] = evidence.get("cost_source_detail")
+    if row.get("cost") is None:
+        return None
+    priced = pricing.price_line(row["cost"], row.get("margin"), row.get("quantity"), row.get("division"))
+    if not priced.get("priced"):
+        return priced.get("error") or "the line cannot be priced"
+    row["margin"] = priced["margin"]
+    row["sale_ea"] = priced["sell"]
+    row["ext_price"] = priced["extended"]
+    row["price_status"] = "PRICED"
+    return None
 
 _ROOTS = ("openings", "lines", "items")
 
@@ -151,7 +197,7 @@ def _evidence_ok(patch: dict[str, Any], root: str, field: str) -> bool:
 def _evidence_message(root: str, field: str) -> str:
     if root == "lines" and field in _LINE_PRICING_FIELDS:
         return (
-            f"{field} is a cost - it needs evidence {{cost_source, cost_source_detail}}, "
+            f"{field} is a pricing field - it needs evidence {{cost_source, cost_source_detail}}, "
             "not a drawing page (a cost has no page; demanding one invents it) (NFR-3)"
         )
     return (
@@ -271,6 +317,16 @@ def apply_patches(
             _flag(target, f"patch_rejected_{field}")
             continue
 
+        if root == "lines" and field not in _LINE_PATCHABLE:
+            results.append(PatchResult(
+                raw_path, False,
+                f"{field} is not patchable on a priced line - quantity is the "
+                "take-off's, sale_ea / ext_price are recomputed from cost and "
+                "margin; patch one of " + ", ".join(sorted(_LINE_PATCHABLE)),
+            ))
+            _flag(target, f"patch_rejected_{field}")
+            continue
+
         if not _evidence_ok(patch, root, field):
             results.append(PatchResult(raw_path, False, _evidence_message(root, field)))
             _flag(target, f"patch_unevidenced_{field}")
@@ -287,8 +343,12 @@ def apply_patches(
             results.append(PatchResult(raw_path, False, f"unknown op {op!r} - set or append"))
             continue
 
+        evidence = patch.get("evidence") if isinstance(patch.get("evidence"), dict) else {}
         trial = {**target, field: candidate}
-        why = _validates(trial, model)
+        why = None
+        if root == "lines" and field in _LINE_COST_FIELDS:
+            why = _repriced(trial, field, evidence)
+        why = why or _validates(trial, model)
         if why:
             results.append(PatchResult(
                 raw_path, False, f"rejected by the {model.__name__} contract: {why}"
@@ -296,8 +356,7 @@ def apply_patches(
             _flag(target, f"patch_rejected_{field}")
             continue
 
-        target[field] = candidate
-        evidence = patch.get("evidence") if isinstance(patch.get("evidence"), dict) else {}
+        target.update(trial)
         if evidence:
             if root == "lines" and field in _LINE_PRICING_FIELDS:
                 note = (

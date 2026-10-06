@@ -16,6 +16,7 @@
     "margin": "number",
     "subtotal": "number",
     "tax": "number",
+    "taxExempt": "bool",
     "taxJurisdiction": "str",
     "taxNote": "str",
     "taxRate": "number",
@@ -61,6 +62,10 @@
  },
  "GET /api/projects/{code}/proposal": {
   "body": {
+   "alternates": [],
+   "cumulative": [],
+   "doorRatings": {},
+   "overlaps": [],
    "project": {
     "autopilot": "bool",
     "bidAlternates": [],
@@ -85,21 +90,26 @@
      "name": "str"
     },
     "date": "str",
+    "draft": "bool",
     "estimator": {},
     "exclusions": [
      "str"
     ],
     "markup": "number",
     "proposalNo": "str",
+    "revision": "number",
     "salesRep": {
      "name": "str"
     },
     "sentAt": "null",
     "signoff": [],
+    "supersedes": "null",
     "validityDays": "number"
    },
+   "qualifications": [],
    "readiness": {
     "blocking": "bool",
+    "blockingFlags": [],
     "degraded": "bool",
     "degradedNote": "null",
     "flaggedLineItems": "number",
@@ -118,9 +128,12 @@
        "division": "str",
        "extPrice": "number",
        "group": "null",
+       "manufacturer": "null",
+       "openings": [],
        "part": "null",
        "priceStatus": "null",
        "qty": "number",
+       "qtyPerOpening": "null",
        "substitutionNote": "null",
        "unitPrice": "number",
        "uom": "str"
@@ -146,6 +159,7 @@
     "markup": "number",
     "subtotal": "number",
     "tax": "number",
+    "taxExempt": "bool",
     "taxJurisdiction": "str",
     "taxNote": "str",
     "taxRate": "number",
@@ -202,6 +216,7 @@
     "margin": "null",
     "subtotal": "number",
     "tax": "number",
+    "taxExempt": "bool",
     "taxJurisdiction": "str",
     "taxNote": "str",
     "taxRate": "number",
@@ -236,6 +251,12 @@
        "division": "str",
        "extended": "number",
        "flags": [],
+       "freshness": {
+        "asOf": "str",
+        "basis": "str",
+        "guidance": "str",
+        "status": "str"
+       },
        "id": "id",
        "lapsed": "bool",
        "lineKey": "str",
@@ -256,6 +277,7 @@
         "rate": "number",
         "resolvedFrom": "str"
        },
+       "matchBand": "null",
        "multiplierTierSnapshot": "null",
        "priceBookSnapshot": "null",
        "priceError": "null",
@@ -289,6 +311,7 @@
     "quoteNumber": "str",
     "subtotal": "number",
     "tax": "number",
+    "taxExempt": "bool",
     "taxJurisdiction": "str",
     "taxNote": "str",
     "taxRate": "number",
@@ -311,6 +334,7 @@
     "margin": "number",
     "subtotal": "number",
     "tax": "number",
+    "taxExempt": "bool",
     "taxJurisdiction": "str",
     "taxNote": "str",
     "taxRate": "number",
@@ -341,6 +365,10 @@
  },
  "PATCH /api/projects/{code}/proposal": {
   "body": {
+   "alternates": [],
+   "cumulative": [],
+   "doorRatings": {},
+   "overlaps": [],
    "project": {
     "autopilot": "bool",
     "bidAlternates": [],
@@ -365,21 +393,26 @@
      "name": "str"
     },
     "date": "str",
+    "draft": "bool",
     "estimator": {},
     "exclusions": [
      "str"
     ],
     "markup": "number",
     "proposalNo": "str",
+    "revision": "number",
     "salesRep": {
      "name": "str"
     },
     "sentAt": "null",
     "signoff": [],
+    "supersedes": "null",
     "validityDays": "number"
    },
+   "qualifications": [],
    "readiness": {
     "blocking": "bool",
+    "blockingFlags": [],
     "degraded": "bool",
     "degradedNote": "null",
     "flaggedLineItems": "number",
@@ -398,9 +431,12 @@
        "division": "str",
        "extPrice": "number",
        "group": "null",
+       "manufacturer": "null",
+       "openings": [],
        "part": "null",
        "priceStatus": "null",
        "qty": "number",
+       "qtyPerOpening": "null",
        "substitutionNote": "null",
        "unitPrice": "number",
        "uom": "str"
@@ -426,6 +462,7 @@
     "markup": "number",
     "subtotal": "number",
     "tax": "number",
+    "taxExempt": "bool",
     "taxJurisdiction": "str",
     "taxNote": "str",
     "taxRate": "number",
@@ -489,6 +526,7 @@
      "resolvedFrom": "str"
     },
     "multiplierTierSnapshot": "null",
+    "overrideCode": "null",
     "overrideReason": "str",
     "overrides": [
      {
@@ -500,6 +538,7 @@
        "margin": "number"
       },
       "by": "str",
+      "code": "null",
       "reason": "str"
      }
     ],
@@ -526,6 +565,7 @@
     "margin": "number",
     "subtotal": "number",
     "tax": "number",
+    "taxExempt": "bool",
     "taxJurisdiction": "str",
     "taxNote": "str",
     "taxRate": "number",
@@ -551,6 +591,7 @@
     "margin": "null",
     "subtotal": "number",
     "tax": "number",
+    "taxExempt": "bool",
     "taxJurisdiction": "str",
     "taxNote": "str",
     "taxRate": "number",
@@ -653,6 +694,12 @@
    "message": "str",
    "sent": "bool",
    "status": "str"
+  },
+  "status": 200
+ },
+ "POST /api/projects/{code}/quote/carried/keep": {
+  "body": {
+   "kept": "number"
   },
   "status": 200
  },
@@ -759,6 +806,7 @@
     "margin": "number",
     "subtotal": "number",
     "tax": "number",
+    "taxExempt": "bool",
     "taxJurisdiction": "str",
     "taxNote": "str",
     "taxRate": "number",
@@ -766,6 +814,24 @@
    }
   },
   "status": 201
+ },
+ "POST /api/projects/{code}/quote/lines/{line_id}/adders/{index} #no such adder": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "POST /api/projects/{code}/quote/lines/{line_id}/close-matches/{index} #no such match": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
+ },
+ "POST /api/projects/{code}/quote/lite-kits #no such table": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 404
  },
  "POST /api/projects/{code}/rfis": {
   "body": {

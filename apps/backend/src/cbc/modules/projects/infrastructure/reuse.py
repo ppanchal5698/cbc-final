@@ -1,7 +1,8 @@
 """FR-11: seed a draft estimate from the closest prior quote.
 
 Match on brand / architect / GC. Records `templateSourceEstimateId` on the new
-bid so the reuse is attributable, not silent.
+bid so the reuse is attributable, not silent. The lines themselves are quoting's:
+it hears `TEMPLATE_CHOSEN` and carries them across.
 """
 from __future__ import annotations
 
@@ -45,12 +46,18 @@ async def find_prior(
             score += 2
         if score:
             scored.append((score, row))
-    scored.sort(key=lambda pair: (-pair[0], str(pair[1].get("updatedAt") or "")))
+    # Stable, so equal scores keep the newest-first order of the query: a tie
+    # broken by `updatedAt` ascending made the oldest matching job the template.
+    scored.sort(key=lambda pair: -pair[0])
     return [row for _, row in scored[:limit]]
 
 
 async def seed_from_prior(project: dict[str, Any], prior: dict[str, Any]) -> dict[str, Any]:
     """Mark the new bid as templated from `prior` and copy mode metadata."""
+    from cbc.modules.projects.api import bids
+    from cbc.shared import events
+
+    await events.publish(bids.TEMPLATE_CHOSEN, project=project, prior=prior)
     await bid_requests().update_one(
         {"_id": project["_id"]},
         {

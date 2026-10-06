@@ -89,12 +89,23 @@ def test_frp_constants(client, snapshots) -> None:
     snapshots.pin("PATCH /api/reference/frp-constants", _ok(client.patch(f"{REF}/frp-constants", json={"waste_pct": 0.1})))
 
 
+def test_stewardship(client, snapshots) -> None:
+    """NFR-10: who keeps each data set current, and what is due."""
+    snapshots.pin("GET /api/reference/stewardship", _ok(client.get(f"{REF}/stewardship")))
+
+
 def test_vendor_tiers(client, snapshots) -> None:
     response = snapshots.pin("GET /api/reference/vendor-tiers", _ok(client.get(f"{REF}/vendor-tiers")))
     hager = next(v for v in response.json()["vendors"] if v.get("key") == "hager")
     categories = hager.get("categories") or {"hinges": 0.21}
     body = {"vendor": "hager", "categories": categories}
     snapshots.pin("PATCH /api/reference/vendor-tiers", _ok(client.patch(f"{REF}/vendor-tiers", json=body)))
+
+
+def test_hardware_equals(client, snapshots) -> None:
+    snapshots.pin("GET /api/reference/hardware-equals", _ok(client.get(f"{REF}/hardware-equals")))
+    body = {"items": [{"brand": "Schlage", "part": "L9080", "equal_part": "3580"}]}
+    snapshots.pin("PATCH /api/reference/hardware-equals", _ok(client.patch(f"{REF}/hardware-equals", json=body)))
 
 
 def test_special_nets(client, snapshots) -> None:

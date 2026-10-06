@@ -9,16 +9,18 @@ from fastapi import APIRouter, HTTPException
 from cbc.modules.ops.api import audit
 from cbc.modules.projects.api import bids
 from cbc.modules.projects.api.lookup import load
-from cbc.modules.quoting.api import quote as quote_service
+from cbc.modules.quoting.api import approvals, quote as quote_service
 from cbc.modules.quoting.domain.quotes import HandOff
 from cbc.modules.quoting.infrastructure.collections import proposals
 from cbc.modules.quoting.infrastructure.proposal_view import (
     DEFAULT_EXCLUSIONS,
     VALIDITY_DAYS,
+    export_for_review,
     proposal_payload,
     write_email_draft,
 )
 from cbc.modules.quoting.domain import proposals as proposal_rules
+from cbc.shared import events
 from cbc.shared.auth import Actor
 
 router = APIRouter(prefix="/api/projects/{code}/proposal", tags=["proposal"])
@@ -39,9 +41,10 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
     project = await load(code)
     recipient = (body.recipient if body else None) or project.get("initiator")
 
-    # The one gate on this screen. A lapsed sheet means the margin on those
-    # lines is not real (data-stewardship.md), so the hand-off waits for
-    # purchasing or for a recorded override - the screen offers both.
+    # The gate. A lapsed sheet means the margin on those lines is not real, so
+    # the hand-off waits for purchasing or for a recorded override; a blocking
+    # review flag waits for the estimator to clear what it names. Exported first so the flags see the latest edits.
+    await export_for_review(project)
     readiness = (await proposal_payload(project))["readiness"]
     if readiness.get("blocking"):
         raise HTTPException(status_code=409, detail=readiness["note"])
@@ -59,9 +62,19 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
             "validityDays": VALIDITY_DAYS,
             "poRequired": True,
             "supplyOnly": True,
-            "exclusions": (stored or {}).get("exclusions") or DEFAULT_EXCLUSIONS,
+            "exclusions": (stored or {})["exclusions"] if (stored or {}).get("exclusions") is not None
+            else DEFAULT_EXCLUSIONS,
         },
     )
+
+    # Each approval of a changed bid is an issue (FR-14): the first is the
+    # original; one after an addendum or a new version is the next revision,
+    # approved afresh, and supersedes the last. Routing the same proposal to
+    # someone else is not a new issue.
+    issues = (stored or {}).get("issues") or []
+    revised = proposal_rules.revised_since_issue(project, stored or {})
+    issue = {"revision": len(issues), "at": _now(), "by": actor, "recipient": recipient,
+             "version": project.get("version")}  # the latest frozen version; None before the first
 
     # A proposal cannot come into existence via hand-off upsert (NFR-1 / §3.30).
     # Approval is an insert (or a stamp onto an existing draft); hand-off then
@@ -72,10 +85,19 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
                 "projectId": project["_id"],
                 **approval,
                 "createdAt": _now(),
+                "issues": [issue],
             }
         )
-    elif not stored.get("approvedBy"):
-        await proposals().update_one({"_id": stored["_id"]}, {"$set": approval})
+    else:
+        changes: dict = {}
+        if not stored.get("approvedBy") or revised:
+            changes.update(approval)
+        if not issues or revised:
+            # The whole list in one write: Mongo will not set into an array and
+            # push onto it in the same update.
+            changes["issues"] = [*issues[:-1], {**issues[-1], "supersededAt": _now()}, issue] if issues else [issue]
+        if changes:
+            await proposals().update_one({"_id": stored["_id"]}, {"$set": changes})
 
     await proposals().update_one(
         {"projectId": project["_id"]},
@@ -93,7 +115,7 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
     )
     await bids.record_hand_off(project["_id"], recipient)
 
-    draft_path = write_email_draft(project, recipient, actor)
+    draft_path = await write_email_draft(project, recipient, actor)
 
     await audit.record(
         "proposal.hand_off",
@@ -102,6 +124,9 @@ async def mark_complete(code: str, actor: Actor, body: HandOff | None = None) ->
         after={"recipient": recipient},
         note="in-app hand-off; nothing transmitted",
     )
+    # Whoever learns from approved bids hears it here. A listener's failure must
+    # not undo a sign-off that is already stored, so listeners catch their own.
+    await events.publish(approvals.PROPOSAL_APPROVED, project_id=project["_id"], approved_by=actor)
     return {
         "status": "complete",
         "sent": False,

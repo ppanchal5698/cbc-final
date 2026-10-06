@@ -199,6 +199,15 @@ def test_both_finish_nomenclatures_read_the_same_finish():
         assert resolve_finish(spelling)["us_code"] == "US26D"
 
 
+def test_a_hinge_finish_plated_on_steel_is_its_brass_twin():
+    """Evernorth's hinges are 652 and its locks 626: one satin chrome, and the
+    Hager book lists BB1279 in US26D. The number the spec wrote is kept."""
+    from cbc.modules.pricing.api.reference_library import normalize_finish_value, resolve_finish
+
+    assert resolve_finish("652")["us_code"] == "US26D" and resolve_finish("640")["us_code"] == "US10B"
+    assert normalize_finish_value("652")["value"] == "US26D (652)"
+
+
 def test_us19_is_never_read_as_us26d():
     """They are different satins. A lockset in the wrong one is a return."""
     from cbc.modules.pricing.api.reference_library import resolve_finish
@@ -376,3 +385,21 @@ def test_the_extension_is_rounded_once_not_twice():
     single = calculate_line(cost=74.33, margin=0.27, quantity=1)
     assert single["sale_ea"] == 101.82
     assert single["ext_price"] == 101.82
+
+
+def test_frp_is_priced_at_the_commodity_band_wherever_a_spec_book_files_it():
+    """CBC's margin sheet lists FRP panels as commodity (27%); it was at specialty's 40%."""
+    from cbc.modules.pricing.api import pricing
+
+    assert pricing.band_for_division("06 64 00") == "commodity"
+    assert pricing.band_for_division("09 77 13") == "commodity"
+
+
+def test_a_lite_past_the_printed_table_is_a_quote_not_its_biggest_cell():
+    """It took the largest printed cell: a 40-inch lite priced as an 8-inch one."""
+    from cbc.modules.pricing.domain.calc import lookup_lite_kit_list_price_from_data
+
+    data = {"tables": [{"pdf_page": 30, "widths": [6, 8], "prices": {"10": {"6": 113, "8": 121}}}]}
+    assert lookup_lite_kit_list_price_from_data(data, 7, 9)["list_price"] == 121
+    assert lookup_lite_kit_list_price_from_data(data, 40, 9)["list_price"] is None
+    assert lookup_lite_kit_list_price_from_data(data, 8, 12)["list_price"] is None

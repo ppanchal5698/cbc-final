@@ -15,6 +15,7 @@ from cbc.modules.intake.infrastructure.collections import documents
 from cbc.modules.intake.infrastructure.snapshot import snapshot
 from cbc.modules.ops.api import audit, jobs as job_service, parsing_config
 from cbc.modules.ops.api.jobs import enqueue, enqueue_pipeline, reserve
+from cbc.modules.projects.api import bids
 from cbc.modules.projects.api.lookup import load
 from cbc.modules.intake.infrastructure import pdf
 from cbc.shared import storage
@@ -176,6 +177,14 @@ async def upload_document(
         target.unlink(missing_ok=True)
         raise
 
+    if version is not None:
+        # The addendum's entry in the bid's log (FR-14): its number, its file and the
+        # version it froze. The estimator adds the issue date and what it changed.
+        await bids.log_addendum(
+            project["_id"],
+            {"documentId": str(document["_id"]), "filename": target.name, "version": version["version"]},
+            by=actor,
+        )
     await audit.record(
         "document.upload",
         actor,

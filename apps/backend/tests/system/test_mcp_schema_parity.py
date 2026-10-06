@@ -13,7 +13,6 @@ SERVERS = (
     "p21-connector",
     "reference",
     "bid-docs",
-    "catalog-docs",
 )
 
 
@@ -35,8 +34,8 @@ def test_the_tool_count_is_what_the_toolsets_budget_for() -> None:
     authorship of a seeded checkpoint is what made one bad key cost a whole run.
     """
     total = sum(len(load_server(name).HANDLERS) for name in SERVERS)
-    # pdf-tools(7)+catalog(10)+calc(6)+artifact(5)+p21(3)+reference(14)+bid-docs(4)+catalog-docs(4)
-    assert total == 53
+    # pdf-tools(7)+catalog(10)+calc(6)+artifact(5)+p21(3)+reference(14)+bid-docs(4)
+    assert total == 49
 
 
 def test_handler_parameters_appear_in_the_schema() -> None:

@@ -21,6 +21,7 @@ def register(app) -> None:
     from cbc.modules.intake.features import (
         CreateVersion,
         DeleteDocument,
+        DecideDifference,
         DiffVersion,
         DownloadDocument,
         GetPageSize,
@@ -44,6 +45,7 @@ def register(app) -> None:
         ListVersions,
         GetVersion,
         CreateVersion,
+        DecideDifference,
         DiffVersion,
         MarkReconciled,
     ):
@@ -66,8 +68,16 @@ def register_jobs() -> None:
         documents_api.count_received_after,
         documents_api.parse_signals_by_path,
     )
-    # ops may not import intake: supply incomplete parses so Claude waits.
-    worker.bind_parse_status(incomplete_parses=documents_api.incomplete_parses)
+    # ops may not import intake: supply incomplete parses so Claude waits, and a
+    # way to give one up past the deadline - recorded as a dead parse job would be.
+    async def expire_parse(document_id, error: str) -> None:
+        await ParseDocument.after_finish(
+            {"payload": {"documentId": document_id}}, "dead", error, None
+        )
+
+    worker.bind_parse_status(
+        incomplete_parses=documents_api.incomplete_parses, expire_parse=expire_parse
+    )
     worker.register("ingest_addendum", IngestAddendum.run)
     worker.register("run_full_pipeline", RunFullPipeline.run)
     permanent = (ParseDocument.ParsePermanent, ValueError, FileNotFoundError)

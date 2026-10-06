@@ -12,7 +12,9 @@ export type BoardStatus =
   | "Extracting"
   | "Review"
   | "In progress"
-  | "Sent"
+  // Signed off and routed to the sales initiator, in the app. Nothing is sent
+  // (NFR-1): "Sent" said the copilot had done the one thing it never does.
+  | "Handed off"
   | "Closed"
   | "Shelved";
 
@@ -22,7 +24,7 @@ export const PIPELINE_STAGES: BoardStatus[] = [
   "Extracting",
   "Review",
   "In progress",
-  "Sent",
+  "Handed off",
 ];
 
 const WORKING = new Set(["extracting", "pricing", "quoting"]);
@@ -36,7 +38,7 @@ const WORKING = new Set(["extracting", "pricing", "quoting"]);
 export function boardStatus(project: Project): BoardStatus {
   if (project.bidStatus === "not_bid") return "Shelved";
   if (project.outcome) return "Closed";
-  if (project.handedOffTo) return "Sent";
+  if (project.handedOffTo) return "Handed off";
   if (project.activeJob || (project.chainState && WORKING.has(project.chainState)))
     return "Extracting";
   if ((project.counts?.needsLook ?? 0) > 0) return "Review";
@@ -105,4 +107,10 @@ export function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]>
 /** How a bid's assigned estimator should read on screen. */
 export function estimatorLabel(project: Project): string {
   return project.estimator?.name ?? (project.assignedEstimator || "Unassigned");
+}
+
+/** FR-1c: the bid form names alternates, and the board says so. */
+export function alternatesNote(project: Project): string {
+  const count = project.bidAlternates?.length ?? 0;
+  return count ? ` · ${count} alternate${count === 1 ? "" : "s"}` : "";
 }

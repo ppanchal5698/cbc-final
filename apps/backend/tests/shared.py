@@ -33,16 +33,13 @@ from cbc.shared.paths import repo_root
 
 ROOT = repo_root()
 
-# Skill scripts are invoked as scripts, not imported as packages, so a few tests
-# import them by bare name (`import parse_schedule`). `test_no_sys_path_insert`
+# Skill scripts are invoked as scripts, not imported as packages, so a test
+# imports one by bare name (`import render_quote`). `test_no_sys_path_insert`
 # guards the installable trees and exempts tests/ for exactly this. Append, so
 # nothing here can shadow a real package.
-for _skill_scripts in (
-    ROOT / ".claude" / "skills" / "extract-door-schedule" / "scripts",
-    ROOT / ".claude" / "skills" / "generate-quotation" / "scripts",
-):
-    if _skill_scripts.is_dir() and str(_skill_scripts) not in sys.path:
-        sys.path.append(str(_skill_scripts))
+_skill_scripts = ROOT / ".claude" / "skills" / "generate-quotation" / "scripts"
+if _skill_scripts.is_dir() and str(_skill_scripts) not in sys.path:
+    sys.path.append(str(_skill_scripts))
 
 # Where the cutover moved things. The archived tests spelled these as
 # `ROOT / "packages" / "cbc"`, `ROOT / "tests" / "fixtures"` and `ROOT / "docs"`,
@@ -116,7 +113,7 @@ def require_mongo(client) -> None:
             pytest.fail(f"REQUIRE_MONGO is set but {message}")
         pytest.skip(
             f"{message} - start it with "
-            "`docker compose -f infra/docker-compose.yml up -d mongo`"
+            "`docker compose -f infra/docker-compose.yml up -d documentdb`"
         )
 
 

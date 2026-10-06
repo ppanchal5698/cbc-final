@@ -18,17 +18,20 @@ import {
   CaretRight,
   ArrowsInLineVertical,
   ArrowsOutLineVertical,
+  ClockCounterClockwise,
 } from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
 
 import { AlternateBar } from "@/components/bids/alternate-bar";
 import { VendorRfqsPanel } from "@/components/quote/vendor-rfqs-panel";
+import { CustomLineDialog } from "@/components/quote/custom-line-dialog";
+import { LiteKitDialog } from "@/components/quote/lite-kit-dialog";
 import { JobFailedBanner } from "@/components/jobs/job-failed-banner";
 import { useUiState } from "@/components/shell/ui-state";
 import { formatMoney, formatPercent } from "@/lib/format";
-import { belowBandTitle, isBelowBand } from "@/lib/margin";
+import { belowBandTitle, isBelowBand, wouldBeBelowBand } from "@/lib/margin";
 import { Nomenclature } from "@/components/quote/nomenclature";
-import { slotOf, slotRank } from "@/lib/slot";
+import { componentOf, slotOf, slotRank } from "@/lib/slot";
 import { errorMessage, proxyFetcher, proxyMutate } from "@/lib/proxy-fetcher";
 import { endpoints } from "@/lib/endpoints";
 import { isAdminRole } from "@/lib/job-error";
@@ -40,11 +43,66 @@ const TAX_OPTIONS = [
   { key: "KY", label: "Kentucky 6.5%" },
   // "NONE" is a deliberate ruling; an unset value means the ship-to state decides.
   { key: "NONE", label: "No nexus" },
+  // FR-18: a buyer with an exemption certificate on file. Prints as exempt.
+  { key: "EXEMPT", label: "Tax exempt" },
+];
+
+// Where a cost came from (requirements 5.2): the ladder's own rungs, and the paths
+// an estimator prices by hand - a distributor, the maker's website, a vendor quote.
+const COST_SOURCES = [
+  "P21_LAST_PO",
+  "SPECIAL_NET",
+  "CATALOG_BASELINE",
+  "LIST_X_MULTIPLIER",
+  "DISTRIBUTOR_MANUAL",
+  "MANUFACTURER_WEBSITE",
+  "VENDOR_RFQ",
+  "MANUAL",
 ];
 
 // Component first: an estimator checks a set in the order it is written.
 const COLUMNS =
   "96px minmax(150px,1.1fr) minmax(200px,2fr) 56px 95px 120px 72px minmax(110px,1fr) 100px 32px";
+
+// Why a margin is not the band's (requirements 5.1) - the API's codes, in its words.
+const OVERRIDE_REASONS: [string, string][] = [
+  ["special_customer", "Special customer or brand margin"],
+  ["distributor_buy", "Distributor buy"],
+  ["competitive", "Competitive bid"],
+  ["volume", "Volume or repeat work"],
+  ["estimator_judgment", "Estimator judgment"],
+  ["other", "Other"],
+];
+
+// FR-6a: the requirements' green / amber / red / blocked, from the API's verdict.
+const FRESHNESS: Record<string, { label: string; tone: string }> = {
+  fresh: { label: "current", tone: "text-status-success bg-status-success-soft border-status-success/30" },
+  aging: { label: "aging", tone: "text-status-warning bg-status-warning-soft border-status-warning/30" },
+  unknown: { label: "undated", tone: "text-status-warning bg-status-warning-soft border-status-warning/30" },
+  unreliable: { label: "re-verify", tone: "text-status-error bg-status-error-soft border-status-error/30" },
+  stale: { label: "blocked", tone: "text-status-error bg-status-error-soft border-status-error" },
+  future_dated: { label: "future date", tone: "text-status-error bg-status-error-soft border-status-error/30" },
+};
+
+// FR-8 and requirements 7.1, the API's band for each match. An automatic match
+// says nothing; the others say what the estimator has to do.
+const MATCH_BANDS: Record<string, { label: string; tone: string; note: string }> = {
+  review: {
+    label: "check match",
+    tone: "text-status-warning bg-status-warning-soft border-status-warning/30",
+    note: "proposed with its close matches beside it - confirm it",
+  },
+  manual: {
+    label: "pick match",
+    tone: "text-status-error bg-status-error-soft border-status-error/30",
+    note: "several rows or none - the estimator picks or prices it",
+  },
+};
+
+/** A line copied from a prior bid that nobody has kept yet (FR-1d). */
+function isCarried(line: QuoteLine): boolean {
+  return line.flags.includes("carried_from_prior");
+}
 
 function formatCostSourceLabel(source?: string | null): string {
   if (!source) return "MANUAL";
@@ -61,6 +119,10 @@ function formatCostSourceLabel(source?: string | null): string {
       return "Special Net";
     case "BOOK_PRICE":
       return "Book Price";
+    case "CATALOG_BASELINE":
+      return "Catalog";
+    case "MANUFACTURER_WEBSITE":
+      return "Mfr website";
     case "MANUAL":
       return "Manual";
     default:
@@ -160,12 +222,16 @@ export function QuoteClient({
   const router = useRouter();
   const { openNotes, userRole } = useUiState();
   const [busy, setBusy] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [liteKitOpen, setLiteKitOpen] = useState(false);
   const [alternate, setAlternate] = useState<string | null | undefined>(undefined);
   // NFR-8 is "below-band lines are flagged". The API flags them; until this
   // existed nothing showed the flag, so the guardrail ended at the API boundary.
   const [belowBandOnly, setBelowBandOnly] = useState(false);
   // Collapsed openings, by group key. Nothing is collapsed until asked.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // The catalog-part composer is opened on purpose: its picks are not the bid's.
+  const [composing, setComposing] = useState<Set<string>>(new Set());
 
   const toggleGroup = useCallback((key: string) => {
     setCollapsed((current) => {
@@ -185,10 +251,13 @@ export function QuoteClient({
   );
 
   // Same SWR key as AlternateBar, so this is the same request, not a second one.
-  const { data: alternateData } = useSWR<AlternatesResponse>(
+  const { data: alternateData, mutate: mutateAlternates } = useSWR<AlternatesResponse>(
     `/api/proxy/projects/${code}/alternates`,
     proxyFetcher,
   );
+  // FR-14: the groups a line may sit in, and the substitutions a base line may be replaced in.
+  const lineGroups = (alternateData?.alternates ?? []).filter((entry) => !entry.isBase);
+  const substitutions = lineGroups.filter((entry) => entry.kind === "substitution");
 
   const { data: integrations } = useSWR<IntegrationsResponse>(
     endpoints.integrations(),
@@ -229,6 +298,10 @@ export function QuoteClient({
     0,
   );
 
+  // FR-1d: lines a templated bid copied from a prior one, until an estimator
+  // keeps them. The proposal waits on them, so a leftover row cannot go out.
+  const carried = (data?.groups ?? []).flatMap((group) => group.lines.filter(isCarried));
+
   // When a group is selected the footer must show that group's money, not the
   // whole bid's. These totals are the API's own per-alternate figures.
   const selectedAlternate = filtering
@@ -249,6 +322,14 @@ export function QuoteClient({
     }
   }
 
+  /** A text field the estimator names by hand (FR-9): the part, a description, a NOTE. */
+  function editText(line: QuoteLine, field: "part" | "description" | "substitutionNote", label: string) {
+    const current = (line[field] as string | null | undefined) ?? "";
+    const next = window.prompt(label, current);
+    if (next === null || next.trim() === current || (field === "description" && !next.trim())) return;
+    patchLine(line, { [field]: next.trim() || null });
+  }
+
   async function deleteLine(line: QuoteLine) {
     if (!window.confirm(`Remove "${line.description}" from the quote?`)) return;
     try {
@@ -259,6 +340,60 @@ export function QuoteClient({
       mutate();
     } catch (problem) {
       toast.error("Could not remove that line", { description: errorMessage(problem) });
+    }
+  }
+
+  /** FR-14: move a line into a group, or mark a base line a substitution replaces. */
+  async function regroup(line: QuoteLine, alternate: string | null, role?: "replaced") {
+    try {
+      await proxyMutate(`/api/proxy/projects/${code}/alternates/assign`, {
+        body: { ids: [line.id], alternate, scope: "quote-lines", ...(role ? { role } : {}) },
+      });
+      mutate();
+      mutateAlternates();
+    } catch (problem) {
+      toast.error("Could not move that line", { description: errorMessage(problem) });
+    }
+  }
+
+  /** FR-8: price the line at one of the rows it could as well be. */
+  async function chooseMatch(line: QuoteLine, index: number) {
+    try {
+      await proxyMutate(`/api/proxy/projects/${code}/quote/lines/${line.id}/close-matches/${index}`);
+      toast.success("Close match chosen", { description: line.closeMatches?.[index]?.label ?? undefined });
+      mutate();
+    } catch (problem) {
+      toast.error("Could not use that match", { description: errorMessage(problem) });
+    }
+  }
+
+  /** NR-4: a list adder the legend names, added by the estimator - never by the ladder. */
+  async function addAdder(line: QuoteLine, index: number) {
+    try {
+      await proxyMutate(`/api/proxy/projects/${code}/quote/lines/${line.id}/adders/${index}`);
+      toast.success("Adder added", { description: line.adderCandidates?.[index]?.name });
+      mutate();
+    } catch (problem) {
+      toast.error("Could not add that adder", { description: errorMessage(problem) });
+    }
+  }
+
+  async function keepCarried() {
+    const from = carried[0]?.carriedFrom ?? "the prior bid";
+    if (
+      !window.confirm(
+        `Keep the ${carried.length} line${carried.length === 1 ? "" : "s"} carried from ${from}? ` +
+          "Remove any that do not apply to this job first.",
+      )
+    ) {
+      return;
+    }
+    try {
+      await proxyMutate(`/api/proxy/projects/${code}/quote/carried/keep`);
+      toast.success("Carried lines kept");
+      mutate();
+    } catch (problem) {
+      toast.error("Could not keep those lines", { description: errorMessage(problem) });
     }
   }
 
@@ -303,7 +438,7 @@ export function QuoteClient({
     setBusy(true);
     try {
       await proxyMutate(`/api/proxy/projects/${code}/quote/continue-to-proposal`);
-      toast.success("Proposal queued for Claude");
+      toast.success("Proposal queued");
       refresh();
       router.push(`/bids/${code}/proposal`);
     } catch (problem) {
@@ -356,7 +491,7 @@ export function QuoteClient({
 
         {running && (
           <div className="anim-fadein rounded-xl px-4 py-3 text-[13px] font-medium bg-status-warning-soft border border-status-warning/30 text-status-warning shadow-sm">
-            Claude is pricing the lines. Totals refresh as matches land.
+            Pricing the lines. Totals refresh as matches land.
           </div>
         )}
 
@@ -409,6 +544,18 @@ export function QuoteClient({
               </span>
             )}
 
+            {carried.length > 0 && (
+              <button
+                type="button"
+                onClick={keepCarried}
+                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] font-bold bg-status-warning-soft border border-status-warning/30 text-status-warning shadow-sm hover:brightness-110"
+                title="Copied from a past bid. Remove what does not apply to this job, then keep the rest; the proposal waits until you do."
+              >
+                <ClockCounterClockwise size={14} weight="fill" />
+                {carried.length} carried from {carried[0].carriedFrom ?? "a past bid"} · Keep
+              </button>
+            )}
+
             {!!data?.lapsedCount && (
               <span
                 className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] font-bold bg-status-warning-soft border border-status-warning/30 text-status-warning shadow-sm"
@@ -449,6 +596,30 @@ export function QuoteClient({
               Add line
             </button>
             <button
+              onClick={() => setCustomOpen(true)}
+              title="A line past the stock list, described from the custom / other options"
+              className="flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-bold border border-subtle bg-background text-tx-secondary hover:bg-panel-muted hover:text-tx-primary transition-colors shadow-sm"
+            >
+              <Plus size={14} weight="bold" />
+              Custom line
+            </button>
+            <CustomLineDialog code={code} open={customOpen} onOpenChange={setCustomOpen} onAdded={() => mutate()} />
+            <button
+              onClick={() => setLiteKitOpen(true)}
+              title="A lite kit, louver or glass priced off National Guard's size tables"
+              className="flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-bold border border-subtle bg-background text-tx-secondary hover:bg-panel-muted hover:text-tx-primary transition-colors shadow-sm"
+            >
+              <Plus size={14} weight="bold" />
+              Lite kit
+            </button>
+            <LiteKitDialog
+              code={code}
+              groups={groups.map((group) => group.group)}
+              open={liteKitOpen}
+              onOpenChange={setLiteKitOpen}
+              onAdded={() => mutate()}
+            />
+            <button
               onClick={() =>
                 setCollapsed((current) =>
                   current.size ? new Set() : new Set(groups.map((group) => group.group)),
@@ -468,7 +639,7 @@ export function QuoteClient({
           {running && (
             <div className="anim-fadein relative overflow-hidden px-5 py-3 text-[13px] font-bold bg-status-warning-soft text-status-warning shadow-inner">
               <span className="anim-sweep" />
-              Claude is matching and pricing the confirmed openings.
+              Matching and pricing the openings.
             </div>
           )}
 
@@ -522,7 +693,7 @@ export function QuoteClient({
                   </span>
                   <span className="max-w-[440px] text-[13px] font-medium text-tx-secondary">
                     {running
-                      ? "Claude is working through the catalog and the price books."
+                      ? "Working through the catalog and the price books."
                       : filtering && data?.lineCount
                         ? "Move lines into this alternate on the extraction step, or add them by hand."
                         : "Confirm the openings on the extraction step, then hand off to pricing."}
@@ -532,6 +703,18 @@ export function QuoteClient({
                 groups.map((group) => {
                   const isOpening = group.group !== group.division;
                   const expanded = !collapsed.has(group.group);
+                  // A hardware set prices for the doors that cite it: say which.
+                  const doors = [...new Set(group.lines.flatMap((line) => line.openings ?? []))].sort((a, b) =>
+                    a.localeCompare(b, undefined, { numeric: true }),
+                  );
+                  // A set the legend never listed keeps the schedule's own name for
+                  // it ("GROUP 05"); it is a hardware set all the same.
+                  const setNumber = /^(?:(?:hardware\s+)?(?:group|set)\s*(?:no\.?\s*)?)?(\d+[A-Z]?)$/i.exec(group.group);
+                  const label = !isOpening
+                    ? group.division
+                    : setNumber
+                      ? `Hardware set ${setNumber[1]}`
+                      : group.group;
                   // Slot order is a display rule, so it is applied here rather
                   // than asking the API to sort on something it does not store.
                   const lines = [...group.lines].sort(
@@ -544,7 +727,7 @@ export function QuoteClient({
                         type="button"
                         onClick={() => toggleGroup(group.group)}
                         aria-expanded={expanded}
-                        aria-label={`${expanded ? "Collapse" : "Expand"} ${isOpening ? `opening ${group.group}` : group.division}`}
+                        aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
                         className="text-tx-muted transition-colors hover:text-tx-primary"
                       >
                         {expanded ? (
@@ -554,19 +737,36 @@ export function QuoteClient({
                         )}
                       </button>
                       <span className="text-[14px] font-bold text-tx-primary tracking-tight">
-                        {isOpening ? `Opening ${group.group}` : group.division}
+                        {label}
                       </span>
                       <span className="text-[12px] font-medium text-tx-muted">
+                        {doors.length > 0 && `door${doors.length === 1 ? "" : "s"} ${doors.join(", ")} · `}
                         {isOpening ? `${group.division} · ` : ""}
                         {group.lines.length} component{group.lines.length === 1 ? "" : "s"}
                       </span>
                       <span className="flex-1" />
+                      {isOpening && expanded && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setComposing((current) => {
+                              const next = new Set(current);
+                              if (next.has(group.group)) next.delete(group.group);
+                              else next.add(group.group);
+                              return next;
+                            })
+                          }
+                          className="text-[11.5px] font-semibold text-tx-muted hover:text-tx-primary"
+                        >
+                          {composing.has(group.group) ? "Close the part composer" : "Compose a catalog part"}
+                        </button>
+                      )}
                       <span className="tnum text-[14px] font-bold text-brand-primary">
                         ${formatMoney(group.subtotal)}
                       </span>
                     </div>
 
-                    {expanded && isOpening && (
+                    {expanded && isOpening && composing.has(group.group) && (
                       <Nomenclature opening={group.group} division={group.division} />
                     )}
 
@@ -584,21 +784,170 @@ export function QuoteClient({
                               : "text-tx-muted"
                           }`}
                         >
-                          {slotOf(line.description)}
+                          {componentOf(line)}
                         </span>
 
-                        <span className="truncate text-[13px] font-medium text-tx-secondary" title={line.part ?? undefined}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            editText(
+                              line,
+                              "part",
+                              line.flags?.includes("allegion_equal_needed")
+                                ? "Hager equal's part number - kept, so the next bid that specifies this part prices it"
+                                : "Part number",
+                            )
+                          }
+                          aria-label={`Part number for ${line.description}`}
+                          className="truncate text-left text-[13px] font-medium text-tx-secondary hover:text-tx-primary hover:underline"
+                          title={line.part ?? "Name the part"}
+                        >
                           {line.part ?? "—"}
-                        </span>
+                        </button>
 
                         <span className="min-w-0">
                           <span className="block truncate text-[13.5px] font-semibold text-tx-primary" title={line.description}>
                             {line.description}
                           </span>
+                          {line.substitutionNote && (
+                            <span className="mt-0.5 block text-[11.5px] font-medium text-brand-primary" title={line.substitutionNote}>
+                              NOTE: {line.substitutionNote}
+                            </span>
+                          )}
+                          {/* Wraps: two selects beside Edit / NOTE are wider than the column, and
+                              on a tall row they ran under the quantity box. */}
+                          <span className="mt-0.5 flex flex-wrap gap-x-2 gap-y-1 text-[11px] font-semibold text-tx-muted">
+                            <button type="button" className="hover:text-tx-primary hover:underline"
+                              onClick={() => editText(line, "description", "Description")}>
+                              Edit
+                            </button>
+                            <button type="button" className="hover:text-tx-primary hover:underline"
+                              onClick={() => editText(line, "substitutionNote", "Substitution NOTE printed on the quote")}>
+                              {line.substitutionNote ? "Edit NOTE" : "Add NOTE"}
+                            </button>
+                            {lineGroups.length > 0 && (
+                              <select
+                                aria-label={`Group for ${line.description}`}
+                                value={line.alternateGroup ?? ""}
+                                onChange={(event) => regroup(line, event.target.value || null)}
+                                className="max-w-[140px] truncate rounded border border-subtle bg-background px-1 text-[11px] font-medium text-tx-secondary"
+                              >
+                                <option value="">Base bid</option>
+                                {lineGroups.map((group) => (
+                                  <option key={group.label} value={group.name ?? ""}>
+                                    {group.label}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                            {!line.alternateGroup && substitutions.length > 0 && (
+                              <select
+                                aria-label={`Substitution replacing ${line.description}`}
+                                value={line.deductedBy?.[0] ?? ""}
+                                onChange={(event) => regroup(line, event.target.value || null, "replaced")}
+                                className="max-w-[160px] truncate rounded border border-subtle bg-background px-1 text-[11px] font-medium text-tx-secondary"
+                              >
+                                <option value="">Not replaced</option>
+                                {substitutions.map((group) => (
+                                  <option key={group.label} value={group.name ?? ""}>
+                                    Replaced in {group.label}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </span>
+                          {!!line.closeMatches?.length && (
+                            <details className="mt-1 text-[11.5px]">
+                              <summary className="cursor-pointer font-semibold text-status-warning">
+                                {line.closeMatches.length} close match{line.closeMatches.length === 1 ? "" : "es"}
+                              </summary>
+                              <ul className="mt-1 flex flex-col gap-1">
+                                {line.closeMatches.map((match, index) => {
+                                  const inUse = match.part === line.part && match.cost === line.cost;
+                                  return (
+                                    <li key={`${match.label}-${index}`} className="flex items-center gap-2">
+                                      <span
+                                        className="min-w-0 flex-1 truncate font-medium text-tx-secondary"
+                                        title={match.costSourceDetail ?? undefined}
+                                      >
+                                        {match.label}
+                                        {match.cost === null ? "" : ` · $${formatMoney(match.cost)}`}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        disabled={inUse}
+                                        onClick={() => chooseMatch(line, index)}
+                                        className="shrink-0 rounded border border-subtle px-1.5 py-0.5 text-[11px] font-bold text-tx-secondary hover:text-tx-primary disabled:opacity-60"
+                                      >
+                                        {inUse ? "in use" : "Use"}
+                                      </button>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </details>
+                          )}
+                          {!!line.adderCandidates?.length && (
+                            <span className="mt-1 flex flex-wrap gap-1">
+                              {line.adderCandidates.map((adder, index) => (
+                                <button
+                                  key={`${adder.name}-${index}`}
+                                  type="button"
+                                  onClick={() => addAdder(line, index)}
+                                  title="The legend names this list adder. It goes on the list price, and the line's multiplier applies to the sum."
+                                  className="rounded-md border border-status-warning/30 bg-status-warning-soft px-1.5 py-0.5 text-[10.5px] font-bold text-status-warning hover:brightness-110"
+                                >
+                                  + {adder.name} (list ${formatMoney(adder.listAdder)})
+                                </button>
+                              ))}
+                            </span>
+                          )}
+                          {!!line.appliedAdders?.length && (
+                            <span className="mt-0.5 block text-[11px] font-medium text-tx-muted">
+                              with {line.appliedAdders.map((adder) => adder.name).join(", ")}
+                            </span>
+                          )}
                           {(line.marginOverridden || line.addedByHand) && (
                             <span className="text-[11.5px] font-medium text-status-error mt-0.5 block">
                               {line.addedByHand ? "added by hand" : "margin overridden"}
                               {line.overrideReason ? ` · ${line.overrideReason}` : ""}
+                            </span>
+                          )}
+                          {line.marginOverridden && (
+                            <select
+                              aria-label={`Why the margin on ${line.description} is not the band's`}
+                              value={line.overrideCode ?? ""}
+                              onChange={(event) => event.target.value && patchLine(line, { overrideCode: event.target.value })}
+                              className={`mt-0.5 rounded border px-1 text-[11px] font-medium ${
+                                line.overrideCode
+                                  ? "border-subtle bg-background text-tx-secondary"
+                                  : "border-status-warning/40 bg-status-warning-soft text-status-warning"
+                              }`}
+                            >
+                              <option value="" disabled>
+                                Why? Choose a reason
+                              </option>
+                              {OVERRIDE_REASONS.map(([key, label]) => (
+                                <option key={key} value={key}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          {line.stock === false && (
+                            <span
+                              className="inline-block mt-1 mr-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-tx-secondary border border-subtle bg-panel-muted shadow-sm"
+                              title="Not on the maker's stock list (a draft until CBC confirms it, NR-6) - check the lead time"
+                            >
+                              non-stock
+                            </span>
+                          )}
+                          {isCarried(line) && (
+                            <span
+                              className="inline-block mt-1 mr-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-status-warning border border-status-warning/30 bg-status-warning-soft shadow-sm"
+                              title={`Copied from ${line.carriedFrom ?? "a past bid"}: keep it if it applies to this job, or remove it`}
+                            >
+                              carried
                             </span>
                           )}
                           {isBelowBand(line) && (
@@ -632,12 +981,13 @@ export function QuoteClient({
                               >
                                 {formatCostSourceLabel(line.priceStatus ?? line.costSource)}
                               </span>
+                              {/* Only a price can be stale; with none, the line wants the distributor's quote. */}
                               {line.costSource === "DISTRIBUTOR_MANUAL" && (
                                 <span
                                   className="text-[9.5px] font-medium text-status-warning whitespace-nowrap"
-                                  title="Price may be out of date — refresh"
+                                  title={line.cost === null ? "Ask the distributor for this part's price" : "Price may be out of date — refresh"}
                                 >
-                                  Price may be stale
+                                  {line.cost === null ? "Needs a distributor quote" : "Price may be stale"}
                                 </span>
                               )}
                             </span>
@@ -653,12 +1003,26 @@ export function QuoteClient({
                           value={line.margin === null ? null : Number((line.margin * 100).toFixed(1))}
                           suffix="%"
                           label={`Margin for ${line.description}`}
-                          onCommit={(next) =>
-                            patchLine(line, {
-                              margin: next === null ? null : Math.min(Math.max(next, 0), 99) / 100,
-                              overrideReason: "edited on the quote grid",
-                            })
-                          }
+                          onCommit={(next) => {
+                            const margin = next === null ? null : Math.min(Math.max(next, 0), 99) / 100;
+                            // Below band, the reason is what turns the review's
+                            // blocking flag into a recorded decision - so it is
+                            // asked for, never filled in. Otherwise none is sent.
+                            if (!wouldBeBelowBand(line, margin)) {
+                              patchLine(line, { margin });
+                              return;
+                            }
+                            const reason = window
+                              .prompt(`${formatPercent(margin ?? 0)} is below the band floor. Why?`)
+                              ?.trim();
+                            if (!reason) {
+                              toast.error("Margin not changed", {
+                                description: "A below-band margin needs a reason.",
+                              });
+                              return;
+                            }
+                            patchLine(line, { margin, overrideReason: reason });
+                          }}
                         />
 
                         <span className="min-w-0">
@@ -672,6 +1036,34 @@ export function QuoteClient({
                           >
                             {line.basis ?? "—"}
                           </span>
+                          <select
+                            aria-label={`Cost source for ${line.description}`}
+                            value={line.costSource ?? "MANUAL"}
+                            onChange={(event) => patchLine(line, { costSource: event.target.value })}
+                            className="mt-0.5 w-full truncate rounded border border-subtle bg-background px-1 py-0.5 text-[11px] font-medium text-tx-secondary"
+                          >
+                            {[...new Set([...(line.costSource ? [line.costSource] : []), ...COST_SOURCES])].map((source) => (
+                              <option key={source} value={source}>
+                                {formatCostSourceLabel(source)}
+                              </option>
+                            ))}
+                          </select>
+                          {line.matchBand && MATCH_BANDS[line.matchBand] && (
+                            <span
+                              className={`inline-block mt-0.5 mr-1 rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest shadow-sm ${MATCH_BANDS[line.matchBand].tone}`}
+                              title={`Match confidence ${line.matchConfidence ?? "—"}: ${MATCH_BANDS[line.matchBand].note}`}
+                            >
+                              {MATCH_BANDS[line.matchBand].label}
+                            </span>
+                          )}
+                          {line.freshness && !line.lapsed && FRESHNESS[line.freshness.status] && (
+                            <span
+                              className={`inline-block mt-0.5 rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest shadow-sm ${FRESHNESS[line.freshness.status].tone}`}
+                              title={`${line.freshness.basis}${line.freshness.asOf ? ` ${line.freshness.asOf}` : ""} — ${line.freshness.guidance}`}
+                            >
+                              {FRESHNESS[line.freshness.status].label}
+                            </span>
+                          )}
                           {line.lapsed && (
                             <span
                               className="inline-block mt-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-status-warning-soft text-status-warning shadow-sm"

@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
 """PostToolUse: validate extraction/pricing output after it is written.
 
-Scope checkpoint files and door_schedule **block** (exit 2) when schema-invalid
-so the next subagent does not run on garbage. Other extraction/pricing checks
-warn only (exit 0) — the worker's post-session gate is the hard backstop.
-Rule: .claude/rules/accuracy-trust.md
+The checkpoint files in SCHEMA_PATHS (scope_metadata, scope_summary,
+line_items) **block** (exit 2) when schema-invalid so the next subagent does not
+run on garbage. Other extraction/pricing checks warn only (exit 0) — the
+worker's post-session gate is the hard backstop.
+Guide: .claude/guides/extraction.md
 """
 from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
-from _artifact_path import project_path_from_tool
-
-ROOT = Path(__file__).resolve().parents[2]
+from _artifact_path import bid_dir, project_path_from_tool, writes_artifact
 
 # Exit 2 = Claude Code PostToolUse block (do not continue as if the write succeeded).
 BLOCK = 2
@@ -37,8 +35,9 @@ def main() -> int:
 
 
 def _schema_problems(project: str, rel_path: str) -> list[str]:
-    path = ROOT / "projects" / project / rel_path
-    if not path.is_file():
+    directory = bid_dir(project)
+    path = directory / rel_path if directory else None
+    if path is None or not path.is_file():
         return [f"{project}: {rel_path} missing after write"]
     try:
         from cbc.modules.extraction.api.artifact_schema import validate_artifact_text
@@ -58,6 +57,8 @@ def _schema_problems(project: str, rel_path: str) -> list[str]:
 
 
 def check(payload: dict) -> int:
+    if not writes_artifact(payload.get("tool_name")):
+        return 0
     tool_input = payload.get("tool_input") or {}
     resolved = project_path_from_tool(payload.get("tool_name"), tool_input)
     if not resolved:

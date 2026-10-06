@@ -27,6 +27,7 @@ from pathlib import Path
 
 import fitz
 
+from cbc.shared.storage import pdfs_in
 from cbc.modules.catalog.api.pageindex import basis, store
 from cbc.modules.catalog.api.pageindex.describe import describe_page, needs_a_second_look
 from cbc.modules.catalog.api.pageindex.models import BUILDER_VERSION, PageIndexDocument, PageProfile
@@ -200,7 +201,7 @@ def _fallback_overview(file_name: str, pages: list) -> "object":
 async def build_all(*, force: bool = False, use_llm: bool = True) -> int:
     directory = basis._pricebook_dir()
     built = 0
-    for path in sorted(directory.glob("*.pdf")):
+    for path in pdfs_in(directory):
         try:
             if await build_one(path, force=force, use_llm=use_llm):
                 built += 1

@@ -43,7 +43,12 @@ def bands() -> dict[str, float]:
     if _bands_cache and _bands_cache[0] == stamp:
         return dict(_bands_cache[1])
     bands_map = {b["key"]: float(b["margin"]) for b in data.get("bands", []) if "key" in b}
-    if "accessories_derived" in data and data["accessories_derived"] is not None:
+    # Pricing's `accessories` is the restroom-accessories band an admin edits in
+    # Settings; `accessories_derived` only records where its 56% came from. Read
+    # the other way round, an edit to the band changed nothing on a quote.
+    if "restroom_accessories" in bands_map:
+        bands_map["accessories"] = bands_map["restroom_accessories"]
+    elif data.get("accessories_derived") is not None:
         bands_map["accessories"] = float(data["accessories_derived"])
     result = bands_map or dict(DEFAULT_BANDS)
     _bands_cache = (stamp, result)
@@ -97,7 +102,17 @@ def apply_margin(
     product_type: str,
     override_margin: float | None = None,
     override_reason: str | None = None,
+    customer: str | None = None,
+    brand: str | None = None,
 ) -> dict[str, Any]:
+    if override_margin is None:
+        # Customer special > brand special > band, the same lookup preprice
+        # stamps on seeded lines, so the agent's path cannot skip it.
+        from cbc.modules.pricing.api.pricing import special_margin
+
+        special = special_margin(customer, brand)
+        if special:
+            override_margin, override_reason = special
     return rules.apply_margin(
         cost,
         product_type,
