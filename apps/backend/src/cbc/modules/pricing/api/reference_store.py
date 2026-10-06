@@ -230,6 +230,25 @@ def get_family_sync(family: str, *, prefer_ro: bool = False) -> dict[str, Any]:
     return deepcopy(data)
 
 
+def family_stamp_sync(family: str) -> dict[str, Any] | None:
+    """When the family last changed and who changed it - None while it is still
+    the seed nobody has saved."""
+    if family not in FAMILIES:
+        raise KeyError(f"unknown reference family: {family}")
+    if _memory is not None:
+        row = _memory.get(family)
+    else:
+        coll = _sync_collection()
+        try:
+            row = coll.find_one({"_id": family}, {"updatedAt": 1, "updatedBy": 1}) if coll is not None else None
+        except PyMongoError as exc:
+            log.warning("reference stamp %s failed: %s", family, exc)
+            row = None
+    if not row or not row.get("updatedAt"):
+        return None
+    return {"updatedAt": row["updatedAt"], "updatedBy": row.get("updatedBy")}
+
+
 def put_family_sync(
     family: str,
     data: dict[str, Any],

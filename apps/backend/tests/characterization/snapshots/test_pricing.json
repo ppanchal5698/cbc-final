@@ -889,6 +889,23 @@
   },
   "status": 200
  },
+ "GET /api/reference/stewardship": {
+  "body": {
+   "note": "str",
+   "sets": [
+    {
+     "cadence": "str",
+     "due": "bool",
+     "family": "str",
+     "owner": "str",
+     "reviewDue": "datetime",
+     "updatedAt": "datetime",
+     "updatedBy": "str"
+    }
+   ]
+  },
+  "status": 200
+ },
  "GET /api/reference/stock/{vendor}": {
   "body": {
    "items": [

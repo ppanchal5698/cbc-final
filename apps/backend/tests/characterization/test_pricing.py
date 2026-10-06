@@ -89,6 +89,11 @@ def test_frp_constants(client, snapshots) -> None:
     snapshots.pin("PATCH /api/reference/frp-constants", _ok(client.patch(f"{REF}/frp-constants", json={"waste_pct": 0.1})))
 
 
+def test_stewardship(client, snapshots) -> None:
+    """NFR-10: who keeps each data set current, and what is due."""
+    snapshots.pin("GET /api/reference/stewardship", _ok(client.get(f"{REF}/stewardship")))
+
+
 def test_vendor_tiers(client, snapshots) -> None:
     response = snapshots.pin("GET /api/reference/vendor-tiers", _ok(client.get(f"{REF}/vendor-tiers")))
     hager = next(v for v in response.json()["vendors"] if v.get("key") == "hager")

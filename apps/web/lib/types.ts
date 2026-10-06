@@ -758,6 +758,22 @@ export interface CloseMatch {
   priceBookVersion?: string | null;
 }
 
+/** NFR-10: who keeps a data set current and when it is due for review. */
+export interface StewardshipSet {
+  family: string;
+  owner: string;
+  cadence: string;
+  updatedAt: string | null;
+  updatedBy: string | null;
+  reviewDue: string | null;
+  due: boolean;
+}
+
+export interface StewardshipResponse {
+  sets: StewardshipSet[];
+  note: string;
+}
+
 export interface EmailDraft {
   to: string | null;
   subject: string;

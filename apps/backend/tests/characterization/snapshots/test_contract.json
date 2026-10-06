@@ -413,6 +413,12 @@
   },
   "status": 401
  },
+ "GET /api/reference/stewardship #wrong token": {
+  "body": {
+   "detail": "str"
+  },
+  "status": 401
+ },
  "GET /api/reference/stock/{vendor} #wrong token": {
   "body": {
    "detail": "str"
@@ -1413,6 +1419,11 @@
   {
    "admin": false,
    "op": "GET /api/reference/special-nets",
+   "status": 200
+  },
+  {
+   "admin": false,
+   "op": "GET /api/reference/stewardship",
    "status": 200
   },
   {

@@ -41,6 +41,7 @@ def _request(client, op: str, **kwargs):
 
 
 def test_the_route_table(snapshots) -> None:
+    # 145: NFR-10 added GET /api/reference/stewardship - who keeps each data set current.
     # 144: FR-14's reconciliation added POST /api/projects/{code}/versions/{version}/decisions.
     # 143: FR-14's addendum log added POST /api/projects/{code}/addenda and PATCH .../addenda/{number}.
     # 141: FR-14 added PATCH /api/projects/{code}/alternates/{name} - an alternate's kind and priority.
@@ -56,7 +57,7 @@ def test_the_route_table(snapshots) -> None:
     # assigned to, names only and readable without the admin role.
     # 131: FR-13 added POST /api/learning/apply, which drains the estimator
     # corrections into what the matcher knows.
-    assert len(ROUTES) == 144
+    assert len(ROUTES) == 145
     snapshots.pin_value("routes", ROUTES)
 
 
